@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
@@ -50,7 +50,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(scheduleRegistry, clock);
         this.tickInterval = TICKER_INTERVAL_SETTING.get(settings);
-        this.ticker = new Ticker(DiscoveryNode.isDataNode(settings));
+        this.ticker = new Ticker(DiscoveryNode.canContainData(settings));
     }
 
     @Override

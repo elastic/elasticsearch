@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -128,6 +128,9 @@ public class User implements ToXContentObject {
         sb.append(",email=").append(email);
         sb.append(",metadata=");
         sb.append(metadata);
+        if (enabled == false) {
+            sb.append(",(disabled)");
+        }
         if (authenticatedUser != null) {
             sb.append(",authenticatedUser=[").append(authenticatedUser.toString()).append("]");
         }
@@ -213,6 +216,11 @@ public class User implements ToXContentObject {
         return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user) || AsyncSearchUser.is(user);
     }
 
+    public static boolean isInternalUsername(String username) {
+        return SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username) || XPackSecurityUser.NAME.equals(username)
+            || AsyncSearchUser.NAME.equals(username);
+    }
+
     /** Write just the given {@link User}, but not the inner {@link #authenticatedUser}. */
     private static void writeUser(User user, StreamOutput output) throws IOException {
         output.writeBoolean(false); // not a system user
@@ -239,6 +247,7 @@ public class User implements ToXContentObject {
         ParseField REALM_TYPE = new ParseField("type");
         ParseField REALM_NAME = new ParseField("name");
         ParseField AUTHENTICATION_TYPE = new ParseField("authentication_type");
+        ParseField TOKEN = new ParseField("token");
     }
 }
 

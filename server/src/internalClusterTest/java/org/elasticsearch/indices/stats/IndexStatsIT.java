@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.stats;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -35,7 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
@@ -101,9 +103,9 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1ms")
                 .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
                 .build();
@@ -607,11 +609,22 @@ public class IndexStatsIT extends ESIntegTestCase {
         client().admin().indices().prepareFlush().get();
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
         client().admin().indices().prepareRefresh().get();
-        stats = client().admin().indices().prepareStats().setSegments(true).get();
+
+        final boolean includeSegmentFileSizes = randomBoolean();
+        stats = client().admin().indices().prepareStats().setSegments(true).setIncludeSegmentFileSizes(includeSegmentFileSizes).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
         assertThat(stats.getTotal().getSegments().getCount(), equalTo((long) test1.totalNumShards));
-        assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0L));
+        if (includeSegmentFileSizes) {
+            assertThat(stats.getTotal().getSegments().getFiles().size(), greaterThan(0));
+            for (ObjectObjectCursor<String, SegmentsStats.FileStats> cursor : stats.getTotal().getSegments().getFiles()) {
+                assertThat(cursor.value.getExt(), notNullValue());
+                assertThat(cursor.value.getTotal(), greaterThan(0L));
+                assertThat(cursor.value.getCount(), greaterThan(0L));
+                assertThat(cursor.value.getMin(), greaterThan(0L));
+                assertThat(cursor.value.getMax(), greaterThan(0L));
+            }
+        }
     }
 
     public void testAllFlags() throws Exception {
@@ -721,7 +734,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
                 Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Completion, Flag.Segments,
-                Flag.Translog, Flag.RequestCache, Flag.Recovery, Flag.Bulk};
+                Flag.Translog, Flag.RequestCache, Flag.Recovery, Flag.Bulk, Flag.Shards};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -900,6 +913,10 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Bulk:
                 builder.setBulk(set);
                 break;
+            case Shards:
+                // We don't actually expose shards in IndexStats, but this test fails if it isn't handled
+                builder.request().flags().set(Flag.Shards, set);
+                break;
             default:
                 fail("new flag? " + flag);
                 break;
@@ -942,6 +959,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getRecoveryStats() != null;
             case Bulk:
                 return response.getBulk() != null;
+            case Shards:
+                return response.getShards() != null;
             default:
                 fail("new flag? " + flag);
                 return false;

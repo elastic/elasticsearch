@@ -19,8 +19,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -51,13 +52,11 @@ import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
@@ -94,13 +93,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     protected volatile TransformConfig transformConfig;
     private volatile TransformProgress progress;
-    protected volatile boolean auditBulkFailures = true;
     // Indicates that the source has changed for the current run
     protected volatile boolean hasSourceChanged = true;
 
     protected final AtomicReference<Collection<ActionListener<Void>>> saveStateListeners = new AtomicReference<>();
 
-    private final Map<String, String> fieldMappings;
+    private volatile Map<String, String> fieldMappings;
 
     // the function of the transform, e.g. pivot or latest
     private Function function;
@@ -113,8 +111,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private volatile Integer initialConfiguredPageSize;
     private volatile int pageSize = 0;
-    private long logEvery = 1;
-    private long logCount = 0;
+    private volatile long logEvery = 1;
+    private volatile long logCount = 0;
     private volatile TransformCheckpoint lastCheckpoint;
     private volatile TransformCheckpoint nextCheckpoint;
 
@@ -125,15 +123,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private volatile long lastCheckpointCleanup = 0L;
 
     protected volatile boolean indexerThreadShuttingDown = false;
-    protected volatile boolean stopCalledDuringIndexerThreadShutdown = false;
+    protected volatile boolean saveStateRequestedDuringIndexerThreadShutdown = false;
 
     public TransformIndexer(
         ThreadPool threadPool,
-        TransformConfigManager transformsConfigManager,
+        TransformServices transformServices,
         CheckpointProvider checkpointProvider,
-        TransformAuditor auditor,
         TransformConfig transformConfig,
-        Map<String, String> fieldMappings,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
         TransformIndexerStats jobStats,
@@ -143,16 +139,15 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformContext context
     ) {
         super(threadPool, initialState, initialPosition, jobStats);
-        this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
+        ExceptionsHelper.requireNonNull(transformServices, "transformServices");
+        this.transformsConfigManager = transformServices.getConfigManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
-        this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
+        this.auditor = transformServices.getAuditor();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
-        this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
-        this.progress = transformProgress;
+        this.progress = progress != null ? progress : new TransformProgress();
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
-
         // give runState a default
         this.runState = RunState.APPLY_RESULTS;
 
@@ -162,6 +157,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     abstract void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener);
+
+    abstract void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener);
 
     abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
 
@@ -228,7 +225,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                         logger.warn(new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()), createCheckpointException);
                         listener.onFailure(
                             new RuntimeException(
-                                "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
+                                "Failed to create checkpoint due to: " + createCheckpointException.getMessage(),
                                 createCheckpointException
                             )
                         );
@@ -238,7 +235,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     logger.warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()), getCheckPointException);
                     listener.onFailure(
                         new RuntimeException(
-                            "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
+                            "Failed to retrieve checkpoint due to: " + getCheckPointException.getMessage(),
                             getCheckPointException
                         )
                     );
@@ -273,7 +270,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // On each run, we need to get the total number of docs and reset the count of processed docs
         // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
         // the progress here, and not in the executor.
-        ActionListener<Void> updateConfigListener = ActionListener.wrap(updateConfigResponse -> {
+        ActionListener<Void> configurationReadyListener = ActionListener.wrap(r -> {
             initializeFunction();
 
             if (initialRun()) {
@@ -298,10 +295,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     doGetInitialProgress(request, ActionListener.wrap(response -> {
                         function.getInitialProgressFromResponse(response, ActionListener.wrap(newProgress -> {
                             logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
-                            progress = newProgress;
+                            progress = newProgress != null ? newProgress : new TransformProgress();
                             finalListener.onResponse(null);
                         }, failure -> {
-                            progress = null;
+                            progress = new TransformProgress();
                             logger.warn(
                                 new ParameterizedMessage("[{}] unable to load progress information for task.", getJobId()),
                                 failure
@@ -309,7 +306,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                             finalListener.onResponse(null);
                         }));
                     }, failure -> {
-                        progress = null;
+                        progress = new TransformProgress();
                         logger.warn(new ParameterizedMessage("[{}] unable to load progress information for task.", getJobId()), failure);
                         finalListener.onResponse(null);
                     }));
@@ -319,27 +316,42 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         }, listener::onFailure);
 
+        ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(fieldMappings -> {
+            this.fieldMappings = fieldMappings;
+            configurationReadyListener.onResponse(null);
+        }, listener::onFailure);
+
+        ActionListener<Void> reLoadFieldMappingsListener = ActionListener.wrap(
+            updateConfigResponse -> { doGetFieldMappings(fieldMappingsListener); },
+            listener::onFailure
+        );
+
         // If we are continuous, we will want to verify we have the latest stored configuration
         ActionListener<Void> changedSourceListener = ActionListener.wrap(r -> {
             if (isContinuous()) {
                 transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(config -> {
-                    transformConfig = config;
-                    logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
-                    updateConfigListener.onResponse(null);
+                    if (transformConfig.equals(config) && fieldMappings != null) {
+                        logger.trace("[{}] transform config has not changed.", getJobId());
+                        configurationReadyListener.onResponse(null);
+                    } else {
+                        transformConfig = config;
+                        logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
+                        reLoadFieldMappingsListener.onResponse(null);
+                    }
                 }, failure -> {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION, getJobId());
                     logger.error(msg, failure);
                     // If the transform config index or the transform config is gone, something serious occurred
                     // We are in an unknown state and should fail out
                     if (failure instanceof ResourceNotFoundException) {
-                        updateConfigListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
+                        reLoadFieldMappingsListener.onFailure(new TransformConfigLostOnReloadException(msg, failure));
                     } else {
                         auditor.warning(getJobId(), msg);
-                        updateConfigListener.onResponse(null);
+                        reLoadFieldMappingsListener.onResponse(null);
                     }
                 }));
             } else {
-                updateConfigListener.onResponse(null);
+                reLoadFieldMappingsListener.onResponse(null);
             }
         }, listener::onFailure);
 
@@ -490,7 +502,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 changeCollector.clear();
             }
 
-            long checkpoint = context.getAndIncrementCheckpoint();
+            long checkpoint = context.incrementAndGetCheckpoint();
             lastCheckpoint = getNextCheckpoint();
             nextCheckpoint = null;
             // Reset our failure count as we have finished and may start again with a new checkpoint
@@ -502,19 +514,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // NOTE: this method is called in the same thread as the processing thread.
             // Theoretically, there should not be a race condition with updating progress here.
             // NOTE 2: getPercentComplete should only NOT be null on the first (batch) checkpoint
-            if (progress != null && progress.getPercentComplete() != null && progress.getPercentComplete() < 100.0) {
+            if (progress.getPercentComplete() != null && progress.getPercentComplete() < 100.0) {
                 progress.incrementDocsProcessed(progress.getTotalDocs() - progress.getDocumentsProcessed());
             }
 
             if (lastCheckpoint != null) {
                 long docsIndexed = 0;
                 long docsProcessed = 0;
-                // This should not happen as we simply create a new one when we reach continuous checkpoints
-                // but this is a paranoid `null` check
-                if (progress != null) {
-                    docsIndexed = progress.getDocumentsIndexed();
-                    docsProcessed = progress.getDocumentsProcessed();
-                }
+                docsIndexed = progress.getDocumentsIndexed();
+                docsProcessed = progress.getDocumentsProcessed();
+
                 long durationMs = System.currentTimeMillis() - lastCheckpoint.getTimestamp();
                 getStats().incrementCheckpointExponentialAverages(durationMs < 0 ? 0 : durationMs, docsIndexed, docsProcessed);
             }
@@ -522,7 +531,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 auditor.info(getJobId(), "Finished indexing for transform checkpoint [" + checkpoint + "].");
             }
             logger.debug("[{}] finished indexing for transform checkpoint [{}].", getJobId(), checkpoint);
-            auditBulkFailures = true;
             if (context.shouldStopAtCheckpoint()) {
                 stop();
             }
@@ -647,7 +655,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         } catch (InterruptedException e) {
             logger.error(
                 new ParameterizedMessage(
-                    "[{}] Timed out ({}s) waiting for transform state to be stored.",
+                    "[{}] Interrupt waiting ({}s) for transform state to be stored.",
                     getJobId(),
                     PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
                 ),
@@ -671,6 +679,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         boolean shouldStopAtCheckpoint,
         ActionListener<Void> shouldStopAtCheckpointListener
     ) throws InterruptedException {
+
+        // in case the indexer is already shutting down
+        if (indexerThreadShuttingDown) {
+            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+            saveStateRequestedDuringIndexerThreadShutdown = true;
+            return false;
+        }
+
         IndexerState state = getState();
 
         // in case the indexer isn't running, respond immediately
@@ -680,9 +696,19 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // because save state is async we need to block the call until state is persisted, so that the job can not
             // be triggered (ensured by synchronized)
             CountDownLatch latch = new CountDownLatch(1);
+            logger.debug("[{}] persisiting stop at checkpoint", getJobId());
+
             doSaveState(IndexerState.STARTED, getPosition(), () -> { latch.countDown(); });
 
-            latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS);
+            if (latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
+                logger.error(
+                    new ParameterizedMessage(
+                        "[{}] Timed out ({}s) waiting for transform state to be stored.",
+                        getJobId(),
+                        PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
+                    )
+                );
+            }
             return false;
         }
 
@@ -717,11 +743,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return true;
     }
 
-    synchronized void stopAndSaveState() {
+    synchronized void stopAndMaybeSaveState() {
         onStop();
+        IndexerState state = stop();
+
         if (indexerThreadShuttingDown) {
-            stopCalledDuringIndexerThreadShutdown = true;
-        } else {
+            saveStateRequestedDuringIndexerThreadShutdown = true;
+            // if stop() returned STOPPED we need to persist state, otherwise the indexer does it for us
+        } else if (state == IndexerState.STOPPED) {
             doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
         }
     }
@@ -838,19 +867,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private IterationResult<TransformIndexerPosition> processBuckets(final SearchResponse searchResponse) {
-        long docsBeforeProcess = getStats().getNumDocuments();
-
         Tuple<Stream<IndexRequest>, Map<String, Object>> indexRequestStreamAndCursor = function.processSearchResponse(
             searchResponse,
             getConfig().getDestination().getIndex(),
             getConfig().getDestination().getPipeline(),
             getFieldMappings(),
-            getStats()
+            getStats(),
+            progress
         );
 
         if (indexRequestStreamAndCursor == null || indexRequestStreamAndCursor.v1() == null) {
             if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false || changeCollector.queryForChanges() == false) {
-                return new IterationResult<>(Collections.emptyList(), null, true);
+                return new IterationResult<>(Stream.empty(), null, true);
             }
 
             // cleanup changed Buckets
@@ -860,11 +888,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             runState = RunState.IDENTIFY_CHANGES;
 
             // advance the cursor for changed bucket detection
-            return new IterationResult<>(
-                Collections.emptyList(),
-                new TransformIndexerPosition(null, nextChangeCollectorBucketPosition),
-                false
-            );
+            return new IterationResult<>(Stream.empty(), new TransformIndexerPosition(null, nextChangeCollectorBucketPosition), false);
         }
 
         Stream<IndexRequest> indexRequestStream = indexRequestStreamAndCursor.v1();
@@ -874,16 +898,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             oldPosition != null ? getPosition().getBucketsPosition() : null
         );
 
-        List<IndexRequest> indexRequests = indexRequestStream.collect(Collectors.toList());
-        IterationResult<TransformIndexerPosition> result = new IterationResult<>(indexRequests, newPosition, indexRequests.isEmpty());
-
-        // NOTE: progress is also mutated in onFinish
-        if (progress != null) {
-            progress.incrementDocsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
-            progress.incrementDocsIndexed(result.getToIndex().size());
-        }
-
-        return result;
+        return new IterationResult<>(indexRequestStream, newPosition, false);
     }
 
     private IterationResult<TransformIndexerPosition> processChangedBuckets(final SearchResponse searchResponse) {
@@ -891,13 +906,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         if (nextChangeCollectorBucketPosition == null) {
             changeCollector.clear();
-            return new IterationResult<>(Collections.emptyList(), null, true);
+            return new IterationResult<>(Stream.empty(), null, true);
         }
 
         // reset the runState to fetch the partial updates next
         runState = RunState.APPLY_RESULTS;
 
-        return new IterationResult<>(Collections.emptyList(), getPosition(), false);
+        return new IterationResult<>(Stream.empty(), getPosition(), false);
     }
 
     protected QueryBuilder buildFilterQuery() {
@@ -1016,14 +1031,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         if (newPageSize < MINIMUM_PAGE_SIZE) {
             String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE, pageSize);
             failIndexer(message);
-            return;
+        } else {
+            String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize, newPageSize);
+            auditor.info(getJobId(), message);
+            logger.info("[{}] {}", getJobId(), message);
+            pageSize = newPageSize;
         }
-
-        String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize, newPageSize);
-        auditor.info(getJobId(), message);
-        logger.info("[{}] {}", getJobId(), message);
-        pageSize = newPageSize;
-        return;
     }
 
     /**
@@ -1109,13 +1122,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private synchronized void startIndexerThreadShutdown() {
         indexerThreadShuttingDown = true;
-        stopCalledDuringIndexerThreadShutdown = false;
+        saveStateRequestedDuringIndexerThreadShutdown = false;
     }
 
     private synchronized void finishIndexerThreadShutdown() {
         indexerThreadShuttingDown = false;
-        if (stopCalledDuringIndexerThreadShutdown) {
-            doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
+        if (saveStateRequestedDuringIndexerThreadShutdown) {
+            // if stop has been called and set shouldStopAtCheckpoint to true,
+            // we should stop if we just finished a checkpoint
+            if (context.shouldStopAtCheckpoint() && nextCheckpoint == null) {
+                stop();
+            }
+            doSaveState(getState(), getPosition(), () -> {});
         }
     }
 

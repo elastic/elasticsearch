@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
 
 import java.io.BufferedReader;
 import java.io.IOException;

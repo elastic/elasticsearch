@@ -35,4 +35,16 @@ public class ListTasksRequestBuilder extends TasksRequestBuilder<ListTasksReques
         request.setWaitForCompletion(waitForCompletion);
         return this;
     }
+
+    /**
+     * Should the task match specific descriptions.
+     *
+     * Cannot be used unless {@link ListTasksRequestBuilder#setDetailed(boolean)} is `true`
+     * @param descriptions string array containing simple regex or absolute description matching
+     * @return the builder with descriptions set
+     */
+    public final ListTasksRequestBuilder setDescriptions(String... descriptions) {
+        request.setDescriptions(descriptions);
+        return this;
+    }
 }

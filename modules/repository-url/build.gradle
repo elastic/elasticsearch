@@ -7,12 +7,13 @@
  */
 
 import org.elasticsearch.gradle.PropertyNormalization
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.AntFixture
 
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.test.fixtures'
+
+final Project fixture = project(':test:fixtures:url-fixture')
 
 esplugin {
   description 'Module for URL repository'
@@ -21,7 +22,7 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk', 'count', 'snapshot'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk', 'count', 'snapshot'
   }
 }
 
@@ -43,41 +44,22 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
- // This directory is shared between two URL repositories and one FS repository in YAML integration tests
-File repositoryDir = new File(project.buildDir, "shared-repository")
+testFixtures.useFixture(fixture.path, 'url-fixture')
 
-def testJar = tasks.register("testJar", Jar) {
-  from sourceSets.test.output
-  classifier = "test"
-}
-
-tasks.named("preProcessFixture").configure {
-  inputs.files(testJar, sourceSets.test.runtimeClasspath)
-  doLast {
-    file("${testFixturesDir}/shared").mkdirs()
-    project.copy {
-      from testJar
-      from sourceSets.test.runtimeClasspath
-      into "${testFixturesDir}/shared"
-    }
-    repositoryDir.mkdirs()
-  }
-}
-
-testFixtures.useFixture()
-
-def fixtureAddress = {
-  int ephemeralPort = tasks.named("postProcessFixture").get().ext."test.fixtures.url-fixture.tcp.80"
+def fixtureAddress = { fixtureName ->
+  int ephemeralPort = fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.80"
   assert ephemeralPort > 0
   'http://127.0.0.1:' + ephemeralPort
 }
+
+File repositoryDir = fixture.fsRepositoryDir as File
 
 testClusters.all {
   // repositoryDir is used by a FS repository to create snapshots
   setting 'path.repo', "${repositoryDir.absolutePath}", PropertyNormalization.IGNORE_VALUE
   // repositoryDir is used by two URL repositories to restore snapshots
   setting 'repositories.url.allowed_urls', {
-    "http://snapshot.test*,${fixtureAddress()}"
+    "http://snapshot.test*,${fixtureAddress('url-fixture')}"
   }, PropertyNormalization.IGNORE_VALUE
 }
 

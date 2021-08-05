@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Collections;
 import java.util.List;
@@ -111,6 +111,9 @@ public final class HttpTransportSettings {
     public static final Setting<List<String>> SETTING_HTTP_TRACE_LOG_EXCLUDE =
         Setting.listSetting("http.tracer.exclude",
             Collections.emptyList(), Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    public static final Setting<Boolean> SETTING_HTTP_CLIENT_STATS_ENABLED =
+        boolSetting("http.client_stats.enabled", true, Property.Dynamic, Property.NodeScope);
 
     private HttpTransportSettings() {
     }

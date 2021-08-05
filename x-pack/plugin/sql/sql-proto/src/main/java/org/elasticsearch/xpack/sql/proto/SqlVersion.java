@@ -159,9 +159,13 @@ public class SqlVersion implements Comparable<SqlVersion>{
         return version.compareTo(V_7_7_0) >= 0;
     }
 
-    public static boolean isClientCompatible(SqlVersion version) {
-        /* only client's of version 7.7.0 and later are supported as backwards compatible */
-        return V_7_7_0.compareTo(version) <= 0;
+    // A client is version-compatible with the server if:
+    // - it supports version compatibility (past or on 7.7.0); and
+    // - it's not on a version newer than server's; and
+    // - it's major version is at most one unit behind server's.
+    public static boolean isClientCompatible(SqlVersion server, SqlVersion client) {
+        // ES's Version.CURRENT not available (core not a dependency), so it needs to be passed in as a parameter.
+        return hasVersionCompatibility(client) && server.compareTo(client) >= 0 && server.major - client.major <= 1;
     }
 
     public static boolean supportsDateNanos(SqlVersion version) {

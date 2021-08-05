@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -40,7 +41,7 @@ public class RolloverStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                              ClusterStateObserver observer, Listener listener) {
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         String indexName = indexMetadata.getIndex().getName();
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
         if (indexingComplete) {
@@ -89,15 +90,18 @@ public class RolloverStep extends AsyncActionStep {
         }
 
         // Calling rollover with no conditions will always roll over the index
-        RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null)
-            .masterNodeTimeout(getMasterTimeout(currentClusterState));
+        RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         // We don't wait for active shards when we perform the rollover because the
         // {@link org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep} step will do so
         rolloverRequest.setWaitForActiveShards(ActiveShardCount.NONE);
         getClient().admin().indices().rolloverIndex(rolloverRequest,
             ActionListener.wrap(response -> {
                 assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";
-                listener.onResponse(response.isRolledOver());
+                if (response.isRolledOver()) {
+                    listener.onResponse(true);
+                } else {
+                    listener.onFailure(new IllegalStateException("unexepected exception on unconditional rollover"));
+                }
             }, listener::onFailure));
     }
 

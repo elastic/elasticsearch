@@ -17,7 +17,6 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.concurrent.ExecutorService;
 
@@ -36,19 +35,12 @@ public class DispatchingRestToXContentListener<Response extends ToXContentObject
         this.restRequest = restRequest;
     }
 
-    private void ensureOpen() {
-        if (restRequest.getHttpChannel().isOpen() == false) {
-            throw new TaskCancelledException("response channel [" + restRequest.getHttpChannel() + "] closed");
-        }
-    }
-
     protected ToXContent.Params getParams() {
         return restRequest;
     }
 
     @Override
     protected void processResponse(Response response) {
-        ensureOpen();
         executor.execute(ActionRunnable.wrap(this, l -> new RestBuilderListener<Response>(channel) {
             @Override
             public RestResponse buildResponse(final Response response, final XContentBuilder builder) throws Exception {

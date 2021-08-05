@@ -18,6 +18,7 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
   boolean nullSafeFilter(Boolean)
   double nullSafeSortNumeric(Number)
   String nullSafeSortString(Object)
+  Number nullSafeCastNumeric(Number, String)
 
 #
 # ASCII Functions

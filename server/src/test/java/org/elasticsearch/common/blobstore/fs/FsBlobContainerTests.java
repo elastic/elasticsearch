@@ -11,8 +11,8 @@ import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -66,7 +66,7 @@ public class FsBlobContainerTests extends ESTestCase {
         Files.write(path.resolve(blobName), blobData);
 
         final FsBlobContainer container =
-            new FsBlobContainer(new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false), BlobPath.cleanPath(), path);
+            new FsBlobContainer(new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false), BlobPath.EMPTY, path);
         assertThat(totalBytesRead.get(), equalTo(0L));
 
         final long start = randomLongBetween(0L, Math.max(0L, blobData.length - 1));

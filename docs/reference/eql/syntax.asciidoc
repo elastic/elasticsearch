@@ -18,21 +18,20 @@ keyword connects them.
 event_category where condition
 ----
 
-For example, the following EQL query matches `process` events with a
-`process.name` field value of `svchost.exe`:
+An event category is an indexed value of the <<eql-required-fields,event
+category field>>. By default, the <<eql-search-api,EQL search API>> uses the
+`event.category` field from the {ecs-ref}[Elastic Common Schema (ECS)]. You can
+specify another event category field using the API's
+<<specify-a-timestamp-or-event-category-field,`event_category_field`>>
+parameter.
+
+For example, the following EQL query matches events with an event category of
+`process` and a `process.name` of `svchost.exe`:
 
 [source,eql]
 ----
 process where process.name == "svchost.exe"
 ----
-
-[discrete]
-[[eql-syntax-event-categories]]
-=== Event categories
-
-An event category is a valid, indexed value of the
-<<eql-required-fields,event category field>>. You can set the event category
-field using the `event_category_field` parameter of the EQL search API.
 
 [discrete]
 [[eql-syntax-match-any-event-category]]
@@ -403,12 +402,20 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 [options="header"]
 |====
 | Escape sequence | Literal character
-|`\n`             | A newline (linefeed) character
-|`\r`             | A carriage return character
-|`\t`             | A tab character
-|`\\`             | A backslash (`\`) character
-|`\"`             | A double quote (`"`) character
+|`\n`             | Newline (linefeed)
+|`\r`             | Carriage return
+|`\t`             | Tab
+|`\\`             | Backslash (`\`)
+|`\"`             | Double quote (`"`)
 |====
+
+You can escape Unicode characters using a hexadecimal `\u{XXXXXXXX}` escape
+sequence. The hexadecimal value can be 2-8 characters and is case-insensitive.
+Values shorter than 8 characters are zero-padded. You can use these escape
+sequences to include non-printable or right-to-left (RTL) characters in your
+strings. For example, you can escape a
+{wikipedia}/Right-to-left_mark[right-to-left mark (RLM)] as `\u{200f}`,
+`\u{200F}`, or `\u{0000200f}`.
 
 IMPORTANT: The single quote (`'`) character is reserved for future use. You
 cannot use an escaped single quote (`\'`) for literal strings. Use an escaped
@@ -560,13 +567,13 @@ to:
 
 * Events with the same `user.name` value
 * `file` events with a `file.path` value equal to the following `process`
-   event's `process.path` value.
+   event's `process.executable` value.
 
 [source,eql]
 ----
 sequence
   [ file where file.extension == "exe" ] by user.name, file.path
-  [ process where true ] by user.name, process.path
+  [ process where true ] by user.name, process.executable
 ----
 
 Because the `user.name` field is shared across all events in the sequence, it
@@ -577,7 +584,7 @@ prior one.
 ----
 sequence by user.name
   [ file where file.extension == "exe" ] by file.path
-  [ process where true ] by process.path
+  [ process where true ] by process.executable
 ----
 
 You can combine the `sequence by` and `with maxspan` keywords to constrain a
@@ -602,7 +609,7 @@ keywords to match only a sequence of events that:
 ----
 sequence by user.name with maxspan=15m
   [ file where file.extension == "exe" ] by file.path
-  [ process where true ] by process.path
+  [ process where true ] by process.executable
 ----
 
 [discrete]
@@ -785,7 +792,16 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 [[eql-syntax-limitations]]
 === Limitations
 
-EQL does not support the following features and syntax.
+EQL has the following limitations.
+
+[discrete]
+[[eql-uses-fields-parameter]]
+==== EQL uses the `fields` parameter
+
+EQL retrieves field values using the search API's <<search-fields-param,`fields`
+parameter>>. Any limitations on the `fields` parameter also apply to EQL
+queries. For example, if `_source` is disabled for any returned fields or at
+index level, the values cannot be retrieved.
 
 [discrete]
 [[eql-compare-fields]]
@@ -827,7 +843,7 @@ sub-fields of a `nested` field. However, data streams and indices containing
 follows:
 
 * In {es} EQL, most operators are case-sensitive. For example,
-`process_name == "cmd.exe"` is not equivalent to 
+`process_name == "cmd.exe"` is not equivalent to
 `process_name == "Cmd.exe"`.
 
 * In {es} EQL, functions are case-sensitive. To make a function

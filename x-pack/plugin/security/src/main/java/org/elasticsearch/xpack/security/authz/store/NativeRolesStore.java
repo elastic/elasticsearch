@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -264,7 +264,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             .setSize(0)
                             .setTerminateAfter(1))
                         .request(),
-                    new ActionListener<MultiSearchResponse>() {
+                    new ActionListener.Delegating<MultiSearchResponse, Map<String, Object>>(listener) {
                         @Override
                         public void onResponse(MultiSearchResponse items) {
                             Item[] responses = items.getResponses();
@@ -284,12 +284,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             } else {
                                 usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits().value > 0L);
                             }
-                            listener.onResponse(usageStats);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
+                            delegate.onResponse(usageStats);
                         }
                     }, client::multiSearch));
         }

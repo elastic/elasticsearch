@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.analytics.ttest;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;

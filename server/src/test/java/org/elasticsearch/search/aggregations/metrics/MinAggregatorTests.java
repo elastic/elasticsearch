@@ -34,8 +34,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -83,8 +83,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MinAggregatorTests extends AggregatorTestCase {
 
-    private final String SCRIPT_NAME = "script_name";
-    private final long SCRIPT_VALUE = 19L;
+    private static final String SCRIPT_NAME = "script_name";
+    private static final long SCRIPT_VALUE = 19L;
 
     /** Script to take a field name in params and sum the values of the field. */
     private static final String SUM_FIELD_PARAMS_SCRIPT = "sum_field_params";

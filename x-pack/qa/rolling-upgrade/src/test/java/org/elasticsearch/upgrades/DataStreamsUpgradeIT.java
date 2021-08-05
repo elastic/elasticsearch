@@ -10,8 +10,9 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -66,7 +67,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
                 // include legacy name and date-named indices with today +/-1 in case of clock skew
                 var expectedIndices = List.of(
-                    "{\"_index\":\"" + DataStream.getLegacyDefaultBackingIndexName("logs-foobar", 2) + "\"}",
+                    "{\"_index\":\"" + DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 2) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis + 86400000) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis - 86400000) + "\"}"
@@ -77,7 +78,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             } else {
                 // include legacy name and date-named indices with today +/-1 in case of clock skew
                 var expectedIndices = List.of(
-                    "{\"_index\":\"" + DataStream.getLegacyDefaultBackingIndexName("logs-foobar", 3) + "\"}",
+                    "{\"_index\":\"" + DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 3) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis + 86400000) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis - 86400000) + "\"}"
@@ -143,6 +144,20 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             Request rolloverRequest = new Request("POST", "/logs-barbaz-2021.01.13/_rollover");
             client().performRequest(rolloverRequest);
         } else {
+            if (CLUSTER_TYPE == ClusterType.MIXED) {
+                ensureHealth((request -> {
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "yellow");
+                }));
+            } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+                ensureHealth("logs-barbaz", (request -> {
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "green");
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("level", "shards");
+                }));
+            }
             assertCount("logs-barbaz", 1);
             assertCount("logs-barbaz-2021.01.13", 1);
         }

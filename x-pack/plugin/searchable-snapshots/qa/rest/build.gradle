@@ -1,30 +1,31 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
 }
 
 final File repoDir = file("$buildDir/testclusters/repo")
 
-tasks.named("integTest").configure {
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots', 'cluster', 'open_point_in_time', 'close_point_in_time', 'security'
+  }
+}
+
+tasks.withType(Test).configureEach {
   systemProperty 'tests.path.repo', repoDir
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.license.self_generated.type', 'trial'
 
   setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
   setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
-}
 
-restResources {
-  restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'searchable_snapshots'
-  }
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
 }

@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -302,7 +302,7 @@ public class AutoCreateIndexTests extends ESTestCase {
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
         SystemIndices systemIndices = new SystemIndices(Map.of(
-            "plugin", new SystemIndices.Feature("test feature", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "")))));
+            "plugin", new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "")))));
         return new AutoCreateIndex(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             TestIndexNameExpressionResolver.newInstance(systemIndices), systemIndices);
     }

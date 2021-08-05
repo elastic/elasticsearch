@@ -14,11 +14,11 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
@@ -187,14 +187,14 @@ public class ClusterFormationFailureHelper {
 
             final VoteCollection voteCollection = new VoteCollection();
             foundPeers.forEach(voteCollection::addVote);
-            final String isQuorumOrNot
+            final String haveDiscoveredQuorum
                 = electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), currentTerm, clusterState.term(),
                     clusterState.version(), clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(),
-                    voteCollection) ? "is a quorum" : "is not a quorum";
+                    voteCollection) ? "have discovered possible quorum" : "have only discovered non-quorum";
 
             return String.format(Locale.ROOT,
-                "master not discovered or elected yet, an election requires %s, have discovered [%s] which %s; %s",
-                quorumDescription, foundPeersDescription, isQuorumOrNot, discoveryWillContinueDescription);
+                "master not discovered or elected yet, an election requires %s, %s [%s]; %s",
+                quorumDescription, haveDiscoveredQuorum, foundPeersDescription, discoveryWillContinueDescription);
         }
 
         private String describeQuorum(VotingConfiguration votingConfiguration) {

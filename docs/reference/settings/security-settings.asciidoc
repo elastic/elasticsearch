@@ -46,7 +46,7 @@ recommend that you explicitly add this setting to avoid confusion.
 (<<static-cluster-setting,Static>>)
 A comma-separated list of settings that are omitted from the results of the
 <<cluster-nodes-info,cluster nodes info API>>. You can use wildcards to include
-multiple settings in the list.  For example, the following value hides all the
+multiple settings in the list. For example, the following value hides all the
 settings for the ad1 active_directory realm:
 `xpack.security.authc.realms.active_directory.ad1.*`.
 The API already omits all `ssl` settings, `bind_dn`, and `bind_password` due to
@@ -54,7 +54,7 @@ the sensitive nature of the information.
 
 `xpack.security.fips_mode.enabled`::
 (<<static-cluster-setting,Static>>)
-Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
+Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM. For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
 [discrete]
 [[password-hashing-settings]]
@@ -70,7 +70,7 @@ See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
 ==== Anonymous access settings
 
 You can configure the following anonymous access settings in
-`elasticsearch.yml`.  For more information, see <<anonymous-access>>.
+`elasticsearch.yml`. For more information, see <<anonymous-access>>.
 
 `xpack.security.authc.anonymous.username`::
 (<<static-cluster-setting,Static>>)
@@ -470,14 +470,14 @@ only group considered. Defaults to  `sub_tree`.
 (<<static-cluster-setting,Static>>)
 Specifies a filter to use to look up a group.
 When not set, the realm searches for `group`, `groupOfNames`, `groupOfUniqueNames`,
-or `posixGroup` with the attributes `member`, `memberOf`, or `memberUid`.  Any
+or `posixGroup` with the attributes `member`, `memberOf`, or `memberUid`. Any
 instance of `{0}` in the filter is replaced by the user attribute defined in
 `group_search.user_attribute`.
 
 `group_search.user_attribute`::
 (<<static-cluster-setting,Static>>)
 Specifies the user attribute that is fetched and provided as a parameter to
-the filter.  If not set, the user DN is passed into the filter. Defaults to Empty.
+the filter. If not set, the user DN is passed into the filter. Defaults to Empty.
 
 `unmapped_groups_as_roles`::
 (<<static-cluster-setting,Static>>)
@@ -598,7 +598,7 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-p
 
 `ssl.truststore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
 (<<static-cluster-setting,Static>>)
@@ -726,7 +726,7 @@ only user considered. Defaults to `sub_tree`.
 
 `user_search.filter`::
 (<<static-cluster-setting,Static>>)
-Specifies a filter to use to lookup a user given a username.  The default
+Specifies a filter to use to lookup a user given a username. The default
 filter looks up `user` objects with either `sAMAccountName` or
 `userPrincipalName`. If specified, this must be a valid LDAP user search filter.
 For example `(&(objectClass=user)(sAMAccountName={0}))`. For more information,
@@ -788,7 +788,7 @@ Defaults to `60s`.
 
 `group_search.base_dn`::
 (<<static-cluster-setting,Static>>)
-The context to search for groups in which the user has membership.  Defaults
+The context to search for groups in which the user has membership. Defaults
 to the root of the Active Directory domain.
 
 `group_search.scope`::
@@ -813,7 +813,7 @@ Defaults to `5s` (5 seconds ).
 `timeout.tcp_read`::
 (<<static-cluster-setting,Static>>)
 deprecated[7.7] The TCP read timeout period after establishing an LDAP
-connection.  This is equivalent to and is deprecated in favor of
+connection. This is equivalent to and is deprecated in favor of
 `timeout.response` and they cannot be used simultaneously. An `s` at the end
 indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
 `timeout.ldap_search`.
@@ -901,7 +901,7 @@ You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 `ssl.truststore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
 (<<static-cluster-setting,Static>>)
@@ -991,7 +991,7 @@ for SSL. This setting cannot be used with `certificate_authorities`.
 `files.role_mapping`::
 (<<static-cluster-setting,Static>>)
 Specifies the <<security-files,location>> of the
-<<mapping-roles,YAML role  mapping configuration file>>.
+<<mapping-roles,YAML role mapping configuration file>>.
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `authorization_realms`::
@@ -1167,7 +1167,7 @@ As per `attribute_patterns.principal`, but for the _dn_ property.
 `nameid_format` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The NameID format that should be requested when asking the IdP to authenticate
-the current user. The default is to not  include the `nameid_format` attribute.
+the current user. The default is to not include the `nameid_format` attribute.
 // end::saml-nameid-format-tag[]
 
 // tag::saml-nameid-allow-create-tag[]

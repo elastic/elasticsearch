@@ -16,7 +16,7 @@ Enable or disable allocation for specific kinds of shards:
 * `none` -            No shard allocations of any kind are allowed for any indices.
 
 This setting does not affect the recovery of local primary shards when
-restarting a node.  A restarted node that has a copy of an unassigned primary
+restarting a node. A restarted node that has a copy of an unassigned primary
 shard will recover that primary immediately, assuming that its allocation id matches
 one of the active allocation ids in the cluster state.
 
@@ -43,7 +43,7 @@ one of the active allocation ids in the cluster state.
     While the recovery of replicas happens over the network, the recovery of
     an unassigned primary after node restart uses data from the local disk.
     These should be fast so more initial primary recoveries can happen in
-    parallel on the same node.  Defaults to `4`.
+    parallel on the same node. Defaults to `4`.
 
 [[cluster-routing-allocation-same-shard-host]]
 `cluster.routing.allocation.same_shard.host`::
@@ -119,20 +119,20 @@ calculations.
 `cluster.routing.allocation.balance.shard`::
      (<<dynamic-cluster-setting,Dynamic>>)
      Defines the weight factor for the total number of shards allocated on a node
-     (float). Defaults to `0.45f`.  Raising this raises the tendency to
+     (float). Defaults to `0.45f`. Raising this raises the tendency to
      equalize the number of shards across all nodes in the cluster.
 
 `cluster.routing.allocation.balance.index`::
      (<<dynamic-cluster-setting,Dynamic>>)
      Defines the weight factor for the number of shards per index allocated
-      on a specific node (float). Defaults to `0.55f`.  Raising this raises the
+      on a specific node (float). Defaults to `0.55f`. Raising this raises the
       tendency to equalize the number of shards per index across all nodes in
       the cluster.
 
 `cluster.routing.allocation.balance.threshold`::
      (<<dynamic-cluster-setting,Dynamic>>)
      Minimal optimization value of operations that should be performed (non
-      negative float). Defaults to `1.0f`.  Raising this will cause the cluster
+      negative float). Defaults to `1.0f`. Raising this will cause the cluster
       to be less aggressive about optimizing the shard balance.
 
 

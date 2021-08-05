@@ -15,7 +15,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -37,11 +37,13 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.StringSortScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -248,15 +250,16 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             nested = resolveNested(context, nestedSort);
         }
 
+        SearchLookup searchLookup = context.lookup();
         switch (type) {
             case STRING:
                 final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
-                final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
+                final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
                 return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
                     StringSortScript leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.newInstance(context);
+                        leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
                             @Override
@@ -286,12 +289,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 };
             case NUMBER:
                 final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
-                final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), context.lookup());
+                // searchLookup is unnecessary here, as it's just used for expressions
+                final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), searchLookup);
                 return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
                     NumberSortScript leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = numberSortScript.newInstance(context);
+                        leafScript = numberSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) throws IOException {

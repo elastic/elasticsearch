@@ -108,7 +108,7 @@ public final class ExternalTestCluster extends TestCluster {
             for (int i = 0; i < nodeInfos.getNodes().size(); i++) {
                 NodeInfo nodeInfo = nodeInfos.getNodes().get(i);
                 httpAddresses[i] = nodeInfo.getInfo(HttpInfo.class).address().publishAddress().address();
-                if (DiscoveryNode.isDataNode(nodeInfo.getSettings())) {
+                if (DiscoveryNode.canContainData(nodeInfo.getSettings())) {
                     dataNodes++;
                     masterAndDataNodes++;
                 } else if (DiscoveryNode.isMasterNode(nodeInfo.getSettings())) {
@@ -181,10 +181,6 @@ public final class ExternalTestCluster extends TestCluster {
             for (NodeStats stats : nodeStats.getNodes()) {
                 assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
                         stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
-                assertThat("Accounting breaker not reset to " + stats.getIndices().getSegments().getMemoryInBytes() +
-                                " on node: " + stats.getNode(),
-                        stats.getBreaker().getStats(CircuitBreaker.ACCOUNTING).getEstimated(),
-                        equalTo(stats.getIndices().getSegments().getMemoryInBytes()));
                 // ExternalTestCluster does not check the request breaker,
                 // because checking it requires a network request, which in
                 // turn increments the breaker, making it non-0

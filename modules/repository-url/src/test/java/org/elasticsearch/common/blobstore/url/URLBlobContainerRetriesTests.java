@@ -8,7 +8,8 @@
 
 package org.elasticsearch.common.blobstore.url;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.apache.http.ConnectionClosedException;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
@@ -17,15 +18,20 @@ import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
+import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
+import java.net.SocketTimeoutException;
 import java.net.URL;
+
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressForbidden(reason = "use a http server")
 public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
@@ -57,6 +63,14 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
     }
 
     @Override
+    protected Matcher<Object> readTimeoutExceptionMatcher() {
+        // If the timeout is too tight it's possible that an URLHttpClientIOException is thrown as that
+        // exception is thrown before reading data from the response body.
+        return either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
+            .or(instanceOf(RuntimeException.class)).or(instanceOf(URLHttpClientIOException.class));
+    }
+
+    @Override
     protected BlobContainer createBlobContainer(Integer maxRetries,
                                                 TimeValue readTimeout,
                                                 Boolean disableChunkedEncoding,
@@ -76,7 +90,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
             final URLHttpClientSettings httpClientSettings = URLHttpClientSettings.fromSettings(settings);
             URLBlobStore urlBlobStore =
                 new URLBlobStore(settings, new URL(getEndpointForServer()), factory.create(httpClientSettings), httpClientSettings);
-            return urlBlobStore.blobContainer(new BlobPath());
+            return urlBlobStore.blobContainer(BlobPath.EMPTY);
         } catch (MalformedURLException e) {
             throw new RuntimeException("Unable to create URLBlobStore", e);
         }

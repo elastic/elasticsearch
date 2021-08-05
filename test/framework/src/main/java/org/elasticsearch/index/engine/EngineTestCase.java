@@ -54,23 +54,22 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -80,9 +79,10 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -238,7 +238,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
             config.getCircuitBreakerService(), globalCheckpointSupplier, config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), tombstoneDocSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
@@ -248,7 +248,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
     }
 
     public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
@@ -258,7 +258,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
             config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
     }
 
     @Override
@@ -280,27 +280,25 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertMaxSeqNoInCommitUserData(replicaEngine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
             }
-            assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
-            assertThat(replicaEngine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
         }
     }
 
 
-    protected static ParseContext.Document testDocumentWithTextField() {
+    protected static LuceneDocument testDocumentWithTextField() {
         return testDocumentWithTextField("test");
     }
 
-    protected static ParseContext.Document testDocumentWithTextField(String value) {
-        ParseContext.Document document = testDocument();
+    protected static LuceneDocument testDocumentWithTextField(String value) {
+        LuceneDocument document = testDocument();
         document.add(new TextField("value", value, Field.Store.YES));
         return document;
     }
 
 
-    protected static ParseContext.Document testDocument() {
-        return new ParseContext.Document();
+    protected static LuceneDocument testDocument() {
+        return new LuceneDocument();
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
@@ -313,11 +311,11 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected static ParsedDocument testParsedDocument(
-            String id, String routing, ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
+            String id, String routing, LuceneDocument document, BytesReference source, Mapping mappingUpdate) {
         return testParsedDocument(id, routing, document, source, mappingUpdate, false);
     }
     protected static ParsedDocument testParsedDocument(
-            String id, String routing, ParseContext.Document document, BytesReference source, Mapping mappingUpdate,
+            String id, String routing, LuceneDocument document, BytesReference source, Mapping mappingUpdate,
             boolean recoverySource) {
         Field uidField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
@@ -343,7 +341,8 @@ public abstract class EngineTestCase extends ESTestCase {
         final String nestedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("nested_field").field("type", "nested").endObject().endObject()
             .endObject().endObject());
-        final DocumentMapper nestedMapper = mapperService.parse("type", new CompressedXContent(nestedMapping));
+        final DocumentMapper nestedMapper = mapperService.merge("type", new CompressedXContent(nestedMapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         return (docId, nestedFieldValues) -> {
             final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value");
             if (nestedFieldValues > 0) {
@@ -355,47 +354,6 @@ public abstract class EngineTestCase extends ESTestCase {
             }
             source.endObject();
             return nestedMapper.parse(new SourceToParse("test", docId, BytesReference.bytes(source), XContentType.JSON));
-        };
-    }
-
-    /**
-     * Creates a tombstone document that only includes uid, seq#, term and version fields.
-     */
-    public static EngineConfig.TombstoneDocSupplier tombstoneDocSupplier(){
-        return new EngineConfig.TombstoneDocSupplier() {
-            @Override
-            public ParsedDocument newDeleteTombstoneDoc(String id) {
-                final ParseContext.Document doc = new ParseContext.Document();
-                Field uidField = new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
-                doc.add(uidField);
-                Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
-                doc.add(versionField);
-                SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-                doc.add(seqID.seqNo);
-                doc.add(seqID.seqNoDocValue);
-                doc.add(seqID.primaryTerm);
-                seqID.tombstoneField.setLongValue(1);
-                doc.add(seqID.tombstoneField);
-                return new ParsedDocument(versionField, seqID, id, null,
-                    Collections.singletonList(doc), new BytesArray("{}"), XContentType.JSON, null);
-            }
-
-            @Override
-            public ParsedDocument newNoopTombstoneDoc(String reason) {
-                final ParseContext.Document doc = new ParseContext.Document();
-                SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-                doc.add(seqID.seqNo);
-                doc.add(seqID.seqNoDocValue);
-                doc.add(seqID.primaryTerm);
-                seqID.tombstoneField.setLongValue(1);
-                doc.add(seqID.tombstoneField);
-                Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
-                doc.add(versionField);
-                BytesRef byteRef = new BytesRef(reason);
-                doc.add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
-                return new ParsedDocument(versionField, seqID, null, null,
-                    Collections.singletonList(doc), null, XContentType.JSON, null);
-            }
         };
     }
 
@@ -711,12 +669,10 @@ public abstract class EngineTestCase extends ESTestCase {
                 globalCheckpointSupplier,
                 retentionLeasesSupplier,
                 primaryTerm,
-                tombstoneDocSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
     }
 
-    protected EngineConfig config(EngineConfig config, Store store, Path translogPath,
-                                  EngineConfig.TombstoneDocSupplier tombstoneDocSupplier) {
+    protected EngineConfig config(EngineConfig config, Store store, Path translogPath) {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test",
             Settings.builder().put(config.getIndexSettings().getSettings())
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
@@ -727,7 +683,7 @@ public abstract class EngineTestCase extends ESTestCase {
             translogConfig, config.getFlushMergesAfter(), config.getExternalRefreshListener(),
             config.getInternalRefreshListener(), config.getIndexSort(), config.getCircuitBreakerService(),
             config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(), tombstoneDocSupplier, config.getSnapshotCommitSupplier());
+            config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
     }
 
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {
@@ -1189,9 +1145,9 @@ public abstract class EngineTestCase extends ESTestCase {
         return mapperService;
     }
 
-    public static DocumentMapper docMapper() {
+    public static MappingLookup mappingLookup() {
         try {
-            return createMapperService().documentMapper();
+            return createMapperService().mappingLookup();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -1283,6 +1239,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 public LeafReader wrap(LeafReader leaf) {
                     try {
                         final IndexSearcher searcher = new IndexSearcher(leaf);
+                        searcher.setQueryCache(null);
                         final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
                         final Scorer scorer = weight.scorer(leaf.getContext());
                         final DocIdSetIterator iterator = scorer != null ? scorer.iterator() : null;

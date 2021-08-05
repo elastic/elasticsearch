@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -69,8 +69,8 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
         return true;
     }
 
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
-        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
+    protected void processNodePaths(Terminal terminal, Path dataPath, OptionSet options, Environment env) throws IOException {
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPath);
 
         final Tuple<Long, ClusterState> state = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = state.v2();

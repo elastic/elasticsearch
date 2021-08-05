@@ -9,7 +9,9 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.Rounding.DateTimeUnit;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -22,9 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueHours;
+import static org.elasticsearch.core.TimeValue.timeValueMinutes;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class InternalDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalDateHistogram> {
 
@@ -179,5 +181,29 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, metadata);
+    }
+
+    public void testLargeReduce() {
+        expectReduceUsesTooManyBuckets(
+            new InternalDateHistogram(
+                "h",
+                List.of(),
+                BucketOrder.key(true),
+                0,
+                0,
+                new InternalDateHistogram.EmptyBucketInfo(
+                    Rounding.builder(DateTimeUnit.SECOND_OF_MINUTE).build(),
+                    InternalAggregations.EMPTY,
+                    new LongBounds(
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2018-01-01T00:00:00Z"),
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-01-01T00:00:00Z")
+                    )
+                ),
+                DocValueFormat.RAW,
+                false,
+                null
+            ),
+            100000
+        );
     }
 }

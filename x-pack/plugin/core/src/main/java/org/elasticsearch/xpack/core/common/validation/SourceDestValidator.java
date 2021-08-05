@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.regex.Regex;
@@ -43,6 +43,7 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.validateIndexOrAliasName;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE;
 
 /**
  * Validation of source indexes and destination index.
@@ -58,7 +59,7 @@ public final class SourceDestValidator {
     public static final String DEST_LOWERCASE = "Destination index [{0}] must be lowercase";
     public static final String NEEDS_REMOTE_CLUSTER_SEARCH = "Source index is configured with a remote index pattern(s) [{0}]"
         + " but the current node [{1}] is not allowed to connect to remote clusters."
-        + " Please enable remote.cluster_client for all data nodes.";
+        + " Please enable " + REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " for all {2} nodes.";
     public static final String ERROR_REMOTE_CLUSTER_SEARCH = "Error resolving remote source: {0}";
     public static final String UNKNOWN_REMOTE_CLUSTER_LICENSE = "Error during license check ({0}) for remote cluster "
         + "alias(es) {1}, error: {2}";
@@ -253,7 +254,6 @@ public final class SourceDestValidator {
         .strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     public static final SourceDestValidation SOURCE_MISSING_VALIDATION = new SourceMissingValidation();
-    public static final SourceDestValidation REMOTE_SOURCE_VALIDATION = new RemoteSourceEnabledAndRemoteLicenseValidation();
     public static final SourceDestValidation DESTINATION_IN_SOURCE_VALIDATION = new DestinationInSourceValidation();
     public static final SourceDestValidation DESTINATION_SINGLE_INDEX_VALIDATION = new DestinationSingleIndexValidation();
     public static final SourceDestValidation REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION = new RemoteSourceNotSupportedValidation();
@@ -380,7 +380,14 @@ public final class SourceDestValidator {
         }
     }
 
-    static class RemoteSourceEnabledAndRemoteLicenseValidation implements SourceDestValidation {
+    public static class RemoteSourceEnabledAndRemoteLicenseValidation implements SourceDestValidation {
+
+        private final String nodeRoleThatRequiresRemoteClusterClient;
+
+        public RemoteSourceEnabledAndRemoteLicenseValidation(String nodeRoleThatRequiresRemoteClusterClient) {
+            this.nodeRoleThatRequiresRemoteClusterClient = nodeRoleThatRequiresRemoteClusterClient;
+        }
+
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
             if (context.resolveRemoteSource().isEmpty()) {
@@ -392,7 +399,11 @@ public final class SourceDestValidator {
             // we can only check this node at the moment, clusters with mixed CCS enabled/disabled nodes are not supported,
             // see gh#50033
             if (context.isRemoteSearchEnabled() == false) {
-                context.addValidationError(NEEDS_REMOTE_CLUSTER_SEARCH, context.resolveRemoteSource(), context.getNodeName());
+                context.addValidationError(
+                    NEEDS_REMOTE_CLUSTER_SEARCH,
+                    context.resolveRemoteSource(),
+                    context.getNodeName(),
+                    nodeRoleThatRequiresRemoteClusterClient);
                 listener.onResponse(context);
                 return;
             }

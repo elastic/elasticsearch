@@ -43,7 +43,7 @@ Open {kib}'s main menu and click *Stack Management > Index Management*.
 image::images/index-mgmt/management_index_labels.png[Index Management UI]
 
 The *Index Management* page contains an overview of your indices.
-Badges indicate if an index is <<frozen-indices,frozen>>, a
+Badges indicate if an index is <<freeze-index-api,frozen>>, a
 <<ccr-put-follow,follower index>>, or a
 <<rollup-get-rollup-index-caps,rollup index>>.
 
@@ -125,14 +125,14 @@ with that index pattern.
 
 . Leave *Data Stream*, *Priority*, *Version*, and *_meta field* blank or as-is.
 
-*Step 2. Add settings, mappings, and index aliases*
+*Step 2. Add settings, mappings, and aliases*
 
 . Add <<indices-component-template,component templates>> to your index template.
 +
 Component templates are pre-configured sets of mappings, index settings, and
-index aliases you can reuse across multiple index templates. Badges indicate
+aliases you can reuse across multiple index templates. Badges indicate
 whether a component template contains mappings (*M*), index settings (*S*),
-index aliases (*A*), or a combination of the three.
+aliases (*A*), or a combination of the three.
 +
 Component templates are optional. For this tutorial, do not add any component
 templates.
@@ -144,7 +144,7 @@ image::images/index-mgmt/management_index_component_template.png[Component templ
 section blank.
 
 . Define a mapping that contains an <<object,object>> field named `geo` with a
-child <<geo-point,geo-point>> field named `coordinates`:
+child <<geo-point,`geo_point`>> field named `coordinates`:
 +
 [role="screenshot"]
 image::images/index-mgmt/management-index-templates-mappings.png[Mapped fields page]
@@ -171,7 +171,7 @@ You can create additional mapping configurations in the *Dynamic templates* and
 *Advanced options* tabs. For this tutorial, do not create any additional
 mappings.
 
-. Define an index alias named `my-index`:
+. Define an alias named `my-index`:
 +
 [source,js]
 ----

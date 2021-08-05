@@ -64,8 +64,14 @@ public class RepositoriesModuleTests extends ESTestCase {
 
         // Would throw
         new RepositoriesModule(
-            environment, repoPlugins, transportService, mock(ClusterService.class), MockBigArrays.NON_RECYCLING_INSTANCE, contentRegistry,
-            recoverySettings);
+            environment,
+            repoPlugins,
+            transportService,
+            mock(ClusterService.class),
+            MockBigArrays.NON_RECYCLING_INSTANCE,
+            contentRegistry,
+            recoverySettings
+        );
     }
 
     public void testCannotRegisterTwoRepositoriesWithSameTypes() {
@@ -74,22 +80,42 @@ public class RepositoriesModuleTests extends ESTestCase {
         when(plugin2.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings))
             .thenReturn(Collections.singletonMap("type1", factory));
 
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> new RepositoriesModule(environment, repoPlugins, transportService, clusterService,
-                    MockBigArrays.NON_RECYCLING_INSTANCE, contentRegistry, recoverySettings));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RepositoriesModule(
+                environment,
+                repoPlugins,
+                transportService,
+                clusterService,
+                MockBigArrays.NON_RECYCLING_INSTANCE,
+                contentRegistry,
+                recoverySettings
+            )
+        );
 
         assertEquals("Repository type [type1] is already registered", ex.getMessage());
     }
 
     public void testCannotRegisterTwoInternalRepositoriesWithSameTypes() {
-        when(plugin1.getInternalRepositories(environment, contentRegistry, clusterService, recoverySettings))
-            .thenReturn(Collections.singletonMap("type1", factory));
-        when(plugin2.getInternalRepositories(environment, contentRegistry, clusterService, recoverySettings))
-            .thenReturn(Collections.singletonMap("type1", factory));
+        when(plugin1.getInternalRepositories(environment, contentRegistry, clusterService, recoverySettings)).thenReturn(
+            Collections.singletonMap("type1", factory)
+        );
+        when(plugin2.getInternalRepositories(environment, contentRegistry, clusterService, recoverySettings)).thenReturn(
+            Collections.singletonMap("type1", factory)
+        );
 
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> new RepositoriesModule(environment, repoPlugins, mock(TransportService.class), clusterService,
-                MockBigArrays.NON_RECYCLING_INSTANCE, contentRegistry, recoverySettings));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RepositoriesModule(
+                environment,
+                repoPlugins,
+                mock(TransportService.class),
+                clusterService,
+                MockBigArrays.NON_RECYCLING_INSTANCE,
+                contentRegistry,
+                recoverySettings
+            )
+        );
 
         assertEquals("Internal repository type [type1] is already registered", ex.getMessage());
     }
@@ -97,12 +123,22 @@ public class RepositoriesModuleTests extends ESTestCase {
     public void testCannotRegisterNormalAndInternalRepositoriesWithSameTypes() {
         when(plugin1.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings))
             .thenReturn(Collections.singletonMap("type1", factory));
-        when(plugin2.getInternalRepositories(environment, contentRegistry, clusterService, recoverySettings))
-            .thenReturn(Collections.singletonMap("type1", factory));
+        when(plugin2.getInternalRepositories(environment, contentRegistry, clusterService, recoverySettings)).thenReturn(
+            Collections.singletonMap("type1", factory)
+        );
 
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> new RepositoriesModule(environment, repoPlugins, mock(TransportService.class), clusterService,
-                    MockBigArrays.NON_RECYCLING_INSTANCE, contentRegistry, recoverySettings));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RepositoriesModule(
+                environment,
+                repoPlugins,
+                mock(TransportService.class),
+                clusterService,
+                MockBigArrays.NON_RECYCLING_INSTANCE,
+                contentRegistry,
+                recoverySettings
+            )
+        );
 
         assertEquals("Internal repository type [type1] is already registered as a non-internal repository", ex.getMessage());
     }

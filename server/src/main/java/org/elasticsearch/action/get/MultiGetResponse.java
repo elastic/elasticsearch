@@ -11,16 +11,19 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.action.document.RestMultiGetAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,8 +32,10 @@ import java.util.Iterator;
 import java.util.List;
 
 public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContentObject {
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(MultiGetResponse.class);
 
     private static final ParseField INDEX = new ParseField("_index");
+    private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ERROR = new ParseField("error");
     private static final ParseField DOCS = new ParseField("docs");
@@ -94,6 +99,9 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(INDEX.getPreferredName(), index);
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+            }
             builder.field(ID.getPreferredName(), id);
             ElasticsearchException.generateFailureXContent(builder, params, exception, true);
             builder.endObject();
@@ -188,6 +196,8 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                 case VALUE_STRING:
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                         index = parser.text();
+                    } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        deprecationLogger.compatibleApiWarning("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         id = parser.text();
                     }

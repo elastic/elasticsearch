@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
@@ -23,6 +24,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
+import static org.hamcrest.Matchers.is;
 
 public class AuthenticationTests extends ESTestCase {
 
@@ -50,7 +52,7 @@ public class AuthenticationTests extends ESTestCase {
         checkCanAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm1));
 
         // Different username is different no matter which realm it is from
-        final User user2 = randomValueOtherThanMany(u -> u.principal().equals(user1.principal()), this::randomUser);
+        final User user2 = randomValueOtherThanMany(u -> u.principal().equals(user1.principal()), AuthenticationTests::randomUser);
         // user 2 can be from either the same realm or a different realm
         final RealmRef realm2 = randomFrom(realm1, randomRealm());
         assertCannotAccessResources(randomAuthentication(user1, realm2), randomAuthentication(user2, realm2));
@@ -92,6 +94,32 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2));
     }
 
+    public void testIsServiceAccount() {
+        final User user =
+            new User(randomAlphaOfLengthBetween(3, 8), randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
+        final Authentication.RealmRef authRealm;
+        final boolean authRealmIsForServiceAccount = randomBoolean();
+        if (authRealmIsForServiceAccount) {
+            authRealm = new Authentication.RealmRef(
+                ServiceAccountSettings.REALM_NAME,
+                ServiceAccountSettings.REALM_TYPE,
+                randomAlphaOfLengthBetween(3, 8));
+        } else {
+            authRealm = new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8),
+                randomAlphaOfLengthBetween(3, 8));
+        }
+        final Authentication.RealmRef lookupRealm = randomFrom(
+            new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8)), null);
+        final Authentication authentication = new Authentication(user, authRealm, lookupRealm);
+
+        if (authRealmIsForServiceAccount && lookupRealm == null) {
+            assertThat(authentication.isServiceAccount(), is(true));
+        } else {
+            assertThat(authentication.isServiceAccount(), is(false));
+        }
+    }
+
     private void checkCanAccessResources(Authentication authentication0, Authentication authentication1) {
         if (authentication0.getAuthenticationType() == authentication1.getAuthenticationType()
             || EnumSet.of(AuthenticationType.REALM, AuthenticationType.TOKEN).equals(
@@ -108,12 +136,12 @@ public class AuthenticationTests extends ESTestCase {
         assertFalse(authentication1.canAccessResourcesOf(authentication0));
     }
 
-    private User randomUser() {
+    public static User randomUser() {
         return new User(randomAlphaOfLengthBetween(3, 8),
             randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
     }
 
-    private RealmRef randomRealm() {
+    public static RealmRef randomRealm() {
         return new RealmRef(
             randomAlphaOfLengthBetween(3, 8),
             randomFrom(FileRealmSettings.TYPE, NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8)),
@@ -127,10 +155,9 @@ public class AuthenticationTests extends ESTestCase {
             randomBoolean() ? original.getNodeName() : randomAlphaOfLengthBetween(3, 8));
     }
 
-    private Authentication randomAuthentication(User user, RealmRef realmRef) {
+    public static Authentication randomAuthentication(User user, RealmRef realmRef) {
         if (user == null) {
-            user = new User(randomAlphaOfLengthBetween(3, 8),
-                randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
+            user = randomUser();
         }
         if (realmRef == null) {
             realmRef = randomRealm();
@@ -153,7 +180,7 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
-    private Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
+    public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
         final RealmRef apiKeyRealm = new RealmRef("_es_api_key", "_es_api_key", randomAlphaOfLengthBetween(3, 8));
         return new Authentication(user,
             apiKeyRealm,

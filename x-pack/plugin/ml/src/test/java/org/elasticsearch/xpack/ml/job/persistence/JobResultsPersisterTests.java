@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
-import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
@@ -63,7 +62,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -87,7 +85,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         client = mock(Client.class);
         doAnswer(withResponse(mock(BulkResponse.class))).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
-        persister = new JobResultsPersister(originSettingClient, buildResultsPersisterService(originSettingClient), makeAuditor());
+        persister = new JobResultsPersister(originSettingClient, buildResultsPersisterService(originSettingClient));
     }
 
     public void testPersistBucket_OneRecord() {
@@ -409,13 +407,5 @@ public class JobResultsPersisterTests extends ESTestCase {
         );
 
         return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
-    }
-
-    private AnomalyDetectionAuditor makeAuditor() {
-        AnomalyDetectionAuditor anomalyDetectionAuditor = mock(AnomalyDetectionAuditor.class);
-        doNothing().when(anomalyDetectionAuditor).warning(any(), any());
-        doNothing().when(anomalyDetectionAuditor).info(any(), any());
-        doNothing().when(anomalyDetectionAuditor).error(any(), any());
-        return anomalyDetectionAuditor;
     }
 }

@@ -17,12 +17,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
@@ -56,8 +56,17 @@ public abstract class PeerFinder {
         Setting.timeSetting("discovery.request_peers_timeout",
             TimeValue.timeValueMillis(3000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
+    // We do not log connection failures immediately: some failures are expected, especially if the hosts list isn't perfectly up-to-date
+    // or contains some unnecessary junk. However if the node cannot find a master for an extended period of time then it is helpful to
+    // users to describe in more detail why we cannot connect to the remote nodes. This setting defines how long we wait without discovering
+    // the master before we start to emit more verbose logs.
+    public static final Setting<TimeValue> VERBOSITY_INCREASE_TIMEOUT_SETTING =
+        Setting.timeSetting("discovery.find_peers_warning_timeout",
+            TimeValue.timeValueMinutes(5), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+
     private final TimeValue findPeersInterval;
     private final TimeValue requestPeersTimeout;
+    private final TimeValue verbosityIncreaseTimeout;
 
     private final Object mutex = new Object();
     private final TransportService transportService;
@@ -66,6 +75,7 @@ public abstract class PeerFinder {
 
     private volatile long currentTerm;
     private boolean active;
+    private long activatedAtMillis;
     private DiscoveryNodes lastAcceptedNodes;
     private final Map<TransportAddress, Peer> peersByAddress = new LinkedHashMap<>();
     private Optional<DiscoveryNode> leader = Optional.empty();
@@ -75,6 +85,7 @@ public abstract class PeerFinder {
                       ConfiguredHostsResolver configuredHostsResolver) {
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
+        verbosityIncreaseTimeout = VERBOSITY_INCREASE_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
         this.transportAddressConnector = transportAddressConnector;
         this.configuredHostsResolver = configuredHostsResolver;
@@ -90,6 +101,7 @@ public abstract class PeerFinder {
         synchronized (mutex) {
             assert assertInactiveWithNoKnownPeers();
             active = true;
+            activatedAtMillis = transportService.getThreadPool().relativeTimeInMillis();
             this.lastAcceptedNodes = lastAcceptedNodes;
             leader = Optional.empty();
             handleWakeUp(); // return value discarded: there are no known peers, so none can be disconnected
@@ -193,7 +205,7 @@ public abstract class PeerFinder {
 
     public interface ConfiguredHostsResolver {
         /**
-         * Attempt to resolve the configured unicast hosts list to a list of transport addresses.
+         * Attempt to resolve the configured hosts list to a list of transport addresses.
          *
          * @param consumer Consumer for the resolved list. May not be called if an error occurs or if another resolution attempt is in
          *                 progress.
@@ -293,7 +305,7 @@ public abstract class PeerFinder {
 
     private class Peer {
         private final TransportAddress transportAddress;
-        private SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();
+        private final SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();
         private volatile boolean peersRequestInFlight;
 
         Peer(TransportAddress transportAddress) {
@@ -334,6 +346,9 @@ public abstract class PeerFinder {
             assert getDiscoveryNode() == null : "unexpectedly connected to " + getDiscoveryNode();
             assert active;
 
+            final boolean verboseFailureLogging
+                    = transportService.getThreadPool().relativeTimeInMillis() - activatedAtMillis > verbosityIncreaseTimeout.millis();
+
             logger.trace("{} attempting connection", this);
             transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<DiscoveryNode>() {
                 @Override
@@ -356,7 +371,25 @@ public abstract class PeerFinder {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("{} connection failed", Peer.this), e);
+                    if (verboseFailureLogging) {
+                        if (logger.isDebugEnabled()) {
+                            // log message at level WARN, but since DEBUG logging is enabled we include the full stack trace
+                            logger.warn(new ParameterizedMessage("{} connection failed", Peer.this), e);
+                        } else {
+                            final StringBuilder messageBuilder = new StringBuilder();
+                            Throwable cause = e;
+                            while (cause != null && messageBuilder.length() <= 1024) {
+                                messageBuilder.append(": ").append(cause.getMessage());
+                                cause = cause.getCause();
+                            }
+                            final String message = messageBuilder.length() < 1024
+                                    ? messageBuilder.toString()
+                                    : (messageBuilder.substring(0, 1023) + "...");
+                            logger.warn("{} connection failed{}", Peer.this, message);
+                        }
+                    } else {
+                        logger.debug(new ParameterizedMessage("{} connection failed", Peer.this), e);
+                    }
                     synchronized (mutex) {
                         peersByAddress.remove(transportAddress);
                     }
@@ -413,7 +446,7 @@ public abstract class PeerFinder {
                 @Override
                 public void handleException(TransportException exp) {
                     peersRequestInFlight = false;
-                    logger.debug(new ParameterizedMessage("{} peers request failed", Peer.this), exp);
+                    logger.warn(new ParameterizedMessage("{} peers request failed", Peer.this), exp);
                 }
 
                 @Override
@@ -429,11 +462,7 @@ public abstract class PeerFinder {
 
         @Override
         public String toString() {
-            return "Peer{" +
-                "transportAddress=" + transportAddress +
-                ", discoveryNode=" + discoveryNode.get() +
-                ", peersRequestInFlight=" + peersRequestInFlight +
-                '}';
+            return "address [" + transportAddress + "], node [" + discoveryNode.get() + "], requesting [" + peersRequestInFlight + "]";
         }
     }
 }

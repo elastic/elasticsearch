@@ -20,16 +20,20 @@ import java.util.Objects;
  */
 public class DeprecationRestHandler implements RestHandler {
 
+    public static final String DEPRECATED_ROUTE_KEY = "deprecated_route";
     private final RestHandler handler;
     private final String deprecationMessage;
     private final DeprecationLogger deprecationLogger;
     private final boolean compatibleVersionWarning;
+    private final String deprecationKey;
 
     /**
      * Create a {@link DeprecationRestHandler} that encapsulates the {@code handler} using the {@code deprecationLogger} to log
      * deprecation {@code warning}.
      *
      * @param handler The rest handler to deprecate (it's possible that the handler is reused with a different name!)
+     * @param method a method of a deprecated endpoint
+     * @param path a path of a deprecated endpoint
      * @param deprecationMessage The message to warn users with when they use the {@code handler}
      * @param deprecationLogger The deprecation logger
      * @param compatibleVersionWarning set to false so that a deprecation warning will be issued for the handled request,
@@ -38,12 +42,13 @@ public class DeprecationRestHandler implements RestHandler {
      * @throws NullPointerException if any parameter except {@code deprecationMessage} is {@code null}
      * @throws IllegalArgumentException if {@code deprecationMessage} is not a valid header
      */
-    public DeprecationRestHandler(RestHandler handler, String deprecationMessage, DeprecationLogger deprecationLogger,
-                                  boolean compatibleVersionWarning) {
+    public DeprecationRestHandler(RestHandler handler, RestRequest.Method method, String path, String deprecationMessage,
+                                  DeprecationLogger deprecationLogger, boolean compatibleVersionWarning) {
         this.handler = Objects.requireNonNull(handler);
         this.deprecationMessage = requireValidHeader(deprecationMessage);
         this.deprecationLogger = Objects.requireNonNull(deprecationLogger);
         this.compatibleVersionWarning = compatibleVersionWarning;
+        this.deprecationKey = DEPRECATED_ROUTE_KEY + "_" + method + "_" + path;
     }
 
     /**
@@ -54,9 +59,9 @@ public class DeprecationRestHandler implements RestHandler {
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (compatibleVersionWarning == false) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_route", deprecationMessage);
+            deprecationLogger.deprecate(DeprecationCategory.API, deprecationKey, deprecationMessage);
         } else {
-            deprecationLogger.compatibleApiWarning("deprecated_route", deprecationMessage);
+            deprecationLogger.compatibleApiWarning(deprecationKey, deprecationMessage);
         }
 
         handler.handleRequest(request, channel, client);

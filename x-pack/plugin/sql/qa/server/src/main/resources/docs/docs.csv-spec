@@ -16,22 +16,23 @@ DESCRIBE emp;
 
        column       |     type      |    mapping    
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |datetime
-dep                 |STRUCT         |nested
-dep.dep_id          |VARCHAR        |keyword
-dep.dep_name        |VARCHAR        |text
-dep.dep_name.keyword|VARCHAR        |keyword
-dep.from_date       |TIMESTAMP      |datetime
-dep.to_date         |TIMESTAMP      |datetime
-emp_no              |INTEGER        |integer
-first_name          |VARCHAR        |text
-first_name.keyword  |VARCHAR        |keyword
-gender              |VARCHAR        |keyword
-hire_date           |TIMESTAMP      |datetime
-languages           |TINYINT        |byte
-last_name           |VARCHAR        |text
-last_name.keyword   |VARCHAR        |keyword
-salary              |INTEGER        |integer
+birth_date          |TIMESTAMP      |datetime       
+dep                 |STRUCT         |nested         
+dep.dep_id          |VARCHAR        |keyword        
+dep.dep_name        |VARCHAR        |text           
+dep.dep_name.keyword|VARCHAR        |keyword        
+dep.from_date       |TIMESTAMP      |datetime       
+dep.to_date         |TIMESTAMP      |datetime       
+emp_no              |INTEGER        |integer        
+first_name          |VARCHAR        |text           
+first_name.keyword  |VARCHAR        |keyword        
+gender              |VARCHAR        |keyword        
+hire_date           |TIMESTAMP      |datetime       
+languages           |TINYINT        |byte           
+last_name           |VARCHAR        |text           
+last_name.keyword   |VARCHAR        |keyword        
+name                |VARCHAR        |keyword        
+salary              |INTEGER        |integer        
 
 // end::describeTable
 ;
@@ -55,22 +56,23 @@ SHOW COLUMNS IN emp;
 
        column       |     type      |    mapping    
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |datetime
-dep                 |STRUCT         |nested
-dep.dep_id          |VARCHAR        |keyword
-dep.dep_name        |VARCHAR        |text
-dep.dep_name.keyword|VARCHAR        |keyword
-dep.from_date       |TIMESTAMP      |datetime
-dep.to_date         |TIMESTAMP      |datetime
-emp_no              |INTEGER        |integer
-first_name          |VARCHAR        |text
-first_name.keyword  |VARCHAR        |keyword
-gender              |VARCHAR        |keyword
-hire_date           |TIMESTAMP      |datetime
-languages           |TINYINT        |byte
-last_name           |VARCHAR        |text
-last_name.keyword   |VARCHAR        |keyword
-salary              |INTEGER        |integer
+birth_date          |TIMESTAMP      |datetime       
+dep                 |STRUCT         |nested         
+dep.dep_id          |VARCHAR        |keyword        
+dep.dep_name        |VARCHAR        |text           
+dep.dep_name.keyword|VARCHAR        |keyword        
+dep.from_date       |TIMESTAMP      |datetime       
+dep.to_date         |TIMESTAMP      |datetime       
+emp_no              |INTEGER        |integer        
+first_name          |VARCHAR        |text           
+first_name.keyword  |VARCHAR        |keyword        
+gender              |VARCHAR        |keyword        
+hire_date           |TIMESTAMP      |datetime       
+languages           |TINYINT        |byte           
+last_name           |VARCHAR        |text           
+last_name.keyword   |VARCHAR        |keyword        
+name                |VARCHAR        |keyword        
+salary              |INTEGER        |integer        
 
 // end::showColumns
 ;
@@ -485,9 +487,9 @@ wildcardWithOrder
 // tag::wildcardWithOrder
 SELECT * FROM emp LIMIT 1;
 
-     birth_date     |    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
---------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
-1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305 
+     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary     
+--------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------+---------------
+1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello |57305
 
 // end::wildcardWithOrder
 ;
@@ -496,9 +498,9 @@ fromTable
 // tag::fromTable
 SELECT * FROM emp LIMIT 1;
 
-     birth_date     |    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
---------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
-1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305        
+     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary     
+--------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------+---------------
+1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello |57305
   
 
 // end::fromTable
@@ -508,9 +510,9 @@ fromTableQuoted
 // tag::fromTableQuoted
 SELECT * FROM "emp" LIMIT 1;
 
-     birth_date     |    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
---------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
-1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305   
+     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary     
+--------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------+---------------
+1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello |57305
 
 // end::fromTableQuoted
 ;
@@ -674,9 +676,9 @@ SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gende
 
        g       |    salary     
 ---------------+---------------
-null           |253            
-F              |260            
-M              |259        
+null           |253
+F              |259
+M              |259
 // end::groupByAndAggExpression
 ;
 

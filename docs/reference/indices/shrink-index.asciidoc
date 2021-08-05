@@ -62,7 +62,7 @@ PUT /my_source_index/_settings
     the index, are still allowed.
 
 
-It can take a while to relocate the source index.  Progress can be tracked
+It can take a while to relocate the source index. Progress can be tracked
 with the <<cat-recovery,`_cat recovery` API>>, or the <<cluster-health,
 `cluster health` API>> can be used to wait until all shards have relocated
 with the `wait_for_no_relocating_shards` parameter.
@@ -82,7 +82,7 @@ in the index must be present on the same node.
 
 The current write index on a data stream cannot be shrunk. In order to shrink
 the current write index, the data stream must first be
-<<rollover-data-stream-ex,rolled over>> so that a new write index is created
+<<data-streams-rollover,rolled over>> so that a new write index is created
 and then the previous write index can be shrunk.
 
 [[how-shrink-works]]
@@ -195,7 +195,7 @@ can't be allocated on the shrink node, its primary shard will remain
 
 Once the primary shard is allocated, it moves to state `initializing`, and the
 shrink process begins. When the shrink operation completes, the shard will
-become `active`. At that  point, Elasticsearch will try to allocate any
+become `active`. At that point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 
@@ -223,11 +223,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-
+[role="child_attributes"]
 [[shrink-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
+`aliases`::
+(Optional, object of objects) Aliases for the resulting index.
++
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]
 

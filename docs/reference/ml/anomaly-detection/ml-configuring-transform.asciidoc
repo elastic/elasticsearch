@@ -1,15 +1,28 @@
 [role="xpack"]
 [[ml-configuring-transform]]
-= Transforming data with script fields
+= Altering data in your {dfeed} with runtime fields
 
-If you use {dfeeds}, you can add scripts to transform your data before
-it is analyzed. {dfeeds-cap} contain an optional `script_fields` property, where
-you can specify scripts that evaluate custom expressions and return script
-fields.
+If you use {dfeeds}, you can use runtime fields to alter your data before it 
+is analyzed. You can add an optional `runtime_mappings` property to your 
+{dfeeds}, where you can specify field types and scripts that evaluate custom 
+expressions without affecting the indices that you're retrieving the data from.
 
-If your {dfeed} defines script fields, you can use those fields in your
-{anomaly-job}. For example, you can use the script fields in the analysis
-functions in one or more detectors.
+If your {dfeed} defines runtime fields, you can use those fields in your
+{anomaly-job}. For example, you can use the runtime fields in the analysis
+functions in one or more detectors. Runtime fields can impact search performance 
+based on the computation defined in the runtime script.
+
+[NOTE]
+===============================
+Some of these examples use regular expressions. By default, regular
+expressions are disabled because they circumvent the protection that Painless
+provides against long running and memory hungry scripts. For more information,
+see {ref}/modules-scripting-painless.html[Painless scripting language].
+
+{ml-cap} analysis is case sensitive. For example, "John" is considered to be 
+different than "john". This is one reason you might consider using scripts that 
+convert your strings to upper or lowercase letters.
+===============================
 
 * <<ml-configuring-transform1>>
 * <<ml-configuring-transform2>>
@@ -19,7 +32,7 @@ functions in one or more detectors.
 * <<ml-configuring-transform6>>
 * <<ml-configuring-transform7>>
 * <<ml-configuring-transform8>>
-* <<ml-configuring-transform9>>
+// * <<ml-configuring-transform9>>
 
 The following index APIs create and add content to an index that is used in
 subsequent examples:
@@ -30,46 +43,22 @@ PUT /my-index-000001
 {
   "mappings":{
     "properties": {
-      "@timestamp": {
-        "type": "date"
-      },
-      "aborted_count": {
-        "type": "long"
-      },
-      "another_field": {
-        "type": "keyword" <1>
-      },
-      "clientip": {
-        "type": "keyword"
-      },
+      "@timestamp": { "type": "date" },
+      "aborted_count": { "type": "long" },
+      "another_field": { "type": "keyword" }, <1>
+      "clientip": { "type": "keyword" },
       "coords": {
         "properties": {
-          "lat": {
-            "type": "keyword"
-          },
-          "lon": {
-            "type": "keyword"
-          }
+          "lat": { "type": "keyword" },
+          "lon": { "type": "keyword" }
         }
       },
-      "error_count": {
-        "type": "long"
-      },
-      "query": {
-        "type": "keyword"
-      },
-      "some_field": {
-        "type": "keyword"
-      },
-      "tokenstring1":{
-        "type":"keyword"
-      },
-      "tokenstring2":{
-        "type":"keyword"
-      },
-      "tokenstring3":{
-        "type":"keyword"
-      }
+      "error_count": { "type": "long" },
+      "query": { "type": "keyword" },
+      "some_field": { "type": "keyword" },
+      "tokenstring1":{ "type":"keyword" },
+      "tokenstring2":{ "type":"keyword" },
+      "tokenstring3":{ "type":"keyword" }
     }
   }
 }
@@ -99,8 +88,10 @@ aggregation. If you want both a full text (`text`) and a keyword (`keyword`)
 version of the same field, use multi-fields. For more information, see
 {ref}/multi-fields.html[fields].
 
+
 [[ml-configuring-transform1]]
 .Example 1: Adding two numerical fields
+
 [source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/test1
@@ -110,31 +101,26 @@ PUT _ml/anomaly_detectors/test1
     "detectors":[
       {
         "function":"mean",
-        "field_name": "total_error_count", <1>
-        "detector_description": "Custom script field transformation"
+        "field_name": "total_error_count" <1>
       }
     ]
   },
   "data_description": {
-  "time_field":"@timestamp",
-  "time_format":"epoch_ms"
+    "time_field":"@timestamp"
   }
 }
 
 PUT _ml/datafeeds/datafeed-test1
 {
   "job_id": "test1",
-  "indices": ["my-index-000001"],
-  "query": {
-    "match_all": {
-          "boost": 1
-    }
-  },
-  "script_fields": {
+  "indices": [
+    "my-index-000001"
+  ],
+  "runtime_mappings": {
     "total_error_count": { <2>
+      "type": "long",
       "script": {
-        "lang": "expression",
-        "source": "doc['error_count'].value + doc['aborted_count'].value"
+        "source": "emit(doc['error_count'].value + doc['aborted_count'].value)"
       }
     }
   }
@@ -142,18 +128,17 @@ PUT _ml/datafeeds/datafeed-test1
 ----------------------------------
 // TEST[skip:needs-licence]
 
-<1> A script field named `total_error_count` is referenced in the detector
+<1> A runtime field named `total_error_count` is referenced in the detector
 within the job.
-<2> The script field is defined in the {dfeed}.
+<2> The runtime field is defined in the {dfeed}.
 
-This `test1` {anomaly-job} contains a detector that uses a script field in a
-mean analysis function. The `datafeed-test1` {dfeed} defines the script field.
+This `test1` {anomaly-job} contains a detector that uses a runtime field in a
+mean analysis function. The `datafeed-test1` {dfeed} defines the runtime field.
 It contains a script that adds two fields in the document to produce a "total"
 error count.
 
-The syntax for the `script_fields` property is identical to that used by {es}.
-For more information, see
-{ref}/search-fields.html#script-fields[Script fields].
+The syntax for the `runtime_mappings` property is identical to that used by 
+{es}. For more information, see {ref}/runtime.html[Runtime fields].
 
 You can preview the contents of the {dfeed} by using the following API:
 
@@ -176,39 +161,23 @@ the `error_count` and `aborted_count` values:
 ]
 ----------------------------------
 
-NOTE: This example demonstrates how to use script fields, but it contains
+NOTE: This example demonstrates how to use runtime fields, but it contains
 insufficient data to generate meaningful results.
 
 //For a full demonstration of
 //how to create jobs with sample data, see <<ml-getting-started>>.
 
 You can alternatively use {kib} to create an advanced {anomaly-job} that uses
-script fields. To add the `script_fields` property to your {dfeed}, you must use
-the **Edit JSON** tab. For example:
+runtime fields. To add the `runtime_mappings` property to your {dfeed}, you must 
+use the **Edit JSON** tab. For example:
 
 [role="screenshot"]
-image::images/ml-scriptfields.jpg[Adding script fields to a {dfeed} in {kib}]
+image::images/ml-runtimefields.jpg[Using runtime_mappings in {dfeed} config via {kib}]
 
-[[ml-configuring-transform-examples]]
-== Common script field examples
-
-While the possibilities are limitless, there are a number of common scenarios
-where you might use script fields in your {dfeeds}.
-
-[NOTE]
-===============================
-Some of these examples use regular expressions. By default, regular
-expressions are disabled because they circumvent the protection that Painless
-provides against long running and memory hungry scripts. For more information,
-see {ref}/modules-scripting-painless.html[Painless scripting language].
-
-Machine learning analysis is case sensitive. For example, "John" is considered
-to be different than "john". This is one reason you might consider using scripts
-that convert your strings to upper or lowercase letters.
-===============================
 
 [[ml-configuring-transform2]]
 .Example 2: Concatenating strings
+
 [source,console]
 --------------------------------------------------
 PUT _ml/anomaly_detectors/test2
@@ -218,14 +187,12 @@ PUT _ml/anomaly_detectors/test2
     "detectors":[
       {
         "function":"low_info_content",
-        "field_name":"my_script_field", <1>
-        "detector_description": "Custom script field transformation"
+        "field_name":"my_runtime_field" <1>
       }
     ]
   },
   "data_description": {
-  "time_field":"@timestamp",
-  "time_format":"epoch_ms"
+    "time_field":"@timestamp"
   }
 }
 
@@ -233,16 +200,11 @@ PUT _ml/datafeeds/datafeed-test2
 {
   "job_id": "test2",
   "indices": ["my-index-000001"],
-  "query": {
-    "match_all": {
-          "boost": 1
-    }
-  },
-  "script_fields": {
-    "my_script_field": {
+  "runtime_mappings": {
+    "my_runtime_field": {
+      "type": "keyword",
       "script": {
-        "lang": "painless",
-        "source": "doc['some_field'].value + '_' + doc['another_field'].value" <2>
+        "source": "emit(doc['some_field'].value + '_' + doc['another_field'].value)" <2>
       }
     }
   }
@@ -252,9 +214,9 @@ GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // TEST[skip:needs-licence]
 
-<1> The script field has a rather generic name in this case, since it will
-be used for various tests in the subsequent examples.
-<2> The script field uses the plus (+) operator to concatenate strings.
+<1> The runtime field has a generic name in this case, since it is used for 
+various tests in the examples.
+<2> The runtime field uses the plus (+) operator to concatenate strings.
 
 The preview {dfeed} API returns the following results, which show that "JOE"
 and "SMITH  " have been concatenated and an underscore was added:
@@ -264,22 +226,23 @@ and "SMITH  " have been concatenated and an underscore was added:
 [
   {
     "@timestamp": 1490274000000,
-    "my_script_field": "JOE_SMITH  "
+    "my_runtime_field": "JOE_SMITH  "
   }
 ]
 ----------------------------------
 
 [[ml-configuring-transform3]]
 .Example 3: Trimming strings
+
 [source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-test2/_update
 {
-  "script_fields": {
-    "my_script_field": {
+  "runtime_mappings": {
+    "my_runtime_field": {
+      "type": "keyword",
       "script": {
-        "lang": "painless",
-        "source": "doc['another_field'].value.trim()" <1>
+        "source": "emit(doc['another_field'].value.trim())" <1>
       }
     }
   }
@@ -289,8 +252,8 @@ GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // TEST[skip:continued]
 
-<1> This script field uses the `trim()` function to trim extra white space from a
-string.
+<1> This runtime field uses the `trim()` function to trim extra white space from 
+a string.
 
 The preview {dfeed} API returns the following results, which show that "SMITH  "
 has been trimmed to "SMITH":
@@ -307,15 +270,16 @@ has been trimmed to "SMITH":
 
 [[ml-configuring-transform4]]
 .Example 4: Converting strings to lowercase
+
 [source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-test2/_update
 {
-  "script_fields": {
-    "my_script_field": {
+  "runtime_mappings": {
+    "my_runtime_field": {
+      "type": "keyword",
       "script": {
-        "lang": "painless",
-        "source": "doc['some_field'].value.toLowerCase()" <1>
+        "source": "emit(doc['some_field'].value.toLowerCase())" <1>
       }
     }
   }
@@ -325,9 +289,9 @@ GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // TEST[skip:continued]
 
-<1> This script field uses the `toLowerCase` function to convert a string to all
-lowercase letters. Likewise, you can use the `toUpperCase{}` function to convert
-a string to uppercase letters.
+<1> This runtime field uses the `toLowerCase` function to convert a string to 
+all lowercase letters. Likewise, you can use the `toUpperCase{}` function to 
+convert a string to uppercase letters.
 
 The preview {dfeed} API returns the following results, which show that "JOE"
 has been converted to "joe":
@@ -344,15 +308,16 @@ has been converted to "joe":
 
 [[ml-configuring-transform5]]
 .Example 5: Converting strings to mixed case formats
+
 [source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-test2/_update
 {
-  "script_fields": {
-    "my_script_field": {
+  "runtime_mappings": {
+    "my_runtime_field": {
+      "type": "keyword",
       "script": {
-        "lang": "painless",
-        "source": "doc['some_field'].value.substring(0, 1).toUpperCase() + doc['some_field'].value.substring(1).toLowerCase()" <1>
+        "source": "emit(doc['some_field'].value.substring(0, 1).toUpperCase() + doc['some_field'].value.substring(1).toLowerCase())" <1>
       }
     }
   }
@@ -362,12 +327,12 @@ GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // TEST[skip:continued]
 
-<1> This script field is a more complicated example of case manipulation. It uses
-the `subString()` function to capitalize the first letter of a string and
+<1> This runtime field is a more complicated example of case manipulation. It 
+uses the `subString()` function to capitalize the first letter of a string and
 converts the remaining characters to lowercase.
 
-The preview {dfeed} API returns the following results, which show that "JOE"
-has been converted to "Joe":
+The preview {dfeed} API returns the following results, which show that "JOE" has 
+been converted to "Joe":
 
 [source,js]
 ----------------------------------
@@ -381,15 +346,16 @@ has been converted to "Joe":
 
 [[ml-configuring-transform6]]
 .Example 6: Replacing tokens
+
 [source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-test2/_update
 {
-  "script_fields": {
-    "my_script_field": {
+  "runtime_mappings": {
+    "my_runtime_field": {
+      "type": "keyword",
       "script": {
-        "lang": "painless",
-        "source": "/\\s/.matcher(doc['tokenstring2'].value).replaceAll('_')" <1>
+        "source": "emit(/\\s/.matcher(doc['tokenstring2'].value).replaceAll('_'))" <1>
       }
     }
   }
@@ -399,11 +365,11 @@ GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // TEST[skip:continued]
 
-<1> This script field uses regular expressions to replace white
-space with underscores.
+<1> This script uses regular expressions to replace white space with 
+underscores.
 
-The preview {dfeed} API returns the following results, which show that
-"foo bar baz" has been converted to "foo_bar_baz":
+The preview {dfeed} API returns the following results, which show that "foo bar 
+baz" has been converted to "foo_bar_baz":
 
 [source,js]
 ----------------------------------
@@ -417,15 +383,16 @@ The preview {dfeed} API returns the following results, which show that
 
 [[ml-configuring-transform7]]
 .Example 7: Regular expression matching and concatenation
+
 [source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-test2/_update
 {
-  "script_fields": {
-    "my_script_field": {
+  "runtime_mappings": {
+    "my_runtime_field": {
+      "type": "keyword",
       "script": {
-        "lang": "painless",
-        "source": "def m = /(.*)-bar-([0-9][0-9])/.matcher(doc['tokenstring3'].value); return m.find() ? m.group(1) + '_' + m.group(2) : '';" <1>
+        "source": "emit(def m = /(.*)-bar-([0-9][0-9])/.matcher(doc['tokenstring3'].value); return m.find() ? m.group(1) + '_' + m.group(2) : '';)" <1>
       }
     }
   }
@@ -435,7 +402,7 @@ GET _ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // TEST[skip:continued]
 
-<1> This script field looks for a specific regular expression pattern and emits the
+<1> This script looks for a specific regular expression pattern and emits the
 matched groups as a concatenated string. If no match is found, it emits an empty
 string.
 
@@ -452,11 +419,72 @@ The preview {dfeed} API returns the following results, which show that
 ]
 ----------------------------------
 
+
 [[ml-configuring-transform8]]
-.Example 8: Splitting strings by domain name
+.Example 8: Transforming geopoint data
+
 [source,console]
 --------------------------------------------------
 PUT _ml/anomaly_detectors/test3
+{
+  "analysis_config":{
+    "bucket_span": "10m",
+    "detectors":[
+      {
+        "function":"lat_long",
+        "field_name": "my_coordinates"
+      }
+    ]
+  },
+  "data_description": {
+    "time_field":"@timestamp"
+  }
+}
+
+PUT _ml/datafeeds/datafeed-test3
+{
+  "job_id": "test3",
+  "indices": ["my-index-000001"],
+  "runtime_mappings": {
+    "my_coordinates": {
+      "type": "keyword",
+      "script": {
+        "source": "emit(doc['coords.lat'].value + ',' + doc['coords.lon'].value)"
+      }
+    }
+  }
+}
+
+GET _ml/datafeeds/datafeed-test3/_preview
+--------------------------------------------------
+// TEST[skip:needs-licence]
+
+In {es}, location data can be stored in `geo_point` fields but this data type is
+not supported natively in {ml} analytics. This example of a runtime field
+transforms the data into an appropriate format. For more information,
+see <<ml-geo-functions>>.
+
+The preview {dfeed} API returns the following results, which show that
+`41.44` and `90.5` have been combined into "41.44,90.5":
+
+[source,js]
+----------------------------------
+[
+  {
+    "@timestamp": 1490274000000,
+    "my_coordinates": "41.44,90.5"
+  }
+]
+----------------------------------
+
+////
+
+[[ml-configuring-transform9]]
+.Example 9: Splitting strings by domain name
+
+[source,console]
+--------------------------------------------------
+PUT _ml/anomaly_detectors/test4
 {
   "description":"DNS tunneling",
   "analysis_config":{
@@ -472,20 +500,14 @@ PUT _ml/anomaly_detectors/test3
     ]
   },
   "data_description": {
-  "time_field":"@timestamp",
-  "time_format":"epoch_ms"
+    "time_field":"@timestamp"
   }
 }
 
-PUT _ml/datafeeds/datafeed-test3
+PUT _ml/datafeeds/datafeed-test4
 {
-  "job_id": "test3",
+  "job_id": "test4",
   "indices": ["my-index-000001"],
-  "query": {
-    "match_all": {
-          "boost": 1
-    }
-  },
   "script_fields":{
     "sub":{
       "script":"return domainSplit(doc['query'].value).get(0);"
@@ -496,7 +518,7 @@ PUT _ml/datafeeds/datafeed-test3
   }
 }
 
-GET _ml/datafeeds/datafeed-test3/_preview
+GET _ml/datafeeds/datafeed-test4/_preview
 --------------------------------------------------
 // TEST[skip:needs-licence]
 
@@ -523,65 +545,4 @@ The preview {dfeed} API returns the following results, which show that
 ]
 ----------------------------------
 
-[[ml-configuring-transform9]]
-.Example 9: Transforming geo_point data
-[source,console]
---------------------------------------------------
-PUT _ml/anomaly_detectors/test4
-{
-  "analysis_config":{
-    "bucket_span": "10m",
-    "detectors":[
-      {
-        "function":"lat_long",
-        "field_name": "my_coordinates"
-      }
-    ]
-  },
-  "data_description": {
-  "time_field":"@timestamp",
-  "time_format":"epoch_ms"
-  }
-}
-
-PUT _ml/datafeeds/datafeed-test4
-{
-  "job_id": "test4",
-  "indices": ["my-index-000001"],
-  "query": {
-    "match_all": {
-          "boost": 1
-    }
-  },
-  "script_fields": {
-    "my_coordinates": {
-      "script": {
-        "source": "doc['coords.lat'].value + ',' + doc['coords.lon'].value",
-        "lang": "painless"
-      }
-    }
-  }
-}
-
-GET _ml/datafeeds/datafeed-test4/_preview
---------------------------------------------------
-// TEST[skip:needs-licence]
-
-In {es}, location data can be stored in `geo_point` fields but this data type is
-not supported natively in {ml} analytics. This example of a script field
-transforms the data into an appropriate format. For more information,
-see <<ml-geo-functions>>.
-
-The preview {dfeed} API returns the following results, which show that
-`41.44` and `90.5` have been combined into "41.44,90.5":
-
-[source,js]
-----------------------------------
-[
-  {
-    "@timestamp": 1490274000000,
-    "my_coordinates": "41.44,90.5"
-  }
-]
-----------------------------------
-
+////

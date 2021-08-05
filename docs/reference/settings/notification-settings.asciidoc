@@ -65,6 +65,16 @@ connection is being initiated.
 The maximum period of inactivity between two data packets, before the
 request is aborted.
 
+`xpack.http.tcp.keep_alive`
+(<<static-cluster-setting,Static>>)
+Whether to enable TCP keepalives on HTTP connections. Defaults to `true`.
+
+`xpack.http.connection_pool_ttl`
+(<<static-cluster-setting,Static>>)
+The time-to-live of connections in the connection pool. If a connection is not
+re-used within this timeout, it is closed. By default, the time-to-live is
+infinite meaning that connections never expire.
+
 `xpack.http.max_response_size`::
 (<<static-cluster-setting,Static>>)
 Specifies the maximum size an HTTP response is allowed to have, defaults to
@@ -74,7 +84,7 @@ Specifies the maximum size an HTTP response is allowed to have, defaults to
 (<<dynamic-cluster-setting,Dynamic>>)
 A list of URLs, that the internal HTTP client is allowed to connect to. This
 client is used in the HTTP input, the webhook, the slack, pagerduty,
-and jira actions. This setting can be updated dynamically.  It defaults to `*`
+and jira actions. This setting can be updated dynamically. It defaults to `*`
 allowing everything. Note: If you configure this setting and you are using one
 of the slack/pagerduty actions, you have to ensure that the
 corresponding endpoints are explicitly allowed as well.
@@ -262,6 +272,12 @@ Defaults to `true`.
 :ssl-context:            watcher-email
 
 include::ssl-settings.asciidoc[]
+
+`xpack.notification.reporting.warning.kbn-csv-contains-formulas.text`::
+(<<dynamic-cluster-setting,Dynamic>>) 
+Specifies a custom message to be sent if the formula verification criteria
+for CSV files, from kibana `xpack.reporting.csv.checkForFormulas`, is true.
+Use %s in the message as a placeholder for the filename.  
 
 [[slack-notification-settings]]
 ==== Slack Notification Settings

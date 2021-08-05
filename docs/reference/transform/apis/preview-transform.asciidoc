@@ -18,16 +18,11 @@ Previews a {transform}.
 [[preview-transform-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-privileges:
+Requires the following privileges:
 
-* `manage_transform`
-* source index: `read`, `view_index_metadata`
-
-The built-in `transform_admin` role has the `manage_transform` privilege.
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
-
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`.
 
 [[preview-transform-desc]]
 == {api-description-title}

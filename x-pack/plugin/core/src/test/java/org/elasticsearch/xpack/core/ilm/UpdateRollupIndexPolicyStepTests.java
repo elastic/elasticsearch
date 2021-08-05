@@ -7,16 +7,15 @@
 package org.elasticsearch.xpack.core.ilm;
 
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
@@ -27,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class UpdateRollupIndexPolicyStepTests extends AbstractStepMasterTimeoutTestCase<UpdateRollupIndexPolicyStep> {
+public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<UpdateRollupIndexPolicyStep> {
 
     @Override
     public UpdateRollupIndexPolicyStep createRandomInstance() {
@@ -67,8 +66,7 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepMasterTimeoutT
             instance.getRollupPolicy());
     }
 
-    @Override
-    protected IndexMetadata getIndexMetadata() {
+    private static IndexMetadata getIndexMetadata() {
         Map<String, String> ilmCustom = Collections.singletonMap("rollup_index_name", "rollup-index");
         return IndexMetadata.builder(randomAlphaOfLength(10)).settings(
             settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
@@ -92,22 +90,7 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepMasterTimeoutT
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-
-        step.performAction(indexMetadata, emptyClusterState(), null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(true, actionCompleted.get());
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -132,22 +115,8 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepMasterTimeoutT
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertSame(exception, e);
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertEquals(true, exceptionThrown.get());
+        assertSame(exception, expectThrows(Exception.class,
+            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -162,9 +131,9 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepMasterTimeoutT
         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         String indexName = indexMetadata.getIndex().getName();
         UpdateRollupIndexPolicyStep step = createRandomInstance();
-        step.performAction(indexMetadata, emptyClusterState(), null, new Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<>() {
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(Boolean complete) {
                 fail("expecting a failure as the index doesn't have any rollup index name in its ILM execution state");
             }
 

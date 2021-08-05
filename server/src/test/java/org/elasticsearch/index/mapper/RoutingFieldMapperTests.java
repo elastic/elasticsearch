@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,7 +38,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 .startObject()
                 .field("field", "value")
                 .endObject()),
-            XContentType.JSON, "routing_value"));
+            XContentType.JSON, "routing_value", Map.of()));
 
         assertThat(doc.rootDoc().get("_routing"), equalTo("routing_value"));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));

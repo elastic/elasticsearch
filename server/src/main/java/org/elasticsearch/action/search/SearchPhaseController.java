@@ -149,8 +149,8 @@ public final class SearchPhaseController {
         final TopDocs mergedTopDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from);
         final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? EMPTY_DOCS : mergedTopDocs.scoreDocs;
         ScoreDoc[] scoreDocs = mergedScoreDocs;
+        int numSuggestDocs = 0;
         if (reducedCompletionSuggestions.isEmpty() == false) {
-            int numSuggestDocs = 0;
             for (CompletionSuggestion completionSuggestion : reducedCompletionSuggestions) {
                 assert completionSuggestion != null;
                 numSuggestDocs += completionSuggestion.getOptions().size();
@@ -180,7 +180,7 @@ public final class SearchPhaseController {
                 isSortedByField = true;
             }
         }
-        return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, collapseField, collapseValues);
+        return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, collapseField, collapseValues, numSuggestDocs);
     }
 
     static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
@@ -316,7 +316,8 @@ public final class SearchPhaseController {
         int from = ignoreFrom ? 0 : reducedQueryPhase.from;
         int numSearchHits = (int) Math.min(reducedQueryPhase.fetchHits - from, reducedQueryPhase.size);
         // with collapsing we can have more fetch hits than sorted docs
-        numSearchHits = Math.min(sortedTopDocs.scoreDocs.length, numSearchHits);
+        // also we need to take into account that we potentially have completion suggestions stored in the scoreDocs array
+        numSearchHits = Math.min(sortedTopDocs.scoreDocs.length - sortedTopDocs.numberOfCompletionsSuggestions, numSearchHits);
         // merge hits
         List<SearchHit> hits = new ArrayList<>();
         if (fetchResults.isEmpty() == false) {
@@ -421,7 +422,7 @@ public final class SearchPhaseController {
         final boolean hasProfileResults =  queryResults.stream().anyMatch(res -> res.queryResult().hasProfileResults());
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
-        final Map<String, List<Suggestion>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
+        final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
         final Map<String, ProfileShardResult> profileResults = hasProfileResults ? new HashMap<>(queryResults.size())
             : Collections.emptyMap();
         int from = 0;
@@ -439,7 +440,7 @@ public final class SearchPhaseController {
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
-                    List<Suggestion> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
+                    List<Suggestion<?>> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
                     suggestionList.add(suggestion);
                     if (suggestion instanceof CompletionSuggestion) {
                         CompletionSuggestion completionSuggestion = (CompletionSuggestion) suggestion;
@@ -665,7 +666,7 @@ public final class SearchPhaseController {
     }
 
     static final class SortedTopDocs {
-        static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null);
+        static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null, 0);
         // the searches merged top docs
         final ScoreDoc[] scoreDocs;
         // <code>true</code> iff the result score docs is sorted by a field (not score), this implies that <code>sortField</code> is set.
@@ -674,14 +675,16 @@ public final class SearchPhaseController {
         final SortField[] sortFields;
         final String collapseField;
         final Object[] collapseValues;
+        final int numberOfCompletionsSuggestions;
 
         SortedTopDocs(ScoreDoc[] scoreDocs, boolean isSortedByField, SortField[] sortFields,
-                      String collapseField, Object[] collapseValues) {
+                      String collapseField, Object[] collapseValues, int numberOfCompletionsSuggestions) {
             this.scoreDocs = scoreDocs;
             this.isSortedByField = isSortedByField;
             this.sortFields = sortFields;
             this.collapseField = collapseField;
             this.collapseValues = collapseValues;
+            this.numberOfCompletionsSuggestions = numberOfCompletionsSuggestions;
         }
     }
 }

@@ -8,12 +8,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.function.Consumer;
 
 public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry> {
     private final GeometryParser geometryParser;
@@ -23,13 +26,21 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
     }
 
     @Override
-    public Geometry parse(XContentParser parser) throws IOException, ParseException {
-        return geometryParser.parse(parser);
+    public void parse(
+        XContentParser parser,
+        CheckedConsumer<Geometry, IOException> consumer,
+        Consumer<Exception> onMalformed
+    ) throws IOException {
+        try {
+            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    parse(parser, consumer, onMalformed);
+                }
+            } else {
+                consumer.accept(geometryParser.parse(parser));
+            }
+        } catch (ParseException | ElasticsearchParseException | IllegalArgumentException e) {
+            onMalformed.accept(e);
+        }
     }
-
-    @Override
-    public Object format(Geometry value, String format) {
-        return geometryParser.geometryFormat(format).toXContentAsObject(value);
-    }
-
 }

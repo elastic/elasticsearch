@@ -68,7 +68,7 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
             }
             IndexNotFoundException infe = new IndexNotFoundException(followerIndex);
             CompletionPersistentTaskAction.Request request =
-                new CompletionPersistentTaskAction.Request(persistentTask.getId(), persistentTask.getAllocationId(), infe);
+                new CompletionPersistentTaskAction.Request(persistentTask.getId(), persistentTask.getAllocationId(), infe, null);
             threadPool.generic().submit(() -> {
                 /*
                  * We are executing under the system context, on behalf of the user to clean up the shard follow task after the follower

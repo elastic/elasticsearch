@@ -5,7 +5,7 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
 }
 
-testClusters.javaRestTest {
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
@@ -21,4 +21,6 @@ testClusters.javaRestTest {
   extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"
   user username: "security_test_user", password: "security-test-password", role: "security_test_role"
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
+  user username: "cat_test_user", password: "cat-test-password", role: "cat_test_role"
 }

@@ -15,12 +15,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.MlAutoUpdateService;
@@ -118,11 +115,6 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
                 fail(ex.getMessage());
             }
         });
-    }
-
-    @Override
-    public NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
     }
 
 }

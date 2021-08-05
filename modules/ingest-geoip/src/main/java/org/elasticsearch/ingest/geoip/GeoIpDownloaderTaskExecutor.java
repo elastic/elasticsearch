@@ -27,17 +27,19 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
-import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_V2_FEATURE_FLAG_ENABLED;
 
 /**
  * Persistent task executor that is responsible for starting {@link GeoIpDownloader} after task is allocated by master node.
- * Also bootstraps GeoIP download task on clean cluster and handles changes to the 'geoip.downloader.enabled' setting
+ * Also bootstraps GeoIP download task on clean cluster and handles changes to the 'ingest.geoip.downloader.enabled' setting
  */
-final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
+public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
 
-    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("geoip.downloader.enabled", GEOIP_V2_FEATURE_FLAG_ENABLED,
+    private static final boolean ENABLED_DEFAULT =
+        "false".equals(System.getProperty("ingest.geoip.downloader.enabled.default", "true")) == false;
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("ingest.geoip.downloader.enabled", ENABLED_DEFAULT,
         Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
@@ -48,15 +50,15 @@ final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTas
     private final ThreadPool threadPool;
     private final Settings settings;
     private final PersistentTasksService persistentTasksService;
+    private final AtomicReference<GeoIpDownloader> currentTask = new AtomicReference<>();
 
-    GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool,
-                                Settings settings) {
+    GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
         super(GEOIP_DOWNLOADER, ThreadPool.Names.GENERIC);
         this.client = client;
         this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.settings = settings;
+        this.settings = clusterService.getSettings();
         persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         if (ENABLED_SETTING.get(settings)) {
             clusterService.addListener(this);
@@ -81,13 +83,14 @@ final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTas
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, GeoIpTaskParams params, PersistentTaskState state) {
         GeoIpDownloader downloader = (GeoIpDownloader) task;
+        currentTask.set(downloader);
         GeoIpTaskState geoIpTaskState = state == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
         downloader.runDownloader();
     }
 
     @Override
-    protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
+    protected GeoIpDownloader createTask(long id, String type, String action, TaskId parentTaskId,
                                                  PersistentTasksCustomMetadata.PersistentTask<GeoIpTaskParams> taskInProgress,
                                                  Map<String, String> headers) {
         return new GeoIpDownloader(client, httpClient, clusterService, threadPool, settings, id, type, action,
@@ -111,5 +114,9 @@ final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTas
                 onFailure.run();
             }
         }));
+    }
+
+    public GeoIpDownloader getCurrentTask(){
+        return currentTask.get();
     }
 }

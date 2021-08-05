@@ -44,7 +44,7 @@ GET /_snapshot/my_repository
 ==== {api-path-parms-title}
 
 `<repository>`::
-(Required, string)
+(Optional, string)
 Comma-separated list of snapshot repository names used to limit the request.
 Wildcard (`*`) expressions are supported.
 +
@@ -112,8 +112,9 @@ Contains settings for the repository. Valid properties for the `settings` object
 depend on the repository type, set using the
 <<put-snapshot-repo-api-request-type,`type`>> parameter.
 +
-For properties, see the <<put-snapshot-repo-api,put snapshot repository API>>'s
-<<put-snapshot-repo-api-settings-param,`settings` parameter>>.
+For properties, see the <<put-snapshot-repo-api,create or update snapshot
+repository API>>'s <<put-snapshot-repo-api-settings-param,`settings`
+parameter>>.
 ====
 
 [[get-snapshot-repo-api-example]]

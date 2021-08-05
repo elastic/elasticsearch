@@ -65,9 +65,7 @@ public final class CustomQueryScorer extends QueryScorer {
         @Override
         protected void extractUnknownQuery(Query query,
                                            Map<String, WeightedSpanTerm> terms) throws IOException {
-            if (terms.isEmpty()) {
-                extractWeightedTerms(terms, query, 1F);
-            }
+            extractWeightedTerms(terms, query, 1F);
         }
 
         protected void extract(Query query, float boost, Map<String, WeightedSpanTerm> terms) throws IOException {

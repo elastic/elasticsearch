@@ -22,7 +22,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -42,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
@@ -134,9 +138,36 @@ public class TransportNodesActionTests extends ESTestCase {
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
         // check requests were only sent to data nodes
         for (String nodeTarget : capturedRequests.keySet()) {
-            assertTrue(clusterService.state().nodes().get(nodeTarget).isDataNode());
+            assertTrue(clusterService.state().nodes().get(nodeTarget).canContainData());
         }
         assertEquals(clusterService.state().nodes().getDataNodes().size(), capturedRequests.size());
+    }
+
+    public void testTaskCancellationThrowsException() {
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
+        List<String> nodeIds = new ArrayList<>();
+        for (DiscoveryNode node : clusterService.state().nodes()) {
+            nodeIds.add(node.getId());
+        }
+
+        TestNodesRequest request = new TestNodesRequest(nodeIds.toArray(new String[0]));
+        PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
+        CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        TaskCancelHelper.cancel(cancellableTask, "simulated");
+        action.doExecute(cancellableTask, request, listener);
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
+        for (List<CapturingTransport.CapturedRequest> requests : capturedRequests.values()) {
+            for (CapturingTransport.CapturedRequest capturedRequest : requests) {
+                if (randomBoolean()) {
+                    transport.handleResponse(capturedRequest.requestId, new TestNodeResponse(capturedRequest.node));
+                } else {
+                    transport.handleRemoteError(capturedRequest.requestId, new TaskCancelledException("simulated"));
+                }
+            }
+        }
+
+        assertTrue(listener.isDone());
+        expectThrows(ExecutionException.class, TaskCancelledException.class, listener::get);
     }
 
     private <T> List<T> mockList(Supplier<T> supplier, int size) {
@@ -183,7 +214,7 @@ public class TransportNodesActionTests extends ESTestCase {
         List<DiscoveryNode> discoveryNodes = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();
-            Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+            Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
             if (frequently()) {
                 attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
@@ -322,8 +353,13 @@ public class TransportNodesActionTests extends ESTestCase {
 
     private static class TestNodeResponse extends BaseNodeResponse {
         TestNodeResponse() {
-            super(mock(DiscoveryNode.class));
+            this(mock(DiscoveryNode.class));
         }
+
+        TestNodeResponse(DiscoveryNode node) {
+            super(node);
+        }
+
         protected TestNodeResponse(StreamInput in) throws IOException {
             super(in);
         }

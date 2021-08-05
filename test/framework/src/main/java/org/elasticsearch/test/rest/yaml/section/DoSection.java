@@ -16,7 +16,7 @@ import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
@@ -45,7 +46,7 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toCollection;
-import static org.elasticsearch.common.collect.Tuple.tuple;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -343,7 +344,10 @@ public class DoSection implements ExecutableSection {
                 }
                 fail(formatStatusCodeMessage(response, catchStatusCode));
             }
-            checkWarningHeaders(response.getWarningHeaders(), executionContext.masterVersion());
+            final String testPath = executionContext.getClientYamlTestCandidate() != null
+                ? executionContext.getClientYamlTestCandidate().getTestPath()
+                : null;
+            checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch(ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (Strings.hasLength(catchParam) == false) {
@@ -366,10 +370,14 @@ public class DoSection implements ExecutableSection {
         }
     }
 
+    void checkWarningHeaders(final List<String> warningHeaders) {
+        checkWarningHeaders(warningHeaders, null);
+    }
+
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(final List<String> warningHeaders, final Version masterVersion) {
+    void checkWarningHeaders(final List<String> warningHeaders, String testPath) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
@@ -426,6 +434,18 @@ public class DoSection implements ExecutableSection {
         if (expectedRegex.isEmpty() == false) {
             for (final Pattern headerPattern : expectedRegex) {
                 missingRegex.add(headerPattern.pattern());
+            }
+        }
+
+        // Log and remove all deprecation warnings for legacy index templates as a shortcut to dealing with all the legacy
+        // templates used in YAML tests. Once they have all been migrated to composable templates, this should be removed.
+        for (Iterator<String> warnings = unexpected.iterator(); warnings.hasNext();) {
+            if (warnings.next().endsWith(RestPutIndexTemplateAction.DEPRECATION_WARNING + "\"")) {
+                logger.warn(
+                    "Test [{}] uses deprecated legacy index templates and should be updated to use composable templates",
+                    (testPath == null ? "<unknown>" : testPath) + ":" + getLocation().lineNumber
+                );
+                warnings.remove();
             }
         }
 
@@ -548,7 +568,9 @@ public class DoSection implements ExecutableSection {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
-        List<VersionRange> skipVersionRanges = SkipSection.parseVersionRanges(parser.text());
+        List<VersionRange> skipVersionRanges = parser.text().equals("current")
+            ? List.of(new VersionRange(Version.CURRENT, Version.CURRENT))
+            : SkipSection.parseVersionRanges(parser.text());
         return new NodeSelector() {
             @Override
             public void select(Iterable<Node> nodes) {

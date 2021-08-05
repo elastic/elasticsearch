@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
 
@@ -53,8 +52,7 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
     public static final String CALENDAR_INTERVAL = "calendar_interval";
     public static final String TIME_ZONE = "time_zone";
 
-    private static final String DEFAULT_TIMEZONE = "UTC";
-    public static final ZoneId DEFAULT_ZONEID_TIMEZONE = ZoneOffset.UTC;
+    public static final String DEFAULT_TIMEZONE = "UTC";
     private static final String FIELD = "field";
 
     private static final ConstructingObjectParser<RollupActionDateHistogramGroupConfig, Void> PARSER;

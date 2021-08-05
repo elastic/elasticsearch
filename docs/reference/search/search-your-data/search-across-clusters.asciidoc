@@ -14,9 +14,12 @@ IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
 The following APIs support {ccs}:
 
 * <<search-search,Search>>
+* <<async-search,Async search>>
 * <<search-multi-search,Multi search>>
 * <<search-template,Search template>>
 * <<multi-search-template,Multi search template>>
+* <<search-field-caps,Field capabilities>>
+* experimental:[] <<eql-search-api,EQL search>>
 
 [discrete]
 [[ccs-example]]
@@ -407,9 +410,14 @@ image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 [[ccs-supported-configurations]]
 === Supported configurations
 
-Generally, <<gateway-nodes-selection, cross cluster search>> can search remote
+Generally, <<gateway-nodes-selection,cross-cluster search>> can search remote
 clusters that are one major version ahead or behind the coordinating node's
-version. Cross cluster search can also search remote clusters that are being
+version.
+
+IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
+clusters must use the same {es} version.
+
+Cross-cluster search can also search remote clusters that are being
 <<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
 "upgrade to" version are compatible with the gateway node.
 
@@ -420,3 +428,7 @@ cluster.
 
 WARNING: Running multiple versions of {es} in the same cluster beyond the
 duration of an upgrade is not supported.
+
+Only features that exist across all searched clusters are supported. Using
+a recent feature with a remote cluster where the feature is not supported
+will result in undefined behavior.

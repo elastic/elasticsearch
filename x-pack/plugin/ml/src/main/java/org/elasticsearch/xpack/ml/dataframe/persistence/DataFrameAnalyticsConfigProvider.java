@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.get.GetAction;
@@ -20,9 +21,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -31,11 +32,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -84,14 +89,64 @@ public class DataFrameAnalyticsConfigProvider {
     /**
      * Puts the given {@link DataFrameAnalyticsConfig} document into the config index.
      */
-    public void put(DataFrameAnalyticsConfig config, Map<String, String> headers, ActionListener<DataFrameAnalyticsConfig> listener) {
-        if (headers.isEmpty() == false) {
-            // Filter any values in headers that aren't security fields
-            config = new DataFrameAnalyticsConfig.Builder(config)
-                .setHeaders(filterSecurityHeaders(headers))
-                .build();
-        }
-        index(config, null, listener);
+    public void put(final DataFrameAnalyticsConfig config, Map<String, String> headers, TimeValue timeout,
+                    ActionListener<DataFrameAnalyticsConfig> listener) {
+
+        ActionListener<AcknowledgedResponse> deleteLeftOverDocsListener = ActionListener.wrap(
+            r -> index(prepareConfigForIndex(config, headers), null, listener),
+            listener::onFailure
+        );
+
+        ActionListener<Boolean> existsListener = ActionListener.wrap(
+            exists -> {
+                if (exists) {
+                    listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(config.getId()));
+                } else {
+                    deleteLeftOverDocs(config, timeout, deleteLeftOverDocsListener);
+                }
+            },
+            listener::onFailure
+        );
+
+        exists(config.getId(), existsListener);
+    }
+
+    private DataFrameAnalyticsConfig prepareConfigForIndex(DataFrameAnalyticsConfig config, Map<String, String> headers) {
+        return headers.isEmpty() ? config : new DataFrameAnalyticsConfig.Builder(config)
+            .setHeaders(filterSecurityHeaders(headers))
+            .build();
+    }
+
+    private void exists(String jobId, ActionListener<Boolean> listener) {
+        ActionListener<GetResponse> getListener = ActionListener.wrap(
+            getResponse -> listener.onResponse(getResponse.isExists()),
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    listener.onResponse(false);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        );
+
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DataFrameAnalyticsConfig.documentId(jobId));
+        getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, getListener);
+    }
+
+    private void deleteLeftOverDocs(DataFrameAnalyticsConfig config, TimeValue timeout, ActionListener<AcknowledgedResponse> listener) {
+        DataFrameAnalyticsDeleter deleter = new DataFrameAnalyticsDeleter(client, auditor);
+        deleter.deleteAllDocuments(config, timeout, ActionListener.wrap(
+            r -> listener.onResponse(r),
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                    // This is expected
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                } else {
+                    listener.onFailure(ExceptionsHelper.serverError("error deleting prior documents", e));
+                }
+            }
+        ));
     }
 
     /**
@@ -254,7 +309,7 @@ public class DataFrameAnalyticsConfigProvider {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            new ActionListener<SearchResponse>() {
+            new ActionListener.Delegating<SearchResponse, List<DataFrameAnalyticsConfig>>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     SearchHit[] hits = searchResponse.getHits().getHits();
@@ -266,7 +321,7 @@ public class DataFrameAnalyticsConfigProvider {
                                  xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
                             configs.add(DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build());
                         } catch (IOException e) {
-                            listener.onFailure(e);
+                            delegate.onFailure(e);
                         }
                     }
 
@@ -276,14 +331,8 @@ public class DataFrameAnalyticsConfigProvider {
                     if (tasksWithoutConfigs.isEmpty() == false) {
                         logger.warn("Data frame analytics tasks {} have no configs", tasksWithoutConfigs);
                     }
-                    listener.onResponse(configs);
+                    delegate.onResponse(configs);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            },
-            client::search);
+            }, client::search);
     }
 }

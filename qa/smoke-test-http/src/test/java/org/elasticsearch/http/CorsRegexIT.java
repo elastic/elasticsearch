@@ -31,9 +31,9 @@ import static org.hamcrest.Matchers.nullValue;
 public class CorsRegexIT extends HttpSmokeTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "/https?:\\/\\/localhost(:[0-9]+)?/")
                 .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
                 .put(SETTING_CORS_ALLOW_METHODS.getKey(), "get, options, post")

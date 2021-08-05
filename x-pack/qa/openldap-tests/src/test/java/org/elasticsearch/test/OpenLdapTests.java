@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.Environment;
@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataReso
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory;
 import org.elasticsearch.xpack.security.authc.ldap.LdapTestUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
@@ -94,14 +94,14 @@ public class OpenLdapTests extends ESTestCase {
         // fake realms so ssl will get loaded
         builder.put("xpack.security.authc.realms.ldap.foo.ssl.truststore.path", truststore);
         mockSecureSettings.setString("xpack.security.authc.realms.ldap.foo.ssl.truststore.secure_password", "changeit");
-        builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", VerificationMode.FULL);
+        builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", SslVerificationMode.FULL);
         builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.path", truststore);
         mockSecureSettings.setString("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.secure_password", "changeit");
-        builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.verification_mode", VerificationMode.CERTIFICATE);
+        builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.verification_mode", SslVerificationMode.CERTIFICATE);
 
         builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.path", truststore);
         mockSecureSettings.setString("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.secure_password", "changeit");
-        builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.verification_mode", VerificationMode.FULL);
+        builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.verification_mode", SslVerificationMode.FULL);
         globalSettings = builder.setSecureSettings(mockSecureSettings).build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(environment);
@@ -266,8 +266,8 @@ public class OpenLdapTests extends ESTestCase {
             .put(LdapTestCase.buildLdapSettings(realmId, urls, templates, groupSearchBase, scope, null, false));
         builder.put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid");
         return builder
-            .put(getFullSettingKey(realmId, SSLConfigurationSettings.TRUST_STORE_PATH_REALM), getDataPath(LDAPTRUST_PATH))
-            .put(getFullSettingKey(realmId, SSLConfigurationSettings.LEGACY_TRUST_STORE_PASSWORD_REALM), "changeit")
+            .put(SSLConfigurationSettings.TRUSTSTORE_PATH.realm(realmId).getKey(), getDataPath(LDAPTRUST_PATH))
+            .put(SSLConfigurationSettings.LEGACY_TRUSTSTORE_PASSWORD.realm(realmId).getKey(), "changeit")
             .put(globalSettings)
             .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();

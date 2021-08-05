@@ -1,7 +1,7 @@
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -21,12 +21,12 @@ def pluginPaths = project(':plugins').getChildProjects().findAll { pluginName, p
 }.collect {pluginName, pluginProject -> pluginProject.path }
 
 ext.expansions = [
-        'expected.plugins.count': pluginPaths.size()
+  'expected.plugins.count': pluginPaths.size()
 ]
 
 tasks.named("processTestResources").configure {
   inputs.properties(project.expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 testClusters.matching { it.name == "integTest" }.configureEach {

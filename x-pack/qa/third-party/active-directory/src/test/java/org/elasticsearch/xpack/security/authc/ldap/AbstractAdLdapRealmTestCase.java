@@ -13,7 +13,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -112,10 +112,10 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final RealmConfig realm = AbstractAdLdapRealmTestCase.realmConfig;
         Settings.Builder builder = Settings.builder();
-        builder.put(super.nodeSettings(nodeOrdinal), true);
+        builder.put(super.nodeSettings(nodeOrdinal, otherSettings), true);
         builder.put(buildRealmSettings(realm, roleMappings, getNodeTrustedCertificates()));
         return builder.build();
     }
@@ -379,7 +379,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         protected Settings buildSettings(List<String> certificateAuthorities, int order) {
             Settings.Builder builder = Settings.builder()
                 .put("xpack.security.authc.realms." + type + ".external.order", order)
-                .put("xpack.security.authc.realms." + type + ".external.ssl.verification_mode", VerificationMode.CERTIFICATE)
+                .put("xpack.security.authc.realms." + type + ".external.ssl.verification_mode", SslVerificationMode.CERTIFICATE)
                 .put("xpack.security.authc.realms." + type + ".external.unmapped_groups_as_roles", mapGroupsAsRoles)
                 .put(this.settings)
                 .putList("xpack.security.authc.realms." + type + ".external.ssl.certificate_authorities", certificateAuthorities);

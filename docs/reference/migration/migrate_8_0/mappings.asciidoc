@@ -6,10 +6,6 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
-
 .The maximum number of completion contexts per field is now 10.
 [%collapsible]
 ====
@@ -27,7 +23,7 @@ than 10 completion contexts will return an error.
 [%collapsible]
 ====
 *Details* +
-The typed REST endpoints of the Put Mapping, Get Mapping and Get Field mapping
+The typed REST endpoints of the update mapping, get mapping and get field mapping
 APIs have been removed in favour of their typeless REST endpoints, since indexes
 no longer contain types, these typed endpoints are obsolete.
 
@@ -64,23 +60,22 @@ Disabling _field_names is not necessary because it no longer carries a large ind
 ====
 
 [[mapping-boosts]]
-.The `boost` parameter on field mappings has been removed
+.The `boost` parameter on field mappings has been removed.
 [%collapsible]
 ====
 *Details* +
 Index-time boosts have been deprecated since the 5x line, but it was still possible
-to declare field-specific boosts in the mappings.  This is now removed completely.
+to declare field-specific boosts in the mappings. This is now removed completely.
 Indexes built in 7x that contain mapping boosts will emit warnings, and the boosts
-will have no effect in 8.0.  New indexes will not permit boosts to be set in their
+will have no effect in 8.0. New indexes will not permit boosts to be set in their
 mappings at all.
 
 *Impact* +
-The `boost` setting should be removed from templates and mappings.  Use boosts
+The `boost` setting should be removed from templates and mappings. Use boosts
 directly on queries instead.
 ====
 
-//tag::notable-breaking-changes[]
-.Java-time date formats replace joda-time formats
+.Java-time date formats replace joda-time formats.
 [%collapsible]
 ====
 *Details* +
@@ -94,22 +89,23 @@ mappings with java-time formats.
 For a detailed migration guide, see the {ref}/migrate-to-java-time.html[Java
 time migration guide].
 ====
-// end::notable-breaking-changes[]
 
 [[geo-shape-strategy]]
-.The `strategy` parameter on `geo_shape` mappings now rejects unknown strategies
+.Several `geo_shape` mapping parameters have been removed.
 [%collapsible]
 ====
 *Details* +
-The only permissible values for the `strategy` parameter on `geo_shape` mappings
-are `term` and `recursive`. In 7.x if a non-permissible value was used as a
-parameter here, the mapping would silently fall back to using `recursive`.  The
-mapping will now be rejected instead.
+The following `geo_shape` mapping parameters were deprecated in 6.6:
+
+* `tree`
+* `tree_levels`
+* `strategy`
+* `distance_error_pct`
+
+These parameters have been removed in 8.0.0.
 
 *Impact* +
-This will have no impact on existing mappings created with non-permissible
-strategy values, as they will already be serializing themselves as if they
-had been configured as `recursive`.  New indexes will need to use one of the
-permissible strategies, or preferably not define a strategy at all and use
-the far more efficient BKD index.
+In 8.0, you can no longer create mappings that include these parameters.
+However, 7.x indices that use these mapping parameters will continue to work.
 ====
+// end::notable-breaking-changes[]

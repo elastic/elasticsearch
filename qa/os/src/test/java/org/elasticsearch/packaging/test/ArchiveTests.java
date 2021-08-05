@@ -433,6 +433,8 @@ public class ArchiveTests extends PackagingTestCase {
             assertThat(result.stdout, containsString("Sets the passwords for reserved users"));
             result = sh.run(bin.usersTool + " -h");
             assertThat(result.stdout, containsString("Manages elasticsearch file users"));
+            result = sh.run(bin.serviceTokensTool + " -h");
+            assertThat(result.stdout, containsString("Manages elasticsearch service account file-tokens"));
         };
 
         Platforms.onLinux(action);

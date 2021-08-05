@@ -10,11 +10,13 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -93,6 +95,34 @@ public class DocWriteResponseTests extends ESTestCase {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
                 assertThat(parser.map(), hasEntry("forced_refresh", true));
+            }
+        }
+    }
+
+    public void testTypeWhenCompatible() throws IOException {
+        DocWriteResponse response = new DocWriteResponse(
+            new ShardId("index", "uuid", 0),
+            "id",
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            17,
+            0,
+            DocWriteResponse.Result.CREATED
+        ) {
+            // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
+        };
+        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
+            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                assertThat(parser.map(), hasEntry(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME));
+            }
+        }
+
+        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_8)) {
+            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                assertThat(parser.map(), not(hasKey(MapperService.TYPE_FIELD_NAME)));
             }
         }
     }

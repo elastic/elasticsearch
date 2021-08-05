@@ -13,11 +13,12 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
@@ -37,7 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 
-    private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");
+    private static final ObjectParser<RolloverRequest, Boolean> PARSER = new ObjectParser<>("rollover");
     private static final ObjectParser<Map<String, Condition<?>>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
 
     private static final ParseField CONDITIONS = new ParseField("conditions");
@@ -67,14 +68,34 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             CONDITIONS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.settings(parser.map()),
             CreateIndexRequest.SETTINGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((parser, request, includeTypeName) -> {
+            if (includeTypeName) {
+                //expecting one type only
+                for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> value = (Map<String, Object>) mappingsEntry.getValue();
+                    request.createIndexRequest.mapping(value);
+                }
+            } else {
+                // a type is not included, add a dummy _doc type
+                Map<String, Object> mappings = parser.map();
+                if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
+                    throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
+                        "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
+                }
+                request.createIndexRequest.mapping(mappings);
+            }
+        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> {
             // a type is not included, add a dummy _doc type
             Map<String, Object> mappings = parser.map();
             if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
+
                 throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
             }
             request.createIndexRequest.mapping(mappings);
-        }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
+        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)), ObjectParser.ValueType.OBJECT);
+
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
             CreateIndexRequest.ALIASES, ObjectParser.ValueType.OBJECT);
     }
@@ -238,7 +259,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     // param isTypeIncluded decides how mappings should be parsed from XContent
-    public void fromXContent(XContentParser parser) throws IOException {
-        PARSER.parse(parser, this, null);
+    public void fromXContent(boolean isTypeIncluded, XContentParser parser) throws IOException {
+        PARSER.parse(parser, this, isTypeIncluded);
     }
 }

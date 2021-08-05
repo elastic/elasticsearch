@@ -145,8 +145,8 @@ To set up the watch:
   },
 -------------------------------------------------
 // NOTCONSOLE
-<1> `logstash` is the default <<indices-add-alias,index alias>> for the {ls}
-indices containing the meetup data. By default, the {ls}
+<1> `logstash` is the default <<alias,index alias>> for the {ls} indices
+containing the meetup data. By default, the {ls}
 <<index-lifecycle-management,{ilm} ({ilm-init})>> policy rolls this alias to a
 new index when the index size reaches 50GB or becomes 30 days old. For more
 information, see

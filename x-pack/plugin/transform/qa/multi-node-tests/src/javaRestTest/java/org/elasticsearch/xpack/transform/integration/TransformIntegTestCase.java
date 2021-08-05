@@ -46,7 +46,7 @@ import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -120,8 +120,16 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected void cleanUpTransforms() throws IOException {
         for (TransformConfig config : transformConfigs.values()) {
-            stopTransform(config.getId());
-            deleteTransform(config.getId());
+            try {
+                stopTransform(config.getId());
+                deleteTransform(config.getId());
+            } catch (ElasticsearchStatusException ex) {
+                if (ex.status().equals(RestStatus.NOT_FOUND)) {
+                    logger.info("tried to cleanup already deleted transform [{}]", config.getId());
+                } else {
+                    throw ex;
+                }
+            }
         }
         transformConfigs.clear();
     }

@@ -43,9 +43,9 @@ public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder();
-        builder.put(super.nodeSettings(nodeOrdinal));
+        builder.put(super.nodeSettings(nodeOrdinal, otherSettings));
 
         final List<RoleMappingEntry> secondaryRoleMappings = secondaryRealmConfig.selectRoleMappings(() -> true);
         final Settings secondarySettings = super.buildRealmSettings(secondaryRealmConfig, secondaryRoleMappings,

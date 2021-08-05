@@ -5,15 +5,14 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put {dfanalytics-jobs} API
+=== Create {dfanalytics-jobs} API
 
-beta::[]
 
 Creates a new {dfanalytics-job}.
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put {dfanalytics-jobs} request
+==== Request
 
 A +{request}+ requires the following argument:
 

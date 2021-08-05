@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
@@ -62,6 +63,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
         checker.registerUpdateCheck(b -> b.field("depth_limit", 10),
             m -> assertEquals(10, ((FlattenedFieldMapper)m).depthLimit()));
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     public void testDefaults() throws Exception {
@@ -332,5 +338,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
         assertTokenStreamContents(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

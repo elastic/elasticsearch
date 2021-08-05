@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -25,7 +24,6 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
 import org.elasticsearch.xpack.core.DataTier;
 import org.hamcrest.Matchers;
 
@@ -109,7 +107,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
     private void testScaleFromEmptyWarm(boolean allocatable) throws Exception {
         internalCluster().startMasterOnlyNode();
-        internalCluster().startNode(NodeRoles.onlyRole(DataTier.DATA_HOT_NODE_ROLE));
+        internalCluster().startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
         putAutoscalingPolicy("hot", DataTier.DATA_HOT);
         putAutoscalingPolicy("warm", DataTier.DATA_WARM);
 
@@ -152,25 +150,39 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         internalCluster().startNode(
             NodeRoles.onlyRole(
                 Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + "data_tier", "hot").build(),
-                DataTier.DATA_HOT_NODE_ROLE
+                DiscoveryNodeRole.DATA_HOT_NODE_ROLE
             )
         );
         putAutoscalingPolicy("hot", DataTier.DATA_HOT);
         putAutoscalingPolicy("warm", DataTier.DATA_WARM);
         putAutoscalingPolicy("cold", DataTier.DATA_COLD);
 
+        // add an index using `_id` allocation to check that it does not trigger spinning up the tier.
+        assertAcked(
+            prepareCreate(randomAlphaOfLength(10).toLowerCase(Locale.ROOT)).setSettings(
+                Settings.builder()
+                    // more than 0 replica provokes the same shard decider to say no.
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
+                    .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_id", randomAlphaOfLength(5))
+                    .build()
+            ).setWaitForActiveShards(ActiveShardCount.NONE)
+        );
+
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
             prepareCreate(indexName).setSettings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    // more than 0 replica provokes the same shard decider to say no.
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
                     .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "data_tier", "hot")
                     .build()
             )
         );
-        refresh();
+        refresh(indexName);
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));
         assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));
 
@@ -191,20 +203,25 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
     }
 
     /**
-     * Verify that the list of roles includes all data roles to ensure we consider adding future data roles.
+     * Verify that the list of roles includes all data roles except frozen to ensure we consider adding future data roles.
      */
     public void testRoles() {
         // this has to be an integration test to ensure roles are available.
         internalCluster().startMasterOnlyNode();
         ReactiveStorageDeciderService service = new ReactiveStorageDeciderService(
             Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
         assertThat(
             service.roles().stream().sorted().collect(Collectors.toList()),
             Matchers.equalTo(
-                DiscoveryNode.getPossibleRoles().stream().filter(DiscoveryNodeRole::canContainData).sorted().collect(Collectors.toList())
+                DiscoveryNodeRole.roles()
+                    .stream()
+                    .filter(DiscoveryNodeRole::canContainData)
+                    .filter(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
+                    .sorted()
+                    .collect(Collectors.toList())
             )
         );
     }

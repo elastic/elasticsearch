@@ -18,15 +18,14 @@ Retrieves filters.
 [[ml-get-filter-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-get-filter-desc]]
 == {api-description-title}
 
 You can get a single filter or all filters. For more information, see 
-{ml-docs}/ml-rules.html[Machine learning custom rules].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Custom rules].
 
 [[ml-get-filter-path-parms]]
 == {api-path-parms-title}
@@ -39,10 +38,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
 == {api-query-parms-title}
 
 `from`::
-    (Optional, integer) Skips the specified number of filters.
+    (Optional, integer) Skips the specified number of filters. Defaults to `0`.
 
 `size`::
     (Optional, integer) Specifies the maximum number of filters to obtain.
+    Defaults to `100`.
 
 [[ml-get-filter-results]]
 == {api-response-body-title}

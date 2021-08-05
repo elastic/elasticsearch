@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -29,18 +30,17 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -80,7 +80,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ClusterState interimState = stateBuilder.build();
         final ClusterState state = startAll(interimState);
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Collection<AllocationDecider> allocationDecidersList = new ArrayList<>(
             ClusterModule.createAllocationDeciders(Settings.EMPTY, clusterSettings, Collections.emptyList())
         );
@@ -355,7 +355,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ClusterInfo randomClusterInfo(ClusterState state) {
-        Map<String, Long> collect = state.routingTable()
+        Map<String, Long> shardSizes = state.routingTable()
             .allShards()
             .stream()
             .map(ClusterInfo::shardIdentifierFromRouting)
@@ -369,7 +369,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         return new ClusterInfo(
             diskUsage,
             diskUsage,
-            ImmutableOpenMap.<String, Long>builder().putAll(collect).build(),
+            ImmutableOpenMap.<String, Long>builder().putAll(shardSizes).build(),
+            ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of()
         );

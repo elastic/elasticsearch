@@ -8,13 +8,34 @@ about how to use runtime fields.
 
 *Methods*
 
-`emit` (Required)::
+--
+[[runtime-emit-method]]
+// tag::runtime-field-emit[]
+`emit`:: (Required)
         Accepts the values from the script valuation. Scripts can call the
         `emit` method multiple times to emit multiple values.
 +
---
-IMPORTANT: This method cannot accept `null` values. Do not call this method if
-the referenced fields do not have any values.
+The `emit` method applies only to scripts used in a 
+<<painless-execute-runtime-context,runtime fields context>>.
++
+IMPORTANT: The `emit` method cannot accept `null` values. Do not call this
+method if the referenced fields do not have any values.
++
+.Signatures of `emit`
+[%collapsible%open]
+====
+The signature for `emit` depends on the `type` of the field.
+
+[horizontal]
+`boolean`::   `emit(boolean)`
+`date`::      `emit(long)`
+`double`::    `emit(double)`
+`geo_point`:: `emit(double lat, double long)`
+`ip`::        `emit(String)`
+`long`::      `emit(long)`
+`keyword`::   `emit(String)`
+====
+// end::runtime-field-emit[]
 --
 
 --

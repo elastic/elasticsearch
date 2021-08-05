@@ -41,6 +41,11 @@ There are several thread pools, but the important ones include:
     keep-alive of `5m` and a max of `min(5, (`<<node.processors,
     `# of allocated processors`>>`) / 2)`.
 
+`snapshot_meta`::
+    For snapshot repository metadata read operations. Thread pool type is `scaling` with a
+    keep-alive of `5m` and a max of `min(50, (`<<node.processors,
+    `# of allocated processors`>>` pass:[ * ]3))`.
+
 `warmer`::
     For segment warm-up operations. Thread pool type is `scaling` with a
     keep-alive of `5m` and a max of `min(5, (`<<node.processors,
@@ -83,13 +88,29 @@ There are several thread pools, but the important ones include:
 
 `system_read`::
     For read operations on system indices.
-    Thread pool type is `fixed` and a default maximum size of
+    Thread pool type is `fixed` with a default maximum size of
     `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
 
 `system_write`::
     For write operations on system indices.
-    Thread pool type is `fixed` and a default maximum size of
+    Thread pool type is `fixed` with a default maximum size of
     `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
+
+`system_critical_read`::
+    For critical read operations on system indices.
+    Thread pool type is `fixed` with a default maximum size of
+    `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
+
+`system_critical_write`::
+    For critical write operations on system indices.
+    Thread pool type is `fixed` with a default maximum size of
+    `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
+
+`watcher`::
+    For <<xpack-alerting,watch executions>>.
+    Thread pool type is `fixed` with a default maximum size of
+    `min(5 * (`<<node.processors, `# of allocated processors`>>`), 50)`
+    and queue_size of `1000`.
 
 Changing a specific thread pool can be done by setting its type-specific
 parameters; for example, changing the number of threads in the `write` thread
@@ -168,7 +189,7 @@ setting:
 {es} to size its thread pools as if it only has a fraction of the CPU, you
 should override the `node.processors` setting to the desired fraction, for
 example, if you're running two instances of {es} on a 16-core machine, set
-`node.processors` to 8.  Note that this is an expert-level use case and there's
+`node.processors` to 8. Note that this is an expert-level use case and there's
 a lot more involved than just setting the `node.processors` setting as there are
 other considerations like changing the number of garbage collector threads,
 pinning processes to cores, and so on.

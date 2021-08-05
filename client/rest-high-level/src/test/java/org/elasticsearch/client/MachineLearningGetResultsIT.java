@@ -33,7 +33,7 @@ import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
@@ -193,7 +193,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void deleteJob() throws IOException {
-        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
+        new MlTestStateCleaner(logger, highLevelClient()).clearMlMetadata();
     }
 
     public void testGetModelSnapshots() throws IOException {

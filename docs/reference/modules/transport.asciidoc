@@ -49,8 +49,19 @@ time setting format). Defaults to `30s`.
 
 `transport.compress`::
 (<<static-cluster-setting,Static>>)
-Set to `true` to enable compression (`DEFLATE`) between
-all nodes. Defaults to `false`.
+Set to `true`, `indexing_data`, or `false` to configure transport compression
+between nodes. The option `true` will compress all data. The option
+`indexing_data` will compress only the raw index data sent between nodes during
+ingest, ccr following (excluding bootstrap), and operations based shard recovery
+(excluding transferring lucene files). The `indexing_data` option is experimental.
+Defaults to `false`.
+
+`transport.compression_scheme`::
+(<<static-cluster-setting,Static>>)
+Configures the compression scheme for `transport.compress`. The options are
+`deflate` or `lz4`. The option `lz4` is experimental. If `lz4` is configured and
+ the remote node has not been upgraded to a version supporting `lz4`, the traffic
+ will be sent uncompressed. Defaults to `deflate`.
 
 `transport.ping_schedule`::
 (<<static-cluster-setting,Static>>)
@@ -132,6 +143,8 @@ transport.profiles.dmz.bind_host: 172.16.1.2
 The `default` profile is special. It is used as a fallback for any other
 profiles, if those do not have a specific configuration setting set, and is how
 this node connects to other nodes in the cluster.
+Other profiles can have any name and can be used to set up specific endpoints
+for incoming connections.
 
 The following parameters can be configured on each transport profile, as in the
 example above:
@@ -169,6 +182,11 @@ request compression is disabled between nodes in the cluster. This default
 normally makes sense for local cluster communication as compression has a
 noticeable CPU cost and local clusters tend to be set up with fast network
 connections between nodes.
+
+The `transport.compress` configuration option `indexing_data` will only
+compress requests that relate to the transport of raw indexing source data
+between nodes. This option primarily compresses data sent during ingest,
+ccr, and shard recovery. This option is experimental.
 
 The `transport.compress` setting always configures local cluster request
 compression and is the fallback setting for remote cluster request compression.

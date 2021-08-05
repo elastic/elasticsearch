@@ -4,7 +4,10 @@
 A repository can contain multiple snapshots of the same cluster. Snapshots are identified by unique names within the
 cluster.
 
-Use the <<put-snapshot-repo-api,put snapshot repository API>> to register or update a snapshot repository, and then use the <<create-snapshot-api,create snapshot API>> to create a snapshot in a repository.
+Use the <<put-snapshot-repo-api,create or update snapshot repository API>> to
+register or update a snapshot repository, and then use the
+<<create-snapshot-api,create snapshot API>> to create a snapshot in a
+repository.
 
 The following request creates a snapshot with the name `snapshot_1` in the repository `my_backup`:
 
@@ -51,7 +54,7 @@ PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
 // TEST[skip:cannot complete subsequent snapshot]
 
 Use the `indices` parameter to list the data streams and indices that should be included in the snapshot. This parameter supports
-<<multi-index,multi-target syntax>>, although the options that control the behavior of multi-index syntax
+<<api-multi-index,multi-target syntax>>, although the options that control the behavior of multi-index syntax
 must be supplied in the body of the request, rather than as request parameters.
 
 Data stream backups include the stream's backing indices and metadata, such as
@@ -60,6 +63,11 @@ the current <<data-streams-generation,generation>> and timestamp field.
 You can also choose to include only specific backing indices in a snapshot.
 However, these backups do not include the associated data stream's
 metadata or its other backing indices.
+
+Snapshots can also include a data stream but exclude specific backing indices.
+When you restore the data stream, it will contain only backing indices present
+in the snapshot. If the stream's original write index is not in the snapshot,
+the most recent backing index from the snapshot becomes the stream's write index.
 
 [discrete]
 [[create-snapshot-process-details]]
@@ -125,7 +133,7 @@ By setting `include_global_state` to `false` it's possible to prevent the cluste
 the snapshot.
 
 IMPORTANT: The global cluster state includes the cluster's index
-templates, such as those <<create-a-data-stream-template,matching a data
+templates, such as those <<create-index-template,matching a data
 stream>>. If your snapshot includes data streams, we recommend storing the
 global state as part of the snapshot. This lets you later restored any
 templates required for a data stream.

@@ -9,6 +9,7 @@
 package org.elasticsearch.common.settings;
 
 import joptsimple.OptionSet;
+
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;

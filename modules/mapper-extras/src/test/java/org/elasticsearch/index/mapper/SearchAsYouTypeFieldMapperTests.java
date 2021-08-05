@@ -745,4 +745,10 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertThat(mapper, instanceOf(PrefixFieldMapper.class));
         return (PrefixFieldMapper) mapper;
     }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("We don't have doc values or fielddata", true);
+        return null;
+    }
 }

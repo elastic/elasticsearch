@@ -78,7 +78,7 @@ public class SystemIndexManager implements ClusterStateListener {
             return;
         }
 
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+        if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
             logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
             return;
         }
@@ -268,7 +268,13 @@ public class SystemIndexManager implements ClusterStateListener {
                 throw new IllegalStateException("Cannot read version string in index " + indexName);
             }
 
-            final String versionString = (String) meta.get(descriptor.getVersionMetaKey());
+            final Object rawVersion = meta.get(descriptor.getVersionMetaKey());
+            if (rawVersion instanceof Integer) {
+                // This can happen with old system indices, such as .tasks, which were created before we used an Elasticsearch
+                // version here. We should just replace the template to be sure.
+                return Version.V_EMPTY;
+            }
+            final String versionString = rawVersion != null ? rawVersion.toString() : null;
             if (versionString == null) {
                 logger.warn("No value found in mappings for [_meta.{}]", descriptor.getVersionMetaKey());
                 // If we called `Version.fromString(null)`, it would return `Version.CURRENT` and we wouldn't update the mappings
@@ -278,6 +284,9 @@ public class SystemIndexManager implements ClusterStateListener {
         } catch (ElasticsearchParseException e) {
             logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
             throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);
+        } catch (IllegalArgumentException e) {
+            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
+            throw e;
         }
     }
 

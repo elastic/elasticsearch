@@ -26,4 +26,9 @@ public abstract class LeafExpression extends Expression {
     public AttributeSet references() {
         return AttributeSet.EMPTY;
     }
+
+    @Override
+    protected Expression canonicalize() {
+        return this;
+    }
 }

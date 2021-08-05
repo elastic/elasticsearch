@@ -14,9 +14,9 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -34,6 +34,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -510,6 +511,40 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("Cannot create datafeed"));
         assertThat(e.getMessage(),
                 containsString("user ml_admin lacks permissions on the indices"));
+    }
+
+    public void testInsufficientSearchPrivilegesOnPutWithJob() {
+        String jobId = "privs-failed-put-job";
+        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        createJobRequest.setJsonEntity("{\n"
+            + "  \"description\": \"Aggs job\",\n"
+            + "  \"datafeed_config\": {\"indexes\": [\"airline-data-aggs\"]},\n"
+            + "  \"analysis_config\": {\n"
+            + "    \"bucket_span\": \"1h\",\n "
+            + "    \"summary_count_field_name\": \"doc_count\",\n"
+            + "    \"detectors\": [\n"
+            + "      {\n"
+            + "        \"function\": \"mean\",\n"
+            + "        \"field_name\": \"responsetime\",\n"
+            + "        \"by_field_name\":\"airline\"\n"
+            + "       }\n"
+            + "    ]\n"
+            + "  },\n"
+            + "  \"data_description\" : {\"time_field\": \"time stamp\"}\n"
+            + "}");
+        RequestOptions.Builder options = createJobRequest.getOptions().toBuilder();
+        options.addHeader("Authorization", BASIC_AUTH_VALUE_ML_ADMIN);
+        createJobRequest.setOptions(options);
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createJobRequest));
+        assertThat(e.getMessage(), containsString("Cannot create datafeed"));
+        assertThat(e.getMessage(),
+            containsString("user ml_admin lacks permissions on the indices"));
+
+        ResponseException missing = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId))
+        );
+        assertThat(missing.getMessage(), containsString("No known job with id"));
     }
 
     public void testCreationOnPutWithRollup() throws Exception {
@@ -1018,13 +1053,29 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String jobId = "job-realtime-1";
         createJob(jobId, "airline");
         String datafeedId = jobId + "-datafeed";
-        new DatafeedBuilder(datafeedId, jobId, "airline-data").build();
+        new DatafeedBuilder(datafeedId, jobId, "airline-data").setFrequency(TimeValue.timeValueSeconds(5)).build();
         openJob(client(), jobId);
 
         Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
         startRequest.addParameter("start", "2016-06-01T00:00:00Z");
         Response response = client().performRequest(startRequest);
         assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
+
+        // We should now be running in real time but may or may not have finished look back
+        assertBusy(() -> {
+            try {
+                Response datafeedStatsResponse = client().performRequest(new Request("GET",
+                    MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats"));
+                String body = EntityUtils.toString(datafeedStatsResponse.getEntity());
+                assertThat(body, containsString("\"real_time_configured\":true"));
+                assertThat(body, anyOf(
+                    containsString("\"real_time_running\":true"),
+                    containsString("\"real_time_running\":false")
+                ));
+            } catch (Exception e1) {
+                throw new RuntimeException(e1);
+            }
+        });
         assertBusy(() -> {
             try {
                 Response getJobResponse = client().performRequest(new Request("GET",
@@ -1056,6 +1107,19 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(409));
         assertThat(EntityUtils.toString(response.getEntity()),
                 containsString("Cannot delete job [" + jobId + "] because the job is opened"));
+
+        // Look back should now be completed and we are still considered a real time datafeed (no endtime set)
+        assertBusy(() -> {
+            try {
+                Response datafeedStatsResponse = client().performRequest(new Request("GET",
+                    MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats"));
+                String body = EntityUtils.toString(datafeedStatsResponse.getEntity());
+                assertThat(body, containsString("\"real_time_configured\":true"));
+                assertThat(body, containsString("\"real_time_running\":true"));
+            } catch (Exception e1) {
+                throw new RuntimeException(e1);
+            }
+        });
 
         response = client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -1232,10 +1296,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
         // Don't check rollup jobs because we clear them in the superclass.
-        // Don't check analytics jobs as they are independent of anomaly detection jobs and should not be created by this test.
-        waitForPendingTasks(
-            adminClient(),
-            taskName -> taskName.startsWith(RollupJob.NAME) || taskName.contains(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME));
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(RollupJob.NAME));
     }
 
     private static class DatafeedBuilder {
@@ -1249,6 +1310,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String secondaryAuthHeader = null;
         String chunkingTimespan;
         String indicesOptions;
+        TimeValue frequency;
 
         DatafeedBuilder(String datafeedId, String jobId, String index) {
             this.datafeedId = datafeedId;
@@ -1256,8 +1318,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             this.index = index;
         }
 
-        DatafeedBuilder setSource(boolean enableSource) {
-            this.source = enableSource;
+        public DatafeedBuilder setFrequency(TimeValue frequency) {
+            this.frequency = frequency;
             return this;
         }
 
@@ -1298,6 +1360,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                     + (source ? ",\"_source\":true" : "")
                     + (scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields)
                     + (aggregations == null ? "" : ",\"aggs\":" + aggregations)
+                    + (frequency == null ? "" : ",\"frequency\":\"" + frequency + "\"")
                     + (indicesOptions == null ? "" : ",\"indices_options\":" + indicesOptions)
                     + (chunkingTimespan == null ? "" :
                             ",\"chunking_config\":{\"mode\":\"MANUAL\",\"time_span\":\"" + chunkingTimespan + "\"}")

@@ -7,28 +7,42 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class AutoFollowIT extends ESCCRRestTestCase {
@@ -37,108 +51,146 @@ public class AutoFollowIT extends ESCCRRestTestCase {
 
     public void testMultipleAutoFollowPatternsDifferentClusters() throws Exception {
         if ("follow".equals(targetCluster) == false) {
-            logger.info("skipping test, waiting for target cluster [follow]" );
+            logger.info("skipping test, waiting for target cluster [follow]");
             return;
         }
 
-        int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
-        Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/leader_cluster_pattern");
-        putPatternRequest.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"remote_cluster\": \"leader_cluster\"}");
-        assertOK(client().performRequest(putPatternRequest));
-        putPatternRequest = new Request("PUT", "/_ccr/auto_follow/middle_cluster_pattern");
-        putPatternRequest.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"remote_cluster\": \"middle_cluster\"}");
-        assertOK(client().performRequest(putPatternRequest));
-        try (RestClient leaderClient = buildLeaderClient()) {
-            Request request = new Request("PUT", "/logs-20190101");
-            request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
-            assertOK(leaderClient.performRequest(request));
-            for (int i = 0; i < 5; i++) {
-                String id = Integer.toString(i);
-                index(leaderClient, "logs-20190101", id, "field", i, "filtered_field", "true");
+        try {
+            int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+            Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/leader_cluster_pattern");
+            putPatternRequest.setJsonEntity("{\"leader_index_patterns\": [\"index-*\"], \"remote_cluster\": \"leader_cluster\"}");
+            assertOK(client().performRequest(putPatternRequest));
+            putPatternRequest = new Request("PUT", "/_ccr/auto_follow/middle_cluster_pattern");
+            putPatternRequest.setJsonEntity("{\"leader_index_patterns\": [\"index-*\"], \"remote_cluster\": \"middle_cluster\"}");
+            assertOK(client().performRequest(putPatternRequest));
+            try (RestClient leaderClient = buildLeaderClient()) {
+                Request request = new Request("PUT", "/index-20190101");
+                request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
+                assertOK(leaderClient.performRequest(request));
+                for (int i = 0; i < 5; i++) {
+                    String id = Integer.toString(i);
+                    index(leaderClient, "index-20190101", id, "field", i, "filtered_field", "true");
+                }
             }
-        }
-        try (RestClient middleClient = buildMiddleClient()) {
-            Request request = new Request("PUT", "/logs-20200101");
-            request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
-            assertOK(middleClient.performRequest(request));
-            for (int i = 0; i < 5; i++) {
-                String id = Integer.toString(i);
-                index(middleClient, "logs-20200101", id, "field", i, "filtered_field", "true");
+            try (RestClient middleClient = buildMiddleClient()) {
+                Request request = new Request("PUT", "/index-20200101");
+                request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
+                assertOK(middleClient.performRequest(request));
+                for (int i = 0; i < 5; i++) {
+                    String id = Integer.toString(i);
+                    index(middleClient, "index-20200101", id, "field", i, "filtered_field", "true");
+                }
             }
-        }
-        assertBusy(() -> {
-            assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 2));
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 2));
 
-            ensureYellow("logs-20190101");
-            ensureYellow("logs-20200101");
-            verifyDocuments("logs-20190101", 5, "filtered_field:true");
-            verifyDocuments("logs-20200101", 5, "filtered_field:true");
-        });
-        deleteAutoFollowPattern("leader_cluster_pattern");
+                ensureYellow("index-20190101");
+                ensureYellow("index-20200101");
+                verifyDocuments("index-20190101", 5, "filtered_field:true");
+                verifyDocuments("index-20200101", 5, "filtered_field:true");
+            });
+
+        } finally {
+            cleanUpFollower(
+                List.of("index-20190101", "index-20200101"),
+                List.of(),
+                List.of("leader_cluster_pattern", "middle_cluster_pattern")
+            );
+            cleanUpMiddle(
+                List.of("index-20200101"),
+                List.of(),
+                List.of()
+            );
+            cleanUpLeader(
+                List.of("index-20190101"),
+                List.of(),
+                List.of()
+            );
+        }
     }
 
     public void testAutoFollowPatterns() throws Exception {
         if ("follow".equals(targetCluster) == false) {
-            logger.info("skipping test, waiting for target cluster [follow]" );
+            logger.info("skipping test, waiting for target cluster [follow]");
             return;
         }
 
-        int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
-        Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-        final boolean overrideNumberOfReplicas = randomBoolean();
-        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
-            bodyBuilder.startObject();
-            {
-                bodyBuilder.startArray("leader_index_patterns");
+        final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
+        final String excludedIndex = "metrics-20210102";
+        try {
+            int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+            Request request = new Request("PUT", "/_ccr/auto_follow/" + autoFollowPatternName);
+            final boolean overrideNumberOfReplicas = randomBoolean();
+            try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
+                bodyBuilder.startObject();
                 {
-                    bodyBuilder.value("metrics-*");
-                }
-                bodyBuilder.endArray();
-                bodyBuilder.field("remote_cluster", "leader_cluster");
-                if (overrideNumberOfReplicas) {
-                    bodyBuilder.startObject("settings");
+                    bodyBuilder.startArray("leader_index_patterns");
                     {
-                        bodyBuilder.field("index.number_of_replicas", 0);
+                        bodyBuilder.value("metrics-*");
                     }
-                    bodyBuilder.endObject();
+                    bodyBuilder.endArray();
+                    bodyBuilder.startArray("leader_index_exclusion_patterns");
+                    {
+                        bodyBuilder.value(excludedIndex);
+                    }
+                    bodyBuilder.endArray();
+                    bodyBuilder.field("remote_cluster", "leader_cluster");
+                    if (overrideNumberOfReplicas) {
+                        bodyBuilder.startObject("settings");
+                        {
+                            bodyBuilder.field("index.number_of_replicas", 0);
+                        }
+                        bodyBuilder.endObject();
+                    }
+                }
+                bodyBuilder.endObject();
+                request.setJsonEntity(Strings.toString(bodyBuilder));
+            }
+            assertOK(client().performRequest(request));
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                request = new Request("PUT", "/" + excludedIndex);
+                request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
+                assertOK(leaderClient.performRequest(request));
+            }
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                request = new Request("PUT", "/metrics-20210101");
+                request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
+                assertOK(leaderClient.performRequest(request));
+
+                for (int i = 0; i < 5; i++) {
+                    String id = Integer.toString(i);
+                    index(leaderClient, "metrics-20210101", id, "field", i, "filtered_field", "true");
                 }
             }
-            bodyBuilder.endObject();
-            request.setJsonEntity(Strings.toString(bodyBuilder));
+
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
+                ensureYellow("metrics-20210101");
+                verifyDocuments("metrics-20210101", 5, "filtered_field:true");
+                if (overrideNumberOfReplicas) {
+                    assertThat(getIndexSettingsAsMap("metrics-20210101"), hasEntry("index.number_of_replicas", "0"));
+                } else {
+                    assertThat(getIndexSettingsAsMap("metrics-20210101"), hasEntry("index.number_of_replicas", "1"));
+                }
+                assertThat(indexExists(excludedIndex), is(false));
+            });
+
+            assertBusy(() -> {
+                verifyCcrMonitoring("metrics-20210101", "metrics-20210101");
+                verifyAutoFollowMonitoring();
+            }, 30, TimeUnit.SECONDS);
+
+        } finally {
+            cleanUpLeader(List.of("metrics-20210101", excludedIndex), List.of(), List.of());
+            cleanUpFollower(List.of("metrics-20210101"), List.of(), List.of(autoFollowPatternName));
         }
-        assertOK(client().performRequest(request));
-
-        try (RestClient leaderClient = buildLeaderClient()) {
-            request = new Request("PUT", "/metrics-20210101");
-            request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
-            assertOK(leaderClient.performRequest(request));
-
-            for (int i = 0; i < 5; i++) {
-                String id = Integer.toString(i);
-                index(leaderClient, "metrics-20210101", id, "field", i, "filtered_field", "true");
-            }
-        }
-
-        assertBusy(() -> {
-            assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
-            ensureYellow("metrics-20210101");
-            verifyDocuments("metrics-20210101", 5, "filtered_field:true");
-            if (overrideNumberOfReplicas) {
-                assertThat(getIndexSettingsAsMap("metrics-20210101"), hasEntry("index.number_of_replicas", "0"));
-            } else {
-                assertThat(getIndexSettingsAsMap("metrics-20210101"), hasEntry("index.number_of_replicas", "1"));
-            }
-        });
-        assertBusy(() -> {
-            verifyCcrMonitoring("metrics-20210101", "metrics-20210101");
-            verifyAutoFollowMonitoring();
-        }, 30, TimeUnit.SECONDS);
-        deleteAutoFollowPattern("test_pattern");
     }
 
     public void testPutAutoFollowPatternThatOverridesRequiredLeaderSetting() throws IOException {
         if ("follow".equals(targetCluster) == false) {
-            logger.info("skipping test, waiting for target cluster [follow]" );
+            logger.info("skipping test, waiting for target cluster [follow]");
             return;
         }
 
@@ -182,14 +234,14 @@ public class AutoFollowIT extends ESCCRRestTestCase {
 
         final int numDocs = 64;
         final String dataStreamName = "logs-mysql-error";
+        final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
 
         int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+        try {
+            // Create auto follow pattern
+            createAutoFollowPattern(client(), autoFollowPatternName, "logs-mysql-*", "leader_cluster");
 
-        // Create auto follow pattern
-        createAutoFollowPattern(client(), "test_pattern", "logs-*", "leader_cluster");
-
-        // Create data stream and ensure that is is auto followed
-        {
+            // Create data stream and ensure that is is auto followed
             try (RestClient leaderClient = buildLeaderClient()) {
                 for (int i = 0; i < numDocs; i++) {
                     Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
@@ -206,12 +258,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs);
             });
-        }
 
-        // First rollover and ensure second backing index is replicated:
-        {
+            // First rollover and ensure second backing index is replicated:
             try (RestClient leaderClient = buildLeaderClient()) {
-                Request rolloverRequest = new Request("POST", "/" +  dataStreamName + "/_rollover");
+                Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
 
@@ -227,12 +277,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs + 1);
             });
-        }
 
-        // Second rollover and ensure third backing index is replicated:
-        {
+            // Second rollover and ensure third backing index is replicated:
             try (RestClient leaderClient = buildLeaderClient()) {
-                Request rolloverRequest = new Request("POST", "/" +  dataStreamName + "/_rollover");
+                Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2),
                     backingIndexName(dataStreamName, 3));
@@ -250,11 +298,18 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs + 2);
             });
-        }
-        // Cleanup:
-        {
-            deleteAutoFollowPattern("test_pattern");
-            deleteDataStream(dataStreamName);
+
+        } finally {
+            cleanUpFollower(
+                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
+                List.of(dataStreamName),
+                List.of(autoFollowPatternName)
+            );
+            cleanUpLeader(
+                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
+                List.of(dataStreamName),
+                List.of()
+            );
         }
     }
 
@@ -264,11 +319,22 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
 
         final int initialNumDocs = 16;
-        final String dataStreamName = "logs-syslog-prod";
         int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
-        // Initialize data stream prior to auto following
-        {
+        // The data stream name shouldn't match with builtin ilm policies to avoid test instabilities.
+        // (the manual rollover that happens in this test, may cause ilm to add `index.lifecycle.indexing_complete` setting,
+        // which causes explicit follow index api call to fail in this test)
+        final String dataStreamName = getTestName().toLowerCase(Locale.ROOT) + "-logs-syslog-prod";
+        // Because the builtin logs template isn't used, a template should be defined here.
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/" + getTestName().toLowerCase(Locale.ROOT));
+        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\":[\"" + dataStreamName + "*\"],\"data_stream\":{}}");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
+        try {
+            // Initialize data stream prior to auto following
             try (RestClient leaderClient = buildLeaderClient()) {
+                assertOK(leaderClient.performRequest(putComposableIndexTemplateRequest));
+
                 for (int i = 0; i < initialNumDocs; i++) {
                     Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                     indexRequest.addParameter("refresh", "true");
@@ -278,13 +344,13 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
                 verifyDocuments(leaderClient, dataStreamName, initialNumDocs);
             }
-        }
-        // Create auto follow pattern
-        createAutoFollowPattern(client(), "test_pattern", "logs-*", "leader_cluster");
-        // Rollover and ensure only second backing index is replicated:
-        {
+
+            // Create auto follow pattern
+            createAutoFollowPattern(client(), autoFollowPatternName, dataStreamName + "*", "leader_cluster");
+
+            // Rollover and ensure only second backing index is replicated:
             try (RestClient leaderClient = buildLeaderClient()) {
-                Request rolloverRequest = new Request("POST", "/" +  dataStreamName + "/_rollover");
+                Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
 
@@ -300,9 +366,8 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, 1);
             });
-        }
-        // Explicitly follow the first backing index and check that the data stream in follow cluster is updated correctly:
-        {
+
+            // Explicitly follow the first backing index and check that the data stream in follow cluster is updated correctly:
             followIndex(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 1));
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
@@ -310,11 +375,18 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, initialNumDocs + 1);
             });
-        }
-        // Cleanup:
-        {
-            deleteAutoFollowPattern("test_pattern");
-            deleteDataStream(dataStreamName);
+
+        } finally {
+            cleanUpFollower(
+                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
+                List.of(dataStreamName),
+                List.of(autoFollowPatternName)
+            );
+            cleanUpLeader(
+                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
+                List.of(dataStreamName),
+                List.of()
+            );
         }
     }
 
@@ -325,14 +397,14 @@ public class AutoFollowIT extends ESCCRRestTestCase {
 
         final int numDocs = 64;
         final var dataStreamName = "logs-tomcat-prod";
+        final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
 
         int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+        try {
+            // Create auto follow pattern
+            createAutoFollowPattern(client(), autoFollowPatternName, "logs-tomcat-*", "leader_cluster");
 
-        // Create auto follow pattern
-        createAutoFollowPattern(client(), "test_pattern", "logs-*", "leader_cluster");
-
-        // Create data stream and ensure that is is auto followed
-        {
+            // Create data stream and ensure that is is auto followed
             try (var leaderClient = buildLeaderClient()) {
                 for (int i = 0; i < numDocs; i++) {
                     var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
@@ -349,12 +421,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs);
             });
-        }
 
-        // Rollover in leader cluster and ensure second backing index is replicated:
-        {
+            // Rollover in leader cluster and ensure second backing index is replicated:
             try (var leaderClient = buildLeaderClient()) {
-                var rolloverRequest = new Request("POST", "/" +  dataStreamName + "/_rollover");
+                var rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
 
@@ -370,51 +440,58 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, numDocs + 1);
             });
-        }
 
-        // Try rollover in follow cluster
-        {
-            var rolloverRequest1 = new Request("POST", "/" +  dataStreamName + "/_rollover");
-            var e = expectThrows(ResponseException.class, () -> client().performRequest(rolloverRequest1));
-            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "] cannot be rolled over, " +
-                "because it is a replicated data stream"));
-            verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+            // Try rollover in follow cluster
+            {
+                var rolloverRequest1 = new Request("POST", "/" + dataStreamName + "/_rollover");
+                var e = expectThrows(ResponseException.class, () -> client().performRequest(rolloverRequest1));
+                assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "] cannot be rolled over, " +
+                    "because it is a replicated data stream"));
+                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
 
-            // Unfollow .ds-logs-tomcat-prod-000001
-            pauseFollow(backingIndexName(dataStreamName, 1));
-            closeIndex(backingIndexName(dataStreamName, 1));
-            unfollow(backingIndexName(dataStreamName, 1));
+                // Unfollow .ds-logs-tomcat-prod-000001
+                pauseFollow(backingIndexName(dataStreamName, 1));
+                closeIndex(backingIndexName(dataStreamName, 1));
+                unfollow(backingIndexName(dataStreamName, 1));
 
-            // Try again
-            var rolloverRequest2 = new Request("POST", "/" +  dataStreamName + "/_rollover");
-            e = expectThrows(ResponseException.class, () -> client().performRequest(rolloverRequest2));
-            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "] cannot be rolled over, " +
-                "because it is a replicated data stream"));
-            verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                // Try again
+                var rolloverRequest2 = new Request("POST", "/" + dataStreamName + "/_rollover");
+                e = expectThrows(ResponseException.class, () -> client().performRequest(rolloverRequest2));
+                assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "] cannot be rolled over, " +
+                    "because it is a replicated data stream"));
+                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
 
-            // Promote local data stream
-            var promoteRequest = new Request("POST", "/_data_stream/_promote/" + dataStreamName);
-            assertOK(client().performRequest(promoteRequest));
+                // Promote local data stream
+                var promoteRequest = new Request("POST", "/_data_stream/_promote/" + dataStreamName);
+                assertOK(client().performRequest(promoteRequest));
 
-            // Try again and now the rollover should be successful because local data stream is now :
-            var rolloverRequest3 = new Request("POST", "/" +  dataStreamName + "/_rollover");
-            assertOK(client().performRequest(rolloverRequest3));
-            verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2),
-                backingIndexName(dataStreamName, 3));
+                // Try again and now the rollover should be successful because local data stream is now :
+                var rolloverRequest3 = new Request("POST", "/" + dataStreamName + "/_rollover");
+                assertOK(client().performRequest(rolloverRequest3));
+                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2),
+                    backingIndexName(dataStreamName, 3));
 
-            // TODO: verify that following a backing index for logs-tomcat-prod data stream in remote cluster fails,
-            // because local data stream isn't a replicated data stream anymore.
+                // TODO: verify that following a backing index for logs-tomcat-prod data stream in remote cluster fails,
+                // because local data stream isn't a replicated data stream anymore.
 
-            // Unfollow .ds-logs-tomcat-prod-000002,
-            // which is now possible because this index can now be closed as it is no longer the write index.
-            pauseFollow(backingIndexName(dataStreamName, 2));
-            closeIndex(backingIndexName(dataStreamName, 2));
-            unfollow(backingIndexName(dataStreamName, 2));
-        }
-        // Cleanup:
-        {
-            deleteAutoFollowPattern("test_pattern");
-            deleteDataStream(dataStreamName);
+                // Unfollow .ds-logs-tomcat-prod-000002,
+                // which is now possible because this index can now be closed as it is no longer the write index.
+                pauseFollow(backingIndexName(dataStreamName, 2));
+                closeIndex(backingIndexName(dataStreamName, 2));
+                unfollow(backingIndexName(dataStreamName, 2));
+            }
+
+        } finally {
+            cleanUpFollower(
+                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
+                List.of(dataStreamName),
+                List.of(autoFollowPatternName)
+            );
+            cleanUpLeader(
+                List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
+                List.of(dataStreamName),
+                List.of()
+            );
         }
     }
 
@@ -427,12 +504,11 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         final var aliasName = "log-tomcat-prod";
 
         int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+        try {
+            // Create auto follow pattern
+            createAutoFollowPattern(client(), "test_pattern", "log-*", "leader_cluster");
 
-        // Create auto follow pattern
-        createAutoFollowPattern(client(), "test_pattern", "log-*", "leader_cluster");
-
-        // Create leader index and write alias:
-        {
+            // Create leader index and write alias:
             try (var leaderClient = buildLeaderClient()) {
                 var createFirstIndexRequest = new Request("PUT", "/" + aliasName + "-000001");
                 createFirstIndexRequest.setJsonEntity("{\"aliases\": {\"" + aliasName + "\":{\"is_write_index\":true}}}");
@@ -453,12 +529,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 ensureYellow(aliasName);
                 verifyDocuments(client(), aliasName, numDocs);
             });
-        }
 
-        // Rollover in leader cluster and ensure second backing index is replicated:
-        {
+            // Rollover in leader cluster and ensure second backing index is replicated:
             try (var leaderClient = buildLeaderClient()) {
-                var rolloverRequest = new Request("POST", "/" +  aliasName + "/_rollover");
+                var rolloverRequest = new Request("POST", "/" + aliasName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
                 verifyAlias(leaderClient, aliasName, true, aliasName + "-000002", aliasName + "-000001");
 
@@ -474,19 +548,18 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 ensureYellow(aliasName);
                 verifyDocuments(client(), aliasName, numDocs + 1);
             });
-        }
 
-        // Try rollover in follow cluster, this should fail, because is_write_index property of an alias isn't
-        // replicated to follow cluster.
-        {
-            var rolloverRequest1 = new Request("POST", "/" +  aliasName + "/_rollover");
-            var e = expectThrows(ResponseException.class, () -> client().performRequest(rolloverRequest1));
-            assertThat(e.getMessage(), containsString("rollover target [" + aliasName + "] does not point to a write index"));
-            verifyAlias(client(), aliasName, false, aliasName + "-000002", aliasName + "-000001");
-        }
-        // Cleanup:
-        {
-            deleteAutoFollowPattern("test_pattern");
+            // Try rollover in follow cluster, this should fail, because is_write_index property of an alias isn't
+            // replicated to follow cluster.
+            {
+                var rolloverRequest1 = new Request("POST", "/" + aliasName + "/_rollover");
+                var e = expectThrows(ResponseException.class, () -> client().performRequest(rolloverRequest1));
+                assertThat(e.getMessage(), containsString("rollover target [" + aliasName + "] does not point to a write index"));
+                verifyAlias(client(), aliasName, false, aliasName + "-000002", aliasName + "-000001");
+            }
+
+        } finally {
+            cleanUpFollower(List.of(aliasName + "-000001", aliasName + "-000002"), List.of(), List.of("test_pattern"));
         }
     }
 
@@ -516,32 +589,40 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         int initialNumberOfSuccessfulFollowedIndicesInFollowCluster = getNumberOfSuccessfulFollowedIndices();
         int initialNumberOfSuccessfulFollowedIndicesInLeaderCluster;
 
-        // Create auto follow pattern in follow cluster
-        createAutoFollowPattern(client(), "id1", "logs-*-eu", "leader_cluster");
-        // Create auto follow pattern in leader cluster:
-        try (var leaderClient = buildLeaderClient()) {
-            initialNumberOfSuccessfulFollowedIndicesInLeaderCluster = getNumberOfSuccessfulFollowedIndices(leaderClient);
-            // First add remote cluster to leader cluster:
-            var request = new Request("PUT", "/_cluster/settings");
-            try (var bodyBuilder = JsonXContent.contentBuilder()) {
-                bodyBuilder.startObject();
-                {
-                    bodyBuilder.startObject("persistent");
+        var aliasName = "logs-http";
+        var leaderDataStreamName = "logs-http-eu";
+        var followerDataStreamName = "logs-http-na";
+
+        try {
+            // Create auto follow pattern in follow cluster
+            createAutoFollowPattern(client(), "id1", "logs-*-eu", "leader_cluster");
+
+            // Create auto follow pattern in leader cluster:
+            try (var leaderClient = buildLeaderClient()) {
+                initialNumberOfSuccessfulFollowedIndicesInLeaderCluster = getNumberOfSuccessfulFollowedIndices(leaderClient);
+                // First add remote cluster to leader cluster:
+                var request = new Request("PUT", "/_cluster/settings");
+                try (var bodyBuilder = JsonXContent.contentBuilder()) {
+                    bodyBuilder.startObject();
                     {
-                        bodyBuilder.startObject("cluster");
+                        bodyBuilder.startObject("persistent");
                         {
-                            bodyBuilder.startObject("remote");
+                            bodyBuilder.startObject("cluster");
                             {
-                                bodyBuilder.startObject("follower_cluster");
+                                bodyBuilder.startObject("remote");
                                 {
-                                    bodyBuilder.startArray("seeds");
-                                    var nodesInfoRequest = new Request("GET", "/_nodes/_local");
-                                    var nodesInfoResponse = toMap(client().performRequest(nodesInfoRequest));
-                                    var node = (Map<?, ?>) ((Map<?, ?>) nodesInfoResponse.get("nodes")).values().iterator().next();
-                                    var transportMetrics = (Map<?, ?>) node.get("transport");
-                                    var address = (String) transportMetrics.get("publish_address");
-                                    bodyBuilder.value(address);
-                                    bodyBuilder.endArray();
+                                    bodyBuilder.startObject("follower_cluster");
+                                    {
+                                        bodyBuilder.startArray("seeds");
+                                        var nodesInfoRequest = new Request("GET", "/_nodes/_local");
+                                        var nodesInfoResponse = toMap(client().performRequest(nodesInfoRequest));
+                                        var node = (Map<?, ?>) ((Map<?, ?>) nodesInfoResponse.get("nodes")).values().iterator().next();
+                                        var transportMetrics = (Map<?, ?>) node.get("transport");
+                                        var address = (String) transportMetrics.get("publish_address");
+                                        bodyBuilder.value(address);
+                                        bodyBuilder.endArray();
+                                    }
+                                    bodyBuilder.endObject();
                                 }
                                 bodyBuilder.endObject();
                             }
@@ -550,22 +631,28 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                         bodyBuilder.endObject();
                     }
                     bodyBuilder.endObject();
+                    request.setJsonEntity(Strings.toString(bodyBuilder));
                 }
-                bodyBuilder.endObject();
-                request.setJsonEntity(Strings.toString(bodyBuilder));
+                assertOK(leaderClient.performRequest(request));
+                // Then create the actual auto follow pattern:
+                createAutoFollowPattern(leaderClient, "id2", "logs-*-na", "follower_cluster");
             }
-            assertOK(leaderClient.performRequest(request));
-            // Then create the actual auto follow pattern:
-            createAutoFollowPattern(leaderClient, "id2", "logs-*-na", "follower_cluster");
-        }
 
-        var numDocs = 128;
-        var leaderDataStreamName = "logs-http-eu";
-        // Create data stream in leader cluster and ensure it is followed in follow cluster
-        {
+            var numDocs = 128;
+            // Create data stream in leader cluster and ensure it is followed in follow cluster
             try (var leaderClient = buildLeaderClient()) {
+                // Setting up data stream and alias with write flag in leader cluster:
+                Request createDataStreamRequest = new Request("PUT", "/_data_stream/" + leaderDataStreamName);
+                assertOK(leaderClient.performRequest(createDataStreamRequest));
+                Request updateAliasesRequest = new Request("POST", "/_aliases");
+                updateAliasesRequest.setJsonEntity("{\"actions\":[" +
+                    "{\"add\":{\"index\":\"" + leaderDataStreamName + "\",\"alias\":\"logs-http\",\"is_write_index\":true}}" +
+                    "]}"
+                );
+                assertOK(leaderClient.performRequest(updateAliasesRequest));
+
                 for (int i = 0; i < numDocs; i++) {
-                    Request indexRequest = new Request("POST", "/" + leaderDataStreamName + "/_doc");
+                    Request indexRequest = new Request("POST", "/" + aliasName + "/_doc");
                     indexRequest.addParameter("refresh", "true");
                     indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                     assertOK(leaderClient.performRequest(indexRequest));
@@ -579,16 +666,35 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 ensureYellow(leaderDataStreamName);
                 verifyDocuments(client(), leaderDataStreamName, numDocs);
             });
-        }
-        var followerDataStreamName = "logs-http-na";
-        {
+            // Setting up data stream and alias with write flag in follower cluster:
+            Request createDataStreamRequest = new Request("PUT", "/_data_stream/" + followerDataStreamName);
+            assertOK(client().performRequest(createDataStreamRequest));
+            Request updateAliasesRequest = new Request("POST", "/_aliases");
+            updateAliasesRequest.setJsonEntity("{\"actions\":[" +
+                "{\"add\":{\"index\":\"" + followerDataStreamName + "\",\"alias\":\"logs-http\",\"is_write_index\":true}}" +
+                "]}"
+            );
+            assertOK(client().performRequest(updateAliasesRequest));
+
             for (int i = 0; i < numDocs; i++) {
-                var indexRequest = new Request("POST", "/" + followerDataStreamName + "/_doc");
+                var indexRequest = new Request("POST", "/" + aliasName + "/_doc");
                 indexRequest.addParameter("refresh", "true");
                 indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
                 assertOK(client().performRequest(indexRequest));
             }
             verifyDocuments(client(), followerDataStreamName, numDocs);
+
+            // TODO: Don't update logs-http alias in follower cluster when data streams are automatically replicated
+            //  from leader to follower cluster:
+            // (only set the write flag to logs-http-na)
+            // Create alias in follower cluster that point to leader and follower data streams:
+            updateAliasesRequest = new Request("POST", "/_aliases");
+            updateAliasesRequest.setJsonEntity("{\"actions\":[" +
+                "{\"add\":{\"index\":\"" + leaderDataStreamName + "\",\"alias\":\"logs-http\"}}" +
+                "]}"
+            );
+            assertOK(client().performRequest(updateAliasesRequest));
+
             try (var leaderClient = buildLeaderClient()) {
                 assertBusy(() -> {
                     assertThat(getNumberOfSuccessfulFollowedIndices(leaderClient),
@@ -597,69 +703,148 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                     ensureYellow(followerDataStreamName);
                     verifyDocuments(leaderClient, followerDataStreamName, numDocs);
                 });
+                updateAliasesRequest = new Request("POST", "/_aliases");
+                updateAliasesRequest.setJsonEntity("{\"actions\":[" +
+                    "{\"add\":{\"index\":\"" + followerDataStreamName + "\",\"alias\":\"logs-http\"}}" +
+                    "]}"
+                );
+                assertOK(leaderClient.performRequest(updateAliasesRequest));
             }
-        }
 
-        // TODO: Replace these verifyDocuments(...) assertions with searches via 'logs-http' alias and
-        // writes via 'logs-http' alias (ensuring write goes to write data stream).
-        // Currently aliases can't refer to data streams, so we can't fully test the bi-direction replication scenario.
-        // See: https://github.com/elastic/elasticsearch/pull/64710#discussion_r537210322
-
-        // See all eu and na logs in leader and follower cluster:
-        verifyDocuments(client(), "logs-http*", numDocs * 2);
-        try (var leaderClient = buildLeaderClient()) {
-            verifyDocuments(leaderClient, "logs-http*", numDocs * 2);
-        }
-
-        int moreDocs = 48;
-        // Index more docs into leader cluster
-        {
+            // See all eu and na logs in leader and follower cluster:
+            verifyDocuments(client(), aliasName, numDocs * 2);
             try (var leaderClient = buildLeaderClient()) {
-                for (int i = 0; i < moreDocs; i++) {
-                    var indexRequest = new Request("POST", "/" + leaderDataStreamName + "/_doc");
-                    indexRequest.addParameter("refresh", "true");
-                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
-                    assertOK(leaderClient.performRequest(indexRequest));
+                verifyDocuments(leaderClient, aliasName, numDocs * 2);
+            }
+
+            int moreDocs = 48;
+            // Index more docs into leader cluster
+            {
+                try (var leaderClient = buildLeaderClient()) {
+                    for (int i = 0; i < moreDocs; i++) {
+                        var indexRequest = new Request("POST", "/" + aliasName + "/_doc");
+                        indexRequest.addParameter("refresh", "true");
+                        indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+                        assertOK(leaderClient.performRequest(indexRequest));
+                    }
+                    verifyDocuments(leaderClient, leaderDataStreamName, numDocs + moreDocs);
                 }
-                verifyDocuments(leaderClient, leaderDataStreamName, numDocs + moreDocs);
-            }
-            assertBusy(() -> {
-                verifyDocuments(client(), leaderDataStreamName, numDocs + moreDocs);
-            });
-        }
-        // Index more docs into follower cluster
-        {
-            for (int i = 0; i < moreDocs; i++) {
-                var indexRequest = new Request("POST", "/" + followerDataStreamName + "/_doc");
-                indexRequest.addParameter("refresh", "true");
-                indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
-                assertOK(client().performRequest(indexRequest));
-            }
-            verifyDocuments(client(), followerDataStreamName, numDocs + moreDocs);
-            try (var leaderClient = buildLeaderClient()) {
                 assertBusy(() -> {
-                    verifyDocuments(leaderClient, followerDataStreamName, numDocs + moreDocs);
+                    verifyDocuments(client(), leaderDataStreamName, numDocs + moreDocs);
                 });
             }
-        }
-
-        // TODO: Replace these verifyDocuments(...) assertions with searches via 'logs-http' alias and writes via 'logs-http'
-        // (see previous TODO)
-
-        // See all eu and na logs in leader and follower cluster:
-        verifyDocuments(client(), "logs-http*", (numDocs + moreDocs) * 2);
-        try (RestClient leaderClient = buildLeaderClient()) {
-            verifyDocuments(leaderClient, "logs-http*", (numDocs + moreDocs) * 2);
-        }
-
-        // Cleanup:
-        {
-            deleteAutoFollowPattern(client(), "id1");
-            deleteDataStream(client(), followerDataStreamName);
-            try (RestClient leaderClient = buildLeaderClient()) {
-                deleteDataStream(leaderClient, leaderDataStreamName);
-                deleteAutoFollowPattern(leaderClient, "id2");
+            // Index more docs into follower cluster
+            {
+                for (int i = 0; i < moreDocs; i++) {
+                    var indexRequest = new Request("POST", "/" + aliasName + "/_doc");
+                    indexRequest.addParameter("refresh", "true");
+                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+                    assertOK(client().performRequest(indexRequest));
+                }
+                verifyDocuments(client(), followerDataStreamName, numDocs + moreDocs);
+                try (var leaderClient = buildLeaderClient()) {
+                    assertBusy(() -> {
+                        verifyDocuments(leaderClient, followerDataStreamName, numDocs + moreDocs);
+                    });
+                }
             }
+
+            // See all eu and na logs in leader and follower cluster:
+            verifyDocuments(client(), aliasName, (numDocs + moreDocs) * 2);
+            try (RestClient leaderClient = buildLeaderClient()) {
+                verifyDocuments(leaderClient, aliasName, (numDocs + moreDocs) * 2);
+            }
+        } finally {
+            cleanUpFollower(
+                List.of(backingIndexName(followerDataStreamName, 1), backingIndexName(leaderDataStreamName, 1)),
+                List.of(followerDataStreamName, leaderDataStreamName),
+                List.of("id1")
+            );
+            cleanUpLeader(
+                List.of(backingIndexName(leaderDataStreamName, 1), backingIndexName(followerDataStreamName, 1)),
+                List.of(leaderDataStreamName, followerDataStreamName),
+                List.of("id2")
+            );
+        }
+    }
+
+    public void testAutoFollowSearchableSnapshotsFails() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+
+        final String testPrefix = getTestName().toLowerCase(Locale.ROOT);
+        final String repository = testPrefix + "-repository";
+        final String snapshot = testPrefix + "-snapshot";
+
+        // Create a repository and a snapshot of a 5 docs index on leader
+        final String indexName = testPrefix + "-index";
+        try {
+            try (var leaderClient = buildLeaderClient()) {
+                final String systemPropertyRepoPath = System.getProperty("tests.leader_cluster_repository_path");
+                assertThat("Missing system property [tests.leader_cluster_repository_path]",
+                    systemPropertyRepoPath, not(emptyOrNullString()));
+                final String repositoryPath = systemPropertyRepoPath + '/' + testPrefix;
+
+                registerRepository(leaderClient, repository, "fs", true, Settings.builder().put("location", repositoryPath).build());
+
+                for (int i = 0; i < 5; i++) {
+                    var indexRequest = new Request("POST", "/" + indexName + "/_doc");
+                    indexRequest.addParameter("refresh", "true");
+                    indexRequest.setJsonEntity("{\"value\":" + i + "}");
+                    assertOK(leaderClient.performRequest(indexRequest));
+                }
+                verifyDocuments(leaderClient, indexName, 5);
+
+                deleteSnapshot(leaderClient, repository, snapshot, true);
+                createSnapshot(leaderClient, repository, snapshot, true);
+            }
+        } finally {
+            cleanUpLeader(List.of(indexName), List.of(), List.of());
+        }
+
+        final String autoFollowPattern = "pattern-" + testPrefix;
+        final String regularIndex = testPrefix + "-regular";
+        final String mountedIndex = testPrefix + "-mounted";
+
+        try {
+            createAutoFollowPattern(client(), autoFollowPattern, testPrefix + "-*", "leader_cluster");
+
+            // Create a regular index on leader
+            try (var leaderClient = buildLeaderClient()) {
+                for (int i = 0; i < 10; i++) {
+                    var indexRequest = new Request("POST", "/" + regularIndex + "/_doc");
+                    indexRequest.addParameter("refresh", "true");
+                    indexRequest.setJsonEntity("{\"value\":" + i + "}");
+                    assertOK(leaderClient.performRequest(indexRequest));
+                }
+                verifyDocuments(leaderClient, regularIndex, 10);
+            }
+
+            // Mount the snapshot on leader
+            try (var leaderClient = buildLeaderClient()) {
+                final Request mountRequest = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + '/' + snapshot + "/_mount");
+                mountRequest.setJsonEntity("{\"index\": \"" + indexName + "\",\"renamed_index\": \"" + mountedIndex + "\"}");
+                final Response mountResponse = leaderClient.performRequest(mountRequest);
+                assertThat(mountResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+                ensureYellow(mountedIndex, leaderClient);
+            }
+
+            assertLongBusy(() -> {
+                Map<?, ?> response = toMap(getAutoFollowStats());
+                assertThat(eval("auto_follow_stats.number_of_failed_follow_indices", response),
+                    greaterThanOrEqualTo(1));
+                assertThat(eval("auto_follow_stats.recent_auto_follow_errors", response),
+                    hasSize(greaterThanOrEqualTo(1)));
+                assertThat(eval("auto_follow_stats.recent_auto_follow_errors.0.auto_follow_exception.reason", response),
+                    containsString("index to follow [" + mountedIndex + "] is a searchable snapshot index and cannot be used " +
+                        "for cross-cluster replication purpose"));
+                ensureYellow(regularIndex);
+                verifyDocuments(client(), regularIndex, 10);
+            });
+        } finally {
+            cleanUpLeader(List.of(regularIndex, mountedIndex), List.of(), List.of());
+            cleanUpFollower(List.of(regularIndex), List.of(), List.of(autoFollowPattern));
         }
     }
 
@@ -674,16 +859,103 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         return (Integer) response.get("number_of_successful_follow_indices");
     }
 
-    private void deleteDataStream(String name) throws IOException {
-        try (RestClient leaderClient = buildLeaderClient()) {
-            Request deleteTemplateRequest = new Request("DELETE", "/_data_stream/" + name);
-            assertOK(leaderClient.performRequest(deleteTemplateRequest));
-        }
-    }
-
     private void deleteDataStream(RestClient client, String name) throws IOException {
         Request deleteTemplateRequest = new Request("DELETE", "/_data_stream/" + name);
         assertOK(client.performRequest(deleteTemplateRequest));
     }
 
+    private Response getAutoFollowStats() throws IOException {
+        final Request statsRequest = new Request("GET", "/_ccr/stats");
+        statsRequest.addParameter("pretty", Boolean.TRUE.toString());
+        return client().performRequest(statsRequest);
+    }
+
+    private void assertLongBusy(CheckedRunnable<Exception> runnable) throws Exception {
+        try {
+            assertBusy(runnable, 120L, TimeUnit.SECONDS);
+        } catch (AssertionError ae) {
+            try {
+                final String autoFollowStats = EntityUtils.toString(getAutoFollowStats().getEntity());
+                logger.warn(() -> new ParameterizedMessage("AssertionError when waiting for auto-follower, auto-follow stats are: {}",
+                    autoFollowStats), ae);
+            } catch (Exception e) {
+                ae.addSuppressed(e);
+            }
+            throw ae;
+        }
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
+    }
+
+    private void cleanUpFollower(
+        final List<String> indices,
+        final List<String> dataStreams,
+        final List<String> autoFollowPatterns
+    ) {
+        cleanUp(adminClient(), indices, dataStreams, autoFollowPatterns);
+    }
+
+    private void cleanUpMiddle(
+        final List<String> indices,
+        final List<String> dataStreams,
+        final List<String> autoFollowPatterns
+    ) throws IOException {
+        try (RestClient middleClient = buildMiddleClient()) {
+            cleanUp(middleClient, indices, dataStreams, autoFollowPatterns);
+        }
+    }
+
+    private void cleanUpLeader(
+        final List<String> indices,
+        final List<String> dataStreams,
+        final List<String> autoFollowPatterns
+    ) throws IOException {
+        try (RestClient leaderClient = buildLeaderClient()) {
+            cleanUp(leaderClient, indices, dataStreams, autoFollowPatterns);
+        }
+    }
+
+    private void cleanUp(
+        final RestClient client,
+        final List<String> indices,
+        final List<String> dataStreams,
+        final List<String> autoFollowPatterns
+    ) {
+        for (String autoFollowPattern : autoFollowPatterns) {
+            try {
+                deleteAutoFollowPattern(client, autoFollowPattern);
+            } catch (IOException e) {
+                if (isNotFoundResponseException(e)) {
+                    continue;
+                }
+                logger.warn(() -> new ParameterizedMessage("failed to delete auto-follow pattern [{}] after test", autoFollowPattern), e);
+            }
+        }
+        for (String dataStream : dataStreams) {
+            try {
+                deleteDataStream(client, dataStream);
+            } catch (IOException e) {
+                if (isNotFoundResponseException(e)) {
+                    continue;
+                }
+                logger.warn(() -> new ParameterizedMessage("failed to delete data stream [{}] after test", dataStream), e);
+            }
+        }
+        for (String index : indices) {
+            try {
+                deleteIndex(client, index);
+            } catch (IOException e) {
+                if (isNotFoundResponseException(e)) {
+                    continue;
+                }
+                logger.warn(() -> new ParameterizedMessage("failed to delete index [{}] after test", index), e);
+            }
+        }
+    }
 }

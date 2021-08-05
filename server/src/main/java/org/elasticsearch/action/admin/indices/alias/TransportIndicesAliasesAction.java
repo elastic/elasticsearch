@@ -21,14 +21,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.cluster.metadata.AliasAction.AddDataStreamAlias;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.tasks.Task;
@@ -36,12 +40,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -89,6 +96,61 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         // Resolve all the AliasActions into AliasAction instances and gather all the aliases
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
+            List<String> concreteDataStreams =
+                indexNameExpressionResolver.dataStreamNames(state, request.indicesOptions(), action.indices());
+            if (concreteDataStreams.size() != 0) {
+                String[] concreteIndices =
+                    indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), true, action.indices());
+                List<String> nonBackingIndices = Arrays.stream(concreteIndices)
+                    .map(resolvedIndex -> state.metadata().getIndicesLookup().get(resolvedIndex))
+                    .filter(ia -> ia.getParentDataStream() == null)
+                    .map(IndexAbstraction::getName)
+                    .collect(Collectors.toList());
+                switch (action.actionType()) {
+                    case ADD:
+                        // Fail if parameters are used that data stream aliases don't support:
+                        if (action.routing() != null) {
+                            throw new IllegalArgumentException("aliases that point to data streams don't support routing");
+                        }
+                        if (action.indexRouting() != null) {
+                            throw new IllegalArgumentException("aliases that point to data streams don't support index_routing");
+                        }
+                        if (action.searchRouting() != null) {
+                            throw new IllegalArgumentException("aliases that point to data streams don't support search_routing");
+                        }
+                        if (action.isHidden() != null) {
+                            throw new IllegalArgumentException("aliases that point to data streams don't support is_hidden");
+                        }
+                        // Fail if expressions match both data streams and regular indices:
+                        if (nonBackingIndices.isEmpty() == false) {
+                            throw new IllegalArgumentException("expressions " + Arrays.toString(action.indices()) +
+                                " that match with both data streams and regular indices are disallowed");
+                        }
+                        for (String dataStreamName : concreteDataStreams) {
+                            for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
+                                finalActions.add(new AddDataStreamAlias(alias, dataStreamName, action.writeIndex(), action.filter()));
+                            }
+                        }
+                        continue;
+                    case REMOVE:
+                        for (String dataStreamName : concreteDataStreams) {
+                            for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
+                                finalActions.add(
+                                    new AliasAction.RemoveDataStreamAlias(alias, dataStreamName, action.mustExist()));
+                            }
+                        }
+                        if (nonBackingIndices.isEmpty() == false) {
+                            // Regular aliases/indices match as well with the provided expression.
+                            // (Only when adding new aliases, matching both data streams and indices is disallowed)
+                            break;
+                        } else {
+                            continue;
+                        }
+                    default:
+                        throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
+                }
+            }
+
             final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), false,
                 action.indices());
             for (Index concreteIndex : concreteIndices) {
@@ -159,6 +221,25 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 return action.aliases();
             }
             return finalAliases.toArray(new String[finalAliases.size()]);
+        } else {
+            //for ADD and REMOVE_INDEX we just return the current aliases
+            return action.aliases();
+        }
+    }
+
+    private static String[] concreteDataStreamAliases(AliasActions action, Metadata metadata, String concreteDataStreamName) {
+        if (action.expandAliasesWildcards()) {
+            //for DELETE we expand the aliases
+            Stream<String> stream = metadata.dataStreamAliases().values().stream()
+                .filter(alias -> alias.getDataStreams().contains(concreteDataStreamName))
+                .map(DataStreamAlias::getName);
+
+            String[] aliasPatterns = action.aliases();
+            if (Strings.isAllOrWildcard(aliasPatterns) == false)  {
+                stream = stream.filter(alias -> Regex.simpleMatch(aliasPatterns, alias));
+            }
+
+            return stream.toArray(String[]::new);
         } else {
             //for ADD and REMOVE_INDEX we just return the current aliases
             return action.aliases();

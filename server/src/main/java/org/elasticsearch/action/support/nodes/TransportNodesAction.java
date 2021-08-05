@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -37,7 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>,
-                                           NodesResponse extends BaseNodesResponse,
+                                           NodesResponse extends BaseNodesResponse<?>,
                                            NodeRequest extends TransportRequest,
                                            NodeResponse extends BaseNodeResponse>
     extends HandledTransportAction<NodesRequest, NodesResponse> {
@@ -199,9 +200,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         void start() {
             final DiscoveryNode[] nodes = request.concreteNodes();
             if (nodes.length == 0) {
-                // nothing to notify, so respond immediately, but always fork even if finalExecutor == SAME
-                final String executor = finalExecutor.equals(ThreadPool.Names.SAME) ? ThreadPool.Names.GENERIC : finalExecutor;
-                threadPool.executor(executor).execute(() -> newResponse(task, request, responses, listener));
+                finishHim();
                 return;
             }
             final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
@@ -254,14 +253,21 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         }
 
         private void finishHim() {
-            threadPool.executor(finalExecutor).execute(() -> newResponse(task, request, responses, listener));
+            if (task instanceof CancellableTask && ((CancellableTask) task).notifyIfCancelled(listener)) {
+                return;
+            }
+
+            final String executor = finalExecutor.equals(ThreadPool.Names.SAME) ? ThreadPool.Names.GENERIC : finalExecutor;
+            threadPool.executor(executor).execute(() -> newResponse(task, request, responses, listener));
         }
     }
 
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
-
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
+            if (task instanceof CancellableTask) {
+                ((CancellableTask) task).ensureNotCancelled();
+            }
             channel.sendResponse(nodeOperation(request, task));
         }
     }

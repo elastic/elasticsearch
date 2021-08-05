@@ -3,7 +3,7 @@
  * is using a password protected keystore in its nodes.
  */
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 dependencies {

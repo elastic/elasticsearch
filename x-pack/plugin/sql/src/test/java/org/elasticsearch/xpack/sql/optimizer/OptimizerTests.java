@@ -36,17 +36,17 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equal
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
@@ -55,7 +55,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubqueryAliases;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.ReplaceSubQueryAliases;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubQueryAliases;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
@@ -101,7 +102,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineProjections;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.FoldNull;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceAggsWithExtendedStats;
@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
 import java.lang.reflect.Constructor;
 import java.util.Collections;
@@ -128,12 +129,10 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
+import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
-import static org.elasticsearch.xpack.ql.TestUtils.lessThanOrEqualOf;
-import static org.elasticsearch.xpack.ql.TestUtils.notEqualsOf;
-import static org.elasticsearch.xpack.ql.TestUtils.nullEqualsOf;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
@@ -148,6 +147,7 @@ import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class OptimizerTests extends ESTestCase {
@@ -178,11 +178,23 @@ public class OptimizerTests extends ESTestCase {
         return new FieldAttribute(EMPTY, name, new EsField(name + "f", INTEGER, emptyMap(), true));
     }
 
-    public void testPruneSubqueryAliases() {
+    public void testPruneSubQueryAliases() {
         ShowTables s = new ShowTables(EMPTY, null, null, false);
         SubQueryAlias plan = new SubQueryAlias(EMPTY, s, "show");
-        LogicalPlan result = new PruneSubqueryAliases().apply(plan);
+        LogicalPlan result = new PruneSubQueryAliases().apply(plan);
         assertEquals(result, s);
+    }
+
+    public void testReplaceSubQueryAliases() {
+        FieldAttribute firstField = new FieldAttribute(EMPTY, "field", new EsField("field", BYTE, emptyMap(), true));
+        EsRelation relation = new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false);
+        Aggregate agg = new Aggregate(EMPTY, relation, Collections.singletonList(firstField), Collections.singletonList(firstField));
+        SubQueryAlias subquery = new SubQueryAlias(EMPTY, agg, "subquery");
+        Project project = new Project(EMPTY, subquery, Collections.singletonList(firstField.withQualifier("subquery")));
+        LogicalPlan result = new ReplaceSubQueryAliases().apply(project);
+        assertThat(result, instanceOf(Project.class));
+        assertThat(((Project) result).projections().get(0), instanceOf(FieldAttribute.class));
+        assertEquals("table", ((FieldAttribute) ((Project) result).projections().get(0)).qualifier());
     }
 
     public void testCombineProjections() {
@@ -305,6 +317,16 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(0.78539d, (double) foldFunction(new ATan(EMPTY, ONE)), 0.01d);
         assertEquals(7, foldFunction(new Floor(EMPTY, L(7))));
         assertEquals(Math.E, foldFunction(new E(EMPTY)));
+    }
+
+    public void testNullIfFolding() {
+        assertEquals(null, foldFunction(new NullIf(EMPTY, ONE, ONE)));
+        assertEquals(1, foldFunction(new NullIf(EMPTY, ONE, TWO)));
+        assertEquals(2, foldFunction(new NullIf(EMPTY, TWO, ONE)));
+
+        FieldAttribute fa = fieldAttribute();
+        // works even if the expressions are not foldable
+        assertEquals(null, foldFunction(new NullIf(EMPTY, fa, fa)));
     }
 
     private static Object foldFunction(Function f) {
@@ -432,16 +454,19 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(conditionalFunction, rule.rule(conditionalFunction));
     }
 
-    public void testSimplifyCoalesceNulls() {
-        Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, asList(NULL, NULL)));
-        assertEquals(Coalesce.class, e.getClass());
-        assertEquals(0, e.children().size());
-    }
-
     public void testSimplifyCoalesceRandomNulls() {
         Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, randomListOfNulls()));
-        assertEquals(Coalesce.class, e.getClass());
-        assertEquals(0, e.children().size());
+        assertEquals(NULL, e);
+    }
+
+    public void testSimplifyCoalesceWithOnlyOneChild() {
+        Expression fa = fieldAttribute();
+        assertSame(fa, new SimplifyConditional().rule(new Coalesce(EMPTY, singletonList(fa))));
+    }
+
+    public void testSimplifyCoalesceSameExpression() {
+        Expression fa = fieldAttribute();
+        assertSame(fa, new SimplifyConditional().rule(new Coalesce(EMPTY, randomList(2, 10, () -> fa))));
     }
 
     public void testSimplifyCoalesceRandomNullsWithValue() {
@@ -470,8 +495,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIfNullNulls() {
         Expression e = new SimplifyConditional().rule(new IfNull(EMPTY, NULL, NULL));
-        assertEquals(IfNull.class, e.getClass());
-        assertEquals(0, e.children().size());
+        assertEquals(NULL, e);
     }
 
     public void testSimplifyIfNullWithNullAndValue() {
@@ -492,6 +516,12 @@ public class OptimizerTests extends ESTestCase {
         Expression orig = new NullIf(EMPTY, ONE, NULL);
         Expression f = new FoldNull().rule(orig);
         assertEquals(orig, f);
+    }
+
+    public void testSimplifyNullIf() {
+        assertEquals(ONE, new SimplifyConditional().rule(new NullIf(EMPTY, ONE, NULL)));
+        assertEquals(NULL, new SimplifyConditional().rule(new NullIf(EMPTY, NULL, ONE)));
+        assertEquals(NULL, new SimplifyConditional().rule(new NullIf(EMPTY, NULL, NULL)));
     }
 
     public void testSimplifyGreatestNulls() {
@@ -536,6 +566,67 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
         assertEquals(INTEGER, e.dataType());
+    }
+
+    public void testPropagateIsNullOnIfNull() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new IfNull(EMPTY, fa, ONE), new IsNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(IfNull.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(ONE, a.left().children().get(0));
+    }
+
+    public void testPropagateIsNullOnCoalesce() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new Coalesce(EMPTY, asList(fa, ONE, fa, TWO)), new IsNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(Coalesce.class, a.left().getClass());
+        assertEquals(2, a.left().children().size());
+        assertEquals(ONE, a.left().children().get(0));
+        assertEquals(TWO, a.left().children().get(1));
+    }
+
+    public void testPropagateIsNotNullOnIfNull() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new IfNull(EMPTY, fa, ONE), new IsNotNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(IfNull.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(fa, a.left().children().get(0));
+    }
+
+    public void testPropagateIsNotNullOnCoalesce() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new Coalesce(EMPTY, asList(fa, ONE, fa, TWO, THREE)), new IsNotNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(Coalesce.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(fa, a.left().children().get(0));
     }
 
     public void testConcatFoldingIsNotNull() {
@@ -715,38 +806,9 @@ public class OptimizerTests extends ESTestCase {
         assertNull(expression.fold());
     }
 
-    public void testBinaryComparisonSimplification() {
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(equalsOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(nullEqualsOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(nullEqualsOf(NULL, NULL)));
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(notEqualsOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(greaterThanOrEqualOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(lessThanOrEqualOf(FIVE, FIVE)));
-
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(greaterThanOf(FIVE, FIVE)));
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(lessThanOf(FIVE, FIVE)));
-    }
-
-    public void testNullEqualsWithNullLiteralBecomesIsNull() {
-        BooleanLiteralsOnTheRight swapLiteralsToRight = new BooleanLiteralsOnTheRight();
-        BinaryComparisonSimplification bcSimpl = new BinaryComparisonSimplification();
-        FieldAttribute fa = getFieldAttribute();
-        Source source = new Source(1, 10, "IS_NULL(a)");
-
-        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, fa, NULL, randomZone())));
-        assertEquals(IsNull.class, e.getClass());
-        IsNull isNull = (IsNull) e;
-        assertEquals(source, isNull.source());
-
-        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, NULL, fa, randomZone())));
-        assertEquals(IsNull.class, e.getClass());
-        isNull = (IsNull) e;
-        assertEquals(source, isNull.source());
-    }
-
     public void testLiteralsOnTheRightInStDistance() {
         Alias a = new Alias(EMPTY, "a", L(10));
-        Expression result = new BooleanLiteralsOnTheRight().rule(new StDistance(EMPTY, FIVE, a));
+        Expression result = new LiteralsOnTheRight().rule(new StDistance(EMPTY, FIVE, a));
         assertTrue(result instanceof StDistance);
         StDistance sd = (StDistance) result;
         assertEquals(a, sd.left());
@@ -1032,8 +1094,9 @@ public class OptimizerTests extends ESTestCase {
         Sum sum = new Sum(EMPTY, fa);
 
         Alias sumAlias = new Alias(EMPTY, "sum", sum);
+        EsRelation from = new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false);
 
-        Aggregate aggregate = new Aggregate(EMPTY, FROM(), emptyList(), asList(sumAlias));
+        Aggregate aggregate = new Aggregate(EMPTY, from, emptyList(), asList(sumAlias));
         LogicalPlan optimizedPlan = new Optimizer().optimize(aggregate);
         assertTrue(optimizedPlan instanceof Aggregate);
         Aggregate p = (Aggregate) optimizedPlan;
@@ -1044,12 +1107,24 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(sum, ((InnerAggregate) alias.child()).inner());
     }
 
+    public void testReplaceCast() {
+        FieldAttribute a = getFieldAttribute("a");
+        Cast c = new Cast(EMPTY, a, a.dataType());
+        assertSame(a, new Optimizer.PruneCast().maybePruneCast(c));
+    }
+
+    public void testReplaceCastOnLiteral() {
+        Literal literal = literal("string");
+        Cast c = new Cast(EMPTY, literal, literal.dataType());
+        assertSame(literal, new Optimizer.PruneCast().maybePruneCast(c));
+    }
+
     /**
-     * Once the root cause of https://github.com/elastic/elasticsearch/issues/45251 is fixed in the <code>sum</code> ES aggregation
-     * (can differentiate between <code>SUM(all zeroes)</code> and <code>SUM(all nulls)</code>),
-     * remove the {@link OptimizerTests#testSumIsReplacedWithStats()}, and re-enable the following test.
+     * Once https://github.com/elastic/elasticsearch/issues/71582 is addressed (ES `sum` aggregation can differentiate between
+     * <code>SUM(all zeroes)</code> and <code>SUM(all nulls)</code>), remove the {@link OptimizerTests#testSumIsReplacedWithStats()}, and
+     * re-enable the following test.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45251")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71582")
     public void testSumIsNotReplacedWithStats() {
         FieldAttribute fa = getFieldAttribute();
         Sum sum = new Sum(EMPTY, fa);
@@ -1063,4 +1138,48 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(1, p.aggregates().size());
         assertEquals(sumAlias, p.aggregates().get(0));
     }
+
+    public void testPushProjectionsIntoLocalRelations() {
+        // SELECT TRUE as a
+        Project plan = new Project(EMPTY,
+            new LocalRelation(EMPTY, new SingletonExecutable(emptyList())),
+            singletonList(new Alias(EMPTY, "a", TRUE)));
+
+        LogicalPlan optimized = new Optimizer.PushProjectionsIntoLocalRelation().apply(plan);
+
+        assertEquals(LocalRelation.class, optimized.getClass());
+        assertEquals(plan.output(), ((LocalRelation) optimized).executable().output());
+    }
+
+    public void testSkipQueryForOnlyLiteralAggregations() {
+        Aggregate plan = new Aggregate(EMPTY,
+            new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
+            emptyList(),
+            singletonList(new Alias(EMPTY, "a", TRUE))
+        );
+
+        LogicalPlan optimized = new Optimizer.SkipQueryForLiteralAggregations().apply(plan);
+
+        optimized.forEachDown(LeafPlan.class, l -> {
+            assertEquals(LocalRelation.class, l.getClass());
+            assertEquals(SingletonExecutable.class, ((LocalRelation) l).executable().getClass());
+        });
+    }
+
+    public void testDoNotSkipQueryOnEsRelationWithFilter() {
+        // SELECT TRUE as a FROM table WHERE col IS NULL
+        Project plan = new Project(EMPTY,
+            new Filter(EMPTY,
+                new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
+                new IsNull(EMPTY, getFieldAttribute("col"))),
+            singletonList(new Alias(EMPTY, "a", TRUE)));
+
+        LogicalPlan optimized = new Optimizer.SkipQueryForLiteralAggregations().apply(plan);
+
+        optimized.forEachDown(LeafPlan.class, l -> {
+            assertEquals(EsRelation.class, l.getClass());
+        });
+    }
+
+
 }

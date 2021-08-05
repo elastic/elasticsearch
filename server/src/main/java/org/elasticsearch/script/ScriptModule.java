@@ -12,19 +12,13 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.runtimefields.mapper.BooleanFieldScript;
-import org.elasticsearch.runtimefields.mapper.DateFieldScript;
-import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
-import org.elasticsearch.runtimefields.mapper.GeoPointFieldScript;
-import org.elasticsearch.runtimefields.mapper.IpFieldScript;
-import org.elasticsearch.runtimefields.mapper.LongFieldScript;
-import org.elasticsearch.runtimefields.mapper.StringFieldScript;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,9 +28,12 @@ import java.util.stream.Stream;
  */
 public class ScriptModule {
 
+    public static final Set<ScriptContext<?>> RUNTIME_FIELDS_CONTEXTS = Set.of(BooleanFieldScript.CONTEXT, DateFieldScript.CONTEXT,
+        DoubleFieldScript.CONTEXT, LongFieldScript.CONTEXT, StringFieldScript.CONTEXT, GeoPointFieldScript.CONTEXT, IpFieldScript.CONTEXT);
+
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {
-        CORE_CONTEXTS = Stream.of(
+        CORE_CONTEXTS = Stream.concat(Stream.of(
             FieldScript.CONTEXT,
             AggregationScript.CONTEXT,
             ScoreScript.CONTEXT,
@@ -59,15 +56,8 @@ public class ScriptModule {
             ScriptedMetricAggContexts.MapScript.CONTEXT,
             ScriptedMetricAggContexts.CombineScript.CONTEXT,
             ScriptedMetricAggContexts.ReduceScript.CONTEXT,
-            IntervalFilterScript.CONTEXT,
-            BooleanFieldScript.CONTEXT,
-            DateFieldScript.CONTEXT,
-            DoubleFieldScript.CONTEXT,
-            GeoPointFieldScript.CONTEXT,
-            IpFieldScript.CONTEXT,
-            LongFieldScript.CONTEXT,
-            StringFieldScript.CONTEXT
-        ).collect(Collectors.toMap(c -> c.name, Function.identity()));
+            IntervalFilterScript.CONTEXT
+        ), RUNTIME_FIELDS_CONTEXTS.stream()).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 
     public final Map<String, ScriptEngine> engines;

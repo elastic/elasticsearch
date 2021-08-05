@@ -18,6 +18,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -26,35 +27,31 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -66,6 +63,12 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -93,6 +96,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -134,6 +138,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -227,6 +232,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final TimestampFieldMapperService timestampFieldMapperService;
+    private final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
 
     @Override
     protected void doStart() {
@@ -246,7 +252,8 @@ public class IndicesService extends AbstractLifecycleComponent
                           Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry,
                           Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
                           List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners,
-                          Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers) {
+                          Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
+                          CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -295,6 +302,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.recoveryStateFactories = recoveryStateFactories;
         this.indexFoldersDeletionListeners = new CompositeIndexFoldersDeletionListener(indexFoldersDeletionListeners);
         this.snapshotCommitSuppliers = snapshotCommitSuppliers;
+        this.requestCacheKeyDifferentiator = requestCacheKeyDifferentiator;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -934,7 +942,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
-            MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
+            MetadataStateFormat.deleteMetaState(nodeEnv.indexPath(index));
         }
     }
 
@@ -976,7 +984,7 @@ public class IndicesService extends AbstractLifecycleComponent
             throw new IllegalStateException("Can't delete shard " + shardId + " (cause: " + shardDeletionCheckResult + ")");
         }
         nodeEnv.deleteShardDirectorySafe(shardId, indexSettings,
-            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths));
+            path -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, path));
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
         if (canDeleteIndexContents(shardId.getIndex(), indexSettings)) {
@@ -1027,7 +1035,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if (clusterState.metadata().index(index) != null) {
             throw new IllegalStateException("Cannot delete index [" + index + "], it is still part of the cluster state.");
         }
-        if (nodeEnv.hasNodeFile() && FileSystemUtils.exists(nodeEnv.indexPaths(index))) {
+        if (nodeEnv.hasNodeFile() && Files.exists(nodeEnv.indexPath(index))) {
             final IndexMetadata metadata;
             try {
                 metadata = metaStateService.loadIndexState(index);
@@ -1082,7 +1090,7 @@ public class IndicesService extends AbstractLifecycleComponent
         } else {
             // lets see if it's path is available (return false if the shard doesn't exist)
             // we don't need to delete anything that is not there
-            return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)) ?
+            return Files.exists(nodeEnv.availableShardPath(shardId)) ?
                 ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
                 ShardDeletionCheckResult.NO_FOLDER_FOUND;
         }
@@ -1399,7 +1407,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference cacheKey = request.cacheKey();
+        BytesReference cacheKey = request.cacheKey(requestCacheKeyDifferentiator);
         BytesReference bytesReference = cacheShardLevelResult(
             context.indexShard(),
             context.getSearchExecutionContext().mappingCacheKey(),
@@ -1528,9 +1536,41 @@ public class IndicesService extends AbstractLifecycleComponent
                 return parseInnerQueryBuilder(parser);
             }
         };
-        IndexMetadata indexMetadata = state.metadata().index(index);
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
-        return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+        if (aliases == null) {
+            return AliasFilter.EMPTY;
+        }
+
+        Metadata metadata = state.metadata();
+        IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
+        if (ia.getParentDataStream() != null) {
+            List<QueryBuilder> filters = Arrays.stream(aliases)
+                .map(name -> metadata.dataStreamAliases().get(name))
+                .map(dataStreamAlias -> {
+                    try {
+                        return filterParser.apply(dataStreamAlias.getFilter().uncompressed());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .collect(Collectors.toList());
+            if (filters.isEmpty()) {
+                return new AliasFilter(null, aliases);
+            } else {
+                if (filters.size() == 1) {
+                    return new AliasFilter(filters.get(0), aliases);
+                } else {
+                    BoolQueryBuilder bool = new BoolQueryBuilder();
+                    for (QueryBuilder filter : filters) {
+                        bool.should(filter);
+                    }
+                    return new AliasFilter(bool, aliases);
+                }
+            }
+        } else {
+            IndexMetadata indexMetadata = metadata.index(index);
+            return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+        }
     }
 
     /**
@@ -1576,6 +1616,20 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Returns the registered metadata field names for the provided compatible {@link Version}.
+     */
+    public Set<String> getMetadataFields(Version version) {
+        return mapperRegistry.getMetadataMapperParsers(version).keySet();
+    }
+
+    /**
+     * Returns the registered metadata field names for all compatible versions.
+     */
+    public Set<String> getAllMetadataFields() {
+        return mapperRegistry.getAllMetadataMapperParsers().keySet();
+    }
+
+    /**
      * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
      */
     public boolean isIdFieldDataEnabled() {
@@ -1587,7 +1641,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private void updateDanglingIndicesInfo(Index index) {
-        assert DiscoveryNode.isDataNode(settings) : "dangling indices information should only be persisted on data nodes";
+        assert DiscoveryNode.canContainData(settings) : "dangling indices information should only be persisted on data nodes";
         assert nodeWriteDanglingIndicesInfo : "writing dangling indices info is not enabled";
         assert danglingIndicesThreadPoolExecutor != null : "executor for dangling indices info is not available";
         if (danglingIndicesToWrite.add(index)) {

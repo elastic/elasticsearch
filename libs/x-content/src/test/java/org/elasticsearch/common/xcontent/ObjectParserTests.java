@@ -7,9 +7,8 @@
  */
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -32,8 +31,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ObjectParserTests extends ESTestCase {
 
@@ -1111,5 +1112,25 @@ public class ObjectParserTests extends ESTestCase {
             RestApiVersion.current());
         StructWithOnOrAfterField o2 = StructWithOnOrAfterField.PARSER.parse(futureParser, null);
         assertEquals(1, o2.intField);
+    }
+
+    public void testDoubleDeclarationThrowsException() throws IOException {
+        class DoubleFieldDeclaration {
+            private int intField;
+
+            private  void setIntField(int intField) {
+                this.intField = intField;
+            }
+        }
+
+        ObjectParser<DoubleFieldDeclaration, Void> PARSER =
+            new ObjectParser<>("double_field_declaration", DoubleFieldDeclaration::new);
+        PARSER.declareInt(DoubleFieldDeclaration::setIntField, new ParseField("name"));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> PARSER.declareInt(DoubleFieldDeclaration::setIntField, new ParseField("name")));
+
+        assertThat(exception, instanceOf(IllegalArgumentException.class));
+        assertThat(exception.getMessage(), startsWith("Parser already registered for name=[name]"));
     }
 }

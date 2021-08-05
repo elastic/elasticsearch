@@ -20,8 +20,12 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -253,6 +257,58 @@ public class MapperServiceTests extends MapperServiceTestCase {
             assertTrue("Expected " + builtIn + " to be a metadata field for version " + version,
                 mapperService.isMetadataField(builtIn));
         }
+    }
+
+    public void testMappingUpdateChecks() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
+
+        {
+            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
+            Settings settings = Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.version.created", Version.CURRENT)
+                .build();
+            builder.settings(settings);
+
+            // Text fields are not stored by default, so an incoming update that is identical but
+            // just has `stored:false` should not require an update
+            builder.putMapping("{\"properties\":{\"field\":{\"type\":\"text\",\"store\":\"false\"}}}");
+            assertTrue(mapperService.assertNoUpdateRequired(builder.build()));
+        }
+
+        {
+            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
+            Settings settings = Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.version.created", Version.CURRENT)
+                .build();
+            builder.settings(settings);
+
+            // However, an update that really does need a rebuild will throw an exception
+            builder.putMapping("{\"properties\":{\"field\":{\"type\":\"text\",\"store\":\"true\"}}}");
+            Exception e = expectThrows(IllegalStateException.class,
+                () -> mapperService.assertNoUpdateRequired(builder.build()));
+
+            assertThat(e.getMessage(), containsString("expected current mapping ["));
+            assertThat(e.getMessage(), containsString("to be the same as new mapping"));
+        }
+    }
+
+    public void testEagerGlobalOrdinals() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("eager1").field("type", "keyword").field("eager_global_ordinals", true).endObject();
+            b.startObject("lazy1").field("type", "keyword").field("eager_global_ordinals", false).endObject();
+            b.startObject("eager2").field("type", "keyword").field("eager_global_ordinals", true).endObject();
+            b.startObject("lazy2").field("type", "long").endObject();
+        }));
+
+        List<String> eagerFieldNames = StreamSupport
+            .stream(mapperService.getEagerGlobalOrdinalsFields().spliterator(), false)
+            .map(MappedFieldType::name)
+            .collect(Collectors.toList());
+        assertThat(eagerFieldNames, containsInAnyOrder("eager1", "eager2"));
     }
 
 }

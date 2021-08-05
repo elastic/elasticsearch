@@ -13,14 +13,20 @@ import org.apache.lucene.search.Scorable;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 
 import java.io.IOException;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
- * Per-leaf bucket collector.
+ * Collects results for a particular segment. See the docs for
+ * {@link LeafBucketCollector#collect(int, long)} for <strong>how</strong>
+ * to do the collecting.
  */
 public abstract class LeafBucketCollector implements LeafCollector {
-
+    /**
+     * A {@linkplain LeafBucketCollector} that doesn't collect anything.
+     * {@link Aggregator}s will return this if they've already collected
+     * their results and don't need to hook into the primary search. It is
+     * always safe to skip calling this calling {@link #setScorer} and
+     * {@link #collect} on this collector.
+     */
     public static final LeafBucketCollector NO_OP_COLLECTOR = new LeafBucketCollector() {
         @Override
         public void setScorer(Scorable arg0) throws IOException {
@@ -35,36 +41,6 @@ public abstract class LeafBucketCollector implements LeafCollector {
             return true;
         }
     };
-
-    public static LeafBucketCollector wrap(Iterable<LeafBucketCollector> collectors) {
-        final Stream<LeafBucketCollector> actualCollectors =
-                StreamSupport.stream(collectors.spliterator(), false).filter(c -> c != NO_OP_COLLECTOR);
-        final LeafBucketCollector[] colls = actualCollectors.toArray(size -> new LeafBucketCollector[size]);
-        switch (colls.length) {
-        case 0:
-            return NO_OP_COLLECTOR;
-        case 1:
-            return colls[0];
-        default:
-            return new LeafBucketCollector() {
-
-                @Override
-                public void setScorer(Scorable s) throws IOException {
-                    for (LeafBucketCollector c : colls) {
-                        c.setScorer(s);
-                    }
-                }
-
-                @Override
-                public void collect(int doc, long bucket) throws IOException {
-                    for (LeafBucketCollector c : colls) {
-                        c.collect(doc, bucket);
-                    }
-                }
-
-            };
-        }
-    }
 
     /**
      * Collect the given {@code doc} in the bucket owned by

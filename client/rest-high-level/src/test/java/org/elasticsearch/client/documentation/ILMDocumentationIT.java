@@ -8,6 +8,7 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -64,7 +65,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -80,6 +81,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -621,7 +623,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertBusy(() -> assertNotNull(client.indexLifecycle()
                 .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
-                .getIndexResponses().get("my_index").getFailedStep()), 15, TimeUnit.SECONDS);
+                .getIndexResponses().get("my_index").getFailedStep()), 30, TimeUnit.SECONDS);
         }
 
         // tag::ilm-retry-lifecycle-policy-request
@@ -630,16 +632,24 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ilm-retry-lifecycle-policy-request
 
 
-        // tag::ilm-retry-lifecycle-policy-execute
-        AcknowledgedResponse response = client.indexLifecycle()
-            .retryLifecyclePolicy(request, RequestOptions.DEFAULT);
-        // end::ilm-retry-lifecycle-policy-execute
+        try {
+            // tag::ilm-retry-lifecycle-policy-execute
+            AcknowledgedResponse response = client.indexLifecycle()
+                .retryLifecyclePolicy(request, RequestOptions.DEFAULT);
+            // end::ilm-retry-lifecycle-policy-execute
 
-        // tag::ilm-retry-lifecycle-policy-response
-        boolean acknowledged = response.isAcknowledged(); // <1>
-        // end::ilm-retry-lifecycle-policy-response
+            // tag::ilm-retry-lifecycle-policy-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            // end::ilm-retry-lifecycle-policy-response
 
-        assertTrue(acknowledged);
+            assertTrue(acknowledged);
+        } catch (ElasticsearchException e) {
+            // the retry API might fail as the shrink action steps are retryable (so if the retry API reaches ES when ILM is retrying the
+            // failed `shrink` step, the retry API will fail)
+            // assert that's the exception we encountered (we want to test to fail if there is an actual error with the retry api)
+            assertThat(e.getMessage(), containsStringIgnoringCase("reason=cannot retry an action for an index [my_index] that has not " +
+                "encountered an error when running a Lifecycle Policy"));
+        }
 
         // tag::ilm-retry-lifecycle-policy-execute-listener
         ActionListener<AcknowledgedResponse> listener =
@@ -754,6 +764,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73317")
     public void testAddSnapshotLifecyclePolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1033,7 +1044,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(new String[]{repo}, new String[]{snapshotName});
             try {
                 final GetSnapshotsResponse snaps = client.snapshot().get(getSnapshotsRequest, RequestOptions.DEFAULT);
-                Optional<SnapshotInfo> info = snaps.getSnapshots(repo).stream().findFirst();
+                Optional<SnapshotInfo> info = snaps.getSnapshots().stream().findFirst();
                 if (info.isPresent()) {
                     info.ifPresent(si -> {
                         assertThat(si.snapshotId().getName(), equalTo(snapshotName));

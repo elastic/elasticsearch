@@ -20,7 +20,7 @@ dependencies {
 archivesBaseName = 'elasticsearch-launchers'
 
 tasks.withType(CheckForbiddenApis).configureEach {
-  replaceSignatureFiles 'jdk-signatures'
+  replaceSignatureFiles 'jdk-signatures', 'snakeyaml-signatures'
 }
 
 tasks.named("testingConventions").configure {

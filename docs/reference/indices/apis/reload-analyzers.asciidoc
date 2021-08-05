@@ -35,7 +35,7 @@ IMPORTANT: After reloading the search analyzers you should clear the request
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias.
+or alias.
 
 [discrete]
 [[indices-reload-analyzers-api-desc]]
@@ -78,12 +78,9 @@ in the future.
 === {api-path-parms-title}
 
 `<target>`::
-(Required, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, use `_all` or `*`.
-
+(Required, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, use `*` or `_all`.
 
 [discrete]
 [[indices-reload-analyzers-api-query-params]]

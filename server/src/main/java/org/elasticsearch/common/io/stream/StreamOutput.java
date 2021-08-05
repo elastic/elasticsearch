@@ -19,8 +19,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -28,7 +28,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
@@ -629,7 +629,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static final Map<Class<?>, Writer> WRITERS = Map.ofEntries(
+    private static final Map<Class<?>, Writer<?>> WRITERS = Map.ofEntries(
             entry(
                     String.class,
                     (o, v) -> {
@@ -678,7 +678,7 @@ public abstract class StreamOutput extends OutputStream {
                     List.class,
                     (o, v) -> {
                         o.writeByte((byte) 7);
-                        final List list = (List) v;
+                        final List<?> list = (List<?>) v;
                         o.writeVInt(list.size());
                         for (Object item : list) {
                             o.writeGenericValue(item);
@@ -859,7 +859,8 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         final Class<?> type = getGenericType(value);
-        final Writer writer = WRITERS.get(type);
+        @SuppressWarnings("unchecked")
+        final Writer<Object> writer = (Writer<Object>) WRITERS.get(type);
         if (writer != null) {
             writer.write(this, value);
         } else {

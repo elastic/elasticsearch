@@ -8,12 +8,12 @@
 
 
 import org.apache.tools.ant.filters.FixCrLfFilter
-import org.elasticsearch.gradle.ConcatFilesTask
-import org.elasticsearch.gradle.DependenciesInfoTask
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.NoticeTask
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.ConcatFilesTask
+import org.elasticsearch.gradle.internal.DependenciesInfoTask
+import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -21,6 +21,11 @@ import java.nio.file.Path
 plugins {
   id 'base'
 }
+
+configurations {
+  log4jConfig
+}
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -35,7 +40,7 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   // explicitly add our dependency on the JDK
   String jdkVersion = VersionProperties.versions.get('bundled_jdk').split('@')[0]
   String jdkMajorVersion = jdkVersion.split('[+.]')[0]
-  String sourceUrl = "https://hg.openjdk.java.net/jdk-updates/jdk${jdkMajorVersion}u/archive/jdk-${jdkVersion}.tar.gz"
+  String sourceUrl = "https://github.com/openjdk/jdk${jdkMajorVersion}u/archive/refs/tags/jdk-${jdkVersion}.tar.gz"
   additionalLines << "OpenJDK,${jdkVersion},https://openjdk.java.net/,GPL-2.0-with-classpath-exception,${sourceUrl}".toString()
 
   // Explicitly add the dependency on the RHEL UBI Docker base image
@@ -44,7 +49,7 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
     '8',
     'https://catalog.redhat.com/software/containers/ubi8/ubi-minimal/5c359a62bed8bd75a2c3fba8',
     'Custom;https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf',
-    'https://oss-dependencies.elastic.co/redhat/ubi/ubi-minimal-8-source.tar.gz'
+    'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/8/ubi-minimal-8-source.tar.gz'
   ]
   additionalLines << rhelUbiFields.join(',')
 }
@@ -145,7 +150,7 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
       exclude 'config/log4j2.properties'
 
       eachFile { details ->
-        String name = module.plugins.hasPlugin('elasticsearch.esplugin') ? module.esplugin.name : module.es_meta_plugin.name
+        String name = module.plugins.hasPlugin('elasticsearch.internal-es-plugin') ? module.esplugin.name : module.es_meta_plugin.name
         // Copy all non config/bin files
         // Note these might be unde a subdirectory in the case of a meta plugin
         if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
@@ -160,57 +165,36 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
   }
 }
 
-// log4j config could be contained in modules, so we must join it together using these tasks
-def buildOssLog4jConfigTaskProvider = tasks.register("buildOssLog4jConfig") {
-  ext.contents = []
-  ext.log4jFile = file("${ossOutputs}/log4j2.properties")
-  outputs.file log4jFile
-}
 def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfig") {
-  dependsOn processDefaultOutputsTaskProvider
-  ext.contents = []
-  ext.log4jFile = file("${defaultOutputs}/log4j2.properties")
-  outputs.file log4jFile
-}
+  mustRunAfter('processDefaultOutputs')
 
-Closure writeLog4jProperties = {
-  def file = file('src/config/log4j2.properties')
-  String mainLog4jProperties = file.getText('UTF-8')
-  it.log4jFile.setText(mainLog4jProperties, 'UTF-8')
-  for (String moduleLog4jProperties : it.contents.reverse()) {
-    it.log4jFile.append(moduleLog4jProperties, 'UTF-8')
+  def outputFile = file("${defaultOutputs}/log4j2.properties")
+  def inputFiles = fileTree('src/config').matching { include 'log4j2.properties' }
+  project(':modules').subprojects.each {
+    inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
   }
-}
-buildOssLog4jConfigTaskProvider.configure {
-  doLast(writeLog4jProperties)
-}
-
-buildDefaultLog4jConfigTaskProvider.configure {
-  doLast(writeLog4jProperties)
-}
-
-// copy log4j2.properties from modules that have it
-void copyLog4jProperties(TaskProvider buildTask, Project module) {
-  buildTask.configure {
-    Configuration moduleConfig = moduleZip(module)
-
-    dependsOn moduleConfig
-    doFirst {
-      FileTree tree = zipTree(moduleConfig.singleFile)
-      FileTree filtered = tree.matching {
-        include 'config/log4j2.properties'
-        include '*/config/log4j2.properties' // could be in a bundled plugin
-      }
-      if (filtered.isEmpty() == false) {
-        contents.add('\n\n' + filtered.singleFile.getText('UTF-8'))
-      }
-    }
+  project(':x-pack:plugin').subprojects.each {
+    inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
   }
 
+  inputs.files(inputFiles)
+  outputs.file outputFile
+
+  doLast {
+    outputFile.setText('', 'UTF-8')
+    inputFiles.files.eachWithIndex(
+      { f, i ->
+        if (i != 0) {
+          outputFile.append('\n\n', 'UTF-8')
+        }
+        outputFile.append(f.text, 'UTF-8')
+      }
+    )
+  }
 }
 
 ext.restTestExpansions = [
-  'expected.modules.count': 0,
+  'expected.modules.count': 0
 ]
 // we create the buildOssModules task above but fill it here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
@@ -232,9 +216,6 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
     copyModule(processTransportOutputsTaskProvider, module)
   }
 
-  copyLog4jProperties(buildOssLog4jConfigTaskProvider, module)
-  copyLog4jProperties(buildDefaultLog4jConfigTaskProvider, module)
-
   restTestExpansions['expected.modules.count'] += 1
 }
 
@@ -249,7 +230,6 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
     }
   }
   copyModule(processDefaultOutputsTaskProvider, xpackModule)
-  copyLog4jProperties(buildDefaultLog4jConfigTaskProvider, xpackModule)
 }
 
 copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
@@ -282,7 +262,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -303,6 +283,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
+    libsGeoIpCli project(':distribution:tools:geoip-cli')
   }
 
   project.ext {
@@ -314,6 +295,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
+        into('tools/geoip-cli') {
+          from(configurations.libsGeoIpCli)
+        }
         into('tools/plugin-cli') {
           from(configurations.libsPluginCli)
         }
@@ -373,14 +357,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
+          filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
         }
-        if (testDistro) {
-          from buildOssLog4jConfigTaskProvider
-        } else {
-          from buildDefaultLog4jConfigTaskProvider
-          from defaultConfigFiles
-        }
+        from buildDefaultLog4jConfigTaskProvider
+        from defaultConfigFiles
       }
     }
 
@@ -392,7 +372,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
+          filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -400,7 +380,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
+            filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
           }
           with copySpec {
             from '../src/bin'
@@ -480,10 +460,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
  *  <dt>scripts.footer</dt>
  *  <dd>Footer appended to control scripts embedded in the distribution that is
  *    (almost) entirely there for cosmetic reasons.</dd>
- *  <dt>stopping.timeout</dt>
- *  <dd>RPM's init script needs to wait for elasticsearch to stop before
- *    returning from stop and it needs a maximum time to wait. This is it. One
- *    day. DEB retries forever.</dd>
  * </dl>
  */
 subprojects {
@@ -553,10 +529,6 @@ subprojects {
         'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
       ],
 
-      'stopping.timeout': [
-        'rpm': 86400,
-      ],
-
       'scripts.footer': [
         /* Debian needs exit 0 on these scripts so we add it here and preserve
           the pretty footer. */
@@ -588,7 +560,7 @@ subprojects {
       ],
     ]
     Map<String, String> result = [:]
-    expansions = expansions.each { key, value ->
+    expansions.each { key, value ->
       if (value instanceof Map) {
         // 'def' is for default but its three characters like 'rpm' and 'deb'
         value = value[distributionType] ?: value['def']
@@ -596,7 +568,8 @@ subprojects {
           return
         }
       }
-      result[key] = value
+      // expansions is String->Object but result is String->String, so we have to coerce the values
+      result[key] = value.toString()
     }
     return result
   }
@@ -628,4 +601,13 @@ subprojects {
   dependencies {
     "${configuration.name}" project(path: subproject.path, configuration:'default')
   }
+}
+
+// This artifact makes it possible for other projects to pull
+// in the final log4j2.properties configuration, as it appears in the
+// archive distribution.
+artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
+  type 'file'
+  name 'log4j2.properties'
+  builtBy 'buildDefaultLog4jConfig'
 }

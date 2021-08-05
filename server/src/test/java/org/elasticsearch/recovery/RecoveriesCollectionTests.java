@@ -9,7 +9,7 @@ package org.elasticsearch.recovery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardLongFieldRange;

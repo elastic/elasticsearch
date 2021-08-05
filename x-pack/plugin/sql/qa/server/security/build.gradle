@@ -1,30 +1,21 @@
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 dependencies {
   testImplementation project(':x-pack:plugin:core')
 }
 
 Project mainProject = project
 
-configurations.create('testArtifacts')
-
-TaskProvider testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
-}
-
 // Tests are pushed down to subprojects and will be checked there.
 tasks.named("testingConventions").configure { enabled = false }
 
 subprojects {
   // Use tests from the root security qa project in subprojects
-  configurations.create('testArtifacts')
+  configurations.create('testArtifacts').transitive(false)
 
   dependencies {
     testImplementation project(":x-pack:plugin:core")
-    testArtifacts project(path: mainProject.path, configuration: 'testArtifacts')
+    testArtifacts testArtifact(project(mainProject.path))
   }
 
   testClusters.matching { it.name == "integTest" }.configureEach {
@@ -38,6 +29,9 @@ subprojects {
     /* Setup the one admin user that we run the tests as.
      * Tests use "run as" to get different users. */
     user username: "test_admin", password: "x-pack-test-password"
+    user username: "user1", password: 'x-pack-test-password', role: "user1"
+    user username: "user2", password: 'x-pack-test-password', role: "user2"
+    user username: "manage_user", password: 'x-pack-test-password', role: "manage_user"
   }
 
   File testArtifactsDir = project.file("$buildDir/testArtifacts")

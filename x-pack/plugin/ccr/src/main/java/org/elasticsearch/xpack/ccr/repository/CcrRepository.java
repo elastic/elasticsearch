@@ -11,7 +11,6 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -40,16 +39,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
@@ -64,13 +62,18 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.MultiChunkTransfer;
 import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -172,8 +175,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
-        assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
+    public void getSnapshotInfo(GetSnapshotInfoContext context) {
+        final List<SnapshotId> snapshotIds = context.snapshotIds();
+        assert snapshotIds.size() == 1 && SNAPSHOT_ID.equals(snapshotIds.iterator().next())
+                : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId but saw " + snapshotIds;
         Client remoteClient = getRemoteClusterClient();
         ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetadata(true).setNodes(true)
             .get(ccrSettings.getRecoveryActionTimeout());
@@ -182,9 +187,17 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ArrayList<String> indices = new ArrayList<>(indicesMap.size());
         indicesMap.keysIt().forEachRemaining(indices::add);
 
-        return new SnapshotInfo(snapshotId, indices, new ArrayList<>(metadata.dataStreams().keySet()), Collections.emptyList(),
-            response.getState().getNodes().getMaxNodeVersion(), SnapshotState.SUCCESS
-        );
+        // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> context.onResponse(
+            new SnapshotInfo(
+                new Snapshot(this.metadata.name(), SNAPSHOT_ID),
+                indices,
+                new ArrayList<>(metadata.dataStreams().keySet()),
+                Collections.emptyList(),
+                response.getState().getNodes().getMaxNodeVersion(),
+                SnapshotState.SUCCESS
+            )
+        ));
     }
 
     @Override
@@ -245,8 +258,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Metadata remoteMetadata = response.getState().getMetadata();
 
             Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
-            Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
-            Map<String, Version> snapshotVersions = new HashMap<>(copiedSnapshotIds.size());
+            Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = new HashMap<>(copiedSnapshotIds.size());
             Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
 
             ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
@@ -254,8 +266,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 // Both the Snapshot name and UUID are set to _latest_
                 SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
                 copiedSnapshotIds.put(indexName, snapshotId);
-                snapshotStates.put(indexName, SnapshotState.SUCCESS);
-                snapshotVersions.put(indexName, Version.CURRENT);
+                final long nowMillis = threadPool.absoluteTimeInMillis();
+                snapshotsDetails.put(indexName, new RepositoryData.SnapshotDetails(
+                        SnapshotState.SUCCESS,
+                        Version.CURRENT,
+                        nowMillis,
+                        nowMillis));
                 Index index = remoteIndices.get(indexName).getIndex();
                 indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
             }
@@ -263,8 +279,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     MISSING_UUID,
                     1,
                     copiedSnapshotIds,
-                    snapshotStates,
-                    snapshotVersions,
+                    snapshotsDetails,
                     indexSnapshots,
                     ShardGenerations.EMPTY,
                     IndexMetaDataGenerations.EMPTY,
@@ -316,9 +331,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
-                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
+    public void snapshotShard(SnapshotShardContext context) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
@@ -443,6 +456,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         });
     }
 
+    private static final ShardGeneration DUMMY_GENERATION = new ShardGeneration("");
+
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId index, ShardId shardId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
@@ -457,7 +472,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 && shardRouting.active()) {
                 // we only care about the shard size here for shard allocation, populate the rest with dummy values
                 final long totalSize = shardStats.getStats().getStore().getSizeInBytes();
-                return IndexShardSnapshotStatus.newDone(0L, 0L, 1, 1, totalSize, totalSize, "");
+                return IndexShardSnapshotStatus.newDone(0L, 0L, 1, 1, totalSize, totalSize, DUMMY_GENERATION);
             }
         }
         throw new ElasticsearchException("Could not get shard stats for primary of index " + leaderIndex + " on leader cluster");
@@ -474,9 +489,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
-                                   ActionListener<String> listener) {
+    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, ShardGeneration shardGeneration,
+                                   ActionListener<ShardSnapshotResult> listener) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
+    }
+
+    @Override
+    public void awaitIdle() {
     }
 
     private void updateMappings(Client leaderClient, Index leaderIndex, long leaderMappingVersion,

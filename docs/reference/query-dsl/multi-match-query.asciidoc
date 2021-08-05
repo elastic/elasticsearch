@@ -67,9 +67,9 @@ index settings, which in turn defaults to `*`. `*` extracts all fields in the ma
 are eligible to term queries and filters the metadata fields. All extracted fields are then
 combined to build a query.
 
-WARNING: There is a limit on the number of fields that can be queried
+WARNING: There is a limit on the number of fields times terms that can be queried
 at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
-which defaults to 1024.
+which defaults to 4096.
 
 [[multi-match-types]]
 [discrete]
@@ -80,20 +80,20 @@ parameter, which can be set to:
 
 [horizontal]
 `best_fields`::     (*default*) Finds documents which match any field, but
-                    uses the  `_score` from the best field.  See <<type-best-fields>>.
+                    uses the  `_score` from the best field. See <<type-best-fields>>.
 
 `most_fields`::     Finds documents which match any field and combines
-                    the `_score` from each field.  See <<type-most-fields>>.
+                    the `_score` from each field. See <<type-most-fields>>.
 
 `cross_fields`::    Treats fields with the same `analyzer` as though they
                     were one big field. Looks for each word in *any*
                     field. See <<type-cross-fields>>.
 
 `phrase`::          Runs a `match_phrase` query on each field and uses the `_score`
-                    from the best field.  See <<type-phrase>>.
+                    from the best field. See <<type-phrase>>.
 
 `phrase_prefix`::   Runs a `match_phrase_prefix` query on each field and uses
-                    the `_score` from the best field.  See <<type-phrase>>.
+                    the `_score` from the best field. See <<type-phrase>>.
 
 `bool_prefix`::     Creates a `match_bool_prefix` query on each field and
                     combines the `_score` from each field. See
@@ -108,7 +108,7 @@ field is more meaningful than ``brown'' in one field and ``fox'' in the other.
 
 The `best_fields` type generates a <<query-dsl-match-query,`match` query>> for
 each field and wraps them in a <<query-dsl-dis-max-query,`dis_max`>> query, to
-find the single best matching field.  For instance, this query:
+find the single best matching field. For instance, this query:
 
 [source,console]
 --------------------------------------------------
@@ -161,7 +161,7 @@ as explained in <<query-dsl-match-query, match query>>.
 ===================================================
 
 The `best_fields` and `most_fields` types are _field-centric_ -- they generate
-a `match` query *per field*.  This means that the `operator` and
+a `match` query *per field*. This means that the `operator` and
 `minimum_should_match` parameters are applied to each field individually,
 which is probably not what you want.
 
@@ -192,7 +192,10 @@ This query is executed as:
 In other words, *all terms* must be present *in a single field* for a document
 to match.
 
-See <<type-cross-fields>> for a better solution.
+The <<query-dsl-combined-fields-query, `combined_fields`>> query offers a
+term-centric approach that handles `operator` and `minimum_should_match` on a
+per-term basis. The other multi-match mode <<type-cross-fields>> also
+addresses this issue.
 
 ===================================================
 
@@ -200,7 +203,7 @@ See <<type-cross-fields>> for a better solution.
 ==== `most_fields`
 
 The `most_fields` type is most useful when querying multiple fields that
-contain the same text analyzed in different ways.  For instance, the main
+contain the same text analyzed in different ways. For instance, the main
 field may contain synonyms, stemming and terms without diacritics. A second
 field may contain the original terms, and a third field might contain
 shingles. By combining scores from all three fields we can match as many
@@ -302,7 +305,7 @@ The `fuzziness` parameter cannot be used with the `phrase` or `phrase_prefix` ty
 ==== `cross_fields`
 
 The `cross_fields` type is particularly useful with structured documents where
-multiple fields *should* match.  For instance, when querying the `first_name`
+multiple fields *should* match. For instance, when querying the `first_name`
 and `last_name` fields for ``Will Smith'', the best match is likely to have
 ``Will'' in one field and ``Smith'' in the other.
 
@@ -314,7 +317,7 @@ with that approach. The first problem is that `operator` and
 <<operator-min,explanation above>>).
 
 The second problem is to do with relevance: the different term frequencies in
-the `first_name` and `last_name` fields   can produce unexpected results.
+the `first_name` and `last_name` fields can produce unexpected results.
 
 For instance, imagine we have two people: ``Will Smith'' and ``Smith Jones''.
 ``Smith'' as a last name is very common (and so is of low importance) but
@@ -328,11 +331,11 @@ probably appear above the better matching ``Will Smith'' because the score of
 ****
 
 One way of dealing with these types of queries is simply to index the
-`first_name` and `last_name` fields into a single `full_name` field.  Of
+`first_name` and `last_name` fields into a single `full_name` field. Of
 course, this can only be done at index time.
 
 The `cross_field` type tries to solve these problems at query time by taking a
-_term-centric_ approach.  It first analyzes the query string into individual
+_term-centric_ approach. It first analyzes the query string into individual
 terms, then looks for each term in any of the fields, as though they were one
 big field.
 
@@ -355,7 +358,7 @@ GET /_search
 
 is executed as:
 
-    +(first_name:will  last_name:will)
+    +(first_name:will last_name:will)
     +(first_name:smith last_name:smith)
 
 In other words, *all terms* must be present *in at least one field* for a
@@ -385,12 +388,18 @@ explanation:
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `lenient` and `zero_terms_query`.
 
+WARNING: The `cross_fields` type blends field statistics in a way that does
+not always produce well-formed scores (for example scores can become
+negative). As an alternative, you can consider the
+<<query-dsl-combined-fields-query,`combined_fields`>> query, which is also
+term-centric but combines field statistics in a more robust way.
+
 [[cross-field-analysis]]
 ===== `cross_field` and analysis
 
 The `cross_field` type can only work in term-centric mode on fields that have
 the same analyzer. Fields with the same analyzer are grouped together as in
-the example above.  If there are multiple groups, the query will use the best
+the example above. If there are multiple groups, the query will use the best
 score from any group.
 
 For instance, if we have a `first` and `last` field which have

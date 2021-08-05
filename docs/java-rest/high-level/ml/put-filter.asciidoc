@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put filters API
+=== Create filters API
 
 Creates a new {ml} filter in the cluster. The API accepts a +{request}+ object
 as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put filters request
+==== Request
 
 A +{request}+ requires the following argument:
 

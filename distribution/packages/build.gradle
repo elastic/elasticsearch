@@ -6,10 +6,10 @@
  * Side Public License, v 1.
  */
 
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.redline_rpm.header.Flags
 
 import java.nio.file.Files
@@ -33,7 +33,7 @@ import java.util.regex.Pattern
  *    empty directory requires more wits than I have.
  * 3. ospackage really wants to suck up some of the debian control scripts
  *    directly from the filesystem. It doesn't want to process them through
- *    MavenFilteringHack or any other copy-style action.
+ *    any copy-style action.
  *
  * The following commands are useful when it comes to check the user/group
  * and files permissions set within the RPM and DEB packages:
@@ -42,9 +42,31 @@ import java.util.regex.Pattern
  *    dpkg -c path/to/elasticsearch.deb
  */
 
-plugins {
-  id "nebula.ospackage-base" version "8.3.0"
+buildscript {
+  repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+  }
+
+  // We rely on a patched version of the redline library used to build rpm packages
+  // to support sha256header in our elasticsearch RPMs
+  // TODO: Update / remove this dependency once https://github.com/craigwblake/redline/pull/157 got merged
+  // Be aware that it seems the redline project hasnt been active for a while
+  configurations.all {
+    resolutionStrategy {
+        dependencySubstitution {
+          substitute module('org.redline-rpm:redline') using module('com.github.breskeby:redline:9c85270')
+        }
+    }
+  }
+
+  dependencies {
+    classpath "com.github.breskeby:gradle-ospackage-plugin:98455c1"
+  }
+
 }
+
+apply plugin: "nebula.ospackage-base"
 
 void addProcessFilesTask(String type, boolean oss, boolean jdk) {
   String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
@@ -56,13 +78,14 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
+      filter("tokens" : expansionsForDistribution(type, oss, jdk), ReplaceTokens.class)
     }
 
     into('etc/elasticsearch') {
       with configFiles(type, oss, jdk)
     }
-    MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
+
+    filter("tokens" : expansionsForDistribution(type, oss, jdk), ReplaceTokens.class)
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
@@ -116,10 +139,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     String jdkString = jdk ? "" : "no-jdk-"
     String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
     destinationDirectory = file("${prefix}/build/distributions")
-
-    // SystemPackagingTask overrides default archive task convention mappings, but doesn't provide a setter so we have to override the convention mapping itself
-    conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDirectory.get()}/${packageName}-${project.version}-${jdkString}${archString}.${type}")) }
-
+    archiveFileName.value(project.provider({ "${packageName}-${project.version}-${jdkString}${archString}.${type}" } ))
     String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
 
     String scripts = "${packagingFiles}/scripts"
@@ -269,8 +289,6 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     with noticeFile(oss, jdk)
   }
 }
-
-apply plugin: 'nebula.ospackage-base'
 
 // this is package indepdendent configuration
 ospackage {

@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.watcher.transform.search;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class SearchTransform implements Transform {
 

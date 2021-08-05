@@ -42,7 +42,7 @@ import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.io.Reader;

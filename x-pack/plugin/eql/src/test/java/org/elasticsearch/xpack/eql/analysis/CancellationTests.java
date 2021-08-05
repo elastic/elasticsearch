@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -17,11 +18,17 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
@@ -29,14 +36,15 @@ import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.plugin.TransportEqlSearchAction;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
+import org.junit.After;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -51,17 +59,32 @@ import static org.mockito.Mockito.when;
 
 public class CancellationTests extends ESTestCase {
 
+    private ThreadPool threadPool;
+    private TransportService transportService;
+
+    @Before
+    public void mockTransportService() {
+        threadPool = new TestThreadPool(getClass().getName());
+        // The TransportService needs to be able to return a valid RemoteClusterServices object down the stream, required by the Verifier.
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+    }
+
+    @After
+    public void cleanupTransportService() {
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
     public void testCancellationBeforeFieldCaps() throws InterruptedException {
         Client client = mock(Client.class);
-        EqlSearchTask task = mock(EqlSearchTask.class);
-        when(task.isCancelled()).thenReturn(true);
+        EqlSearchTask task = EqlTestUtils.randomTask();
+        TaskCancelHelper.cancel(task, "simulated");
         ClusterService mockClusterService = mockClusterService();
 
-        IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
-        PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
+        IndexResolver indexResolver = indexResolver(client);
+        PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().query("foo where blah"), "",
-            mock(TransportService.class), mockClusterService, new ActionListener<>() {
+            transportService, mockClusterService, new ActionListener<>() {
                 @Override
                 public void onResponse(EqlSearchResponse eqlSearchResponse) {
                     fail("Shouldn't be here");
@@ -75,20 +98,18 @@ public class CancellationTests extends ESTestCase {
                 }
             });
         countDownLatch.await();
-        verify(task, times(1)).isCancelled();
-        verify(task, times(1)).getId();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
-        verifyNoMoreInteractions(client, task);
+        verifyNoMoreInteractions(client);
     }
 
     private Map<String, Map<String, FieldCapabilities>> fields(String[] indices) {
         FieldCapabilities fooField =
-            new FieldCapabilities("foo", "integer", true, true, indices, null, null, emptyMap());
+            new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, emptyMap());
         FieldCapabilities categoryField =
-            new FieldCapabilities("event.category", "keyword", true, true, indices, null, null, emptyMap());
+            new FieldCapabilities("event.category", "keyword", false, true, true, indices, null, null, emptyMap());
         FieldCapabilities timestampField =
-            new FieldCapabilities("@timestamp", "date", true, true, indices, null, null, emptyMap());
+            new FieldCapabilities("@timestamp", "date", false, true, true, indices, null, null, emptyMap());
         Map<String, Map<String, FieldCapabilities>> fields = new HashMap<>();
         fields.put(fooField.getName(), singletonMap(fooField.getName(), fooField));
         fields.put(categoryField.getName(), singletonMap(categoryField.getName(), categoryField));
@@ -99,11 +120,7 @@ public class CancellationTests extends ESTestCase {
     public void testCancellationBeforeSearch() throws InterruptedException {
         Client client = mock(Client.class);
 
-        AtomicBoolean cancelled = new AtomicBoolean(false);
-        EqlSearchTask task = mock(EqlSearchTask.class);
-        long taskId = randomNonNegativeLong();
-        when(task.isCancelled()).then(invocationOnMock -> cancelled.get());
-        when(task.getId()).thenReturn(taskId);
+        EqlSearchTask task = EqlTestUtils.randomTask();
         ClusterService mockClusterService = mockClusterService();
 
         String[] indices = new String[]{"endgame"};
@@ -114,17 +131,17 @@ public class CancellationTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<FieldCapabilitiesResponse> listener = (ActionListener<FieldCapabilitiesResponse>) invocation.getArguments()[1];
-            assertFalse(cancelled.getAndSet(true));
+            TaskCancelHelper.cancel(task, "simulated");
             listener.onResponse(fieldCapabilitiesResponse);
             return null;
         }).when(client).fieldCaps(any(), any());
 
 
         IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
-        PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
+        PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices("endgame")
-            .query("process where foo==3"), "", mock(TransportService.class), mockClusterService, new ActionListener<>() {
+            .query("process where foo==3"), "", transportService, mockClusterService, new ActionListener<>() {
             @Override
             public void onResponse(EqlSearchResponse eqlSearchResponse) {
                 fail("Shouldn't be here");
@@ -139,21 +156,16 @@ public class CancellationTests extends ESTestCase {
         });
         countDownLatch.await();
         verify(client).fieldCaps(any(), any());
-        verify(task, times(2)).isCancelled();
-        verify(task, times(1)).getId();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
-        verifyNoMoreInteractions(client, task);
+        verifyNoMoreInteractions(client);
     }
 
     public void testCancellationDuringSearch() throws InterruptedException {
         Client client = mock(Client.class);
 
-        EqlSearchTask task = mock(EqlSearchTask.class);
+        EqlSearchTask task = EqlTestUtils.randomTask();
         String nodeId = randomAlphaOfLength(10);
-        long taskId = randomNonNegativeLong();
-        when(task.isCancelled()).thenReturn(false);
-        when(task.getId()).thenReturn(taskId);
         ClusterService mockClusterService = mockClusterService(nodeId);
 
         String[] indices = new String[]{"endgame"};
@@ -177,7 +189,7 @@ public class CancellationTests extends ESTestCase {
             SearchRequest request = (SearchRequest) invocation.getArguments()[1];
             TaskId parentTask = request.getParentTask();
             assertNotNull(parentTask);
-            assertEquals(taskId, parentTask.getId());
+            assertEquals(task.getId(), parentTask.getId());
             assertEquals(nodeId, parentTask.getNodeId());
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
@@ -185,11 +197,11 @@ public class CancellationTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), searchRequestCaptor.capture(), any());
 
-        IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
-        PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
+        IndexResolver indexResolver = indexResolver(client);
+        PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices("endgame")
-            .query("process where foo==3"), "", mock(TransportService.class), mockClusterService, new ActionListener<>() {
+            .query("process where foo==3"), "", transportService, mockClusterService, new ActionListener<>() {
             @Override
             public void onResponse(EqlSearchResponse eqlSearchResponse) {
                 fail("Shouldn't be here");
@@ -206,11 +218,13 @@ public class CancellationTests extends ESTestCase {
         // Final verification to ensure no more interaction
         verify(client).fieldCaps(any(), any());
         verify(client).execute(any(), any(), any());
-        verify(task, times(2)).isCancelled();
-        verify(task, times(1)).getId();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
-        verifyNoMoreInteractions(client, task);
+        verifyNoMoreInteractions(client);
+    }
+
+    private PlanExecutor planExecutor(Client client, IndexResolver indexResolver) {
+        return new PlanExecutor(client, indexResolver, new NoopCircuitBreaker("test"));
     }
 
     private ClusterService mockClusterService() {
@@ -226,5 +240,9 @@ public class CancellationTests extends ESTestCase {
         when(mockClusterName.value()).thenReturn(randomAlphaOfLength(10));
         when(mockClusterService.getClusterName()).thenReturn(mockClusterName);
         return mockClusterService;
+    }
+
+    private static IndexResolver indexResolver(Client client) {
+        return new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
     }
 }

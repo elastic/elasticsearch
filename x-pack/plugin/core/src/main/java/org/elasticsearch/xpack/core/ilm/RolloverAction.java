@@ -6,17 +6,16 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -84,7 +83,7 @@ public class RolloverAction implements LifecycleAction {
         } else {
             maxSize = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_13_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             maxPrimaryShardSize = new ByteSizeValue(in);
         } else {
             maxPrimaryShardSize = null;
@@ -96,26 +95,14 @@ public class RolloverAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         boolean hasMaxSize = maxSize != null;
-        boolean hasMaxPrimaryShardSize = maxPrimaryShardSize != null;
+        out.writeBoolean(hasMaxSize);
         if (hasMaxSize) {
-            out.writeBoolean(true);
             maxSize.writeTo(out);
-        } else if (hasMaxPrimaryShardSize && out.getVersion().before(Version.V_7_13_0)) {
-            // In the case that the outgoing node is on a version that doesn't support maxPrimaryShardSize then
-            // serialize it as maxSize. When the outgoing node receives that node-to-node response there is no validation
-            // taking place (see constructors_ and otherwise we could end up with a rollover action instance without any conditions.
-            // If the node is rebooted then it would be unable to read the cluster state and fail starting up.
-            // (ilm policies are part of cluster state)
-            out.writeBoolean(true);
-            maxPrimaryShardSize.writeTo(out);
-        } else {
-            out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeBoolean(hasMaxPrimaryShardSize);
-            if (hasMaxPrimaryShardSize) {
-                maxPrimaryShardSize.writeTo(out);
-            }
+        boolean hasMaxPrimaryShardSize = maxPrimaryShardSize != null;
+        out.writeBoolean(hasMaxPrimaryShardSize);
+        if (hasMaxPrimaryShardSize) {
+            maxPrimaryShardSize.writeTo(out);
         }
         out.writeOptionalTimeValue(maxAge);
         out.writeOptionalVLong(maxDocs);

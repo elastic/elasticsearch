@@ -7,30 +7,28 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.xpack.core.DataTier.DATA_COLD;
 import static org.elasticsearch.xpack.core.DataTier.DATA_HOT;
 import static org.elasticsearch.xpack.core.DataTier.DATA_WARM;
-import static org.elasticsearch.xpack.core.ilm.MigrateAction.getPreferredTiersConfiguration;
-import static org.elasticsearch.xpack.core.ilm.MigrateAction.skipMigrateAction;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.FROZEN_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.CoreMatchers.is;
 
 public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
@@ -42,7 +40,12 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
 
     @Override
     protected MigrateAction createTestInstance() {
-        return new MigrateAction();
+        return new MigrateAction(randomBoolean());
+    }
+
+    @Override
+    protected MigrateAction mutateInstance(MigrateAction instance) throws IOException {
+        return new MigrateAction(instance.isEnabled() == false);
     }
 
     @Override
@@ -79,14 +82,6 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
         }
     }
 
-    public void testGetPreferredTiersConfiguration() {
-        assertThat(getPreferredTiersConfiguration(DATA_HOT), is(DATA_HOT));
-        assertThat(getPreferredTiersConfiguration(DATA_WARM), is(DATA_WARM + "," + DATA_HOT));
-        assertThat(getPreferredTiersConfiguration(DATA_COLD), is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> getPreferredTiersConfiguration("no_tier"));
-        assertThat(exception.getMessage(), is("invalid data tier [no_tier]"));
-    }
-
     public void testMigrateActionsConfiguresTierPreference() {
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
@@ -111,43 +106,50 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
         }
     }
 
-    public void testSkipMigrateAction() {
-        IndexMetadata snappedIndex = IndexMetadata.builder("snapped_index")
-            .settings(
-                Settings.builder()
-                    .put(LifecycleSettings.SNAPSHOT_INDEX_NAME, "snapped")
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .build();
+    public void testMigrateActionWillSkipAPartiallyMountedIndex() {
+        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10));
+        MigrateAction action = new MigrateAction();
 
-        IndexMetadata regularIndex = IndexMetadata.builder("regular_index")
-            .settings(
-                Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .build();
-
+        // does not skip an ordinary index
         {
-            // migrate action is not skipped if the index is not a searchable snapshot
-            Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE)
-                .forEach(phase -> assertThat(skipMigrateAction(phase, regularIndex), is(false)));
+            IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(2)
+                .build();
+
+            ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metadata(Metadata.builder().put(indexMetadata, true).build())
+                .build();
+
+            List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey);
+            BranchingStep firstStep = (BranchingStep) steps.get(0);
+            UpdateSettingsStep secondStep = (UpdateSettingsStep) steps.get(1);
+            firstStep.performAction(indexMetadata.getIndex(), clusterState);
+
+            assertEquals(secondStep.getKey(), firstStep.getNextStepKey());
         }
 
+        // does skip a partially mounted
         {
-            // migrate action is skipped if the index is a searchable snapshot for phases hot -> cold
-            Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE)
-                .forEach(phase -> assertThat(skipMigrateAction(phase, snappedIndex), is(true)));
-        }
+            IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+                .settings(settings(Version.CURRENT)
+                    .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                    .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true))
+                .numberOfShards(1)
+                .numberOfReplicas(2)
+                .build();
 
-        {
-            // migrate action is never skipped for the frozen phase
-            assertThat(skipMigrateAction(FROZEN_PHASE, snappedIndex), is(false));
-            assertThat(skipMigrateAction(FROZEN_PHASE, regularIndex), is(false));
+            ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metadata(Metadata.builder().put(indexMetadata, true).build())
+                .build();
+
+            List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey);
+            BranchingStep firstStep = (BranchingStep) steps.get(0);
+            firstStep.performAction(indexMetadata.getIndex(), clusterState);
+
+            assertEquals(nextStepKey, firstStep.getNextStepKey());
         }
     }
-
 }

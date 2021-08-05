@@ -317,7 +317,7 @@ public class CollectionUtils {
         final int size = collection.size() + 1;
         final E[] array = collection.toArray((E[]) new Object[size]);
         array[size - 1] = element;
-        return Arrays.asList(array);
+        return Collections.unmodifiableList(Arrays.asList(array));
     }
 
     public static <E> ArrayList<E> newSingletonArrayList(E element) {

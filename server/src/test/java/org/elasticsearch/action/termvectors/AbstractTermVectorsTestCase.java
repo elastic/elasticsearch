@@ -334,7 +334,9 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         for (TestFieldSetting field : testDoc.fieldSettings) {
             Terms esTerms = esTermVectorFields.terms(field.name);
             if (selectedFields != null && selectedFields.contains(field.name) == false) {
-                assertNull(esTerms);
+                if (esTerms != null) {
+                    fail("Expecting only terms for fields " + selectedFields + " but got " + field.name);
+                }
                 continue;
             }
 

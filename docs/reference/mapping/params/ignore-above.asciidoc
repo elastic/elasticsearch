@@ -48,7 +48,7 @@ GET my-index-000001/_search <4>
 <4> Search returns both documents, but only the first is present in the terms aggregation.
 
 TIP: The `ignore_above` setting can be updated on
-existing fields using the <<indices-put-mapping,PUT mapping API>>.
+existing fields using the <<indices-put-mapping,update mapping API>>.
 
 This option is also useful for protecting against Lucene's term byte-length
 limit of `32766`.

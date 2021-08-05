@@ -13,7 +13,8 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -93,7 +94,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         return Arrays.copyOf(sortValues, sortValues.length);
     }
 
-    public static FieldDoc buildFieldDoc(SortAndFormats sort, Object[] values) {
+    public static FieldDoc buildFieldDoc(SortAndFormats sort, Object[] values, @Nullable String collapseField) {
         if (sort == null || sort.sort.getSort() == null || sort.sort.getSort().length == 0) {
             throw new IllegalArgumentException("Sort must contain at least one field.");
         }
@@ -104,6 +105,12 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     SEARCH_AFTER.getPreferredName() + " has " + values.length + " value(s) but sort has "
                             + sort.sort.getSort().length + ".");
         }
+
+        if (collapseField != null && (sortFields.length > 1 || sortFields[0].getField().equals(collapseField) == false)) {
+            throw new IllegalArgumentException("Cannot use [collapse] in conjunction with [" + SEARCH_AFTER.getPreferredName()
+                + "] unless the search is sorted on the same field. Multiple sort fields are not allowed.");
+        }
+
         Object[] fieldValues = new Object[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             SortField sortField = sortFields[i];

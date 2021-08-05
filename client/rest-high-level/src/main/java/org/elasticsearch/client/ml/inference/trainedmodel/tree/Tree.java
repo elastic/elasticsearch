@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,7 +30,6 @@ public class Tree implements TrainedModel {
 
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
     public static final ParseField TREE_STRUCTURE = new ParseField("tree_structure");
-    public static final ParseField TARGET_TYPE = new ParseField("target_type");
     public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, Builder::new);
@@ -38,7 +37,7 @@ public class Tree implements TrainedModel {
     static {
         PARSER.declareStringArray(Builder::setFeatureNames, FEATURE_NAMES);
         PARSER.declareObjectArray(Builder::setNodes, (p, c) -> TreeNode.fromXContent(p), TREE_STRUCTURE);
-        PARSER.declareString(Builder::setTargetType, TARGET_TYPE);
+        PARSER.declareString(Builder::setTargetType, TargetType.TARGET_TYPE);
         PARSER.declareStringArray(Builder::setClassificationLabels, CLASSIFICATION_LABELS);
     }
 
@@ -94,7 +93,7 @@ public class Tree implements TrainedModel {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }
         if (targetType != null) {
-            builder.field(TARGET_TYPE.getPreferredName(), targetType.toString());
+            builder.field(TargetType.TARGET_TYPE.getPreferredName(), targetType.toString());
         }
         builder.endObject();
         return  builder;

@@ -7,7 +7,7 @@ shard if a good copy of the shard cannot be recovered automatically or restored
 from backup.
 
 [WARNING]
-You will lose the corrupted data when you run `elasticsearch-shard`.  This tool
+You will lose the corrupted data when you run `elasticsearch-shard`. This tool
 should only be used as a last resort if there is no way to recover from another
 copy of the shard or restore a snapshot.
 

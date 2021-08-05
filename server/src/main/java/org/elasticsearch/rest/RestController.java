@@ -13,12 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
@@ -29,6 +29,7 @@ import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -44,8 +45,8 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
+import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
+import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
@@ -57,6 +58,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
+    static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
+    static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     private static final String ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
     private static final BytesReference FAVICON_RESPONSE;
@@ -112,10 +115,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         assert (handler instanceof DeprecationRestHandler) == false;
         if (version == RestApiVersion.current()) {
             // e.g. it was marked as deprecated in 8.x, and we're currently running 8.x
-            registerHandler(method, path, version, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger, false));
+            registerHandler(method, path, version,
+                new DeprecationRestHandler(handler, method, path, deprecationMessage, deprecationLogger, false));
         } else if (version == RestApiVersion.minimumSupported()) {
             // e.g. it was marked as deprecated in 7.x, and we're currently running 8.x
-            registerHandler(method, path, version, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger, true));
+            registerHandler(method, path, version,
+                new DeprecationRestHandler(handler, method, path, deprecationMessage, deprecationLogger, true));
         } else {
             // e.g. it was marked as deprecated in 7.x, and we're currently running *9.x*
             logger.debug("Deprecated route [" + method + " " + path + "] for handler [" + handler.getClass() + "] " +
@@ -208,6 +213,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+        threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
         try {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
@@ -223,6 +229,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @Override
     public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+        threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
         try {
             final Exception e;
             if (cause == null) {
@@ -243,7 +250,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler,
-                                 RestApiVersion restApiVersion)
+                                 ThreadContext threadContext)
         throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
@@ -268,13 +275,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, restApiVersion);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
             }
 
-            final ThreadContext threadContext = client.threadPool().getThreadContext();
             if (handler.allowSystemIndexAccessByDefault() == false) {
                 // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
                 // therefore we should allow a subset of external system index access.
@@ -328,28 +334,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
-        for (final RestHeaderDefinition restHeader : headersToCopy) {
-            final String name = restHeader.getName();
-            final List<String> headerValues = request.getAllHeaderValues(name);
-            if (headerValues != null && headerValues.isEmpty() == false) {
-                final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
-                if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
-                    channel.sendResponse(
-                        BytesRestResponse.
-                            createSimpleErrorResponse(channel, BAD_REQUEST, "multiple values for single-valued header [" + name + "]."));
-                    return;
-                } else {
-                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
-                }
-            }
-        }
-        // error_trace cannot be used when we disable detailed errors
-        // we consume the error_trace parameter first to ensure that it is always consumed
-        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
-            channel.sendResponse(
-                BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
+        try {
+            copyRestHeaders(request, threadContext);
+            validateErrorTrace(request, channel);
+        } catch (IllegalArgumentException e) {
+            channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
             return;
         }
+
 
         final String rawPath = request.rawPath();
         final String uri = request.uri();
@@ -374,7 +366,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
-                    dispatchRequest(request, channel, handler, restApiVersion);
+                    dispatchRequest(request, channel, handler, threadContext);
                     return;
                 }
             }
@@ -384,6 +376,34 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         // If request has not been handled, fallback to a bad request error.
         handleBadRequest(uri, requestMethod, channel);
+    }
+
+    private void validateErrorTrace(RestRequest request, RestChannel channel) {
+        // error_trace cannot be used when we disable detailed errors
+        // we consume the error_trace parameter first to ensure that it is always consumed
+        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
+            throw new IllegalArgumentException("error traces in responses are disabled.");
+        }
+    }
+
+    private void copyRestHeaders(RestRequest request, ThreadContext threadContext) throws IOException {
+        for (final RestHeaderDefinition restHeader : headersToCopy) {
+            final String name = restHeader.getName();
+            final List<String> headerValues = request.getAllHeaderValues(name);
+            if (headerValues != null && headerValues.isEmpty() == false) {
+                final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
+                if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
+                    throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
+                } else if (name.equals(Task.TRACE_PARENT)) {
+                    String traceparent = distinctHeaderValues.get(0);
+                    if (traceparent.length() >= 55) {
+                        threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));
+                    }
+                } else {
+                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
+                }
+            }
+        }
     }
 
     Iterator<MethodHandlers> getAllHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {
@@ -492,40 +512,33 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
-        private final RestApiVersion restApiVersion;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength,
-                                    RestApiVersion restApiVersion) {
+        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
-            this.restApiVersion = restApiVersion;
         }
 
         @Override
         public XContentBuilder newBuilder() throws IOException {
-            return delegate.newBuilder()
-                .withCompatibleVersion(restApiVersion);
+            return delegate.newBuilder();
         }
 
         @Override
         public XContentBuilder newErrorBuilder() throws IOException {
-            return delegate.newErrorBuilder()
-                .withCompatibleVersion(restApiVersion);
+            return delegate.newErrorBuilder();
         }
 
         @Override
         public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-            return delegate.newBuilder(xContentType, useFiltering)
-                .withCompatibleVersion(restApiVersion);
+            return delegate.newBuilder(xContentType, useFiltering);
         }
 
         @Override
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
             throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering)
-                .withCompatibleVersion(restApiVersion);
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
         }
 
         @Override

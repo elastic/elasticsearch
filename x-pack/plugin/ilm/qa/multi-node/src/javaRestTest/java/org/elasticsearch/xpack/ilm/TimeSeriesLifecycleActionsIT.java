@@ -16,17 +16,18 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
@@ -71,6 +71,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -95,7 +96,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public void testFullPolicy() throws Exception {
         String originalIndex = index + "-000001";
-        String shrunkenOriginalIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
+        String shrunkenOriginalIndex = SHRUNKEN_INDEX_PREFIX + originalIndex;
         String secondIndex = index + "-000002";
         createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -197,18 +198,18 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
-        createNewSingletonPolicy(client(), policy, "delete", new WaitForSnapshotAction(slmPolicy));
+        final String phaseName = "delete";
+        createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy));
         updatePolicy(client(), index, policy);
+        waitForPhaseTime(phaseName);
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
         }, slmPolicy);
-
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createSlmPolicy(slmPolicy, snapshotRepo);
-
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             //wait for step to notice that the slm policy is created and to get out of error
@@ -216,18 +217,48 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
         }, slmPolicy);
+        waitForPhaseTime(phaseName); // The phase time was reset because the action went into the ERROR step and back out
 
         Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
+        assertBusy(() -> {
+            Step.StepKey stepKey = getStepKeyForIndex(client(), index);
+            logger.info("step key for index {} is {}", index, stepKey);
+            assertThat(stepKey.getAction(), equalTo("complete"));
+        }, slmPolicy);
+    }
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getAction(), equalTo("complete")), slmPolicy);
+    /*
+     * This test more rapidly creates a policy and then executes a snapshot, in an attempt to reproduce a timing bug where the snapshot
+     * time gets set to a time earlier than the policy's action's time.
+     */
+    public void testWaitForSnapshotFast() throws Exception {
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        String slmPolicy = randomAlphaOfLengthBetween(4, 10);
+        final String phaseName = "delete";
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createSlmPolicy(slmPolicy, snapshotRepo);
+        createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy));
+        updatePolicy(client(), index, policy);
+        waitForPhaseTime(phaseName);
+
+        Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
+        assertOK(client().performRequest(request));
+        assertBusy(() -> {
+            Step.StepKey stepKey = getStepKeyForIndex(client(), index);
+            logger.info("step key for index {} is {}", index, stepKey);
+            assertThat(stepKey.getAction(), equalTo("complete"));
+        }, slmPolicy);
     }
 
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
-        createNewSingletonPolicy(client(), policy, "delete", new WaitForSnapshotAction(slmPolicy));
+        final String phaseName = "delete";
+        createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy));
 
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
@@ -246,6 +277,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }, slmPolicy);
 
         updatePolicy(client(), index, policy);
+        waitForPhaseTime(phaseName);
 
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
@@ -266,7 +298,34 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             }
         }, slmPolicy);
 
+        assertBusy(() -> {
+            Step.StepKey stepKey = getStepKeyForIndex(client(), index);
+            logger.info("stepKey for index {} is {}", index, stepKey);
+            assertThat(stepKey.getAction(), equalTo("complete"));
+        }, slmPolicy);
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getAction(), equalTo("complete")), slmPolicy);
+    }
+
+    /*
+     * This method waits until phase_time gets set in the state store for the given phase name. Otherwise we can wind up starting a snapshot
+     * before the ILM policy is ready.
+     */
+    @SuppressWarnings("unchecked")
+    private void waitForPhaseTime(String phaseName) throws Exception {
+        assertBusy(() -> {
+            Request request = new Request("GET", "/_cluster/state/metadata/" + index);
+            Map<String, Object> response = entityAsMap(client().performRequest(request));
+            Map<String, Object> metadata = (Map<String, Object>) response.get("metadata");
+            Map<String, Object> indices = (Map<String, Object>) metadata.get("indices");
+            Map<String, Object> indexMap = (Map<String, Object>) indices.get(index);
+            Map<String, Object> ilm = (Map<String, Object>) indexMap.get("ilm");
+            assertNotNull(ilm);
+            Object phase = ilm.get("phase");
+            assertEquals(phaseName, phase);
+            Object phase_time = ilm.get("phase_time");
+            assertNotNull(phase_time);
+            logger.info("found phase time for {} phase: {}", phaseName, phase_time);
+        });
     }
 
     public void testDelete() throws Exception {
@@ -453,6 +512,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "}", ContentType.APPLICATION_JSON);
         Request templateRequest = new Request("PUT", "_template/test");
         templateRequest.setEntity(template);
+        templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(templateRequest);
 
         policy = randomAlphaOfLengthBetween(5,20);
@@ -628,6 +688,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "    \"index.write.wait_for_active_shards\": \"all\"\n" +
             "  }\n" +
             "}");
+        createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
         // index document to trigger rollover
@@ -654,6 +715,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
             "  }\n" +
             "}");
+        createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
         createIndexWithSettings(client(), index + "-1", alias, Settings.builder(), true);
@@ -757,6 +819,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
             "  }\n" +
             "}");
+        createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
         createIndexWithSettings(client(), index + "-1", alias,
@@ -878,18 +941,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
                     snapshotsResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 }
-                ArrayList<Object> responses = (ArrayList<Object>) snapshotsResponseMap.get("responses");
-                for (Object response : responses) {
-                    Map<String, Object> responseAsMap = (Map<String, Object>) response;
-                    if (responseAsMap.get("snapshots") != null) {
-                        ArrayList<Object> snapshots = (ArrayList<Object>) responseAsMap.get("snapshots");
-                        for (Object snapshot : snapshots) {
-                            Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
-                            if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
+                if (snapshotsResponseMap.get("snapshots") != null) {
+                    ArrayList<Object> snapshots = (ArrayList<Object>) snapshotsResponseMap.get("snapshots");
+                    for (Object snapshot : snapshots) {
+                        Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
+                        if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
                                 // wait for the snapshot to be completed (successfully or not) otherwise the teardown might fail
                                 SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
-                                return true;
-                            }
+                            return true;
                         }
                     }
                 }

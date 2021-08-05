@@ -34,12 +34,12 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -135,7 +135,7 @@ public class ShardStateAction {
         }
     }
 
-    private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class[]{
+    private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class<?>[]{
         NotMasterException.class,
         ConnectTransportException.class,
         FailedToCommitClusterStateException.class

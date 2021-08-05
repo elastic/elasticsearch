@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.license.licensor;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.DateUtils;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseVerifier;

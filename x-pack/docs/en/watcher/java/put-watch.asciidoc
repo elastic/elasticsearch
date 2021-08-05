@@ -1,14 +1,14 @@
 [discrete]
 [[api-java-put-watch]]
-=== Put watch API
+=== Create or update watch API
 
-The put watch API either registers a new watch in {watcher} or update an
-existing one. Once registered, a new document will be added to the `.watches`
-index, representing the watch, and the watch trigger will immediately be
-registered with the relevant trigger engine (typically the scheduler, for the
+The create or update watch API either registers a new watch in {watcher} or
+update an existing one. Once registered, a new document will be added to the
+`.watches` index, representing the watch, and the watch trigger will immediately
+be registered with the relevant trigger engine (typically the scheduler, for the
 `schedule` trigger).
 
-IMPORTANT:  Putting a watch must be done via this API only. Do not put a watch
+IMPORTANT:  Putting a watch must be done via this API only. Do not add a watch
             directly to the `.watches` index using Elasticsearch's Index API.
             When the {es} {security-features} are enabled, make sure no `write`
             privileges are granted to anyone over the `.watches` index.

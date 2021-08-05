@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -41,7 +41,9 @@ public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (geoBoundingBox != null) {
-            geoBoundingBox.toXContent(builder, params);
+            builder.startObject(GeoBoundingBox.BOUNDS_FIELD.getPreferredName());
+            geoBoundingBox.toXContentFragment(builder, true);
+            builder.endObject();
         }
         return builder;
     }

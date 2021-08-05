@@ -17,9 +17,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -73,8 +74,8 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
     List<String> dataNodeNames = null;
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
             .build();
     }
@@ -267,7 +268,6 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         testUnsuccessfulSnapshotRetention(true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70185")
     public void testRetentionWithMultipleRepositories() throws Exception {
         disableRepoConsistencyCheck("test leaves behind an empty repository");
         final String secondRepo = "other-repo";
@@ -278,6 +278,11 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 true, new SnapshotRetentionConfiguration(null, 1, 2));
         logger.info("-->  start snapshot");
         client().execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId)).get();
+        // make sure the SLM history data stream is green and won't not be green for long because of delayed allocation when data nodes
+        // are stopped
+        ensureGreen(SLM_HISTORY_DATA_STREAM);
+        client().admin().indices().prepareUpdateSettings(SLM_HISTORY_DATA_STREAM).setSettings(
+                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)).get();
         testUnsuccessfulSnapshotRetention(randomBoolean());
     }
 
@@ -327,7 +332,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 try {
                     GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                         .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
-                    SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+                    SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
                     assertEquals(expectedUnsuccessfulState, snapshotInfo.state());
                 } catch (SnapshotMissingException ex) {
                     logger.info("failed to find snapshot {}, retrying", failedSnapshotName);
@@ -362,11 +367,11 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             assertNotNull(successfulSnapshotName.get());
             logger.info("-->  verify that snapshot [{}] succeeded", successfulSnapshotName.get());
             assertBusy(() -> {
-                GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).execute().get();
                 final SnapshotInfo snapshotInfo;
                 try {
-                    snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+                    GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).execute().actionGet();
+                    snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
                 } catch (SnapshotMissingException sme) {
                     throw new AssertionError(sme);
                 }
@@ -379,7 +384,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             logger.info("-->  verify that snapshot [{}] still exists", failedSnapshotName.get());
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                 .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertEquals(expectedUnsuccessfulState, snapshotInfo.state());
         }
 
@@ -392,7 +397,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 try {
                     GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                         .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
-                    assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
+                    assertThat(snapshotsStatusResponse.getSnapshots(), empty());
                 } catch (SnapshotMissingException e) {
                     // This is what we want to happen
                 }
@@ -400,7 +405,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                     expectedUnsuccessfulState, failedSnapshotName.get(), successfulSnapshotName.get());
                 GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                     .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).get();
-                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
+                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
                 assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             }, 30L, TimeUnit.SECONDS);
         }
@@ -448,7 +453,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             try {
                 GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                     .prepareGetSnapshots(REPO).setSnapshots(snapshotName).get();
-                assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
+                assertThat(snapshotsStatusResponse.getSnapshots(), empty());
             } catch (SnapshotMissingException e) {
                 // This is what we want to happen
             }

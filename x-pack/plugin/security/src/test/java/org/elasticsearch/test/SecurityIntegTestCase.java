@@ -76,7 +76,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * Settings used when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
      * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      * so that some of the configuration parameters can be overridden through test instance methods, similarly
-     * to how {@link #nodeSettings(int)} works.
+     * to how {@link ESIntegTestCase#nodeSettings(int, Settings)} works.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
 
@@ -226,11 +226,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // Disable native ML autodetect_process as the c++ controller won't be available
 //        builder.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
-        Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal);
+        Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal, otherSettings);
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         Settings.Builder customBuilder = Settings.builder().put(customSettings);

@@ -1,7 +1,8 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   name 'x-pack-test-deprecated-query'
@@ -11,8 +12,7 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index'
-    includeXpack 'async_search'
+    include '_common', 'indices', 'index', 'async_search'
   }
 }
 

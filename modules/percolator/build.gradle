@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -20,6 +21,10 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'search', 'msearch'
+    include '_common', 'indices', 'index', 'search', 'msearch'
   }
 }
+
+tasks.named("transformV7RestTests").configure({ task ->
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+})

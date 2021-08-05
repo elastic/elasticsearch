@@ -133,6 +133,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         assertEquals(influence2.getInfluencerFieldValues(), serialisedInfFieldValues2);
     }
 
+    @SuppressWarnings({"unchecked"})
     public void testToXContentOrdersDuplicateInputFields() throws IOException {
         AnomalyRecord record = createTestInstance();
         record.setByFieldName("car-make");

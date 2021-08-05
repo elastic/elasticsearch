@@ -15,13 +15,10 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -102,18 +99,10 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     private static List<GeoPoint> randomPolygon() {
-        ShapeBuilder<?, ?, ?> shapeBuilder = null;
-        // This is a temporary fix because sometimes the RandomShapeGenerator
-        // returns null. This is if there is an error generating the polygon. So
-        // in this case keep trying until we successfully generate one
-        while (shapeBuilder == null) {
-            shapeBuilder = RandomShapeGenerator.createShapeWithin(random(), null, ShapeType.POLYGON);
-        }
-        JtsGeometry shape = (JtsGeometry) shapeBuilder.buildS4J();
-        Coordinate[] coordinates = shape.getGeom().getCoordinates();
-        ArrayList<GeoPoint> polygonPoints = new ArrayList<>();
-        for (Coordinate coord : coordinates) {
-            polygonPoints.add(new GeoPoint(coord.y, coord.x));
+        LinearRing linearRing = GeometryTestUtils.randomPolygon(false).getPolygon();
+        List<GeoPoint> polygonPoints = new ArrayList<>(linearRing.length());
+        for (int i = 0; i < linearRing.length(); i++) {
+            polygonPoints.add(new GeoPoint(linearRing.getLat(i), linearRing.getLon(i)));
         }
         return polygonPoints;
     }

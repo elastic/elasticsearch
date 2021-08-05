@@ -34,7 +34,11 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.eql.parser.AbstractBuilder.unquoteString;
+import static org.elasticsearch.xpack.eql.parser.LogicalPlanBuilder.HEAD_PIPE;
+import static org.elasticsearch.xpack.eql.parser.LogicalPlanBuilder.SUPPORTED_PIPES;
+import static org.elasticsearch.xpack.eql.parser.LogicalPlanBuilder.TAIL_PIPE;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -67,6 +71,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("hello\nworld", unquoteString(source("\"hello\\nworld\"")));
         assertEquals("hello\\\nworld", unquoteString(source("\"hello\\\\\\nworld\"")));
         assertEquals("hello\\\"world", unquoteString(source("\"hello\\\\\\\"world\"")));
+        assertEquals("hello\\world", unquoteString(source("\"hello\\world\"")));
 
         // test for unescaped strings: """...."""
         assertEquals("hello\"world", unquoteString(source("\"\"\"hello\"world\"\"\"")));
@@ -186,6 +191,114 @@ public class ExpressionTests extends ESTestCase {
         e = expectThrows(ParsingException.class, "Expected syntax error",
                 () -> expr("\"\"\"\"\"\\\"hello world!\"\"\\\"\"\"\" == \"\"\"\"\"\\\"foobar\\\"\\\"\"\"\"\"\""));
         assertEquals("line 1:52: token recognition error at: '\"'", e.getMessage());
+    }
+
+    public void testUnicodeWithWrongHexDigits() {
+        String[] strings = new String[] { "\"\\u{U1}\"", "\"\\u{00U1}\"", "\"\\u{00AUF}\"" };
+        for (String str : strings) {
+            ParsingException e = expectThrows(ParsingException.class, "Expected syntax error", () -> expr(str));
+            assertEquals("line 1:1: token recognition error at: '" + str.substring(0, str.length() - 3) + "'", e.getMessage());
+        }
+    }
+
+    public void testUnicodeWithWrongNumberOfHexDigits() {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u{}\""));
+        assertEquals("line 1:1: token recognition error at: '\"\\u{}'", e.getMessage());
+
+        String[] strings = new String[] { "\\u{D}", "\\u{123456789}", "\\u{123456789A}" };
+        for (String str : strings) {
+            e = expectThrows(ParsingException.class, "Expected syntax error", () -> expr("\"" + str + "\""));
+            assertEquals("line 1:2: Unicode sequence should use [2-8] hex digits, [" + str + "] has [" + (str.length() - 4) + "]",
+                    e.getMessage());
+        }
+    }
+
+    public void testUnicodeWithWrongCurlyBraces() {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u{}\""));
+        assertEquals("line 1:1: token recognition error at: '\"\\u{}'", e.getMessage());
+
+        String[][] strings = new String[][] {
+                { "\\uad12", "\\ua" },
+                { "\\u{DA12", "\\u{DA12\"" },
+                { "\\u01f0}", "\\u0" }
+        };
+        for (String[] str : strings) {
+            e = expectThrows(ParsingException.class, "Expected syntax error", () -> expr("\"" + str[0] + "\""));
+            assertEquals("line 1:1: token recognition error at: '\"" + str[1] + "'", e.getMessage());
+        }
+    }
+
+    public void testUnicodeWithInvalidUnicodePoints() {
+        String[] strings = new String[] {
+                "\\u{10000000}",
+                "\\u{FFFFFFFa}",
+                "\\u{FFFF0000}",
+        };
+        for (String str : strings) {
+            ParsingException e = expectThrows(ParsingException.class, "Expected syntax error", () -> expr("\"" + str + "\""));
+            assertEquals("line 1:2: Invalid unicode character code [" + str.substring(3, str.length() - 1) +"]", e.getMessage());
+        }
+
+        strings = new String[] {
+                "\\u{d800}",
+                "\\u{dB12}",
+                "\\u{DcF7}",
+                "\\u{dFFF}",
+        };
+        for (String str : strings) {
+            ParsingException e = expectThrows(ParsingException.class, "Expected syntax error", () -> expr("\"" + str + "\""));
+            assertEquals("line 1:2: Invalid unicode character code, [" + str.substring(3, str.length() - 1) +"] is a surrogate code",
+                    e.getMessage());
+        }
+    }
+
+    public void testStringWithUnicodeEscapedChars() {
+        assertEquals(new Literal(null, "foo\\u123foo", DataTypes.KEYWORD), expr("\"foo\\\\u123foo\""));
+        assertEquals(new Literal(null, "foo\\\\u123foo", DataTypes.KEYWORD), expr("\"foo\\\\\\\\u123foo\""));
+        assertEquals(new Literal(null, "foo\\u{123f}oo", DataTypes.KEYWORD), expr("\"foo\\\\u{123f}oo\""));
+        assertEquals(new Literal(null, "foo\\ሿoo", DataTypes.KEYWORD), expr("\"foo\\\\\\u{123f}oo\""));
+        assertEquals(new Literal(null, "foo\\\\u{123f}oo", DataTypes.KEYWORD), expr("\"foo\\\\\\\\u{123f}oo\""));
+
+        String strPadding = randomAlphaOfLength(randomInt(10));
+        String[][] strings = new String[][] {
+            { "\\u{0021}", "!" },
+            { "\\u{41}", "A" },
+            { "\\u{075}", "u" },
+            { "\\u{00Eb}", "ë" },
+            { "\\u{1F0}", "ǰ" },
+            { "\\u{0398}", "Θ" },
+            { "\\u{7e1}", "ߡ" },
+            { "\\u{017e1}", "១" },
+            { "\\u{00002140}", "⅀" },
+            { "\\u{02263}", "≣" },
+            { "\\u{0003289}", "㊉" },
+            { "\\u{06d89}", "涉" },
+            { "\\u{00007c71}", "籱" },
+            { "\\u{1680B}", "𖠋" },
+            { "\\u{01f4a9}", "💩" },
+            { "\\u{0010989}", "\uD802\uDD89"},
+            { "\\u{d7FF}", "\uD7FF"},
+            { "\\u{e000}", "\uE000"},
+            { "\\u{00}", "\u0000"},
+            { "\\u{0000}", "\u0000"},
+            { "\\u{000000}", "\u0000"},
+            { "\\u{00000000}", "\u0000"},
+        };
+
+        StringBuilder sbExpected = new StringBuilder();
+        StringBuilder sbInput = new StringBuilder();
+        for (String[] str : strings) {
+            assertEquals(
+                new Literal(null, strPadding + str[1] + strPadding, DataTypes.KEYWORD),
+                expr('"' + strPadding + str[0] + strPadding + '"')
+            );
+
+            sbInput.append(strPadding).append(str[0]);
+            sbExpected.append(strPadding).append(str[1]);
+        }
+        assertEquals(new Literal(null, sbExpected.toString(), DataTypes.KEYWORD), expr('"' + sbInput.toString() + '"'));
     }
 
     public void testNumbers() {
@@ -380,11 +493,11 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testChainedComparisonsDisallowed() {
-        int noComparisions = randomIntBetween(2, 20);
+        int noComparisons = randomIntBetween(2, 20);
         String firstComparator = "";
         String secondComparator = "";
         StringBuilder sb = new StringBuilder("a ");
-        for (int i = 0 ; i < noComparisions; i++) {
+        for (int i = 0 ; i < noComparisons; i++) {
             String comparator = randomFrom("==", "!=", "<", "<=", ">", ">=");
             sb.append(comparator).append(" a ");
 
@@ -399,5 +512,12 @@ public class ExpressionTests extends ESTestCase {
             "' expecting {<EOF>, 'and', 'in', 'in~', 'like', 'like~', 'not', 'or', "
             + "'regex', 'regex~', ':', '+', '-', '*', '/', '%', '.', '['}",
             e.getMessage());
+    }
+
+    public void testUnsupportedPipes() {
+        String pipe = randomValueOtherThanMany(Arrays.asList(HEAD_PIPE, TAIL_PIPE)::contains, () -> randomFrom(SUPPORTED_PIPES));
+        ParsingException pe = expectThrows(ParsingException.class, "Expected parsing exception",
+            () -> parser.createStatement("process where foo == true | " + pipe));
+        assertThat(pe.getMessage(), endsWith("Pipe [" + pipe + "] is not supported"));
     }
 }

@@ -40,14 +40,11 @@ import org.elasticsearch.plugins.Plugin;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static java.util.stream.Collectors.toList;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -103,6 +100,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertExistsQuery(mapperService);
         assertParseMinimalWarnings();
     }
+
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -170,15 +168,17 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("norms", b -> b.field("norms", true));
         checker.registerUpdateCheck(
             b -> {
-                b.field("type", "keyword");
+                minimalMapping(b);
                 b.field("norms", true);
             },
             b -> {
-                b.field("type", "keyword");
+                minimalMapping(b);
                 b.field("norms", false);
             },
             m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
         );
+
+        registerDimensionChecks(checker);
     }
 
     public void testDefaults() throws Exception {
@@ -217,10 +217,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "elk")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
+        fields = doc.rootDoc().getFields("_ignored");
+        assertEquals(0, fields.length);
 
         doc = mapper.parse(source(b -> b.field("field", "elasticsearch")));
         fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
+
+        fields = doc.rootDoc().getFields("_ignored");
+        assertEquals(1, fields.length);
+        assertEquals("field", fields[0].stringValue());
     }
 
     public void testNullValue() throws IOException {
@@ -293,6 +299,85 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         IndexableField[] fieldNamesFields = doc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
         assertEquals(0, fieldNamesFields.length);
+    }
+
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        assertDimension(true, KeywordFieldMapper.KeywordFieldType::isDimension);
+        assertDimension(false, KeywordFieldMapper.KeywordFieldType::isDimension);
+    }
+
+    public void testDimensionAndIgnoreAbove() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true).field("ignore_above", 2048);
+        })));
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [ignore_above] cannot be set in conjunction with field [dimension]"));
+    }
+
+    public void testDimensionAndNormalizer() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true).field("normalizer", "my_normalizer");
+        })));
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [normalizer] cannot be set in conjunction with field [dimension]"));
+    }
+
+    public void testDimensionIndexedAndDocvalues() {
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("index", false).field("doc_values", false);
+            })));
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("index", true).field("doc_values", false);
+            })));
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("index", false).field("doc_values", true);
+            })));
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+        }
+    }
+
+    public void testDimensionMultiValuedField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true);
+        }));
+
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "1234", "45678"))));
+        assertThat(e.getCause().getMessage(),
+            containsString("Dimension field [field] cannot be a multi-valued field"));
+    }
+
+    public void testDimensionExtraLongKeyword() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true);
+        }));
+
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", randomAlphaOfLengthBetween(1025, 2048)))));
+        assertThat(e.getCause().getMessage(),
+            containsString("Dimension field [field] cannot be more than [1024] bytes long."));
     }
 
     public void testConfigureSimilarity() throws IOException {
@@ -462,25 +547,36 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testFetch() throws IOException {
-        assertFetch(keywordMapperService(), "field", randomAlphaOfLength(5), null);
+    public void testScriptAndPrecludedParameters() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.field("script", "test");
+            b.field("null_value", true);
+        })));
+        assertThat(e.getMessage(),
+            equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
     }
 
-    public void testFetchMany() throws IOException {
-        /*
-         * When we have many values doc values will sort and unique them.
-         * Source fetching won't, but we expect that. So we test with
-         * sorted and uniqued values.
-         */
-        int count = between(2, 10);
-        Set<String> values = new HashSet<>();
-        while (values.size() < count) {
-            values.add(randomAlphaOfLength(5));
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        switch (between(0, 3)) {
+            case 0:
+                return randomAlphaOfLengthBetween(1, 100);
+            case 1:
+                return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100);
+            case 2:
+                return randomLong();
+            case 3:
+                return randomDouble();
+            case 4:
+                return randomBoolean();
+            default:
+                throw new IllegalStateException();
         }
-        assertFetch(keywordMapperService(), "field", values.stream().sorted().collect(toList()), null);
     }
 
-    private MapperService keywordMapperService() throws IOException {
-        return createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

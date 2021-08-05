@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.mapper.MappingLookup;
 
@@ -251,6 +251,19 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             result = 31 * result + readerCacheKey.hashCode();
             result = 31 * result + value.hashCode();
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return "Key(mappingKey=["
+                + mappingCacheKey
+                + "],readerKey=["
+                + readerCacheKey
+                + "],entityKey=["
+                + entity.getCacheIdentity()
+                + ",value=" // BytesRef's toString already has [] so we don't add it here
+                + value.toBytesRef() // BytesRef has a readable toString
+                + ")";
         }
     }
 

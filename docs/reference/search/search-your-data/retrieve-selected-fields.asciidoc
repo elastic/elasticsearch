@@ -6,73 +6,57 @@
 
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
-provided when indexing the document. To retrieve specific fields in the search
-response, you can use the `fields` parameter:
+provided when indexing the document. There are two recommended methods to
+retrieve selected fields from a search query:
 
-[source,console]
-----
-POST my-index-000001/_search
-{
-  "query": {
-    "match": {
-      "message": "foo"
-    }
-  },
-  "fields": ["user.id", "@timestamp"],
-  "_source": false
-}
-----
-// TEST[setup:my_index]
+* Use the <<search-fields-param,`fields` option>> to extract the values of
+fields present in the index mapping
+* Use the <<source-filtering,`_source` option>> if you need to access the original data that was passed at index time
 
-The `fields` parameter consults both a document's `_source` and the index
-mappings to load and return values. Because it makes use of the mappings,
-`fields` has some advantages over referencing the `_source` directly: it
-accepts <<multi-fields, multi-fields>> and <<alias, field aliases>>, and
-also formats field values like dates in a consistent way.
-
-A document's `_source` is stored as a single field in Lucene. So the whole
-`_source` object must be loaded and parsed even if only a small number of
-fields are requested. To avoid this limitation, you can try another option for
-loading fields:
-
-* Use the <<docvalue-fields, `docvalue_fields`>>
-parameter to get values for selected fields. This can be a good
-choice when returning a fairly small number of fields that support doc values,
-such as keywords and dates.
-* Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to
-get the values for specific stored fields (fields that use the
-<<mapping-store,`store`>> mapping option).
-
-You can also use the <<script-fields,`script_field`>> parameter to transform
-field values in the response using a script.
-
-You can find more detailed information on each of these methods in the
-following sections:
-
-* <<search-fields-param>>
-* <<docvalue-fields>>
-* <<stored-fields>>
-* <<source-filtering>>
-* <<script-fields>>
+You can use both of these methods, though the `fields` option is preferred
+because it consults both the document data and index mappings. In some
+instances, you might want to use <<field-retrieval-methods,other methods>> of
+retrieving data.
 
 [discrete]
 [[search-fields-param]]
-=== Fields
-beta::[]
-
+=== The `fields` option
+To retrieve specific fields in the search response, use the `fields` parameter.
 // tag::fields-param-desc[]
-The `fields` parameter allows for retrieving a list of document fields in
-the search response. It consults both the document `_source` and the index
-mappings to return each value in a standardized way that matches its mapping
-type. By default, date fields are formatted according to the
-<<mapping-date-format,date format>> parameter in their mappings. You can also
-use the `fields` parameter to retrieve <<runtime-retrieving-fields,runtime field
-values>>.
+Because it consults the index mappings, the `fields` parameter provides several
+advantages over referencing the `_source` directly. Specifically, the `fields`
+parameter:
+
+* Returns each value in a standardized way that matches its mapping type
+* Accepts <<multi-fields,multi-fields>> and <<field-alias,field aliases>>
+* Formats dates and spatial data types
+* Retrieves <<runtime-retrieving-fields,runtime field values>>
+* Returns fields calculated by a script at index time
 // end::fields-param-desc[]
 
+Other mapping options are also respected, including
+<<ignore-above,`ignore_above`>>, <<ignore-malformed,`ignore_malformed`>>, and
+<<null-value,`null_value`>>.
+
+The `fields` option returns values in the way that matches how {es} indexes
+them. For standard fields, this means that the `fields` option looks in
+`_source` to find the values, then parses and formats them using the mappings.
+
+[discrete]
+[[search-fields-request]]
+==== Search for specific fields
 The following search request uses the `fields` parameter to retrieve values
 for the `user.id` field, all fields starting with `http.response.`, and the
-`@timestamp` field:
+`@timestamp` field.
+
+Using object notation, you can pass a `format` parameter for certain fields to
+apply a custom format for the field's values:
+
+* <<date,`date`>> and <<date_nanos,`date_nanos`>> fields accept a <<mapping-date-format,date format>>
+* <<spatial_datatypes, Spatial fields>> accept either `geojson` for http://www.geojson.org[GeoJSON] (the default) or `wkt` for
+{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
+
+Other field types do not support the `format` parameter.
 
 [source,console]
 ----
@@ -85,7 +69,7 @@ POST my-index-000001/_search
   },
   "fields": [
     "user.id",
-    "http.response.*", <1>
+    "http.response.*",         <1>
     {
       "field": "@timestamp",
       "format": "epoch_millis" <2>
@@ -95,32 +79,31 @@ POST my-index-000001/_search
 }
 ----
 // TEST[setup:my_index]
+// TEST[s/_search/_search\?filter_path=hits/]
 
 // tag::fields-param-callouts[]
 <1> Both full field names and wildcard patterns are accepted.
-<2> Using object notation, you can pass a `format` parameter to apply a custom
-    format for the field's values.
-    <<date,`date`>> and <<date_nanos, `date_nanos`>> fields accept a
-    <<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
-    accept either `geojson` for http://www.geojson.org[GeoJSON] (the default)
-    or `wkt` for
-    {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
-    Other field types do not support the `format` parameter.
+<2> Use the `format` parameter to apply a custom format for the field's values.
 // end::fields-param-callouts[]
 
-The values are returned as a flat list in the `fields` section in each hit:
+[discrete]
+[[search-fields-response]]
+==== Response always returns an array
+
+The `fields` response always returns an array of values for each field,
+even when there is a single value in the `_source`. This is because {es} has
+no dedicated array type, and any field could contain multiple values. The
+`fields` parameter also does not guarantee that array values are returned in
+a specific order. See the mapping documentation on <<array,arrays>> for more
+background.
+
+The response includes values as a flat list in the `fields` section for each
+hit. Because the `fields` parameter doesn't fetch entire objects, only leaf
+fields are returned.
 
 [source,console-result]
 ----
 {
-  "took" : 2,
-  "timed_out" : false,
-  "_shards" : {
-    "total" : 1,
-    "successful" : 1,
-    "skipped" : 0,
-    "failed" : 0
-  },
   "hits" : {
     "total" : {
       "value" : 1,
@@ -151,29 +134,12 @@ The values are returned as a flat list in the `fields` section in each hit:
   }
 }
 ----
-// TESTRESPONSE[s/"took" : 2/"took": $body.took/]
 // TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
 // TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
-Only leaf fields are returned -- `fields` does not allow for fetching entire
-objects.
-
-The `fields` parameter handles field types like <<alias, field aliases>> and
-<<constant-keyword-field-type, `constant_keyword`>> whose values aren't always present in
-the `_source`. Other mapping options are also respected, including
-<<ignore-above, `ignore_above`>>, <<ignore-malformed, `ignore_malformed`>> and
-<<null-value, `null_value`>>.
-
-NOTE: The `fields` response always returns an array of values for each field,
-even when there is a single value in the `_source`. This is because {es} has
-no dedicated array type, and any field could contain multiple values. The
-`fields` parameter also does not guarantee that array values are returned in
-a specific order. See the mapping documentation on <<array, arrays>> for more
-background.
-
 [discrete]
 [[search-fields-nested]]
-==== Handling of nested fields
+==== Retrieve nested fields
 
 The `fields` response for <<nested,`nested` fields>> is slightly different from that
 of regular object fields. While leaf values inside regular `object` fields are
@@ -226,7 +192,7 @@ POST my-index-000001/_search
 }
 --------------------------------------------------
 
-the response will group `first` and `last` name instead of
+The response will group `first` and `last` name instead of
 returning them as a flat list.
 
 [source,console-result]
@@ -270,8 +236,9 @@ returning them as a flat list.
 // TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
 // TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
-Nested fields will be grouped by their nested paths, no matter the pattern used to retrieve them.
-For example, querying only for the `user.first` field in the example above:
+Nested fields will be grouped by their nested paths, no matter the pattern used
+to retrieve them. For example, if you query only for the `user.first` field from
+the previous example:
 
 [source,console]
 --------------------------------------------------
@@ -283,7 +250,8 @@ POST my-index-000001/_search
 --------------------------------------------------
 // TEST[continued]
 
-will return only the users first name but still maintain the structure of the nested `user` array:
+The response returns only the user's first name, but still maintains the
+structure of the nested `user` array:
 
 [source,console-result]
 ----
@@ -324,19 +292,19 @@ will return only the users first name but still maintain the structure of the ne
 // TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 However, when the `fields` pattern targets the nested `user` field directly, no
-values will be returned since the pattern doesn't match any leaf fields.
+values will be returned because the pattern doesn't match any leaf fields.
 
 [discrete]
 [[retrieve-unmapped-fields]]
-==== Retrieving unmapped fields
+==== Retrieve unmapped fields
+By default, the `fields` parameter returns only values of mapped fields.
+However, {es} allows storing fields in `_source` that are unmapped, such as
+setting <<dynamic-field-mapping,dynamic field mapping>> to `false` or by using
+an object field with `enabled: false`. These options disable parsing and
+indexing of the object content.
 
-By default, the `fields` parameter returns only values of mapped fields. However,
-Elasticsearch allows storing fields in `_source` that are unmapped, for example by
-setting <<dynamic-field-mapping,Dynamic field mapping>> to `false` or by using an
-object field with `enabled: false`, thereby disabling parsing and indexing of its content.
-
-Fields in such an object can be retrieved from `_source` using the `include_unmapped` option
-in the `fields` section:
+To retrieve unmapped fields in an object from `_source`, use the
+`include_unmapped` option in the `fields` section:
 
 [source,console]
 ----
@@ -373,9 +341,10 @@ POST my-index-000001/_search
 <1> Disable all mappings.
 <2> Include unmapped fields matching this field pattern.
 
-The response will contain fields results under the  `session_data.object.*` path even if the
-fields are unmapped, but will not contain `user_id` since it is unmapped but the `include_unmapped`
-flag hasn't been set to `true` for that field pattern.
+The response will contain field results under the  `session_data.object.*` path,
+even if the fields are unmapped. The `user_id` field is also unmapped, but it
+won't be included in the response because `include_unmapped` isn't set to
+`true` for that field pattern.
 
 [source,console-result]
 ----
@@ -414,136 +383,8 @@ flag hasn't been set to `true` for that field pattern.
 // TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 [discrete]
-[[docvalue-fields]]
-=== Doc value fields
-
-You can use the <<docvalue-fields,`docvalue_fields`>> parameter to return
-<<doc-values,doc values>> for one or more fields in the search response.
-
-Doc values store the same values as the `_source` but in an on-disk,
-column-based structure that's optimized for sorting and aggregations. Since each
-field is stored separately, {es} only reads the field values that were requested
-and can avoid loading the whole document `_source`.
-
-Doc values are stored for supported fields by default. However, doc values are
-not supported for <<text,`text`>> or
-{plugins}/mapper-annotated-text-usage.html[`text_annotated`] fields.
-
-The following search request uses the `docvalue_fields` parameter to retrieve
-doc values for the `user.id` field, all fields starting with `http.response.`, and the
-`@timestamp` field:
-
-[source,console]
-----
-GET my-index-000001/_search
-{
-  "query": {
-    "match": {
-      "user.id": "kimchy"
-    }
-  },
-  "docvalue_fields": [
-    "user.id",
-    "http.response.*", <1>
-    {
-      "field": "date",
-      "format": "epoch_millis" <2>
-    }
-  ]
-}
-----
-// TEST[setup:my_index]
-
-<1> Both full field names and wildcard patterns are accepted.
-<2> Using object notation, you can pass a `format` parameter to apply a custom
-    format for the field's doc values. <<date,Date fields>> support a
-    <<mapping-date-format,date `format`>>. <<number,Numeric fields>> support a
-    https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
-    pattern]. Other field datatypes do not support the `format` parameter.
-
-TIP: You cannot use the `docvalue_fields` parameter to retrieve doc values for
-nested objects. If you specify a nested object, the search returns an empty
-array (`[ ]`) for the field. To access nested fields, use the
-<<inner-hits, `inner_hits`>> parameter's `docvalue_fields`
-property.
-
-[discrete]
-[[stored-fields]]
-=== Stored fields
-
-It's also possible to store an individual field's values by using the
-<<mapping-store,`store`>> mapping option. You can use the
-`stored_fields` parameter to include these stored values in the search response.
-
-WARNING: The `stored_fields` parameter is for fields that are explicitly marked as
-stored in the mapping, which is off by default and generally not recommended.
-Use <<source-filtering,source filtering>> instead to select
-subsets of the original source document to be returned.
-
-Allows to selectively load specific stored fields for each document represented
-by a search hit.
-
-[source,console]
---------------------------------------------------
-GET /_search
-{
-  "stored_fields" : ["user", "postDate"],
-  "query" : {
-    "term" : { "user" : "kimchy" }
-  }
-}
---------------------------------------------------
-
-`*` can be used to load all stored fields from the document.
-
-An empty array will cause only the `_id` and `_type` for each hit to be
-returned, for example:
-
-[source,console]
---------------------------------------------------
-GET /_search
-{
-  "stored_fields" : [],
-  "query" : {
-    "term" : { "user" : "kimchy" }
-  }
-}
---------------------------------------------------
-
-If the requested fields are not stored (`store` mapping set to `false`), they will be ignored.
-
-Stored field values fetched from the document itself are always returned as an array. On the contrary, metadata fields like `_routing` are never returned as an array.
-
-Also only leaf fields can be returned via the `stored_fields` option. If an object field is specified, it will be ignored.
-
-NOTE: On its own, `stored_fields` cannot be used to load fields in nested
-objects -- if a field contains a nested object in its path, then no data will
-be returned for that stored field. To access nested fields, `stored_fields`
-must be used within an <<inner-hits, `inner_hits`>> block.
-
-[discrete]
-[[disable-stored-fields]]
-==== Disable stored fields
-
-To disable the stored fields (and metadata fields) entirely use: `_none_`:
-
-[source,console]
---------------------------------------------------
-GET /_search
-{
-  "stored_fields": "_none_",
-  "query" : {
-    "term" : { "user" : "kimchy" }
-  }
-}
---------------------------------------------------
-
-NOTE: <<source-filtering,`_source`>> and <<request-body-search-version, `version`>> parameters cannot be activated if `_none_` is used.
-
-[discrete]
 [[source-filtering]]
-=== Source filtering
-
+=== The `_source` option
 You can use the `_source` parameter to select what fields of the source are
 returned. This is called _source filtering_.
 
@@ -627,8 +468,163 @@ GET /_search
 ----
 
 [discrete]
+[[field-retrieval-methods]]
+=== Other methods of retrieving data
+
+.Using `fields` is typically better
+****
+These options are usually not required. Using the `fields` option is typically
+the better choice, unless you absolutely need to force loading a stored or
+`docvalue_fields`.
+****
+
+A document's `_source` is stored as a single field in Lucene. This structure
+means that the whole `_source` object must be loaded and parsed even if you're
+only requesting part of it. To avoid this limitation, you can try other options
+for loading fields:
+
+* Use the <<docvalue-fields,`docvalue_fields`>>
+parameter to get values for selected fields. This can be a good
+choice when returning a fairly small number of fields that support doc values,
+such as keywords and dates.
+* Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to
+get the values for specific stored fields (fields that use the
+<<mapping-store,`store`>> mapping option).
+
+{es} always attempts to load values from `_source`. This behavior has the same
+implications of source filtering where {es} needs to load and parse the entire
+`_source` to retrieve just one field.
+
+[discrete]
+[[docvalue-fields]]
+==== Doc value fields
+
+You can use the <<docvalue-fields,`docvalue_fields`>> parameter to return
+<<doc-values,doc values>> for one or more fields in the search response.
+
+Doc values store the same values as the `_source` but in an on-disk,
+column-based structure that's optimized for sorting and aggregations. Since each
+field is stored separately, {es} only reads the field values that were requested
+and can avoid loading the whole document `_source`.
+
+Doc values are stored for supported fields by default. However, doc values are
+not supported for <<text,`text`>> or
+{plugins}/mapper-annotated-text-usage.html[`text_annotated`] fields.
+
+The following search request uses the `docvalue_fields` parameter to retrieve
+doc values for the `user.id` field, all fields starting with `http.response.`, and the
+`@timestamp` field:
+
+[source,console]
+----
+GET my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  },
+  "docvalue_fields": [
+    "user.id",
+    "http.response.*", <1>
+    {
+      "field": "date",
+      "format": "epoch_millis" <2>
+    }
+  ]
+}
+----
+// TEST[setup:my_index]
+
+<1> Both full field names and wildcard patterns are accepted.
+<2> Using object notation, you can pass a `format` parameter to apply a custom
+    format for the field's doc values. <<date,Date fields>> support a
+    <<mapping-date-format,date `format`>>. <<number,Numeric fields>> support a
+    https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
+    pattern]. Other field datatypes do not support the `format` parameter.
+
+TIP: You cannot use the `docvalue_fields` parameter to retrieve doc values for
+nested objects. If you specify a nested object, the search returns an empty
+array (`[ ]`) for the field. To access nested fields, use the
+<<inner-hits, `inner_hits`>> parameter's `docvalue_fields`
+property.
+
+[discrete]
+[[stored-fields]]
+==== Stored fields
+
+It's also possible to store an individual field's values by using the
+<<mapping-store,`store`>> mapping option. You can use the
+`stored_fields` parameter to include these stored values in the search response.
+
+WARNING: The `stored_fields` parameter is for fields that are explicitly marked as
+stored in the mapping, which is off by default and generally not recommended.
+Use <<source-filtering,source filtering>> instead to select
+subsets of the original source document to be returned.
+
+Allows to selectively load specific stored fields for each document represented
+by a search hit.
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "stored_fields" : ["user", "postDate"],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
+}
+--------------------------------------------------
+
+`*` can be used to load all stored fields from the document.
+
+An empty array will cause only the `_id` and `_type` for each hit to be
+returned, for example:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "stored_fields" : [],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
+}
+--------------------------------------------------
+
+If the requested fields are not stored (`store` mapping set to `false`), they will be ignored.
+
+Stored field values fetched from the document itself are always returned as an array. On the contrary, metadata fields like `_routing` are never returned as an array.
+
+Also only leaf fields can be returned via the `stored_fields` option. If an object field is specified, it will be ignored.
+
+NOTE: On its own, `stored_fields` cannot be used to load fields in nested
+objects -- if a field contains a nested object in its path, then no data will
+be returned for that stored field. To access nested fields, `stored_fields`
+must be used within an <<inner-hits, `inner_hits`>> block.
+
+[discrete]
+[[disable-stored-fields]]
+===== Disable stored fields
+
+To disable the stored fields (and metadata fields) entirely use: `_none_`:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "stored_fields": "_none_",
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
+}
+--------------------------------------------------
+
+NOTE: <<source-filtering,`_source`>> and <<request-body-search-version, `version`>> parameters cannot be activated if `_none_` is used.
+
+[discrete]
 [[script-fields]]
-=== Script fields
+==== Script fields
 
 You can use the `script_fields` parameter to retrieve a <<modules-scripting,script
 evaluation>> (based on different fields) for each hit. For example:
@@ -672,16 +668,16 @@ Here is an example:
 [source,console]
 --------------------------------------------------
 GET /_search
-    {
-        "query" : {
-            "match_all": {}
-        },
-        "script_fields" : {
-            "test1" : {
-                "script" : "params['_source']['message']"
-            }
-        }
+{
+  "query": {
+    "match_all": {}
+  },
+  "script_fields": {
+    "test1": {
+      "script": "params['_source']['message']"
     }
+  }
+}
 --------------------------------------------------
 // TEST[setup:my_index]
 

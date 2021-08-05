@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -119,7 +119,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
     public static class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField INCLUDE = new ParseField("include");
-        public static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
+        public static final String DEFINITION = "definition";
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
         public static final ParseField TAGS = new ParseField("tags");
 
@@ -136,6 +136,10 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             } else {
                 this.includes = Includes.empty();
             }
+        }
+
+        public Request(String id) {
+            this(id, null, null);
         }
 
         public Request(String id, List<String> tags, Set<String> includes) {

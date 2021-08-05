@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -18,11 +19,13 @@ dependencies {
   compileOnly project(':modules:lang-painless')
   api project(':libs:elasticsearch-grok')
   api project(':libs:elasticsearch-dissect')
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'ingest', 'cluster', 'indices', 'index', 'bulk', 'nodes', 'get', 'update', 'cat', 'mget'
+    include '_common', 'ingest', 'cluster', 'indices', 'index', 'bulk', 'nodes', 'get', 'update', 'cat', 'mget'
   }
 }
 
@@ -34,15 +37,13 @@ testClusters.all {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-          // from log4j
-          'org.osgi.framework.AdaptPermission',
-          'org.osgi.framework.AdminPermission',
-          'org.osgi.framework.Bundle',
-          'org.osgi.framework.BundleActivator',
-          'org.osgi.framework.BundleContext',
-          'org.osgi.framework.BundleEvent',
-          'org.osgi.framework.SynchronousBundleListener',
-          'org.osgi.framework.wiring.BundleWire',
-          'org.osgi.framework.wiring.BundleWiring'
+    //commons-logging
+    'org.apache.commons.codec.binary.Base64',
+    'org.apache.commons.logging.Log',
+    'org.apache.commons.logging.LogFactory',
   )
 }
+
+tasks.named("transformV7RestTests").configure({ task ->
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+})

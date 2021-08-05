@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -64,7 +64,7 @@ public class JobStatsCollector extends Collector {
         return isElectedMaster
                 && super.shouldCollect(isElectedMaster)
                 && XPackSettings.MACHINE_LEARNING_ENABLED.get(settings)
-                && licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING);
+                && licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
     }
 
     @Override

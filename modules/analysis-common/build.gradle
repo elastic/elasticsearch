@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -16,10 +17,26 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
+    include '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
   }
 }
 
 dependencies {
   compileOnly project(':modules:lang-painless')
+}
+
+def v7compatibilityNotSupportedTests = {
+  return [
+     //marked as not needing compatible api
+     'indices.analyze/10_analyze/htmlStrip_deprecated', // Cleanup versioned deprecations in analysis #41560
+     'analysis-common/40_token_filters/delimited_payload_filter_error', //Remove preconfigured delimited_payload_filter #43686
+     'analysis-common/20_analyzers/standard_html_strip' // Cleanup versioned deprecations in analysis #41560
+  ]
+}
+
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', ([
+    'search.query/50_queries_with_synonyms/Test common terms query with stacked tokens', // #42654 - not sure, remove `common` query
+  ]+ v7compatibilityNotSupportedTests())
+  .join(',')
 }

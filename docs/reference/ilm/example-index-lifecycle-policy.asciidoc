@@ -12,7 +12,7 @@
 - `metrics`
 - `synthetics`
 
-The {agent} uses these policies to manage backing indices for its data streams.
+{agent} uses these policies to manage backing indices for its data streams.
 This tutorial shows you how to use {kib}’s **Index Lifecycle Policies** to
 customize these policies based on your application's performance, resilience,
 and retention requirements.
@@ -29,7 +29,7 @@ the data. This data has the following retention requirements:
 * After rollover, keep indices in the hot data tier for 30 days.
 * 30 days after rollover:
 ** Move indices to the warm data tier.
-** Set <<glossary-replica-shard, replica shards>> to 1.
+** Set replica shards to 1.
 ** <<indices-forcemerge, Force merge>> multiple index segments to free up the
 space used by deleted documents.
 * Delete indices 90 days after rollover.
@@ -44,9 +44,8 @@ To complete this tutorial, you'll need:
 * An {es} cluster with hot and warm data tiers.
 
 ** {ess}:
-Elastic Stack deployments on the {ess} include a hot tier by default. To add a
-warm tier, edit your deployment and click **Add capacity** for the warm data
-tier.
+Elastic Stack deployments on {ess} include a hot tier by default. To add a warm
+tier, edit your deployment and click **Add capacity** for the warm data tier.
 +
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-ess-add-warm-data-tier.png[Add a warm data tier to your deployment]
@@ -63,14 +62,14 @@ of each node in the warm tier:
 node.roles: [ data_warm ]
 ----
 
-* A host with the {agent} installed and configured to send logs to your {es}
+* A host with {agent} installed and configured to send logs to your {es}
 cluster.
 
 [discrete]
 [[example-using-index-lifecycle-policy-view-ilm-policy]]
 ==== View the policy
 
-The {agent} uses data streams with an index pattern of `logs-*-*` to store log
+{agent} uses data streams with an index pattern of `logs-*-*` to store log
 monitoring data. The built-in `logs` {ilm-init} policy automatically manages
 backing indices for these data streams.
 

@@ -1,16 +1,19 @@
 plugins {
-  id "com.gradle.enterprise" version "3.5.1"
+  id "com.gradle.enterprise" version "3.6.2"
 }
+
+includeBuild "build-conventions"
+includeBuild "build-tools"
+includeBuild "build-tools-internal"
 
 rootProject.name = "elasticsearch"
 
 List projects = [
-  'build-tools',
-  'build-tools:reaper',
   'rest-api-spec',
   'docs',
   'client:rest',
   'client:rest-high-level',
+  'client:rest-high-level:qa:ssl-enabled',
   'client:sniffer',
   'client:transport',
   'client:test',
@@ -28,14 +31,11 @@ List projects = [
   'distribution:archives:linux-tar',
   'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
-  'distribution:docker:docker-aarch64-build-context',
   'distribution:docker:docker-aarch64-export',
-  'distribution:docker:docker-build-context',
   'distribution:docker:docker-export',
-  'distribution:docker:ironbank-docker-build-context',
-  'distribution:docker:transform-log4j-config',
+  'distribution:docker:ironbank-docker-aarch64-export',
+  'distribution:docker:ironbank-docker-export',
   'distribution:docker:ubi-docker-aarch64-export',
-  'distribution:docker:ubi-docker-build-context',
   'distribution:docker:ubi-docker-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
@@ -51,6 +51,7 @@ List projects = [
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
+  'distribution:tools:geoip-cli',
   'server',
   'server:cli',
   'test:framework',
@@ -62,6 +63,8 @@ List projects = [
   'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
   'test:fixtures:geoip-fixture',
+  'test:fixtures:url-fixture',
+  'test:fixtures:nginx-fixture',
   'test:logger-usage'
 ]
 
@@ -104,13 +107,7 @@ addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 
-List startTasks = gradle.startParameter.taskNames
-
-
 include projects.toArray(new String[0])
-
-project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
-project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'buildSrc/reaper')
 
 project(":libs").children.each { libsProject ->
   libsProject.name = "elasticsearch-${libsProject.name}"

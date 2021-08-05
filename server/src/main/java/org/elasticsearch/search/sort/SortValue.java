@@ -118,7 +118,9 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     public abstract String toString();
 
     /**
-     * Return this {@linkplain SortValue} as a boxed {@linkplain Number}.
+     * Return this {@linkplain SortValue} as a boxed {@linkplain Number}
+     * or {@link Double#NaN} if it isn't a number. Or if it is actually
+     * {@link Double#NaN}.
      */
     public abstract Number numberValue();
 
@@ -332,7 +334,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
         @Override
         public Number numberValue() {
-            throw new UnsupportedOperationException();
+            return Double.NaN;
         }
     }
 }

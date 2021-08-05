@@ -125,7 +125,7 @@ HTTP exporter in the `xpack.monitoring.exporters` settings in the
 xpack.monitoring.exporters:
   id1:
     type: http
-    host: ["http://es-mon-1:9200", "http://es-mon2:9200"]
+    host: ["http://es-mon-1:9200", "http://es-mon-2:9200"]
 --------------------------------------------------
 --
 
@@ -148,14 +148,14 @@ For example:
 xpack.monitoring.exporters:
   id1:
     type: http
-    host: ["http://es-mon-1:9200", "http://es-mon2:9200"]
+    host: ["http://es-mon-1:9200", "http://es-mon-2:9200"]
     auth.username: remote_monitoring_user
     # "xpack.monitoring.exporters.id1.auth.secure_password" must be set in the keystore
 --------------------------------------------------
 --
 
 .. If you configured the monitoring cluster to use
-<<configuring-tls,encrypted communications>>, you must use the HTTPS protocol in
+<<encrypt-internode-communication,encrypted communications>>, you must use the HTTPS protocol in
 the `host` setting. You must also specify the trusted CA certificates that will
 be used to verify the identity of the nodes in the monitoring cluster.
 
@@ -169,7 +169,7 @@ specify the location of the PEM encoded certificate with the
 xpack.monitoring.exporters:
   id1:
     type: http
-    host: ["https://es-mon1:9200", "https://es-mon2:9200"]
+    host: ["https://es-mon1:9200", "https://es-mon-2:9200"]
     auth:
       username: remote_monitoring_user
       # "xpack.monitoring.exporters.id1.auth.secure_password" must be set in the keystore
@@ -187,7 +187,7 @@ xpack.monitoring.exporters:
 xpack.monitoring.exporters:
   id1:
     type: http
-    host: ["https://es-mon1:9200", "https://es-mon2:9200"]
+    host: ["https://es-mon1:9200", "https://es-mon-2:9200"]
     auth:
       username: remote_monitoring_user
       # "xpack.monitoring.exporters.id1.auth.secure_password" must be set in the keystore

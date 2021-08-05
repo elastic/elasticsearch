@@ -16,8 +16,8 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Map;
 import java.util.Objects;

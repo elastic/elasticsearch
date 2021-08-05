@@ -1,0 +1,77 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[searchable-snapshots-api-stats]]
+=== Searchable snapshot statistics API
+++++
+<titleabbrev>Searchable snapshot statistics</titleabbrev>
+++++
+
+experimental::[]
+
+Retrieves statistics about searchable snapshots.
+
+[[searchable-snapshots-api-stats-request]]
+==== {api-request-title}
+
+`GET /_searchable_snapshots/stats`
+
+`GET /<target>/_searchable_snapshots/stats`
+
+[[searchable-snapshots-api-stats-prereqs]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API. You must also
+have the `manage` <<privileges-list-indices,index privileges>> for the target
+data stream or index.
+
+[[searchable-snapshots-api-stats-desc]]
+==== {api-description-title}
+
+
+[[searchable-snapshots-api-stats-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams and indices to retrieve statistics for. To
+retrieve statistics for all data streams and indices, omit this parameter.
+
+
+[[searchable-snapshots-api-stats-example]]
+==== {api-examples-title}
+////
+[source,console]
+-----------------------------------
+PUT /docs
+{
+  "settings" : {
+    "index.number_of_shards" : 1,
+    "index.number_of_replicas" : 0
+  }
+}
+
+PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
+{
+  "include_global_state": false,
+  "indices": "docs"
+}
+
+DELETE /docs
+
+POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
+{
+  "index": "docs",
+  "renamed_index": "my-index"
+}
+-----------------------------------
+// TEST[setup:setup-repository]
+////
+
+Retrieves the statistics of the index `my-index`:
+
+[source,console]
+--------------------------------------------------
+GET /my-index/_searchable_snapshots/stats
+--------------------------------------------------
+// TEST[continued]

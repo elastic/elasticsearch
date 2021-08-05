@@ -21,7 +21,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
@@ -74,7 +74,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                 logger.trace("[{}] opening probe connection", thisConnectionAttempt);
                 transportService.openConnection(targetNode,
                     ConnectionProfile.buildSingleChannelProfile(Type.REG, probeConnectTimeout, probeHandshakeTimeout,
-                        TimeValue.MINUS_ONE, null), listener.delegateFailure((l, connection) -> {
+                        TimeValue.MINUS_ONE, null, null), listener.delegateFailure((l, connection) -> {
                         logger.trace("[{}] opened probe connection", thisConnectionAttempt);
 
                         // use NotifyOnceListener to make sure the following line does not result in onFailure being called when

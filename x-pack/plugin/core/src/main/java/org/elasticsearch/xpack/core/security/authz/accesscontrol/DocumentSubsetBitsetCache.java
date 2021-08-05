@@ -22,7 +22,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalNotification;
@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -214,7 +214,11 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     public BitSet getBitSet(final Query query, final LeafReaderContext context) throws ExecutionException {
         final IndexReader.CacheHelper coreCacheHelper = context.reader().getCoreCacheHelper();
         if (coreCacheHelper == null) {
-            throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
+            try {
+                return computeBitSet(query, context);
+            } catch (IOException e) {
+                throw new ExecutionException(e);
+            }
         }
         coreCacheHelper.addClosedListener(this);
         final IndexReader.CacheKey indexKey = coreCacheHelper.getKey();
@@ -230,33 +234,41 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                     set.add(cacheKey);
                     return set;
                 });
-                final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-                final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-                searcher.setQueryCache(null);
-                final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                Scorer s = weight.scorer(context);
-                if (s == null) {
+                final BitSet result = computeBitSet(query, context);
+                if (result == null) {
                     // A cache loader is not allowed to return null, return a marker object instead.
                     return NULL_MARKER;
-                } else {
-                    final BitSet bs = bitSetFromDocIterator(s.iterator(), context.reader().maxDoc());
-                    final long bitSetBytes = bs.ramBytesUsed();
-                    if (bitSetBytes > this.maxWeightBytes) {
-                        logger.warn("built a DLS BitSet that uses [{}] bytes; the DLS BitSet cache has a maximum size of [{}] bytes;" +
-                                " this object cannot be cached and will need to be rebuilt for each use;" +
-                                " consider increasing the value of [{}]",
-                            bitSetBytes, maxWeightBytes, CACHE_SIZE_SETTING.getKey());
-                    } else if (bitSetBytes + bitsetCache.weight() > maxWeightBytes) {
-                        maybeLogCacheFullWarning();
-                    }
-                    return bs;
                 }
+                final long bitSetBytes = result.ramBytesUsed();
+                if (bitSetBytes > this.maxWeightBytes) {
+                    logger.warn("built a DLS BitSet that uses [{}] bytes; the DLS BitSet cache has a maximum size of [{}] bytes;" +
+                            " this object cannot be cached and will need to be rebuilt for each use;" +
+                            " consider increasing the value of [{}]",
+                        bitSetBytes, maxWeightBytes, CACHE_SIZE_SETTING.getKey());
+                } else if (bitSetBytes + bitsetCache.weight() > maxWeightBytes) {
+                    maybeLogCacheFullWarning();
+                }
+                return result;
             });
             if (bitSet == NULL_MARKER) {
                 return null;
             } else {
                 return bitSet;
             }
+        }
+    }
+
+    @Nullable
+    private BitSet computeBitSet(Query query, LeafReaderContext context) throws IOException {
+        final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
+        final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+        searcher.setQueryCache(null);
+        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        final Scorer s = weight.scorer(context);
+        if (s == null) {
+            return null;
+        } else {
+            return bitSetFromDocIterator(s.iterator(), context.reader().maxDoc());
         }
     }
 

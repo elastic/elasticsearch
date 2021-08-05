@@ -34,8 +34,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FutureArrays;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -797,7 +797,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregator maxAggregator = createAggregator(maxAggregationBuilder, indexSearcher, fieldType);
         ValueCountAggregator countAggregator = createAggregator(countAggregationBuilder, indexSearcher, fieldType);
 
-        BucketCollector bucketCollector = MultiBucketCollector.wrap(maxAggregator, countAggregator);
+        BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(maxAggregator, countAggregator));
         bucketCollector.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
         bucketCollector.postCollection();
@@ -849,7 +849,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             ValueCountAggregator countAggregator = createAggregator(countAggregationBuilder, indexSearcher, multiValuesfieldType);
             TermsAggregator termsAggregator = createAggregator(termsAggregationBuilder, indexSearcher, singleValueFieldType);
 
-            BucketCollector bucketCollector = MultiBucketCollector.wrap(maxAggregator, countAggregator, termsAggregator);
+            BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(maxAggregator, countAggregator, termsAggregator));
             bucketCollector.preCollection();
             indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
             bucketCollector.postCollection();

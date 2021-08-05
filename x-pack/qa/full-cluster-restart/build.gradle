@@ -1,10 +1,10 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
@@ -57,7 +57,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
       setting 'xpack.security.transport.ssl.key', 'testnode.pem'
       setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
       keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-      setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
 
       setting 'xpack.security.authc.api_key.enabled', 'true'
     }
@@ -75,7 +74,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
     exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
   }
-
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     mustRunAfter("precommit")

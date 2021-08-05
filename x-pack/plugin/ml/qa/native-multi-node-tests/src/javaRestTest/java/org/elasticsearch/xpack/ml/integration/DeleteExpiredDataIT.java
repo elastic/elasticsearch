@@ -18,13 +18,18 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -36,15 +41,21 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ml.annotations.AnnotationTests.randomAnnotation;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -55,6 +66,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
     private static final String DATA_INDEX = "delete-expired-data-test-data";
+    private static final String TIME_FIELD = "time";
+    private static final String USER_NAME = "some-user";
 
     @Before
     public void setUpData()  {
@@ -157,17 +170,18 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             bulkRequestBuilder.add(indexRequest);
         }
         ActionFuture<BulkResponse> indexUnusedStateDocsResponse = bulkRequestBuilder.execute();
+        List<Job.Builder> jobs = new ArrayList<>();
 
         // These jobs don't thin out model state; ModelSnapshotRetentionIT tests that
-        registerJob(newJobBuilder("no-retention")
+        jobs.add(newJobBuilder("no-retention")
             .setResultsRetentionDays(null).setModelSnapshotRetentionDays(1000L).setDailyModelSnapshotRetentionAfterDays(1000L));
-        registerJob(newJobBuilder("results-retention")
+        jobs.add(newJobBuilder("results-retention")
             .setResultsRetentionDays(1L).setModelSnapshotRetentionDays(1000L).setDailyModelSnapshotRetentionAfterDays(1000L));
-        registerJob(newJobBuilder("snapshots-retention")
+        jobs.add(newJobBuilder("snapshots-retention")
             .setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
-        registerJob(newJobBuilder("snapshots-retention-with-retain")
+        jobs.add(newJobBuilder("snapshots-retention-with-retain")
             .setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
-        registerJob(newJobBuilder("results-and-snapshots-retention")
+        jobs.add(newJobBuilder("results-and-snapshots-retention")
             .setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
 
         List<String> shortExpiryForecastIds = new ArrayList<>();
@@ -176,14 +190,14 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         long oneDayAgo = now - TimeValue.timeValueHours(48).getMillis() - 1;
 
         // Start all jobs
-        for (Job.Builder job : getJobs()) {
+        for (Job.Builder job : jobs) {
             putJob(job);
 
             String datafeedId = job.getId() + "-feed";
             DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
             datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
             DatafeedConfig datafeed = datafeedConfig.build();
-            registerDatafeed(datafeed);
+
             putDatafeed(datafeed);
 
             // Run up to a day ago
@@ -192,11 +206,11 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Now let's wait for all jobs to be closed
-        for (Job.Builder job : getJobs()) {
+        for (Job.Builder job : jobs) {
             waitUntilJobIsClosed(job.getId());
         }
 
-        for (Job.Builder job : getJobs()) {
+        for (Job.Builder job : jobs) {
             assertThat(getBuckets(job.getId()).size(), is(greaterThanOrEqualTo(47)));
             assertThat(getRecords(job.getId()).size(), equalTo(2));
             List<ModelSnapshot> modelSnapshots = getModelSnapshots(job.getId());
@@ -231,7 +245,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         long before = System.currentTimeMillis() / 1000;
         assertBusy(() -> assertNotEquals(before, System.currentTimeMillis() / 1000), 1, TimeUnit.SECONDS);
 
-        for (Job.Builder job : getJobs()) {
+        for (Job.Builder job : jobs) {
             // Run up to now
             startDatafeed(job.getId() + "-feed", 0, now);
             waitUntilJobIsClosed(job.getId());
@@ -254,7 +268,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         // Verify forecasts were created
         List<ForecastRequestStats> forecastStats = getForecastStats();
-        assertThat(forecastStats.size(), equalTo(getJobs().size() * 3));
+        assertThat(forecastStats.size(), equalTo(jobs.size() * 3));
         for (ForecastRequestStats forecastStat : forecastStats) {
             assertThat(countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()), equalTo(forecastStat.getRecordCount()));
         }
@@ -303,11 +317,11 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         // Verify short expiry forecasts were deleted only
         forecastStats = getForecastStats();
-        assertThat(forecastStats.size(), equalTo(getJobs().size() * 2));
+        assertThat(forecastStats.size(), equalTo(jobs.size() * 2));
         for (ForecastRequestStats forecastStat : forecastStats) {
             assertThat(countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()), equalTo(forecastStat.getRecordCount()));
         }
-        for (Job.Builder job : getJobs()) {
+        for (Job.Builder job : jobs) {
             for (String forecastId : shortExpiryForecastIds) {
                 assertThat(countForecastDocs(job.getId(), forecastId), equalTo(0L));
             }
@@ -335,6 +349,73 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
         assertThat("Documents for non_existing_job are still around; examples: " + nonExistingJobExampleIds,
             nonExistingJobDocsCount, equalTo(0));
+    }
+
+    public void testDeleteExpiresDataDeletesAnnotations() throws Exception {
+        String jobId = "delete-annotations-a";
+        String datafeedId = jobId + "-feed";
+
+        // No annotations so far
+        assertThatNumberOfAnnotationsIsEqualTo(0);
+
+        Job.Builder job =
+            new Job.Builder(jobId)
+                .setResultsRetentionDays(1L)
+                .setAnalysisConfig(
+                    new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder().setFunction("count").build()))
+                        .setBucketSpan(TimeValue.timeValueHours(1)))
+                .setDataDescription(
+                    new DataDescription.Builder()
+                        .setTimeField(TIME_FIELD));
+
+        putJob(job);
+
+        DatafeedConfig datafeed =
+            new DatafeedConfig.Builder(datafeedId, jobId)
+                .setIndices(Collections.singletonList(DATA_INDEX))
+                .build();
+
+        putDatafeed(datafeed);
+
+        openJob(jobId);
+        // Run up to a day ago
+        Instant now = Instant.now();
+        startDatafeed(datafeedId, 0, now.minus(Duration.ofDays(1)).toEpochMilli());
+        waitUntilJobIsClosed(jobId);
+
+        assertThatNumberOfAnnotationsIsEqualTo(1);
+
+        // The following 4 annotations are created by the system and the 2 oldest ones *will* be deleted
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(1)), XPackUser.NAME)).actionGet();
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(2)), XPackUser.NAME)).actionGet();
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(3)), XPackUser.NAME)).actionGet();
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(4)), XPackUser.NAME)).actionGet();
+        // The following 4 annotations are created by the user and *will not* be deleted
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(1)), USER_NAME)).actionGet();
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(2)), USER_NAME)).actionGet();
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(3)), USER_NAME)).actionGet();
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(4)), USER_NAME)).actionGet();
+
+        assertThatNumberOfAnnotationsIsEqualTo(9);
+
+        client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
+        refresh();
+
+        assertThatNumberOfAnnotationsIsEqualTo(7);
+    }
+
+    private static IndexRequest randomAnnotationIndexRequest(String jobId, Instant timestamp, String createUsername) throws IOException {
+        Annotation annotation =
+            new Annotation.Builder(randomAnnotation(jobId))
+                .setTimestamp(Date.from(timestamp))
+                .setCreateUsername(createUsername)
+                .build();
+        try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
+            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME)
+                .source(xContentBuilder)
+                .setRequireAlias(true)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        }
     }
 
     private static Job.Builder newJobBuilder(String id) {

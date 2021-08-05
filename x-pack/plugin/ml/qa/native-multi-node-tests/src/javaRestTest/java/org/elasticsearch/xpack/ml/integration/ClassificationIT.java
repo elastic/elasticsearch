@@ -85,18 +85,18 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
-    private static final String BOOLEAN_FIELD = "boolean-field";
-    private static final String NUMERICAL_FIELD = "numerical-field";
-    private static final String DISCRETE_NUMERICAL_FIELD = "discrete-numerical-field";
-    private static final String TEXT_FIELD = "text-field";
-    private static final String KEYWORD_FIELD = "keyword-field";
-    private static final String NESTED_FIELD = "outer-field.inner-field";
-    private static final String ALIAS_TO_KEYWORD_FIELD = "alias-to-keyword-field";
-    private static final String ALIAS_TO_NESTED_FIELD = "alias-to-nested-field";
-    private static final List<Boolean> BOOLEAN_FIELD_VALUES = List.of(false, true);
-    private static final List<Double> NUMERICAL_FIELD_VALUES = List.of(1.0, 2.0);
-    private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
-    private static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
+    static final String BOOLEAN_FIELD = "boolean-field";
+    static final String NUMERICAL_FIELD = "numerical-field";
+    static final String DISCRETE_NUMERICAL_FIELD = "discrete-numerical-field";
+    static final String TEXT_FIELD = "text-field";
+    static final String KEYWORD_FIELD = "keyword-field";
+    static final String NESTED_FIELD = "outer-field.inner-field";
+    static final String ALIAS_TO_KEYWORD_FIELD = "alias-to-keyword-field";
+    static final String ALIAS_TO_NESTED_FIELD = "alias-to-nested-field";
+    static final List<Boolean> BOOLEAN_FIELD_VALUES = List.of(false, true);
+    static final List<Double> NUMERICAL_FIELD_VALUES = List.of(1.0, 2.0);
+    static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
+    static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
 
     private String jobId;
     private String sourceIndex;
@@ -108,20 +108,22 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         client().admin().cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml.dataframe.inference", "DEBUG")
-                .put("logger.org.elasticsearch.xpack.core.ml.inference", "DEBUG"))
+                .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG")
+                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
+            )
             .get();
     }
 
     @After
     public void cleanup() {
-        cleanUp();
         client().admin().cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
-                .putNull("logger.org.elasticsearch.xpack.ml.dataframe.inference")
-                .putNull("logger.org.elasticsearch.xpack.core.ml.inference"))
+                .putNull("logger.org.elasticsearch.xpack.ml.process")
+                .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
+            )
             .get();
+        cleanUp();
     }
 
     @Override
@@ -176,8 +178,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
@@ -233,8 +235,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
@@ -283,8 +285,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
@@ -350,8 +352,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
@@ -441,8 +443,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, expectedMappingTypeForPredictedField);
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
@@ -491,7 +493,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, "boolean");
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/67581")
     public void testStopAndRestart() throws Exception {
         initialize("classification_stop_and_restart");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
@@ -880,8 +881,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
@@ -975,7 +976,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
     }
 
-    private static void createIndex(String index, boolean isDatastream) {
+    static void createIndex(String index, boolean isDatastream) {
         String mapping = "{\n" +
             "      \"properties\": {\n" +
             "        \"@timestamp\": {\n" +
@@ -1027,7 +1028,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
     }
 
-    private static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, String dependentVariable) {
+    static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, String dependentVariable) {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numTrainingRows; i++) {

@@ -2,7 +2,7 @@
 [[data-streams-change-mappings-and-settings]]
 == Change mappings and settings for a data stream
 
-Each data stream has a <<create-a-data-stream-template,matching index
+Each data stream has a <<create-index-template,matching index
 template>>. Mappings and index settings from this template are applied to new
 backing indices created for the stream. This includes the stream's first
 backing index, which is auto-generated when the stream is created.
@@ -93,7 +93,7 @@ field mapping is added to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<index-templates,put index template>> request adds a mapping
+The following <<index-templates,create or update index template>> request adds a mapping
 for a new field, `message`, to the template.
 
 [source,console]
@@ -117,12 +117,12 @@ PUT /_index_template/my-data-stream-template
 <1> Adds a mapping for the new `message` field.
 --
 
-. Use the <<indices-put-mapping,put mapping API>> to add the new field mapping
+. Use the <<indices-put-mapping,update mapping API>> to add the new field mapping
 to the data stream. By default, this adds the mapping to the stream's existing
 backing indices, including the write index.
 +
 --
-The following put mapping API request adds the new `message` field mapping to
+The following update mapping API request adds the new `message` field mapping to
 `my-data-stream`.
 
 [source,console]
@@ -138,11 +138,11 @@ PUT /my-data-stream/_mapping
 ----
 --
 +
-To add the mapping only to the stream's write index, set the put mapping API's
+To add the mapping only to the stream's write index, set the update mapping API's
 `write_index_only` query parameter to `true`.
 +
 --
-The following put mapping request adds the new `message` field mapping only to
+The following update mapping request adds the new `message` field mapping only to
 `my-data-stream`'s write index. The new field mapping is not added to
 the stream's other backing indices.
 
@@ -165,7 +165,7 @@ PUT /my-data-stream/_mapping?write_index_only=true
 
 The documentation for each <<mapping-params,mapping parameter>> indicates
 whether you can update it for an existing field using the
-<<indices-put-mapping,put mapping API>>. To update these parameters for an
+<<indices-put-mapping,update mapping API>>. To update these parameters for an
 existing field, follow these steps:
 
 . Update the index template used by the data stream. This ensures the updated
@@ -175,7 +175,7 @@ field mapping is added to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<index-templates,put index template>> request changes the
+The following <<index-templates,create or update index template>> request changes the
 argument for the `host.ip` field's <<ignore-malformed,`ignore_malformed`>>
 mapping parameter to `true`.
 
@@ -205,12 +205,12 @@ PUT /_index_template/my-data-stream-template
 <1> Changes the `host.ip` field's `ignore_malformed` value to `true`.
 --
 
-. Use the <<indices-put-mapping,put mapping API>> to apply the mapping changes
+. Use the <<indices-put-mapping,update mapping API>> to apply the mapping changes
 to the data stream. By default, this applies the changes to the stream's
 existing backing indices, including the write index.
 +
 --
-The following <<indices-put-mapping,put mapping API>> request targets
+The following <<indices-put-mapping,update mapping API>> request targets
 `my-data-stream`. The request changes the argument for the `host.ip`
 field's `ignore_malformed` mapping parameter to `true`.
 
@@ -236,7 +236,7 @@ To apply the mapping changes only to the stream's write index, set the put
 mapping API's `write_index_only` query parameter to `true`.
 +
 --
-The following put mapping request changes the `host.ip` field's mapping only for
+The following update mapping request changes the `host.ip` field's mapping only for
 `my-data-stream`'s write index. The change is not applied to the
 stream's other backing indices.
 
@@ -281,7 +281,7 @@ applied to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<index-templates,put index template>> request changes the
+The following <<index-templates,create or update index template>> request changes the
 template's `index.refresh_interval` index setting to `30s` (30 seconds).
 
 [source,console]
@@ -320,6 +320,10 @@ PUT /my-data-stream/_settings
 ----
 --
 
+IMPORTANT: To change the `index.lifecycle.name` setting, first use the
+<<ilm-remove-policy,remove policy API>> to remove the existing {ilm-init}
+policy. See <<switch-lifecycle-policies>>.
+
 [discrete]
 [[change-static-index-setting-for-a-data-stream]]
 === Change a static index setting for a data stream
@@ -335,8 +339,8 @@ backing index created after the update.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<index-templates,put index template API>> requests adds new
-`sort.field` and `sort.order index` settings to the template.
+The following <<index-templates,create or update index template API>> requests
+adds new `sort.field` and `sort.order index` settings to the template.
 
 [source,console]
 ----
@@ -386,10 +390,10 @@ Follow these steps:
 stream will contain data from your existing stream.
 +
 You can use the resolve index API to check if the name or pattern matches any
-existing indices, index aliases, or data streams. If so, you should consider
-using another name or pattern.
+existing indices, aliases, or data streams. If so, you should consider using
+another name or pattern.
 --
-The following resolve index API request checks for any existing indices, index
+The following resolve index API request checks for any existing indices,
 aliases, or data streams that start with `new-data-stream`. If not, the
 `new-data-stream*` index pattern can be used to create a new data stream.
 
@@ -417,7 +421,7 @@ mappings and settings you'd like to apply to the new data stream's backing
 indices.
 +
 This index template must meet the
-<<create-a-data-stream-template,requirements for a data stream template>>. It
+<<create-index-template,requirements for a data stream template>>. It
 should also contain your previously chosen name or index pattern in the
 `index_patterns` property.
 +
@@ -428,10 +432,10 @@ new template by copying an existing one and modifying it as needed.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<index-templates,put index template API>> request creates a new
-index template, `new-data-stream-template`. `new-data-stream-template`
-uses `my-data-stream-template` as its basis, with the following
-changes:
+The following <<index-templates,create or update index template API>> request
+creates a new index template, `new-data-stream-template`.
+`new-data-stream-template` uses `my-data-stream-template` as its basis, with the
+following changes:
 
 * The index pattern in `index_patterns` matches any index or data stream
   starting with `new-data-stream`.
@@ -471,7 +475,7 @@ PUT /_index_template/new-data-stream-template
 create the new data stream. The name of the data stream must match the index
 pattern defined in the new template's `index_patterns` property.
 +
-We do not recommend <<create-a-data-stream,indexing new data
+We do not recommend <<create-data-stream,indexing new data
 to create this data stream>>. Later, you will reindex older data from an
 existing data stream into this new stream. This could result in one or more
 backing indices that contains a mix of new and old data.
@@ -572,7 +576,8 @@ stream's oldest backing index.
       "generation": 2,
       "status": "GREEN",
       "template": "my-data-stream-template",
-      "hidden": false
+      "hidden": false,
+      "system": false
     }
   ]
 }

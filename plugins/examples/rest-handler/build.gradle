@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -7,7 +7,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.java-rest-test'
 
@@ -22,7 +22,7 @@ esplugin {
 // No unit tests in this example
 tasks.named("test").configure { enabled = false }
 
-def fixture = tasks.register("exampleFixture", org.elasticsearch.gradle.test.AntFixture) {
+def fixture = tasks.register("exampleFixture", org.elasticsearch.gradle.internal.test.AntFixture) {
   dependsOn sourceSets.javaRestTest.runtimeClasspath
   env 'CLASSPATH', "${-> project.sourceSets.javaRestTest.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"

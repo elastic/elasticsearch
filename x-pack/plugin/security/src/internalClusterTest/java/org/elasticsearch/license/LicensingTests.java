@@ -188,7 +188,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         Path conf = home.resolve("config");
         Files.createDirectories(conf);
         Settings.Builder nodeSettings = Settings.builder()
-            .put(nodeSettings(maxNumberOfNodes() - 1).filter(s -> "xpack.security.enabled".equals(s) == false))
+            .put(nodeSettings(maxNumberOfNodes() - 1, Settings.EMPTY).filter(s -> "xpack.security.enabled".equals(s) == false))
             .put("node.name", "my-test-node")
             .put("network.host", "localhost")
             .put("cluster.name", internalCluster().getClusterName())

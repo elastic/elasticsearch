@@ -222,7 +222,24 @@ public class PrimaryReplicaSyncer {
         @Override
         public void onFailure(Exception e) {
             if (closed.compareAndSet(false, true)) {
-                listener.onFailure(e);
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception ex) {
+                        e.addSuppressed(ex);
+
+                        // We are on the generic threadpool so shouldn't be rejected, and listener#onFailure shouldn't throw anything,
+                        // so getting here should be impossible.
+                        assert false : e;
+
+                        // Notify the listener on the current thread anyway, just in case.
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        listener.onFailure(e);
+                    }
+                });
             }
         }
 

@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +65,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         this.queryBuilder = new MultiMatchQueryParser(context);
         this.queryBuilder.setAutoGenerateSynonymsPhraseQuery(settings.autoGenerateSynonymsPhraseQuery());
         this.queryBuilder.setLenient(settings.lenient());
-        this.queryBuilder.setZeroTermsQuery(MatchQueryParser.ZeroTermsQuery.NULL);
+        this.queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
         if (analyzer != null) {
             this.queryBuilder.setAnalyzer(analyzer);
         }

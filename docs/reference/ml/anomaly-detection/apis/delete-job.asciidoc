@@ -16,12 +16,10 @@ Deletes an existing {anomaly-job}.
 [[ml-delete-job-prereqs]]
 == {api-prereq-title}
 
-* If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
-cluster privileges to use this API. See <<security-privileges>> and
-{ml-docs-setup-privileges}.
-* Before you can delete a job, you must delete the {dfeeds} that are associated
-with it. See <<ml-delete-datafeed>>.
-* Before you can delete a job, you must close it (unless you specify the `force` parameter). See <<ml-close-job>>.
+* Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+* Before you can delete a job, you must close it (unless you specify the `force` 
+parameter). See <<ml-close-job>>.
 
 [[ml-delete-job-desc]]
 == {api-description-title}
@@ -35,6 +33,10 @@ are granted to anyone over the `.ml-*` indices.
 
 It is not currently possible to delete multiple jobs using wildcards or a comma
 separated list.
+
+If you delete a job that has a {dfeed}, the request will first attempt to
+delete the {dfeed}, as though <<ml-delete-datafeed>> was called with the same
+`timeout` and `force` parameters as this delete request.
 
 [[ml-delete-job-path-parms]]
 == {api-path-parms-title}

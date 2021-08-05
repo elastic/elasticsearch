@@ -21,23 +21,17 @@ import java.util.Set;
 
 public final class RuntimeFieldStats implements Writeable, ToXContentObject {
     private final String type;
+    final FieldScriptStats fieldScriptStats;
     int count = 0;
     int indexCount = 0;
     final Set<String> scriptLangs;
     long scriptLessCount = 0;
     long shadowedCount = 0;
-    private long maxLines = 0;
-    private long totalLines = 0;
-    private long maxChars = 0;
-    private long totalChars = 0;
-    private long maxSourceUsages = 0;
-    private long totalSourceUsages = 0;
-    private long maxDocUsages = 0;
-    private long totalDocUsages = 0;
 
     RuntimeFieldStats(String type) {
         this.type = Objects.requireNonNull(type);
         this.scriptLangs = new HashSet<>();
+        this.fieldScriptStats = new FieldScriptStats();
     }
 
     public RuntimeFieldStats(StreamInput in) throws IOException {
@@ -47,14 +41,7 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         this.scriptLangs = in.readSet(StreamInput::readString);
         this.scriptLessCount = in.readLong();
         this.shadowedCount = in.readLong();
-        this.maxLines = in.readLong();
-        this.totalLines = in.readLong();
-        this.maxChars = in.readLong();
-        this.totalChars = in.readLong();
-        this.maxSourceUsages = in.readLong();
-        this.totalSourceUsages = in.readLong();
-        this.maxDocUsages = in.readLong();
-        this.totalDocUsages = in.readLong();
+        this.fieldScriptStats = new FieldScriptStats(in);
     }
 
     String type() {
@@ -69,14 +56,7 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         out.writeCollection(scriptLangs, StreamOutput::writeString);
         out.writeLong(scriptLessCount);
         out.writeLong(shadowedCount);
-        out.writeLong(maxLines);
-        out.writeLong(totalLines);
-        out.writeLong(maxChars);
-        out.writeLong(totalChars);
-        out.writeLong(maxSourceUsages);
-        out.writeLong(totalSourceUsages);
-        out.writeLong(maxDocUsages);
-        out.writeLong(totalDocUsages);
+        fieldScriptStats.writeTo(out);
     }
 
     @Override
@@ -88,27 +68,9 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         builder.field("scriptless_count", scriptLessCount);
         builder.field("shadowed_count", shadowedCount);
         builder.array("lang", scriptLangs.toArray(new String[0]));
-        builder.field("lines_max", maxLines);
-        builder.field("lines_total", totalLines);
-        builder.field("chars_max", maxChars);
-        builder.field("chars_total", totalChars);
-        builder.field("source_max", maxSourceUsages);
-        builder.field("source_total", totalSourceUsages);
-        builder.field("doc_max", maxDocUsages);
-        builder.field("doc_total", totalDocUsages);
+        fieldScriptStats.toXContent(builder, params);
         builder.endObject();
         return builder;
-    }
-
-    void update(int chars, long lines, int sourceUsages, int docUsages) {
-        this.maxChars = Math.max(this.maxChars, chars);
-        this.totalChars += chars;
-        this.maxLines = Math.max(this.maxLines, lines);
-        this.totalLines += lines;
-        this.totalSourceUsages += sourceUsages;
-        this.maxSourceUsages = Math.max(this.maxSourceUsages, sourceUsages);
-        this.totalDocUsages += docUsages;
-        this.maxDocUsages = Math.max(this.maxDocUsages, docUsages);
     }
 
     @Override
@@ -124,22 +86,13 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
             indexCount == that.indexCount &&
             scriptLessCount == that.scriptLessCount &&
             shadowedCount == that.shadowedCount &&
-            maxLines == that.maxLines &&
-            totalLines == that.totalLines &&
-            maxChars == that.maxChars &&
-            totalChars == that.totalChars &&
-            maxSourceUsages == that.maxSourceUsages &&
-            totalSourceUsages == that.totalSourceUsages &&
-            maxDocUsages == that.maxDocUsages &&
-            totalDocUsages == that.totalDocUsages &&
+            fieldScriptStats.equals(that.fieldScriptStats) &&
             type.equals(that.type) &&
             scriptLangs.equals(that.scriptLangs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, count, indexCount, scriptLangs, scriptLessCount, shadowedCount,
-            maxLines, totalLines, maxChars, totalChars,
-            maxSourceUsages, totalSourceUsages, maxDocUsages, totalDocUsages);
+        return Objects.hash(type, count, indexCount, scriptLangs, scriptLessCount, shadowedCount, fieldScriptStats);
     }
 }

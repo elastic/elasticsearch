@@ -8,10 +8,12 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
+import java.io.FilterOutputStream;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,6 +23,7 @@ import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
@@ -54,6 +57,24 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     /**
+     * Create a new {@link XContentBuilder} using the given {@link XContent} content and RestApiVersion.
+     * <p>
+     * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content.
+     * </p>
+     *
+     * @param xContent the {@link XContent}
+     * @return a new {@link XContentBuilder}
+     * @throws IOException if an {@link IOException} occurs while building the content
+     */
+    public static XContentBuilder builder(XContent xContent, RestApiVersion restApiVersion) throws IOException {
+        return new XContentBuilder(xContent, new ByteArrayOutputStream(),
+            Collections.emptySet(),
+            Collections.emptySet(),
+            xContent.type().toParsedMediaType(),
+            restApiVersion);
+    }
+
+    /**
      * Create a new {@link XContentBuilder} using the given {@link XContentType} xContentType and some inclusive and/or exclusive filters.
      * <p>
      * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content. When both exclusive and
@@ -68,7 +89,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     public static XContentBuilder builder(XContentType xContentType, Set<String> includes, Set<String> excludes) throws IOException {
         return new XContentBuilder(xContentType.xContent(), new ByteArrayOutputStream(), includes, excludes,
-            xContentType.toParsedMediaType());
+            xContentType.toParsedMediaType(), RestApiVersion.current());
     }
 
     private static final Map<Class<?>, Writer> WRITERS;
@@ -77,6 +98,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
         writers.put(Boolean.class, (b, v) -> b.value((Boolean) v));
+        writers.put(boolean[].class, (b, v) -> b.values((boolean[]) v));
         writers.put(Byte.class, (b, v) -> b.value((Byte) v));
         writers.put(byte[].class, (b, v) -> b.value((byte[]) v));
         writers.put(Date.class, XContentBuilder::timeValue);
@@ -152,21 +174,23 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     private final OutputStream bos;
 
+    private final RestApiVersion restApiVersion;
+
+    private final ParsedMediaType responseContentType;
+
     /**
      * When this flag is set to true, some types of values are written in a format easier to read for a human.
      */
     private boolean humanReadable = false;
 
-    private RestApiVersion restApiVersion;
 
-    private ParsedMediaType responseContentType;
 
     /**
      * Constructs a new builder using the provided XContent and an OutputStream. Make sure
      * to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
-        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), xContent.type().toParsedMediaType());
+        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), xContent.type().toParsedMediaType(), RestApiVersion.current());
     }
     /**
      * Constructs a new builder using the provided XContent, an OutputStream and
@@ -175,7 +199,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContentType xContentType, OutputStream bos, Set<String> includes) throws IOException {
-        this(xContentType.xContent(), bos, includes, Collections.emptySet(), xContentType.toParsedMediaType());
+        this(xContentType.xContent(), bos, includes, Collections.emptySet(), xContentType.toParsedMediaType(), RestApiVersion.current());
     }
 
     /**
@@ -191,10 +215,30 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes,
                            ParsedMediaType responseContentType) throws IOException {
+        this(xContent, os, includes, excludes, responseContentType, RestApiVersion.current());
+    }
+
+    /**
+     * Creates a new builder using the provided XContent, output stream and some inclusive and/or exclusive filters. When both exclusive and
+     * inclusive filters are provided, the underlying builder will first use exclusion filters to remove fields and then will check the
+     * remaining fields against the inclusive filters.
+     * Stores RestApiVersion to help steer the use of the builder depending on the version.
+     * @see #getRestApiVersion()
+     * <p>
+     * Make sure to call {@link #close()} when the builder is done with.
+     * @param os       the output stream
+     * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
+     * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
+     * @param responseContentType  a content-type header value to be send back on a response
+     * @param restApiVersion a rest api version indicating with which version the XContent is compatible with.
+     */
+    public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes,
+                           ParsedMediaType responseContentType, RestApiVersion restApiVersion) throws IOException {
         this.bos = os;
         assert responseContentType != null : "generated response cannot be null";
         this.responseContentType = responseContentType;
         this.generator = xContent.createGenerator(bos, includes, excludes);
+        this.restApiVersion = restApiVersion;
     }
 
     public String getResponseContentTypeString() {
@@ -1007,13 +1051,29 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     /**
-     * Sets a version used for serialising a response compatible with a previous version.
-     * @param restApiVersion - indicates requested a version of API that the builder will be creating
+     * Write the content that is written to the output stream by the {@code writer} as a string encoded in Base64 format.
+     * This API can be used to generate XContent directly without the intermediate results to reduce memory usage.
+     * Note that this method supports only JSON.
      */
-    public XContentBuilder withCompatibleVersion(RestApiVersion restApiVersion) {
-        assert this.restApiVersion == null : "restApiVersion has already been set";
-        Objects.requireNonNull(restApiVersion, "restApiVersion cannot be null");
-        this.restApiVersion = restApiVersion;
+    public XContentBuilder directFieldAsBase64(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        if (contentType() != XContentType.JSON) {
+            assert false : "directFieldAsBase64 supports only JSON format";
+            throw new UnsupportedOperationException("directFieldAsBase64 supports only JSON format");
+        }
+        generator.writeDirectField(name, os -> {
+            os.write('\"');
+            final FilterOutputStream noClose = new FilterOutputStream(os) {
+                @Override
+                public void close() {
+                    // We need to close the output stream that is wrapped by a Base64 encoder to flush the outstanding buffer
+                    // of the encoder, but we must not close the underlying output stream of the XContentBuilder.
+                }
+            };
+            final OutputStream encodedOutput = Base64.getEncoder().wrap(noClose);
+            writer.accept(encodedOutput);
+            encodedOutput.close(); // close to flush the outstanding buffer used in the Base64 Encoder
+            os.write('\"');
+        });
         return this;
     }
 

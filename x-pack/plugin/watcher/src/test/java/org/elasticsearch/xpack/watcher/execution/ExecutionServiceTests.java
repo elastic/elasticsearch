@@ -21,9 +21,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -96,7 +96,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -120,6 +120,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class ExecutionServiceTests extends ESTestCase {
 
     private Payload payload;
@@ -157,12 +158,12 @@ public class ExecutionServiceTests extends ESTestCase {
         parser = mock(WatchParser.class);
 
         DiscoveryNode discoveryNode = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(discoveryNode);
 
         executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, clock, parser,
-                clusterService, client, EsExecutors.newDirectExecutorService());
+                clusterService, client, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     public void testExecute() throws Exception {

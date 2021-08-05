@@ -9,8 +9,10 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
@@ -29,7 +31,12 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/{index}/_update_by_query"));
+        return List.of(
+            new Route(POST, "/{index}/_update_by_query"),
+            Route.builder(POST, "/{index}/{type}/_update_by_query")
+                .deprecated(RestSearchAction.TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
@@ -44,6 +51,9 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
     @Override
     protected UpdateByQueryRequest buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+            request.param("type");
+        }
         /*
          * Passing the search request through UpdateByQueryRequest first allows
          * it to set its own defaults which differ from SearchRequest's

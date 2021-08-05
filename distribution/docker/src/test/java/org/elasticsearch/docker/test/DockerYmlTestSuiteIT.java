@@ -10,8 +10,7 @@ package org.elasticsearch.docker.test;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -24,11 +23,8 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.CharBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Base64;
 
 public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -129,23 +125,5 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
             return "http";
         }
         return "https";
-    }
-
-    private static String basicAuthHeaderValue(String username, SecureString passwd) {
-        CharBuffer chars = CharBuffer.allocate(username.length() + passwd.length() + 1);
-        byte[] charBytes = null;
-        try {
-            chars.put(username).put(':').put(passwd.getChars());
-            charBytes = CharArrays.toUtf8Bytes(chars.array());
-
-            //TODO we still have passwords in Strings in headers. Maybe we can look into using a CharSequence?
-            String basicToken = Base64.getEncoder().encodeToString(charBytes);
-            return "Basic " + basicToken;
-        } finally {
-            Arrays.fill(chars.array(), (char) 0);
-            if (charBytes != null) {
-                Arrays.fill(charBytes, (byte) 0);
-            }
-        }
     }
 }

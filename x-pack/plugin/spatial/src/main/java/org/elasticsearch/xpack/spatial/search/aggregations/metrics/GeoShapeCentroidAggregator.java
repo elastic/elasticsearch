@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;

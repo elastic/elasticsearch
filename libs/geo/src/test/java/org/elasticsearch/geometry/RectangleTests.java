@@ -25,16 +25,16 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
-        assertEquals("BBOX (10.0, 20.0, 40.0, 30.0)", wkt.toWKT(new Rectangle(10, 20, 40, 30)));
-        assertEquals(new Rectangle(10, 20, 40, 30), wkt.fromWKT("BBOX (10.0, 20.0, 40.0, 30.0)"));
+        GeometryValidator validator = GeographyValidator.instance(true);
+        assertEquals("BBOX (10.0, 20.0, 40.0, 30.0)", WellKnownText.toWKT(new Rectangle(10, 20, 40, 30)));
+        assertEquals(new Rectangle(10, 20, 40, 30), WellKnownText.fromWKT(validator, true, "BBOX (10.0, 20.0, 40.0, 30.0)"));
 
-        assertEquals("BBOX EMPTY", wkt.toWKT(Rectangle.EMPTY));
-        assertEquals(Rectangle.EMPTY, wkt.fromWKT("BBOX EMPTY)"));
+        assertEquals("BBOX EMPTY", WellKnownText.toWKT(Rectangle.EMPTY));
+        assertEquals(Rectangle.EMPTY, WellKnownText.fromWKT(validator, true, "BBOX EMPTY)"));
     }
 
     public void testInitValidation() {
-        GeometryValidator validator = new GeographyValidator(true);
+        GeometryValidator validator = GeographyValidator.instance(true);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> validator.validate(new Rectangle(2, 3, 100, 1)));
         assertEquals("invalid latitude 100.0; must be between -90.0 and 90.0", ex.getMessage());
@@ -45,16 +45,16 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
 
         ex = expectThrows(IllegalArgumentException.class,
             () -> validator.validate(new Rectangle(2, 3, 1, 2)));
-        assertEquals("max y cannot be less than min x", ex.getMessage());
+        assertEquals("max y cannot be less than min y", ex.getMessage());
 
         ex = expectThrows(IllegalArgumentException.class,
             () -> validator.validate(new Rectangle(2, 3, 2, 1, 5, Double.NaN)));
         assertEquals("only one z value is specified", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+        ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(
             new Rectangle(50, 10, 40, 30, 20, 60)));
         assertEquals("found Z value [20.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        new StandardValidator(true).validate(new Rectangle(50, 10, 40, 30, 20, 60));
+        StandardValidator.instance(true).validate(new Rectangle(50, 10, 40, 30, 20, 60));
     }
 }

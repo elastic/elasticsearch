@@ -189,16 +189,16 @@ SELECT emp_no, CAST(languages NOT IN (2, 3) AS STRING), CAST(NOT languages IN (2
 ;
 
 topWithWildCard
-schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|languages:byte|last_name:s|salary:i
+schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|languages:byte|last_name:s|name:s|salary:i
 SELECT TOP 5 * FROM test_emp ORDER BY emp_no;
 
-       birth_date       |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |    salary
-------------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------
-1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |57305
-1964-06-02T00:00:00.000Z|10002          |Bezalel        |F              |1985-11-21T00:00:00.000Z|5              |Simmel         |56371
-1959-12-03T00:00:00.000Z|10003          |Parto          |M              |1986-08-28T00:00:00.000Z|4              |Bamford        |61805
-1954-05-01T00:00:00.000Z|10004          |Chirstian      |M              |1986-12-01T00:00:00.000Z|5              |Koblick        |36174
-1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |1989-09-12T00:00:00.000Z|1              |Maliniak       |63528
+       birth_date       |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |      name       |    salary     
+------------------------+---------------+---------------+---------------+------------------------+---------------+---------------+-----------------+---------------
+1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello   |57305          
+1964-06-02T00:00:00.000Z|10002          |Bezalel        |F              |1985-11-21T00:00:00.000Z|5              |Simmel         |Bezalel Simmel   |56371          
+1959-12-03T00:00:00.000Z|10003          |Parto          |M              |1986-08-28T00:00:00.000Z|4              |Bamford        |Parto Bamford    |61805          
+1954-05-01T00:00:00.000Z|10004          |Chirstian      |M              |1986-12-01T00:00:00.000Z|5              |Koblick        |Chirstian Koblick|36174          
+1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |1989-09-12T00:00:00.000Z|1              |Maliniak       |Kyoichi Maliniak |63528
 ;
 
 topWithColumnNames
@@ -224,4 +224,21 @@ SELECT TOP 3 count(*) AS cnt, emp_no % languages FROM test_emp GROUP BY 2 ORDER 
 37        |0
 24        |1
 16        |2
+;
+
+runtimeFieldWithFunctions
+SELECT first_name, UCASE(SUBSTRING(name, 0, LOCATE(' ', name) - 1)) ucase FROM test_emp ORDER BY ucase DESC LIMIT 10;
+
+  first_name   |     ucase     
+---------------+---------------
+Zvonko         |ZVONKO         
+Zhongwei       |ZHONGWEI       
+Yongqiao       |YONGQIAO       
+Yishay         |YISHAY         
+Yinghua        |YINGHUA        
+Xinglin        |XINGLIN        
+Weiyi          |WEIYI          
+Vishv          |VISHV          
+Valter         |VALTER         
+Valdiodio      |VALDIODIO
 ;

@@ -114,6 +114,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
             formatter,
             useNanosecondResolution ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
             null,
+            null,
             Collections.emptyMap()
         );
     }

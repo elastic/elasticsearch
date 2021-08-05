@@ -53,11 +53,8 @@ See <<set-up-a-data-stream>>.
 `<data-stream>`::
 +
 --
-(Required, string) Name of the data stream to create.
-
-// tag::data-stream-name[]
-We recommend using the <<elastic-data-stream-naming-scheme,Elastic data stream
-naming scheme>>. Data stream names must meet the following criteria:
+(Required, string) Name of the data stream to create. Data stream names must
+meet the following criteria:
 
 - Lowercase only
 - Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, `,`, `#`, `:`, or a
@@ -66,6 +63,5 @@ space character
 - Cannot be `.` or `..`
 - Cannot be longer than 255 bytes. Multi-byte characters
 count towards this limit faster.
-// end::data-stream-name[]
 --
 

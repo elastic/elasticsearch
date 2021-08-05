@@ -1,5 +1,5 @@
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -15,8 +15,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'searchable_snapshots'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots'
   }
 }
 
@@ -71,6 +70,8 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 
   setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
   setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.register("s3ThirdPartyTest") {

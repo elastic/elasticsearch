@@ -1,109 +1,3 @@
-ifdef::permanently-unreleased-branch[]
-[role="xpack"]
-[testenv="basic"]
-[[xpack-rollup]]
-== Rollups
-
-A rollup aggregates an index's time series data and stores the results in a new
-read-only index, called a rollup index. For example, you can roll up hourly
-metric data into daily or weekly summaries.
-
-A rollup index only contains aggregated data for the fields you choose. You can
-search, visualize, and aggregate a rollup index like a regular index. While its
-data is less granular, a rollup index contains fewer fields and documents,
-making these operations faster.
-
-Use rollups to:
-
-* Reduce storage costs by deleting or archiving your original indices
-* Speed up searches and visualizations
-* Compactly store historical metric data
-
-image::images/rollups/rollups.gif[Use rollups to reduce the size of your data]
-
-[discrete]
-[[roll-up-your-data]]
-=== Roll up your data
-
-You typically perform rollups using the {ilm-init} <<ilm-rollup,`rollup`>>
-action. You configure the `rollup` action with the aggregations and metrics
-you want to store in the rollup index.
-
-The `rollup` action also lets you specify an {ilm-init} policy for the resulting
-rollup index. If you don't specify this policy, {ilm-init} will not manage the
-rollup index.
-
-[TIP]
-====
-In most cases, the {ilm-init} policy for a rollup index should differ from the
-policy for its source index. To prevent <<size-your-shards,oversharding>>, we
-also recommend using the {ilm-init} <<ilm-shrink,`shrink`>> action to reduce the
-rollup index's primary shard count.
-====
-
-You can also manually roll up an index using the <<rollup-api,rollup API>>.
-
-[discrete]
-[[search-rollups]]
-=== Rollups and data streams
-
-Rollups are designed to work with the backing indices of data streams. If you
-roll up a backing index for a data stream, the resulting rollup index is a
-backing index for the same stream.
-
-If you search a data stream containing both a rollup index and its source index,
-{es} automatically resolves searches without duplicate results.
-
-If results from the rollup index and the source index would be the same, {es}
-uses the rollup for faster results. If the results differ, {es} uses the source
-index's data for better accuracy. If you've replaced the source index with a
-searchable snapshot, {es} uses the searchable snapshot as the source index.
-
-This automatic search resolution lets you use rollups as a caching layer for
-your data stream. You can keep rollup indices in a hot or warm <<data-tiers,data
-tier>> and archive your original indices in a cold or frozen tier. 
-
-NOTE: Only data streams support automatic search resolution for rollups. Searches
-directly targeting a rollup index and its source index may return duplicate
-results.
-
-[discrete]
-[[legacy-rollups]]
-=== Legacy rollups
-
-// tag::legacy-rollups[]
-Before {es} 7.x, you could only create rollups using periodic cron jobs. Special
-APIs were required to manage these jobs and search the resulting rollup indices.
-These rollup APIs are now deprecated and will be removed in a future release.
-// end::legacy-rollups[]
-
-See <<legacy-rollup-apis>>.
-
-[discrete]
-[[differences-with-legacy-rollups]]
-==== Differences from legacy rollups
-
-The new rollup functionality differs from legacy rollups as follows:
-
-* Rollups no longer require a cron job. You can perform rollups using the
-{ilm-init} <<ilm-rollup,`rollup`>> action or <<rollup-api,rollup API>>.
-
-* Rollup indices are read-only and only contain aggregated data from one source
-index. Previously, multiple legacy rollup jobs could index into a single rollup
-index.
-
-* You can now search rollup indices like a regular index. Legacy rollup indices
-required a special rollup search API, which could only search one rollup index
-at a time.
-
-* While still approximate, `terms` aggregations for rollups are now more
-accurate. Previously, `terms` aggregations for legacy rollup jobs could provide
-inaccurate document counts due to differences between shards for the source
-index.
-
-endif::[]
-ifndef::permanently-unreleased-branch[]
-
 [role="xpack"]
 [testenv="basic"]
 [[xpack-rollup]]
@@ -112,7 +6,7 @@ ifndef::permanently-unreleased-branch[]
 experimental[]
 
 Keeping historical data around for analysis is extremely useful but often avoided due to the financial cost of
-archiving massive amounts of data.  Retention periods are thus driven by financial realities rather than by the
+archiving massive amounts of data. Retention periods are thus driven by financial realities rather than by the
 usefulness of extensive historical data.
 
 // tag::rollup-intro[]
@@ -135,4 +29,3 @@ include::rollup-getting-started.asciidoc[]
 include::understanding-groups.asciidoc[]
 include::rollup-agg-limitations.asciidoc[]
 include::rollup-search-limitations.asciidoc[]
-endif::[]

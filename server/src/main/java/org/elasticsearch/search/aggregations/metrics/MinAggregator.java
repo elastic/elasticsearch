@@ -13,7 +13,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -72,12 +72,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
-            if (parent == null) {
-                return LeafBucketCollector.NO_OP_COLLECTOR;
-            } else {
-                // we have no parent and the values source is empty so we can skip collecting hits.
-                throw new CollectionTerminatedException();
-            }
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         if (pointConverter != null) {
             Number segMin = findLeafMinValue(ctx.reader(), pointField, pointConverter);
@@ -90,13 +85,12 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
                 min = Math.min(min, segMin.doubleValue());
                 mins.set(0, min);
                 // the minimum value has been extracted, we don't need to collect hits on this segment.
-                throw new CollectionTerminatedException();
+                return LeafBucketCollector.NO_OP_COLLECTOR;
             }
         }
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
-
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (bucket >= mins.size()) {

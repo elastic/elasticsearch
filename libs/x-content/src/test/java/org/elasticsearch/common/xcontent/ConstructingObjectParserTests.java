@@ -8,10 +8,9 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParserTests.NamedObject;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -29,7 +28,9 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ConstructingObjectParserTests extends ESTestCase {
     public void testNullDeclares() {
@@ -692,5 +693,24 @@ public class ConstructingObjectParserTests extends ESTestCase {
 
             assertWarnings("The field old_name has been removed and is being ignored");
         }
+    }
+
+    public void testDoubleDeclarationThrowsException() throws IOException {
+        class DoubleFieldDeclaration {
+            private int intField;
+
+            DoubleFieldDeclaration(int intField) {
+                this.intField = intField;
+            }
+        }
+        ConstructingObjectParser<DoubleFieldDeclaration, Void> PARSER =
+            new ConstructingObjectParser<>("double_field_declaration", a -> new DoubleFieldDeclaration((int)a[0]));
+        PARSER.declareInt(constructorArg(), new ParseField("name"));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> PARSER.declareInt(constructorArg(), new ParseField("name")));
+
+        assertThat(exception, instanceOf(IllegalArgumentException.class));
+        assertThat(exception.getMessage(), startsWith("Parser already registered for name=[name]"));
     }
 }

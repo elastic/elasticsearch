@@ -22,8 +22,8 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
@@ -251,6 +251,32 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return true;
     }
 
+    private boolean assertExecuteOnStartThread() {
+        // Ensure that the current code has the following stacktrace:
+        // AbstractSearchAsyncAction#start -> AbstractSearchAsyncAction#executePhase -> AbstractSearchAsyncAction#performPhaseOnShard
+        final StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
+        assert stackTraceElements.length >= 6 : stackTraceElements;
+        int index = 0;
+        assert stackTraceElements[index++].getMethodName().equals("getStackTrace");
+        assert stackTraceElements[index++].getMethodName().equals("assertExecuteOnStartThread");
+        assert stackTraceElements[index++].getMethodName().equals("performPhaseOnShard");
+        if (stackTraceElements[index].getMethodName().equals("performPhaseOnShard")) {
+            assert stackTraceElements[index].getClassName().endsWith("CanMatchPreFilterSearchPhase");
+            index++;
+        }
+        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
+        assert stackTraceElements[index++].getMethodName().equals("run");
+
+        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
+        assert stackTraceElements[index++].getMethodName().equals("executePhase");
+
+        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
+        assert stackTraceElements[index++].getMethodName().equals("start");
+
+        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction") == false;
+        return true;
+    }
+
     protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
         /*
          * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
@@ -260,9 +286,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
          * we can continue (cf. InitialSearchPhase#maybeFork).
          */
         if (shard == null) {
+            assert assertExecuteOnStartThread();
             SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(),
                 shardIt.getClusterAlias(), shardIt.getOriginalIndices());
-            fork(() -> onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId())));
+            onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
         } else {
             final PendingExecutions pendingExecutions = throttleConcurrentRequests ?
                 pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
@@ -353,7 +380,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
             Throwable cause = shardSearchFailures.length == 0 ? null :
                 ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-            logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()), cause);
+            logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", currentPhase.getName()), cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
@@ -367,7 +394,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
                         Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
                         logger.debug(() -> new ParameterizedMessage("{} shards failed for phase: [{}]",
-                            numShardFailures, getName()), cause);
+                            numShardFailures, currentPhase.getName()), cause);
                     }
                     onPhaseFailure(currentPhase, "Partial shards failure", null);
                     return;
@@ -403,7 +430,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    ShardSearchFailure[] buildShardFailures() {
+    private ShardSearchFailure[] buildShardFailures() {
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
@@ -591,8 +618,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, ShardSearchFailure[] failures,
-                                                       String scrollId, String searchContextId) {
+    private SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, ShardSearchFailure[] failures,
+                                               String scrollId, String searchContextId) {
         int numSuccess = successfulOps.get();
         int numFailures = failures.length;
         assert numSuccess + numFailures == getNumShards()
@@ -602,8 +629,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     boolean buildPointInTimeFromSearchResults() {
-        // TODO: Until we implement the retry mechanism for point in times (i.e., replace an unavailable shard with an equivalent copy),
-        // we can simply return the point in time of the search request.
         return false;
     }
 
@@ -656,7 +681,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
         });
-        Releasables.close(releasables);
         listener.onFailure(exception);
     }
 

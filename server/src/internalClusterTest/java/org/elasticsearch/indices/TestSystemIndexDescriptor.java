@@ -39,8 +39,8 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
         .build();
 
     TestSystemIndexDescriptor() {
-        super(INDEX_NAME + "*", PRIMARY_INDEX_NAME, "Test system index", null, SETTINGS, INDEX_NAME, 0, "version", "stack", null,
-            Type.INTERNAL, List.of());
+        super(INDEX_NAME + "*", PRIMARY_INDEX_NAME, "Test system index", getOldMappings(), SETTINGS, INDEX_NAME, 0, "version", "stack",
+            Version.CURRENT.minimumCompatibilityVersion(), Type.INTERNAL_MANAGED, List.of(), List.of(), null, false);
     }
 
     @Override

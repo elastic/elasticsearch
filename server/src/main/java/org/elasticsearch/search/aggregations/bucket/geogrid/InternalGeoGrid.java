@@ -31,7 +31,7 @@ import static java.util.Collections.unmodifiableList;
  * for efficiency's sake.
  */
 public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
-        extends InternalMultiBucketAggregation<InternalGeoGrid, InternalGeoGridBucket> implements GeoGrid {
+        extends InternalMultiBucketAggregation<InternalGeoGrid<B>, InternalGeoGridBucket> implements GeoGrid {
 
     protected final int requiredSize;
     protected final List<InternalGeoGridBucket> buckets;
@@ -47,6 +47,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("unchecked")
     public InternalGeoGrid(StreamInput in) throws IOException {
         super(in);
         requiredSize = readSize(in);
@@ -59,7 +60,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         out.writeList(buckets);
     }
 
-    abstract InternalGeoGrid create(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
+    abstract InternalGeoGrid<B> create(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
 
     @Override
     public List<InternalGeoGridBucket> getBuckets() {
@@ -67,10 +68,11 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
     }
 
     @Override
-    public InternalGeoGrid reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalGeoGrid<B> reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         LongObjectPagedHashMap<List<InternalGeoGridBucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
-            InternalGeoGrid grid = (InternalGeoGrid) aggregation;
+            @SuppressWarnings("unchecked")
+            InternalGeoGrid<B> grid = (InternalGeoGrid<B>) aggregation;
             if (buckets == null) {
                 buckets = new LongObjectPagedHashMap<>(grid.buckets.size(), reduceContext.bigArrays());
             }
@@ -141,7 +143,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
 
-        InternalGeoGrid other = (InternalGeoGrid) obj;
+        InternalGeoGrid<?> other = (InternalGeoGrid<?>) obj;
         return Objects.equals(requiredSize, other.requiredSize)
             && Objects.equals(buckets, other.buckets);
     }

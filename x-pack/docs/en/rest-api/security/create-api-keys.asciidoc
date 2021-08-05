@@ -17,27 +17,27 @@ Creates an API key for access without requiring basic authentication.
 [[security-api-create-api-key-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_api_key` cluster privilege.
+* To use this API, you must have at least the `manage_own_api_key` cluster privilege.
 
 IMPORTANT: If the credential that is used to authenticate this request is
 an API key, the derived API key cannot have any privileges. If you specify privileges, the API returns an error.
-See the note under `role_descriptors`.
+See the note under <<api-key-role-descriptors,`role_descriptors`>>.
 
 [[security-api-create-api-key-desc]]
 ==== {api-description-title}
 
 The API keys are created by the {es} API key service, which is automatically enabled
-when you configure TLS on the HTTP interface. See <<tls-http>>. Alternatively,
-you can explicitly enable the `xpack.security.authc.api_key.enabled` setting. When 
-you are running in production mode, a bootstrap check prevents you from enabling 
-the API key service unless you also enable TLS on the HTTP interface. 
+when you <<encrypt-http-communication,configure TLS on the HTTP interface>>. Alternatively,
+you can explicitly enable the `xpack.security.authc.api_key.enabled` setting. When
+you are running in production mode, a bootstrap check prevents you from enabling
+the API key service unless you also enable TLS on the HTTP interface.
 
-A successful create API key API call returns a JSON structure that contains the
+A successful request returns a JSON structure that contains the
 API key, its unique id, and its name. If applicable, it also returns expiration
-information for the API key in milliseconds. 
+information for the API key in milliseconds.
 
 NOTE: By default, API keys never expire. You can specify expiration information
-when you create the API keys. 
+when you create the API keys.
 
 See <<api-key-service-settings>> for configuration settings related to API key
 service.
@@ -51,10 +51,11 @@ The following parameters can be specified in the body of a POST or PUT request:
 `name`::
 (Required, string) Specifies the name for this API key.
 
+[[api-key-role-descriptors]]
 `role_descriptors`::
 (Optional, array-of-role-descriptor) An array of role descriptors for this API
 key. This parameter is optional. When it is not specified or is an empty array,
-then the API key will have a _point in time snapshot of permissions of the 
+then the API key will have a _point in time snapshot of permissions of the
 authenticated user_. If you supply role descriptors then the resultant permissions
 would be an intersection of API keys permissions and authenticated user's permissions
 thereby limiting the access scope for API keys.
@@ -74,6 +75,11 @@ authentication; it will not have authority to call {es} APIs.
 (Optional, string) Expiration time for the API key. By default, API keys never
 expire.
 
+`metadata`::
+(Optional, object) Arbitrary metadata that you want to associate with the API key.
+It supports nested data structure.
+Within the `metadata` object, keys beginning with `_` are reserved for
+system usage.
 
 [[security-api-create-api-key-example]]
 ==== {api-examples-title}
@@ -81,11 +87,11 @@ expire.
 The following example creates an API key:
 
 [source,console]
-------------------------------------------------------------
+----
 POST /_security/api_key
 {
   "name": "my-api-key",
-  "expiration": "1d", <1>
+  "expiration": "1d",   <1>
   "role_descriptors": { <2>
     "role-a": {
       "cluster": ["all"],
@@ -105,50 +111,103 @@ POST /_security/api_key
         }
       ]
     }
+  },
+  "metadata": {
+    "application": "my-application",
+    "environment": {
+       "level": 1,
+       "trusted": true,
+       "tags": ["dev", "staging"]
+    }
   }
 }
-------------------------------------------------------------
-<1> optional expiration for the API key being generated. If expiration is not
+----
+<1> Optional expiration for the API key being generated. If expiration is not
  provided then the API keys do not expire.
-<2> optional role descriptors for this API key, if not provided then permissions
- of authenticated user are applied.
+<2> Optional role descriptors for this API key. If not provided, permissions
+ of the authenticated user are applied.
 
 A successful call returns a JSON structure that provides
 API key information.
 
 [source,console-result]
---------------------------------------------------
+----
 {
-  "id":"VuaCfGcBCdbkQm-e5aOx", <1>
+  "id":"VuaCfGcBCdbkQm-e5aOx",       <1>
   "name":"my-api-key",
-  "expiration":1544068612110, <2>
+  "expiration":1544068612110,        <2>
   "api_key":"ui2lp2axTNmsyakw9tvNnw" <3>
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TESTRESPONSE[s/1544068612110/$body.expiration/]
 // TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
-<1> unique id for this API key
-<2> optional expiration in milliseconds for this API key
-<3> generated API key
+<1> Unique `id` for this API key
+<2> Optional expiration in milliseconds for this API key
+<3> Generated API key
 
-The API key returned by this API can then be used by sending a request with an
-`Authorization` header with a value having the prefix `ApiKey` followed
-by the _credentials_, where _credentials_ are the base64 encoding of `id` and `api_key` joined by a colon.
-
-NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then you must specify `https` when creating your API key.
+To use the generated API key, send a request with an `Authorization` header that
+contains an `ApiKey` prefix followed by the API key credentials. The credentials
+are a Base64-encoded string in UTF-8 format that you create by combining the
+`id` and `api_key` with a colon (`:`). For example:
 
 [source,shell]
---------------------------------------------------
-curl -H "Authorization: ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==" http://localhost:9200/_cluster/health
---------------------------------------------------
+----
+curl -H "Authorization: ApiKey <credentials>" \
+http://localhost:9200/_cluster/health\?pretty <1>
+----
 // NOTCONSOLE
+<1> If your node has `xpack.security.http.ssl.enabled` set to `true`, then you
+must specify `https` when creating your API key
 
-One way to create the credentials from CLI on an Unix-like system is as the follows:
+.Use UTF-8 encoding
+****
+When converting the concatenated String of `id` and `api_key` into bytes, the
+format must be UTF-8. Authentication will fail if you use UTF-16 or UTF-32
+encoding.
+
+If you're concatenating `id` and `api_key` and then getting the bytes of that
+String from the command line (like in <<concat-api-key,this example>>), the
+`echo` command defaults to ASCII formatting, which is equivalent to UTF-8
+encoding.
+
+However, some other tools require an explicit encoding when converting a String
+into bytes. For example, in Java, you might use something like the following
+code, which assumes that `result` is the response from the create API key API.
+This conversion ensures that the bytes of the concatenated string is in UTF-8
+format:
+
+[source,java]
+----
+var bytes = (result.id + ":" + result.api_key).getBytes(StandardCharsets.UTF_8);
+var header = "ApiKey " + Base64.getEncoder().encodeToString(bytes);
+----
+****
+
+On a Unix-like system, the following command combines the `id` and `api_key`
+from the previous response. The concatenation of these parameters should be in
+UTF-8 format:
+
+[[concat-api-key]]
+[source,shell]
+----
+echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64 <1>
+----
+<1> Use `-n` so that the `echo` command doesn't print the trailing newline
+character
+
+The command outputs a Base64-encoded String:
 
 [source,shell]
 ----
-# Please note the use of "-n" to instruct echo to not print the trailing newline character.
-# It should return VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==
-echo -n "VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw" | base64
+VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==
 ----
+
+Use this String in a request to authenticate with your cluster:
+
+[source,shell]
+----
+curl -H "Authorization: ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==" \
+http://localhost:9200/_cluster/health\?pretty
+----
+// NOTCONSOLE

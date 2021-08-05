@@ -4,7 +4,7 @@
 
 Phases allowed: hot.
 
-Rolls over a target to a new index when the existing index meets one of the rollover conditions.
+Rolls over a target to a new index when the existing index meets one or more of the rollover conditions.
 
 IMPORTANT: If the rollover action is used on a <<ccr-put-follow,follower index>>,
 policy execution waits until the leader index rolls over (or is
@@ -12,16 +12,16 @@ policy execution waits until the leader index rolls over (or is
 then converts the follower index into a regular index with the
 <<ilm-unfollow, Unfollow action>>.
 
-A rollover target can be a <<data-streams, data stream>> or an <<indices-aliases, index alias>>.
-When targeting a data stream, the new index becomes the data stream's
-<<data-stream-write-index,write index>> and its generation is incremented.
+A rollover target can be a <<data-streams, data stream>> or an <<alias,index
+alias>>. When targeting a data stream, the new index becomes the data stream's
+write index and its generation is incremented.
 
-To roll over an <<indices-aliases, index alias>>, the alias and its write index
-must meet the following conditions:
+To roll over an index alias, the alias and its write index must meet the
+following conditions:
 
 * The index name must match the pattern '^.*-\\d+$', for example (`my-index-000001`).
 * The `index.lifecycle.rollover_alias` must be configured as the alias to roll over.
-* The index must be the <<indices-rollover-is-write-index, write index>> for the alias.
+* The index must be the <<write-index,write index>> for the alias.
 
 For example, if `my-index-000001` has the alias `my_data`,
 the following settings must be configured.
@@ -48,23 +48,24 @@ PUT my-index-000001
 You must specify at least one rollover condition.
 An empty rollover action is invalid.
 
+// tag::rollover-conditions[]
 `max_age`::
 (Optional,  <<time-units, time units>>)
-Triggers roll over after the maximum elapsed time from index creation is reached.
+Triggers rollover after the maximum elapsed time from index creation is reached.
 The elapsed time is always calculated since the index creation time, even if the
-index origination date is configured to a custom date (via the
+index origination date is configured to a custom date, such as when using the
 <<index-lifecycle-parse-origination-date, index.lifecycle.parse_origination_date>> or
-<<index-lifecycle-origination-date, index.lifecycle.origination_date>> settings)
+<<index-lifecycle-origination-date, index.lifecycle.origination_date>> settings.
 
 `max_docs`::
 (Optional, integer)
-Triggers roll over after the specified maximum number of documents is reached.
+Triggers rollover after the specified maximum number of documents is reached.
 Documents added since the last refresh are not included in the document count.
 The document count does *not* include documents in replica shards.
 
 `max_size`::
 (Optional, <<byte-units, byte units>>)
-Triggers roll over when the index reaches a certain size.
+Triggers rollover when the index reaches a certain size.
 This is the total size of all primary shards in the index.
 Replicas are not counted toward the maximum index size.
 +
@@ -73,13 +74,14 @@ The `pri.store.size` value shows the combined size of all primary shards.
 
 `max_primary_shard_size`::
 (Optional, <<byte-units, byte units>>)
-Triggers roll over when the largest primary shard in the index reaches a certain size.
+Triggers rollover when the largest primary shard in the index reaches a certain size.
 This is the maximum size of the primary shards in the index. As with `max_size`,
 replicas are ignored.
 +
 TIP: To see the current shard size, use the <<cat-shards, _cat shards>> API.
 The `store` value shows the size each shard, and `prirep` indicates whether a
 shard is a primary (`p`) or a replica (`r`).
+// end::rollover-conditions[]
 
 [[ilm-rollover-ex]]
 ==== Example

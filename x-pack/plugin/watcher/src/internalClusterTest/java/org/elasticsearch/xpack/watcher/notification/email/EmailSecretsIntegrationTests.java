@@ -61,7 +61,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         if (encryptSensitiveData == null) {
             encryptSensitiveData = randomBoolean();
             if (encryptSensitiveData) {
@@ -69,7 +69,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
             }
         }
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put("xpack.notification.email.account.test.smtp.auth", true)
                 .put("xpack.notification.email.account.test.smtp.port", server.port())
                 .put("xpack.notification.email.account.test.smtp.host", "localhost")

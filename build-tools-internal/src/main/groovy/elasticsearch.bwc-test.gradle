@@ -1,0 +1,37 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+ext.bwcTaskName = { Version version ->
+  return "v${version}#bwcTest"
+}
+
+def bwcTestSnapshots = tasks.register("bwcTestSnapshots") {
+  if (project.bwc_tests_enabled) {
+    dependsOn tasks.matching { task -> BuildParams.bwcVersions.unreleased.any { version -> bwcTaskName(version) == task.name } }
+  }
+}
+
+tasks.register("bwcTest") {
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
+
+  if (project.bwc_tests_enabled) {
+    dependsOn tasks.matching { it.name ==~ /v[0-9\.]+#bwcTest/ }
+  }
+}
+
+tasks.withType(Test).configureEach {
+  onlyIf { project.bwc_tests_enabled }
+  nonInputProperties.systemProperty 'tests.bwc', 'true'
+}
+
+tasks.matching { it.name.equals("check") }.configureEach {dependsOn(bwcTestSnapshots) }
+tasks.matching { it.name.equals("test") }.configureEach {enabled = false}

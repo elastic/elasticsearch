@@ -7,17 +7,19 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
@@ -26,13 +28,17 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FILTER_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.INDEX_INCLUDE_FROZEN_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ALIVE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ON_COMPLETION_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PAGE_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.REQUEST_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.RUNTIME_MAPPINGS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 
 /**
  * Sql query request for JDBC/CLI client
@@ -52,11 +58,18 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final boolean fieldMultiValueLeniency;
     private final boolean indexIncludeFrozen;
     private final Boolean binaryCommunication;
+    @Nullable
+    private final Map<String, Object> runtimeMappings;
+    // Async settings
+    private final TimeValue waitForCompletionTimeout;
+    private final boolean keepOnCompletion;
+    private final TimeValue keepAlive;
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
                            TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
                            String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
-                           Boolean binaryCommunication) {
+                           Boolean binaryCommunication, Map<String, Object> runtimeMappings, TimeValue waitForCompletionTimeout,
+                           boolean keepOnCompletion, TimeValue keepAlive) {
         super(requestInfo);
         this.query = query;
         this.params = params;
@@ -70,12 +83,24 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.fieldMultiValueLeniency = fieldMultiValueLeniency;
         this.indexIncludeFrozen = indexIncludeFrozen;
         this.binaryCommunication = binaryCommunication;
+        this.runtimeMappings = runtimeMappings;
+        this.waitForCompletionTimeout = waitForCompletionTimeout;
+        this.keepOnCompletion = keepOnCompletion;
+        this.keepAlive = keepAlive;
     }
 
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
+                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
+                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
+                           Boolean binaryCommunication, Map<String, Object> runtimeMappings) {
+        this(query, params, zoneId, fetchSize, requestTimeout, pageTimeout, filter, columnar, cursor, requestInfo, fieldMultiValueLeniency,
+            indexIncludeFrozen, binaryCommunication, runtimeMappings, Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
+            Protocol.DEFAULT_KEEP_ON_COMPLETION, Protocol.DEFAULT_KEEP_ALIVE);
+    }
     public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo,
                            boolean binaryCommunication) {
-        this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
-                null, false, cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, binaryCommunication);
+        this("", emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout, null, false,
+                cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, binaryCommunication, emptyMap());
     }
 
     /**
@@ -156,6 +181,22 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         return binaryCommunication;
     }
 
+    public Map<String, Object> runtimeMappings() {
+        return runtimeMappings;
+    }
+
+    public TimeValue waitForCompletionTimeout() {
+        return waitForCompletionTimeout;
+    }
+
+    public boolean keepOnCompletion() {
+        return keepOnCompletion;
+    }
+
+    public TimeValue keepAlive() {
+        return keepAlive;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -179,13 +220,18 @@ public class SqlQueryRequest extends AbstractSqlRequest {
                 && Objects.equals(cursor, that.cursor)
                 && fieldMultiValueLeniency == that.fieldMultiValueLeniency
                 && indexIncludeFrozen == that.indexIncludeFrozen
-                && Objects.equals(binaryCommunication,  that.binaryCommunication);
+                && Objects.equals(binaryCommunication,  that.binaryCommunication)
+                && Objects.equals(runtimeMappings, that.runtimeMappings)
+                && Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout)
+                && keepOnCompletion == that.keepOnCompletion
+                && Objects.equals(keepAlive, that.keepAlive);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout,
-                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication);
+                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication, runtimeMappings,
+                waitForCompletionTimeout, keepOnCompletion, keepAlive);
     }
 
     @Override
@@ -237,6 +283,18 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         }
         if (cursor != null) {
             builder.field(CURSOR_NAME, cursor);
+        }
+        if (runtimeMappings.isEmpty() == false) {
+            builder.field(RUNTIME_MAPPINGS_NAME, runtimeMappings);
+        }
+        if (waitForCompletionTimeout != null) {
+            builder.field(WAIT_FOR_COMPLETION_TIMEOUT_NAME, waitForCompletionTimeout.getStringRep());
+        }
+        if (keepOnCompletion) {
+            builder.field(KEEP_ON_COMPLETION_NAME, keepOnCompletion);
+        }
+        if (keepAlive != null) {
+            builder.field(KEEP_ALIVE_NAME, keepAlive.getStringRep());
         }
         return builder;
     }

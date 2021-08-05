@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -17,13 +17,15 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -54,6 +57,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected final Map<String, NamedAnalyzer> indexAnalyzers;
     protected final MultiFields multiFields;
     protected final CopyTo copyTo;
+    protected final boolean hasScript;
+    protected final String onScriptError;
 
     /**
      * Create a FieldMapper with no index analyzers
@@ -64,8 +69,24 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
                           MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo);
+        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, false, null);
     }
+
+    /**
+     * Create a FieldMapper with no index analyzers
+     * @param simpleName        the leaf name of the mapper
+     * @param mappedFieldType   the MappedFieldType associated with this mapper
+     * @param multiFields       sub fields of this mapper
+     * @param copyTo            copyTo fields of this mapper
+     * @param hasScript         whether a script is defined for the field
+     * @param onScriptError     the behaviour for when the defined script fails at runtime
+     */
+    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                          MultiFields multiFields, CopyTo copyTo,
+                          boolean hasScript, String onScriptError) {
+        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, hasScript, onScriptError);
+    }
+
 
     /**
      * Create a FieldMapper with a single associated index analyzer
@@ -78,7 +99,26 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
                           NamedAnalyzer indexAnalyzer,
                           MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), indexAnalyzer), multiFields, copyTo);
+        this(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), indexAnalyzer), multiFields, copyTo,
+             false, null);
+    }
+
+    /**
+     * Create a FieldMapper with a single associated index analyzer
+     * @param simpleName        the leaf name of the mapper
+     * @param mappedFieldType   the MappedFieldType associated with this mapper
+     * @param indexAnalyzer     the index-time analyzer to use for this field
+     * @param multiFields       sub fields of this mapper
+     * @param copyTo            copyTo fields of this mapper
+     * @param hasScript         whether a script is defined for the field
+     * @param onScriptError     the behaviour for when the defined script fails at runtime
+     */
+    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                          NamedAnalyzer indexAnalyzer,
+                          MultiFields multiFields, CopyTo copyTo,
+                          boolean hasScript, String onScriptError) {
+        this(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), indexAnalyzer), multiFields, copyTo,
+            hasScript, onScriptError);
     }
 
     /**
@@ -89,10 +129,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      *                          the mapper will add
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
+     * @param hasScript         whether a script is defined for the field
+     * @param onScriptError     the behaviour for when the defined script fails at runtime
      */
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
                           Map<String, NamedAnalyzer> indexAnalyzers,
-                          MultiFields multiFields, CopyTo copyTo) {
+                          MultiFields multiFields, CopyTo copyTo,
+                          boolean hasScript, String onScriptError) {
         super(simpleName);
         if (mappedFieldType.name().isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
@@ -101,6 +144,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.indexAnalyzers = indexAnalyzers;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
+        this.hasScript = hasScript;
+        this.onScriptError = onScriptError;
     }
 
     @Override
@@ -139,10 +184,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Parse the field value using the provided {@link ParseContext}.
+     * Parse the field value using the provided {@link DocumentParserContext}.
      */
-    public void parse(ParseContext context) throws IOException {
+    public void parse(DocumentParserContext context) throws IOException {
         try {
+            if (hasScript) {
+                throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
+            }
             parseCreateField(context);
         } catch (Exception e) {
             String valuePreview = "";
@@ -168,24 +216,54 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Parse the field value and populate the fields on {@link ParseContext#doc()}.
+     * Parse the field value and populate the fields on {@link DocumentParserContext#doc()}.
      *
      * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
      * current failing token
      */
-    protected abstract void parseCreateField(ParseContext context) throws IOException;
+    protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
-    protected final void createFieldNamesField(ParseContext context) {
-        assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
-        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) context.getMetadataMapper(FieldNamesFieldMapper.NAME);
-        if (fieldNamesFieldMapper != null) {
-            FieldNamesFieldType fieldNamesFieldType = fieldNamesFieldMapper.fieldType();
-            if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
-                for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                    context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
-                }
+    /**
+     * @return whether this field mapper uses a script to generate its values
+     */
+    public final boolean hasScript() {
+        return hasScript;
+    }
+
+    /**
+     * Execute the index-time script associated with this field mapper.
+     *
+     * This method should only be called if {@link #hasScript()} has returned {@code true}
+     * @param searchLookup  a SearchLookup to be passed the script
+     * @param readerContext a LeafReaderContext exposing values from an incoming document
+     * @param doc           the id of the document to execute the script against
+     * @param documentParserContext  the ParseContext over the incoming document
+     */
+    public final void executeScript(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                    DocumentParserContext documentParserContext) {
+        try {
+            indexScriptValues(searchLookup, readerContext, doc, documentParserContext);
+        } catch (Exception e) {
+            if ("continue".equals(onScriptError)) {
+                documentParserContext.addIgnoredField(name());
+            } else {
+                throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
             }
         }
+    }
+
+    /**
+     * Run the script associated with the field and index the values that it emits
+     *
+     * This method should only be called if {@link #hasScript()} has returned {@code true}
+     * @param searchLookup  a SearchLookup to be passed the script
+     * @param readerContext a LeafReaderContext exposing values from an incoming document
+     * @param doc           the id of the document to execute the script against
+     * @param documentParserContext  the ParseContext over the incoming document
+     */
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        throw new UnsupportedOperationException("FieldMapper " + name() + " does not support [script]");
     }
 
     @Override
@@ -288,14 +366,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(simpleName());
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        doXContentBody(builder, includeDefaults, params);
+        doXContentBody(builder, params);
         return builder.endObject();
     }
 
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("type", contentType());
-        getMergeBuilder().toXContent(builder, includeDefaults);
+        getMergeBuilder().toXContent(builder, params);
         multiFields.toXContent(builder, params);
         copyTo.toXContent(builder, params);
     }
@@ -336,6 +413,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return this;
             }
 
+            public boolean hasMultiFields() {
+                return mapperBuilders.isEmpty() == false;
+            }
+
             public MultiFields build(Mapper.Builder mainFieldBuilder, ContentPath contentPath) {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
@@ -359,7 +440,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             this.mappers = mappers;
         }
 
-        public void parse(FieldMapper mainField, ParseContext context) throws IOException {
+        public void parse(FieldMapper mainField, DocumentParserContext context) throws IOException {
             // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
             // of the mappings
             if (mappers.isEmpty()) {
@@ -446,6 +527,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return this;
             }
 
+            public boolean hasValues() {
+                return copyToBuilders.isEmpty() == false;
+            }
+
             public CopyTo build() {
                 if (copyToBuilders.isEmpty()) {
                     return EMPTY;
@@ -498,7 +583,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         public final String name;
         private final List<String> deprecatedNames = new ArrayList<>();
         private final Supplier<T> defaultValue;
-        private final TriFunction<String, ParserContext, Object, T> parser;
+        private final TriFunction<String, MappingParserContext, Object, T> parser;
         private final Function<FieldMapper, T> initializer;
         private boolean acceptsNull = false;
         private Consumer<T> validator = null;
@@ -509,6 +594,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
+        private final List<Parameter<?>> requires = new ArrayList<>();
+        private final List<Parameter<?>> precludes = new ArrayList<>();
 
         /**
          * Creates a new Parameter
@@ -519,7 +606,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param initializer   a function that reads a parameter value from an existing mapper
          */
         public Parameter(String name, boolean updateable, Supplier<T> defaultValue,
-                         TriFunction<String, ParserContext, Object, T> parser, Function<FieldMapper, T> initializer) {
+                         TriFunction<String, MappingParserContext, Object, T> parser, Function<FieldMapper, T> initializer) {
             this.name = name;
             this.defaultValue = Objects.requireNonNull(defaultValue);
             this.value = null;
@@ -565,6 +652,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         public Parameter<T> acceptsNull() {
             this.acceptsNull = true;
             return this;
+        }
+
+        public boolean canAcceptNull() {
+            return acceptsNull;
         }
 
         /**
@@ -639,9 +730,31 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
+        public Parameter<T> requiresParameters(Parameter<?>... ps) {
+            this.requires.addAll(Arrays.asList(ps));
+            return this;
+        }
+
+        public Parameter<T> precludesParameters(Parameter<?>... ps) {
+            this.precludes.addAll(Arrays.asList(ps));
+            return this;
+        }
+
         private void validate() {
             if (validator != null) {
                 validator.accept(getValue());
+            }
+            if (this.isConfigured()) {
+                for (Parameter<?> p : requires) {
+                    if (p.isConfigured() == false) {
+                        throw new IllegalArgumentException("Field [" + name + "] requires field [" + p.name + "] to be configured");
+                    }
+                }
+                for (Parameter<?> p : precludes) {
+                    if (p.isConfigured()) {
+                        throw new IllegalArgumentException("Field [" + p.name + "] cannot be set in conjunction with field [" + name + "]");
+                    }
+                }
             }
         }
 
@@ -649,7 +762,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             setValue(initializer.apply(toInit));
         }
 
-        private void parse(String field, ParserContext context, Object in) {
+        /**
+         * Parse the field value from an Object
+         * @param field     the field name
+         * @param context   the parser context
+         * @param in        the object
+         */
+        public void parse(String field, MappingParserContext context, Object in) {
             setValue(parser.apply(field, context, in));
         }
 
@@ -823,6 +942,46 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
         }
 
+        /**
+         * Defines a script parameter
+         * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
+         * @return a script parameter
+         */
+        public static Parameter<Script> scriptParam(
+            Function<FieldMapper, Script> initializer
+        ) {
+            return new FieldMapper.Parameter<>(
+                "script",
+                false,
+                () -> null,
+                (n, c, o) -> {
+                    if (o == null) {
+                        return null;
+                    }
+                    Script script = Script.parse(o);
+                    if (script.getType() == ScriptType.STORED) {
+                        throw new IllegalArgumentException("stored scripts are not supported on field [" + n + "]");
+                    }
+                    return script;
+                },
+                initializer
+            ).acceptsNull();
+        }
+
+        /**
+         * Defines an on_script_error parameter
+         * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
+         * @param dependentScriptParam the corresponding required script parameter
+         * @return a new on_error_script parameter
+         */
+        public static Parameter<String> onScriptErrorParam(Function<FieldMapper, String> initializer,
+                                                           Parameter<Script> dependentScriptParam) {
+            return Parameter.restrictedStringParam(
+                "on_script_error",
+                true,
+                initializer,
+                "fail", "continue").requiresParameters(dependentScriptParam);
+        }
     }
 
     public static final class Conflicts {
@@ -856,7 +1015,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * A Builder for a ParametrizedFieldMapper
      */
-    public abstract static class Builder extends Mapper.Builder {
+    public abstract static class Builder extends Mapper.Builder implements ToXContentFragment {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
@@ -913,13 +1072,34 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return contentPath.pathAsText(name);
         }
 
+        protected void addScriptValidation(
+            Parameter<Script> scriptParam,
+            Parameter<Boolean> indexParam,
+            Parameter<Boolean> docValuesParam
+        ) {
+            scriptParam.setValidator(s -> {
+                if (s != null && indexParam.get() == false && docValuesParam.get() == false) {
+                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
+                }
+                if (s != null && multiFieldsBuilder.hasMultiFields()) {
+                    throw new MapperParsingException("Cannot define multifields on a field with a script");
+                }
+                if (s != null && copyTo.hasValues()) {
+                    throw new MapperParsingException("Cannot define copy_to parameter on a field with a script");
+                }
+            });
+        }
+
         /**
          * Writes the current builder parameter values as XContent
          */
-        public final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        @Override
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
+            return builder;
         }
 
         /**
@@ -928,7 +1108,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param parserContext     the parser context
          * @param fieldNode         the root node of the map of mappings for this field
          */
-        public final void parse(String name, ParserContext parserContext, Map<String, Object> fieldNode) {
+        public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();
             Map<String, Parameter<?>> deprecatedParamsMap = new HashMap<>();
             for (Parameter<?> param : getParameters()) {
@@ -1032,23 +1212,41 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
+    public static BiConsumer<String, MappingParserContext> notInMultiFields(String type) {
+        return (n, c) -> {
+            if (c.isWithinMultiField()) {
+                throw new MapperParsingException("Field [" + n + "] of type [" + type + "] can't be used in multifields");
+            }
+        };
+    }
+
     /**
      * TypeParser implementation that automatically handles parsing
      */
     public static final class TypeParser implements Mapper.TypeParser {
 
-        private final BiFunction<String, ParserContext, Builder> builderFunction;
+        private final BiFunction<String, MappingParserContext, Builder> builderFunction;
+        private final BiConsumer<String, MappingParserContext> contextValidator;
 
         /**
          * Creates a new TypeParser
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
-        public TypeParser(BiFunction<String, ParserContext, Builder> builderFunction) {
+        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
+            this(builderFunction, (n, c) -> {});
+        }
+
+        public TypeParser(
+            BiFunction<String, MappingParserContext, Builder> builderFunction,
+            BiConsumer<String, MappingParserContext> contextValidator
+        ) {
             this.builderFunction = builderFunction;
+            this.contextValidator = contextValidator;
         }
 
         @Override
-        public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
+            contextValidator.accept(name, parserContext);
             Builder builder = builderFunction.apply(name, parserContext);
             builder.parse(name, parserContext, node);
             return builder;

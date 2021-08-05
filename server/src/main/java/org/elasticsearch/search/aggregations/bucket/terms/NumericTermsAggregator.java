@@ -12,8 +12,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.DocValueFormat;
@@ -372,7 +372,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
-                0
+                0L
             );
         }
 
@@ -390,7 +390,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 0,
                 emptyList(),
-                0
+                0L
             );
         }
     }
@@ -454,7 +454,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
-                0
+                0L
             );
         }
 
@@ -472,7 +472,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 0,
                 emptyList(),
-                0
+                0L
             );
         }
     }

@@ -14,8 +14,8 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,11 +25,16 @@ import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -148,6 +153,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         nodes.removeAll(dataNodes.keys());
         nodes.removeAll(ingestNodes.keys());
         return nodes.build();
+    }
+
+    /**
+     * Return all the nodes as a collection
+     * @return
+     */
+    public Collection<DiscoveryNode> getAllNodes() {
+        return StreamSupport.stream(this.spliterator(), false).collect(Collectors.toUnmodifiableList());
     }
 
     /**
@@ -350,25 +363,33 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     if (index != -1) {
                         String matchAttrName = nodeId.substring(0, index);
                         String matchAttrValue = nodeId.substring(index + 1);
-                        if (DiscoveryNodeRole.DATA_ROLE.roleName().equals(matchAttrName)) {
-                            if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(dataNodes.keys());
+                        if (DiscoveryNodeRole.roles().stream()
+                            .map(DiscoveryNodeRole::roleName)
+                            .anyMatch(s -> s.equals(matchAttrName))) {
+                            final DiscoveryNodeRole role = DiscoveryNodeRole.getRoleFromRoleName(matchAttrName);
+                            final Predicate<Set<DiscoveryNodeRole>> predicate;
+                            if (role.equals(DiscoveryNodeRole.DATA_ROLE)) {
+                                // if the node has *any* role that can contain data, then it matches the data attribute
+                                predicate = s -> s.stream().anyMatch(DiscoveryNodeRole::canContainData);
+                            } else if (role.canContainData()) {
+                                // if the node has the matching data_ role, or the generic data role, then it matches the data_ attribute
+                                predicate = s -> s.stream().anyMatch(r -> r.equals(role) || r.equals(DiscoveryNodeRole.DATA_ROLE));
                             } else {
-                                resolvedNodesIds.removeAll(dataNodes.keys());
+                                // the role is not a data role, we require an exact match (e.g., ingest)
+                                predicate = s -> s.contains(role);
                             }
-                        } else if (DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName)) {
+                            final Function<String, Boolean> mutation;
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(masterNodes.keys());
+                                mutation = resolvedNodesIds::add;
                             } else {
-                                resolvedNodesIds.removeAll(masterNodes.keys());
+                                mutation = resolvedNodesIds::remove;
                             }
-                        } else if (DiscoveryNodeRole.INGEST_ROLE.roleName().equals(matchAttrName)) {
-                            if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(ingestNodes.keys());
-                            } else {
-                                resolvedNodesIds.removeAll(ingestNodes.keys());
+                            for (final DiscoveryNode node : this) {
+                                if (predicate.test(node.getRoles())) {
+                                    mutation.apply(node.getId());
+                                }
                             }
-                        } else if (DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
+                        } else if(DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
                             } else {
@@ -376,7 +397,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                             }
                         } else {
                             for (DiscoveryNode node : this) {
-                                for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.BUILT_IN_ROLES)) {
+                                for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.roles())) {
                                     if (role.roleName().equals(matchAttrName)) {
                                         if (Booleans.parseBoolean(matchAttrValue, true)) {
                                             resolvedNodesIds.add(node.getId());
@@ -679,14 +700,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             Version minNonClientNodeVersion = null;
             Version maxNonClientNodeVersion = null;
             for (ObjectObjectCursor<String, DiscoveryNode> nodeEntry : nodes) {
-                if (nodeEntry.value.isDataNode()) {
+                if (nodeEntry.value.canContainData()) {
                     dataNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                 }
                 if (nodeEntry.value.isMasterNode()) {
                     masterNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                 }
                 final Version version = nodeEntry.value.getVersion();
-                if (nodeEntry.value.isDataNode() || nodeEntry.value.isMasterNode()) {
+                if (nodeEntry.value.canContainData() || nodeEntry.value.isMasterNode()) {
                     if (minNonClientNodeVersion == null) {
                         minNonClientNodeVersion = version;
                         maxNonClientNodeVersion = version;

@@ -9,12 +9,14 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -23,7 +25,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
-import java.time.ZoneId;
 import java.util.Collections;
 import java.util.function.Supplier;
 
@@ -141,13 +142,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
-        MappedFieldType fieldType = new RuntimeFieldType("field", Collections.emptyMap(), null) {
-            @Override
-            protected Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ZoneId timeZone,
-                                       DateMathParser parser, SearchExecutionContext context) {
-                throw new UnsupportedOperationException();
-            }
-
+        MappedFieldType fieldType = new MappedFieldType("field", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
             @Override
             public String typeName() {
                 return null;
@@ -157,6 +152,11 @@ public class IndexSortSettingsTests extends ESTestCase {
             public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
                 searchLookup.get();
                 return null;
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -174,5 +174,38 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertEquals("docvalues not found for index sort field:[field]", iae.getMessage());
         assertThat(iae.getCause(), instanceOf(UnsupportedOperationException.class));
         assertEquals("index sorting not supported on runtime field [field]", iae.getCause().getMessage());
+    }
+
+    public void testSortingAgainstAliases() {
+        IndexSettings indexSettings = indexSettings(Settings.builder().put("index.sort.field", "field").build());
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+        NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
+        MappedFieldType mft = new KeywordFieldMapper.KeywordFieldType("aliased");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> config.buildIndexSort(
+            field -> mft,
+            (ft, s) -> indexFieldDataService.getForField(ft, "index", s)
+        ));
+        assertEquals("Cannot use alias [field] as an index sort field", e.getMessage());
+    }
+
+    public void testSortingAgainstAliasesPre713() {
+        IndexSettings indexSettings = indexSettings(Settings.builder()
+            .put("index.version.created", Version.V_7_12_0)
+            .put("index.sort.field", "field").build());
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+        NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
+        MappedFieldType mft = new KeywordFieldMapper.KeywordFieldType("aliased");
+        config.buildIndexSort(
+            field -> mft,
+            (ft, s) -> indexFieldDataService.getForField(ft, "index", s));
+
+        assertWarnings("Index sort for index [test] defined on field [field] which resolves to field [aliased]. " +
+            "You will not be able to define an index sort over aliased fields in new indexes");
     }
 }

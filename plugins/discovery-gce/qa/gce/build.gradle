@@ -7,9 +7,9 @@
  */
 
 
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.AntFixture
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.AntFixture
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
@@ -23,7 +23,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes'
+    include '_common', 'cluster', 'nodes'
   }
 }
 
@@ -41,7 +41,7 @@ Map<String, Object> expansions = [
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 tasks.named("yamlRestTest").configure {

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.collapse;
 
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -48,11 +49,11 @@ public class CollapseContext {
         return innerHits;
     }
 
-    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN) {
+    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, FieldDoc after) {
         if (fieldType.collapseType() == CollapseType.KEYWORD) {
-            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN);
+            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN, after);
         } else if (fieldType.collapseType() == CollapseType.NUMERIC) {
-            return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN);
+            return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN, after);
         } else {
             throw new IllegalStateException("collapse is not supported on this field type");
         }

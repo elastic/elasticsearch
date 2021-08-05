@@ -91,13 +91,14 @@ import org.elasticsearch.client.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.config.JobTests;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.JobUpdateTests;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.config.MlFilterTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -390,11 +391,24 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_match"));
     }
 
-    public void testPreviewDatafeed() {
+    public void testPreviewDatafeed() throws IOException {
         PreviewDatafeedRequest datafeedRequest = new PreviewDatafeedRequest("datafeed_1");
         Request request = MLRequestConverters.previewDatafeed(datafeedRequest);
-        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/datafeeds/" + datafeedRequest.getDatafeedId() + "/_preview", request.getEndpoint());
+        assertThat(request.getEntity(), is(nullValue()));
+
+        datafeedRequest = new PreviewDatafeedRequest(
+            DatafeedConfigTests.createRandom(),
+            randomBoolean() ? null : JobTests.createRandomizedJob()
+        );
+        request = MLRequestConverters.previewDatafeed(datafeedRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/datafeeds/_preview", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            PreviewDatafeedRequest parsedDatafeedRequest = PreviewDatafeedRequest.PARSER.apply(parser, null);
+            assertThat(parsedDatafeedRequest, equalTo(datafeedRequest));
+        }
     }
 
     public void testDeleteForecast() {

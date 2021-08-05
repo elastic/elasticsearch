@@ -27,7 +27,7 @@ A role is defined by the following JSON structure:
     makes authorization decisions based solely on the action being executed.
     A global privilege also considers the parameters included in the request.
     Support for global privileges is currently limited to the management of
-    application privileges.  This field is optional.
+    application privileges. This field is optional.
 <4> A list of indices permissions entries. This field is optional (missing `indices`
     privileges effectively mean no index level permissions).
 <5> A list of application privilege entries. This field is optional.
@@ -55,8 +55,8 @@ The following describes the structure of an indices permissions entry:
 -------
 // NOTCONSOLE
 
-<1> A list of data streams, indices, and index aliases to which the permissions
-    in this entry apply. Wildcard (`*`) expressions are supported.
+<1> A list of data streams, indices, and aliases to which the permissions
+    in this entry apply. Supports wildcards (`*`).
 <2> The index level privileges the owners of the role have on the associated
     data streams and indices specified in the `names` argument.
 <3> Specification for document fields the owners of the role have read access to.
@@ -70,13 +70,13 @@ The following describes the structure of an indices permissions entry:
     **Toggling this flag is most discouraged because it could effectively grant
     superuser privileges.** If however, for administrative purposes, you need to
     create a role with privileges covering restricted indices, you must set
-    this field to `true` (default  is `false`), and then the `names` field will
+    this field to `true` (default is `false`), and then the `names` field will
     cover the restricted indices as well.
 
 [TIP]
 ==============================================================================
 The `names` parameter accepts wildcard and regular expressions that may refer to
-multiple data streams, indices, and index aliases.
+multiple data streams, indices, and aliases.
 
 * Wildcard (default) - simple wildcard matching where `*` is a placeholder
   for zero or more characters, `?` is a placeholder for a single character
@@ -186,7 +186,7 @@ TIP:  For a complete list of available <<security-privileges, cluster and indice
 
 There are two available mechanisms to define roles: using the _Role Management APIs_
 or in local files on the {es} nodes. You can also implement
-custom roles providers.  If you need to integrate with another system to retrieve
+custom roles providers. If you need to integrate with another system to retrieve
 user roles, you can build a custom roles provider plugin. For more information,
 see <<custom-roles-authorization>>.
 

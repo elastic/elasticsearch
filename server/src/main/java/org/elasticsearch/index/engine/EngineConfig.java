@@ -15,15 +15,14 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -83,7 +82,6 @@ public final class EngineConfig {
     }
 
     private final LongSupplier primaryTermSupplier;
-    private final TombstoneDocSupplier tombstoneDocSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -133,7 +131,6 @@ public final class EngineConfig {
             LongSupplier globalCheckpointSupplier,
             Supplier<RetentionLeases> retentionLeasesSupplier,
             LongSupplier primaryTermSupplier,
-            TombstoneDocSupplier tombstoneDocSupplier,
             IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -171,7 +168,6 @@ public final class EngineConfig {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.primaryTermSupplier = primaryTermSupplier;
-        this.tombstoneDocSupplier = tombstoneDocSupplier;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
     }
 
@@ -352,27 +348,6 @@ public final class EngineConfig {
      */
     public LongSupplier getPrimaryTermSupplier() {
         return primaryTermSupplier;
-    }
-
-    /**
-     * A supplier supplies tombstone documents which will be used in soft-update methods.
-     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
-     */
-    public interface TombstoneDocSupplier {
-        /**
-         * Creates a tombstone document for a delete operation.
-         */
-        ParsedDocument newDeleteTombstoneDoc(String id);
-
-        /**
-         * Creates a tombstone document for a noop operation.
-         * @param reason the reason of an a noop
-         */
-        ParsedDocument newNoopTombstoneDoc(String reason);
-    }
-
-    public TombstoneDocSupplier getTombstoneDocSupplier() {
-        return tombstoneDocSupplier;
     }
 
     public IndexStorePlugin.SnapshotCommitSupplier getSnapshotCommitSupplier() {

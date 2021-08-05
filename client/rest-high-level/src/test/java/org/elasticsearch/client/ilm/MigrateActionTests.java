@@ -9,6 +9,7 @@ package org.elasticsearch.client.ilm;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 
@@ -31,5 +32,11 @@ public class MigrateActionTests extends AbstractXContentTestCase<MigrateAction> 
     @Override
     protected boolean supportsUnknownFields() {
         return false;
+    }
+
+    public void testEqualsHashCode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(),
+            m -> new MigrateAction(m.isEnabled()),
+            m -> new MigrateAction(m.isEnabled() == false));
     }
 }

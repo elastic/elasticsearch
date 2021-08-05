@@ -28,7 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
@@ -63,8 +63,8 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
@@ -177,9 +177,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
                 .put(XPackSettings.AUDIT_ENABLED.getKey(), false) // Just to make logs less noisy
                 .build();

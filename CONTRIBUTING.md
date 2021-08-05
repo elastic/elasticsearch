@@ -110,11 +110,11 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 15 is required to build Elasticsearch. You must have a JDK 15 installation
+JDK 16 is required to build Elasticsearch. You must have a JDK 16 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 15 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 16 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 15 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 16 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
@@ -151,9 +151,9 @@ and then run `curl` in another window like this:
 ### Importing the project into IntelliJ IDEA
 
 The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
-Elasticsearch builds using Java 15. When importing into IntelliJ you will need
+Elasticsearch builds using Java 16. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"15"** so that the project import will detect it automatically. For more details
+"16"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will
@@ -174,49 +174,36 @@ file is generated automatically after IntelliJ finishes syncing. You can
 manually generate the file with `./gradlew configureIdeCheckstyle` in case
 it is removed due to a `./gradlew clean` or other action.
 
-   1. Open **Preferences > Tools > Checkstyle**
-   2. We have some custom Checkstyle rules, and the Checkstyle plugin needs
-      to know where to find them. Under the "Third-Party Checks" section,
-      click the "+" button.
-   3. Select `buildSrc/build-bootstrap/libs/buildSrc-$VERSION.jar` where
-      `$VERSION` is something like `7.0.0-SNAPSHOT`. This jar file will
-      always exist if you imported the project into IntelliJ before
-      configuring Checkstyle.
-   4. Make sure that "Checkstyle version" is set to the highest available version
-   5. Change the "Scan Scope" to "Only Java sources (including tests)"
-   6. Click the "+" under "Configuration file"
-   7. Set "Description" to "Elasticsearch"
-   8. Select "Use a local Checkstyle file"
-   9. For the "File", enter `checkstyle_ide.xml`
-   10. Tick "Store relative to project location"
-   11. Click "Next", then "Finish".
-   12. Click the box next to the new configuration to make it "Active".
-       Without doing this, you'll have to explicitly choose the
-       "Elasticsearch" configuration in the Checkstyle tool window and run
-       the check manually.
-   13. Click "OK" to apply the new preferences
+IntelliJ should be automatically configured to use the generated rules after
+import via the `.idea/checkstyle-idea.xml` configuration file. No further
+action is required.
 
 #### Formatting
 
 We are in the process of migrating towards automatic formatting Java file
-using [spotless], backed by the Eclipse formatter. If you have the [Eclipse
-Code Formatter] installed, you can apply formatting directly in IntelliJ.
+using [spotless], backed by the Eclipse formatter. **We strongly recommend
+installing using the [Eclipse Code Formatter] plugin** so that you can
+apply the correct formatting directly in IntelliJ.  The configuration for
+the plugin is held in `.idea/eclipseCodeFormatter.xml` and should be
+automatically applied, but manual instructions are below in case you you
+need them.
 
    1. Open **Preferences > Other Settings > Eclipse Code Formatter**
    2. Click "Use the Eclipse Code Formatter"
    3. Under "Eclipse formatter config", select "Eclipse workspace/project
       folder or config file"
-   4. Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
+   4. Click "Browse", and navigate to the file `build-tools-internal/formatterConfig.xml`
    5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
    6. Click "OK"
 
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**
-automatically formatted in [gradle/formatting.gradle](gradle/formatting.gradle).
+automatically formatted in
+[build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle](build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle).
 
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 15. When importing into Eclipse you
+Elasticsearch builds using Gradle and Java 16. When importing into Eclipse you
 will either need to use an appropriate JDK to run Eclipse itself (e.g. by
 specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
 defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
@@ -246,7 +233,7 @@ Next you'll want to import our auto-formatter:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Formatter**
  - Click **Import**
- - Import the file at **buildSrc/formatterConfig.xml**
+ - Import the file at **build-tools-internal/formatterConfig.xml**
  - Make sure it is the **Active profile**
 
 Finally, set up import order:
@@ -254,7 +241,7 @@ Finally, set up import order:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Organize Imports**
  - Click **Import...**
- - Import the file at **buildSrc/elastic.importorder**
+ - Import the file at **build-tools-internal/elastic.importorder**
  - Set the **Number of imports needed for `.*`** to ***9999***
  - Set the **Number of static imports needed for `.*`** to ***9999*** as well
  - Apply that
@@ -288,12 +275,10 @@ form.
 
 ### Java Language Formatting Guidelines
 
-Java files in the Elasticsearch codebase are formatted with the Eclipse JDT
-formatter, using the [Spotless
-Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle)
-plugin. This plugin is configured on a project-by-project basis, via
-`build.gradle` in the root of the repository. The formatting check can be
-run explicitly with:
+Java files in the Elasticsearch codebase are automatically formatted using
+the [Spotless Gradle] plugin. All new projects are automatically formatted,
+while existing projects are gradually being opted-in. The formatting check
+can be run explicitly with:
 
     ./gradlew spotlessJavaCheck
 
@@ -333,27 +318,11 @@ Please follow these formatting guidelines:
 
 IntelliJ IDEs can
 [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
-the same settings file, and / or use the [Eclipse Code
-Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
-plugin.
+the same settings file, and / or use the [Eclipse Code Formatter] plugin.
 
 You can also tell Spotless to [format a specific
 file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files)
 from the command line.
-
-#### Formatting failures
-
-Sometimes Spotless will report a "misbehaving rule which can't make up its
-mind" and will recommend enabling the `paddedCell()` setting. If you
-enabled this setting and run the format check again,
-Spotless will write files to
-`$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
-different copies of the formatted files, so that you can see how they
-differ and infer what is the problem.
-
-The `paddedCell()` option is disabled for normal operation so that any
-misbehaviour is detected, and not just suppressed. You can enabled the
-option from the command line by running Gradle with `-Dspotless.paddedcell`.
 
 ### Javadoc
 
@@ -436,11 +405,16 @@ is to be helpful, not to turn writing code into a chore.
        regular comments in the code. Remember as well that Elasticsearch
        has extensive [user documentation](./docs), and it is not the role
        of Javadoc to replace that.
+        * If a method's performance is "unexpected" then it's good to call that
+           out in the Javadoc. This is especially helpful if the method is usually fast but sometimes
+           very slow (shakes fist at caching).
    12. Please still try to make class, method or variable names as
        descriptive and concise as possible, as opposed to relying solely on
        Javadoc to describe something.
-   13. Use `@link` and `@see` to add references, either to related
-       resources in the codebase or to relevant external resources.
+   13. Use `@link` to add references to related resources in the codebase. Or
+       outside the code base.
+       1. `@see` is much more limited than `@link`. You can use it but most of
+          the time `@link` flows better.
    14. If you need help writing Javadoc, just ask!
 
 Finally, use your judgement! Base your decisions on what will help other
@@ -743,3 +717,4 @@ repeating in this section because it has come up in this context.
 [Checkstyle]: https://plugins.jetbrains.com/plugin/1065-checkstyle-idea
 [spotless]: https://github.com/diffplug/spotless
 [Eclipse Code Formatter]: https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter
+[Spotless Gradle]: https://github.com/diffplug/spotless/tree/master/plugin-gradle

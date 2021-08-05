@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -48,7 +48,6 @@ public class ReopenJobWithGapIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 

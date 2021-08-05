@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-put-lifecycle]]
-=== Create lifecycle policy API
+=== Create or update lifecycle policy API
 ++++
-<titleabbrev>Create policy</titleabbrev>
+<titleabbrev>Create or update lifecycle policy</titleabbrev>
 ++++
 
 Creates or updates lifecycle policy. See <<ilm-policy-definition>> for
@@ -47,13 +47,23 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[ilm-put-lifecycle-example]]
 ==== {api-examples-title}
 
-The following example creates a new policy named `my_policy`:
+The following example creates a new policy named `my_policy`. In addition, you can use the
+`_meta` parameter to add arbitrary metadata to the policy, the `_meta` parameter is optional
+and not automatically generated or used by Elasticsearch. To unset `_meta`, replace the policy
+without specifying one. To check the `_meta`, you can use the <<ilm-get-lifecycle,Get lifecycle policy>> API.
 
 [source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
   "policy": {
+    "_meta": {
+      "description": "used for nginx log",
+      "project": {
+        "name": "myProject",
+        "department": "myDepartment"
+      }
+    },
     "phases": {
       "warm": {
         "min_age": "10d",

@@ -7,29 +7,79 @@
 ++++
 
 The following limitations and known problems apply to the {version} release of 
-the Elastic {transform} feature:
+the Elastic {transform} feature. The limitations are grouped into the following 
+categories:
+
+* <<transform-config-limitations>> apply to the configuration process of the 
+  {transforms}.
+* <<transform-operational-limitations>> affect the behavior of the {transforms} 
+  that are running.
+* <<transform-ui-limitations>> only apply to {transforms} managed via the user 
+  interface.
+
 
 [discrete]
-[[transform-space-limitations]]
-== {transforms-cap} are visible in all {kib} spaces
-
-{kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and 
-destination indices and other saved objects in {kib} and to see only the objects 
-that belong to your space. However, this limited scope does not apply to 
-{transforms}; they are visible in all spaces.
+[[transform-config-limitations]]
+== Configuration limitations
 
 [discrete]
-[[transform-ui-limitation]]
-== {transforms-cap} UI will not work during a rolling upgrade from 7.2
+[[transforms-ccs-limitation]]
+=== {transforms-cap} support {ccs} if the remote cluster is configured properly
 
-If your cluster contains mixed version nodes, for example during a rolling 
-upgrade from 7.2 to a newer version, and {transforms} have been created in 7.2, 
-the {transforms} UI (earler {dataframe} UI) will not work. Please wait until all 
-nodes have been upgraded to the newer version before using the {transforms} UI.
+If you use <<modules-cross-cluster-search,{ccs}>>, the remote cluster must 
+support the search and aggregations you use in your {transforms}. 
+{transforms-cap} validate their configuration; if you use {ccs} and the 
+validation fails, make sure that the remote cluster supports the query and 
+aggregations you use.
+
+[discrete]
+[[transform-painless-limitation]]
+=== Using scripts in {transforms}
+
+{transforms-cap} support scripting in every case when aggregations support them. 
+However, there are certain factors you might want to consider when using scripts 
+in {transforms}:
+
+* {transforms-cap} cannot deduce index mappings for output fields when the 
+  fields are created by a script. In this case, you might want to create the 
+  mappings of the destination index yourself prior to creating the transform.
+
+* Scripted fields may increase the runtime of the {transform}.
+  
+* {transforms-cap} cannot optimize queries when you use scripts for all the 
+  groupings defined in `group_by`, you will receive a warning message when you 
+  use scripts this way.
+  
+[discrete]
+[[transform-runtime-field-limitation]]
+=== {transforms-cap} perform better on indexed fields
+
+{transforms-cap} sort data by a user-defined time field, which is frequently 
+accessed. If the time field is a {ref}/runtime.html[runtime field], the 
+performance impact of calculating field values at query time can significantly 
+slow the {transform}. Use an indexed field as a time field when using 
+{transforms}.
+
+[discrete]
+[[transform-scheduling-limitations]]
+=== {ctransform-cap} scheduling limitations
+
+A {ctransform} periodically checks for changes to source data. The functionality
+of the scheduler is currently limited to a basic periodic timer which can be 
+within the `frequency` range from 1s to 1h. The default is 1m. This is designed 
+to run little and often. When choosing a `frequency` for this timer consider 
+your ingest rate along with the impact that the {transform} 
+search/index operations has other users in your cluster. Also note that retries 
+occur at `frequency` interval.
+
+
+[discrete]
+[[transform-operational-limitations]]
+== Operational limitations
 
 [discrete]
 [[transform-rolling-upgrade-limitation]]
-== {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
+=== {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
 
 If your cluster contains mixed version nodes, for example during a rolling
 upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped 
@@ -37,27 +87,10 @@ will not be reassigned until the upgrade is complete. After the upgrade is done,
 {transforms} resume automatically; no action is required.
 
 [discrete]
-[[transform-datatype-limitations]]
-== {dataframe-cap} data type limitation
-
-{dataframes-cap} do not (yet) support fields containing arrays – in the UI or 
-the API. If you try to create one, the UI will fail to show the source index 
-table.
-
-[discrete]
-[[transform-kibana-limitations]]
-== Up to 1,000 {transforms} are supported
-
-A single cluster will support up to 1,000 {transforms}. When using the 
-<<get-transform,GET {transforms} API>> a total `count` of {transforms} 
-is returned. Use the `size` and `from` parameters to enumerate through the full 
-list.
-
-[discrete]
 [[transform-aggresponse-limitations]]
-== Aggregation responses may be incompatible with destination index mappings
+=== Aggregation responses may be incompatible with destination index mappings
 
-When a {transform} is first started, it will deduce the mappings 
+When a pivot {transform} is first started, it will deduce the mappings 
 required for the destination index. This process is based on the field types of 
 the source index and the aggregations used. If the fields are derived from 
 <<search-aggregations-metrics-scripted-metric-aggregation,`scripted_metrics`>>
@@ -68,19 +101,19 @@ overflows might occur or dynamically mapped fields might contain both numbers
 and strings. Please check {es} logs if you think this may have occurred. 
 
 You can view the deduced mappings by using the 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html[Preview transform API].
+<<preview-transform,preview transform API>>.
 See the `generated_dest_index` object in the API response.
 
 If it's required, you may define custom mappings prior to starting the 
 {transform} by creating a custom destination index using the 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API].
-As deduced mappings cannot be overwritten by an index template, use the Create 
+<<indices-create-index,create index API>>.
+As deduced mappings cannot be overwritten by an index template, use the create 
 index API to define custom mappings. The index templates only apply to fields 
 derived from scripts that use dynamic mappings. 
 
 [discrete]
 [[transform-batch-limitations]]
-== Batch {transforms} may not account for changed documents
+=== Batch {transforms} may not account for changed documents
 
 A batch {transform} uses a 
 <<search-aggregations-bucket-composite-aggregation,composite aggregation>>
@@ -91,7 +124,7 @@ results may not include these changes.
 
 [discrete]
 [[transform-consistency-limitations]]
-== {ctransform-cap} consistency does not account for deleted or updated documents
+=== {ctransform-cap} consistency does not account for deleted or updated documents
 
 While the process for {transforms} allows the continual recalculation of the 
 {transform} as new data is being ingested, it does also have some limitations.
@@ -115,7 +148,7 @@ viewing the destination index.
 
 [discrete]
 [[transform-deletion-limitations]]
-== Deleting a {transform} does not delete the destination index or {kib} index pattern
+=== Deleting a {transform} does not delete the destination index or {kib} index pattern
 
 When deleting a {transform} using `DELETE _transform/index` 
 neither the destination index nor the {kib} index pattern, should one have been 
@@ -123,7 +156,7 @@ created, are deleted. These objects must be deleted separately.
 
 [discrete]
 [[transform-aggregation-page-limitations]]
-== Handling dynamic adjustment of aggregation page size
+=== Handling dynamic adjustment of aggregation page size
 
 During the development of {transforms}, control was favoured over performance. 
 In the design considerations, it is preferred for the {transform} to take longer 
@@ -152,7 +185,7 @@ its minimum, then the {transform} will be set to a failed state.
 
 [discrete]
 [[transform-dynamic-adjustments-limitations]]
-== Handling dynamic adjustments for many terms
+=== Handling dynamic adjustments for many terms
 
 For each checkpoint, entities are identified that have changed since the last 
 time the check was performed. This list of changed entities is supplied as a 
@@ -173,20 +206,8 @@ Using smaller values for `max_page_search_size` may result in a longer duration
 for the {transform} checkpoint to complete.
 
 [discrete]
-[[transform-scheduling-limitations]]
-== {ctransform-cap} scheduling limitations
-
-A {ctransform} periodically checks for changes to source data. The functionality
-of the scheduler is currently limited to a basic periodic timer which can be 
-within the `frequency` range from 1s to 1h. The default is 1m. This is designed 
-to run little and often. When choosing a `frequency` for this timer consider 
-your ingest rate along with the impact that the {transform} 
-search/index operations has other users in your cluster. Also note that retries 
-occur at `frequency` interval.
-
-[discrete]
 [[transform-failed-limitations]]
-== Handling of failed {transforms}
+=== Handling of failed {transforms}
 
 Failed {transforms} remain as a persistent task and should be handled 
 appropriately, either by deleting it or by resolving the root cause of the 
@@ -197,7 +218,7 @@ When using the API to delete a failed {transform}, first stop it using
 
 [discrete]
 [[transform-availability-limitations]]
-== {ctransforms-cap} may give incorrect results if documents are not yet available to search
+=== {ctransforms-cap} may give incorrect results if documents are not yet available to search
 
 After a document is indexed, there is a very small delay until it is available 
 to search.
@@ -214,7 +235,7 @@ issue will occur.
 
 [discrete]
 [[transform-date-nanos]]
-== Support for date nanoseconds data type
+=== Support for date nanoseconds data type
 
 If your data uses the <<date_nanos,date nanosecond data type>>, aggregations
 are nonetheless on millisecond resolution. This limitation also affects the
@@ -223,7 +244,7 @@ aggregations in your {transforms}.
 
 [discrete]
 [[transform-data-streams-destination]]
-== Data streams as destination indices are not supported
+=== Data streams as destination indices are not supported
 
 {transforms-cap} update data in the destination index which requires writing 
 into the destination. <<data-streams>> are designed to be append-only, which 
@@ -234,7 +255,7 @@ this reason, data streams are not supported as destination indices for
 
 [discrete]
 [[transform-ilm-destination]]
-== ILM as destination index may cause duplicated documents
+=== ILM as destination index may cause duplicated documents
 
 <<index-lifecycle-management,ILM>> is not recommended to use as a {transform} 
 destination index. {transforms-cap} update documents in the current destination, 
@@ -248,40 +269,29 @@ documents if your {transform} contains a `group_by` based on `date_histogram`.
 
 
 [discrete]
-[[transform-painless-limitation]]
-== Using scripts in {transforms}
-
-{transforms-cap} support scripting in every case when aggregations support them. 
-However, there are certain factors you might want to consider when using scripts 
-in {transforms}:
-
-* {transforms-cap} cannot deduce index mappings for output fields when the 
-  fields are created by a script. In this case, you might want to create the 
-  mappings of the destination index yourself prior to creating the transform.
-
-* Scripted fields may increase the runtime of the {transform}.
-  
-* {transforms-cap} cannot optimize queries when you use scripts for all the 
-  groupings defined in `group_by`, you will receive a warning message when you 
-  use scripts this way.
-  
+[[transform-ui-limitations]]
+== Limitations in {kib}
 
 [discrete]
-[[transform-runtime-field-limitation]]
-=== {transforms-cap} perform better on indexed fields
+[[transform-space-limitations]]
+=== {transforms-cap} are visible in all {kib} spaces
 
-{transforms-cap} sort data by a user-defined time field, which is frequently 
-accessed. If the time field is a {ref}/runtime.html[runtime field], the 
-performance impact of calculating field values at query time can significantly 
-slow the {transform}. Use an indexed field as a time field when using 
-{transforms}.
-
+{kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and 
+destination indices and other saved objects in {kib} and to see only the objects 
+that belong to your space. However, this limited scope does not apply to 
+{transforms}; they are visible in all spaces.
 
 [discrete]
-[[transforms-ccs-limitation]]
-=== {transforms-cap} support {ccs} if the remote cluster is configured properly
+[[transform-rolling-upgrade-ui-limitation]]
+=== {transforms-cap} UI will not work during a rolling upgrade from 7.2
 
-If you use <<modules-cross-cluster-search,{ccs}>>, the remote cluster must 
-support the search and aggregations you use in your {transforms}. 
-{transforms-cap} validate their configuration; if you use {ccs} and the validation fails, 
-make sure that the remote cluster supports the query and aggregations you use.
+If your cluster contains mixed version nodes, for example during a rolling 
+upgrade from 7.2 to a newer version, and {transforms} have been created in 7.2, 
+the {transforms} UI (earler {dataframe} UI) will not work. Please wait until all 
+nodes have been upgraded to the newer version before using the {transforms} UI.
+
+[discrete]
+[[transform-kibana-limitations]]
+=== Up to 1,000 {transforms} are listed in {kib}
+
+The {transforms} management page in {kib} lists up to 1000 {transforms}.

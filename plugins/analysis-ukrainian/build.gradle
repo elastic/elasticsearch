@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.'
@@ -21,7 +22,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'search'
+    include '_common', 'indices', 'index', 'search'
   }
 }
 
@@ -35,4 +36,10 @@ tasks.named("thirdPartyAudit").configure {
           // we don't use the morfologik-fsa polish stemmer
           'morfologik.stemming.polish.PolishStemmer'
   )
+}
+
+tasks.named('splitPackagesAudit').configure {
+    // Lucene packages should be owned by Lucene!
+  ignoreClasses 'org.elasticsearch.index.analysis.UkrainianAnalyzerProvider',
+    'org.apache.lucene.analysis.uk.XUkrainianMorfologikAnalyzer'
 }

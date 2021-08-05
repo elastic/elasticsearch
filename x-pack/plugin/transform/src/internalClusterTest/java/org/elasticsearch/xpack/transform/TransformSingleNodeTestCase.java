@@ -9,16 +9,15 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.junit.After;
 
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
@@ -37,6 +36,11 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest, transform").build();
+    }
+
+    @After
+    public void cleanup() {
+        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
     }
 
     protected <T> void assertAsync(Consumer<ActionListener<T>> function, T expected, CheckedConsumer<T, ? extends Exception> onAnswer,
@@ -66,27 +70,4 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
     }
 
-    protected void waitForPendingTasks() throws Exception {
-        assertBusy(() -> {
-            try {
-                final ListTasksRequest request = new ListTasksRequest().setDetailed(true);
-                final ListTasksResponse response = client().execute(ListTasksAction.INSTANCE, request).actionGet();
-
-                // Check to see if there are outstanding tasks; we exclude the list task itself.
-                StringBuilder tasksListString = new StringBuilder();
-                int activeTasks = 0;
-                for (TaskInfo task : response.getTasks()) {
-                    if (task.getAction().startsWith(ListTasksAction.NAME)) {
-                        continue;
-                    }
-                    ++activeTasks;
-                    tasksListString.append(task.toString());
-                    tasksListString.append('\n');
-                }
-                assertEquals(activeTasks + " active tasks found:\n" + tasksListString, 0, activeTasks);
-            } catch (final Exception e) {
-                throw new AssertionError("error getting active tasks list", e);
-            }
-        }, 30L, TimeUnit.SECONDS);
-    }
 }

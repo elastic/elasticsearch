@@ -14,7 +14,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -218,8 +218,14 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
                         // segment ordinals match global ordinals
                         return values;
                     }
-                    final TermsEnum[] atomicLookups = getOrLoadTermsEnums();
-                    return new GlobalOrdinalMapping(ordinalMap, values, atomicLookups, context.ord);
+                    TermsEnum[] atomicLookups = getOrLoadTermsEnums();
+                    SortedSetDocValues singleton = SingletonGlobalOrdinalMapping.singletonIfPossible(
+                        ordinalMap,
+                        values,
+                        atomicLookups,
+                        context.ord
+                    );
+                    return singleton == null ? new GlobalOrdinalMapping(ordinalMap, values, atomicLookups, context.ord) : singleton;
                 }
 
                 @Override

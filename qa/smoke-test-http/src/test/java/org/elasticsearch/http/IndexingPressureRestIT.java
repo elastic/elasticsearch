@@ -38,9 +38,9 @@ public class IndexingPressureRestIT extends HttpSmokeTestCase {
     private static final Settings unboundedWriteQueue = Settings.builder().put("thread_pool.write.queue_size", -1).build();
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "1KB")
             .put(unboundedWriteQueue)
             .build();

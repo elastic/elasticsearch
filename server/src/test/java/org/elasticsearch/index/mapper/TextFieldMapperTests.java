@@ -831,9 +831,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         SearchExecutionContext context = createSearchExecutionContext(ms);
         QueryStringQueryParser parser = new QueryStringQueryParser(context, "f");
         Query q = parser.parse("foo:*");
-        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
-            .add(new NormsFieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
-            .build()), q);
+        assertEquals(new ConstantScoreQuery(new NormsFieldExistsQuery("foo.bar")), q);
     }
 
     private static void assertAnalyzesTo(Analyzer analyzer, String field, String input, String[] output) throws IOException {
@@ -1078,5 +1076,16 @@ public class TextFieldMapperTests extends MapperTestCase {
         merge(mapperService, newField);
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
         assertThat(mapperService.documentMapper().mappers().getMapper("other_field"), instanceOf(KeywordFieldMapper.class));
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("We don't have a way to assert things here", true);
+        return null;
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        assumeFalse("We don't have a way to assert things here", true);
     }
 }

@@ -14,7 +14,8 @@ If you use {watcher} and have chosen to encrypt sensitive data (by setting
 the secure settings store.
 
 To pass this bootstrap check, you must set the `xpack.watcher.encryption_key`
-on each node in the cluster. For more information, see <<encrypting-data>>.
+on each node in the cluster. For more information, see
+<<encrypting-data,Encrypting sensitive data in Watcher>>.
 
 [discrete]
 === PKI realm check
@@ -23,7 +24,8 @@ on each node in the cluster. For more information, see <<encrypting-data>>.
 If you use {es} {security-features} and a Public Key Infrastructure (PKI) realm,
 you must configure Transport Layer Security (TLS) on your cluster and enable
 client authentication on the network layers (either transport or http). For more
-information, see <<pki-realm>> and <<ssl-tls>>.
+information, see <<pki-realm,PKI user authentication>> and
+<<security-basic-setup-https,Set up basic security plus HTTPS>>.
 
 To pass this bootstrap check, if a PKI realm is enabled, you must configure TLS
 and enable client authentication on at least one network communication layer.
@@ -51,15 +53,15 @@ must also be valid.
 === SSL/TLS check
 //See TLSLicenseBootstrapCheck.java
 
-If you enable {es} {security-features}, unless you have a trial license, you 
+If you enable {es} {security-features}, unless you have a trial license, you
 must configure SSL/TLS for internode-communication.
 
 NOTE: Single-node clusters that use a loopback interface do not have this
-requirement.  For more information, see
-<<encrypting-communications>>.
+requirement. For more information, see
+<<configuring-stack-security>>.
 
 To pass this bootstrap check, you must
-<<ssl-tls,set up SSL/TLS in your cluster>>.
+<<encrypt-internode-communication,set up SSL/TLS in your cluster>>.
 
 
 [discrete]

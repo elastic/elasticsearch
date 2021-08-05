@@ -48,15 +48,7 @@ GET /_xpack/usage
 {
   "security" : {
     "available" : true,
-    "enabled" : false,
-    "ssl" : {
-      "http" : {
-        "enabled" : false
-      },
-      "transport" : {
-        "enabled" : false
-      }
-    }
+    "enabled" : false
   },
   "monitoring" : {
     "available" : true,
@@ -280,12 +272,6 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true
   },
-  "vectors" : {
-    "available" : true,
-    "enabled" : true,
-    "dense_vector_fields_count" : 0,
-    "dense_vector_dims_avg_count" : 0
-  },
   "voting_only" : {
     "available" : true,
     "enabled" : true
@@ -293,7 +279,9 @@ GET /_xpack/usage
   "searchable_snapshots" : {
     "available" : true,
     "enabled" : true,
-    "indices_count" : 0
+    "indices_count" : 0,
+    "full_copy_indices_count" : 0,
+    "shared_cache_indices_count" : 0
   },
   "frozen_indices" : {
     "available" : true,

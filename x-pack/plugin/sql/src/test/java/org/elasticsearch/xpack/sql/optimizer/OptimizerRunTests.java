@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEq
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
@@ -67,7 +67,7 @@ public class OptimizerRunTests extends ESTestCase {
             put(LTE.symbol(), LessThanOrEqual.class);
         }
     };
-    private static final BooleanLiteralsOnTheRight LITERALS_ON_THE_RIGHT = new BooleanLiteralsOnTheRight();
+    private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
     public OptimizerRunTests() {
         parser = new SqlParser();
@@ -214,6 +214,7 @@ public class OptimizerRunTests extends ESTestCase {
 
     private void doTestSimplifyComparisonArithmetics(String expression, String fieldName, String compSymbol, Object bound) {
         BinaryComparison bc = extractPlannedBinaryComparison(expression);
+        assertEquals(compSymbol, bc.symbol());
         assertTrue(COMPARISONS.get(compSymbol).isInstance(bc));
 
         assertTrue(bc.left() instanceof FieldAttribute);
@@ -252,7 +253,7 @@ public class OptimizerRunTests extends ESTestCase {
 
     private static void assertSemanticMatching(Expression fieldAttributeExp, Expression unresolvedAttributeExp) {
         Expression unresolvedUpdated = unresolvedAttributeExp
-            .transformUp(LITERALS_ON_THE_RIGHT::rule)
+            .transformUp(LITERALS_ON_THE_RIGHT.expressionToken(), LITERALS_ON_THE_RIGHT::rule)
             .transformUp(x -> x.foldable() ? new Literal(x.source(), x.fold(), x.dataType()) : x);
 
         List<Expression> resolvedFields = fieldAttributeExp.collectFirstChildren(x -> x instanceof FieldAttribute);

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -24,12 +24,14 @@ public final class DatafeedJobValidator {
      * Validates a datafeedConfig in relation to the job it refers to
      * @param datafeedConfig the datafeed config
      * @param job the job
+     * @param xContentRegistry the named xcontent registry for parsing datafeed aggs
      */
     public static void validate(DatafeedConfig datafeedConfig, Job job, NamedXContentRegistry xContentRegistry) {
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         if (analysisConfig.getLatency() != null && analysisConfig.getLatency().seconds() > 0) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY));
         }
+        // TODO should we validate that the aggs define the fields requested in the analysis config?
         if (datafeedConfig.hasAggregations()) {
             checkSummaryCountFieldNameIsSet(analysisConfig);
             checkValidHistogramInterval(datafeedConfig, analysisConfig, xContentRegistry);

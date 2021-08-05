@@ -16,8 +16,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,6 +65,10 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             builder.field(STATUS, response.status().getStatus());
         } else {
             builder.field(_INDEX, failure.getIndex());
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+            }
+
             builder.field(_ID, failure.getId());
             builder.field(STATUS, failure.getStatus().getStatus());
             builder.startObject(ERROR);
@@ -313,6 +318,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(INDEX_FIELD, index);
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                builder.field("type", MapperService.SINGLE_MAPPING_NAME);
+            }
             if (id != null) {
                 builder.field(ID_FIELD, id);
             }
@@ -443,6 +451,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
      * The actual response ({@link IndexResponse} or {@link DeleteResponse}). {@code null} in
      * case of failure.
      */
+    @SuppressWarnings("unchecked")
     public <T extends DocWriteResponse> T getResponse() {
         return (T) response;
     }

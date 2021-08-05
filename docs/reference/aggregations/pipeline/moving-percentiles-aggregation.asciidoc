@@ -37,7 +37,7 @@ A `moving_percentiles` aggregation looks like this in isolation:
 |`shift` |<<shift-parameter, Shift>> of window position. |Optional | 0
 |===
 
-`moving_percentiles` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation.  They can be
+`moving_percentiles` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation. They can be
 embedded like any other metric aggregation:
 
 [source,console]
@@ -75,8 +75,8 @@ POST /_search
 <2> A `percentile` metric is used to calculate the percentiles of a field.
 <3> Finally, we specify a `moving_percentiles` aggregation which uses "the_percentile" sketch as its input.
 
-Moving percentiles are built by first specifying a `histogram` or `date_histogram` over a field.  You  then add
-a percentile metric inside of that histogram.  Finally, the `moving_percentiles` is embedded inside the histogram.
+Moving percentiles are built by first specifying a `histogram` or `date_histogram` over a field. You then add
+a percentile metric inside of that histogram. Finally, the `moving_percentiles` is embedded inside the histogram.
 The `buckets_path` parameter is then used to "point" at the percentiles aggregation inside of the histogram (see
 <<buckets-path-syntax>> for a description of the syntax for `buckets_path`).
 

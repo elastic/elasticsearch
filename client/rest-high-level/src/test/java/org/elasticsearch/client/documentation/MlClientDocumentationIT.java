@@ -171,6 +171,7 @@ import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
+import org.elasticsearch.client.ml.inference.TrainedModelType;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
@@ -196,7 +197,7 @@ import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -242,7 +243,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void cleanUp() throws IOException {
-        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
+        new MlTestStateCleaner(logger, highLevelClient()).clearMlMetadata();
     }
 
     public void testCreateJob() throws Exception {
@@ -588,14 +589,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDescription("My description") // <2>
                 .setAnalysisLimits(new AnalysisLimits(1000L, null)) // <3>
                 .setBackgroundPersistInterval(TimeValue.timeValueHours(3)) // <4>
-                .setCategorizationFilters(Arrays.asList("categorization-filter")) // <5>
-                .setDetectorUpdates(Arrays.asList(detectorUpdate)) // <6>
-                .setGroups(Arrays.asList("job-group-1")) // <7>
-                .setResultsRetentionDays(10L) // <8>
-                .setModelPlotConfig(new ModelPlotConfig(true, null, true)) // <9>
-                .setModelSnapshotRetentionDays(7L) // <10>
-                .setCustomSettings(customSettings) // <11>
-                .setRenormalizationWindowDays(3L) // <12>
+                .setDetectorUpdates(Arrays.asList(detectorUpdate)) // <5>
+                .setGroups(Arrays.asList("job-group-1")) // <6>
+                .setResultsRetentionDays(10L) // <7>
+                .setModelPlotConfig(new ModelPlotConfig(true, null, true)) // <8>
+                .setModelSnapshotRetentionDays(7L) // <9>
+                .setCustomSettings(customSettings) // <10>
+                .setRenormalizationWindowDays(3L) // <11>
                 .build();
             // end::update-job-options
 
@@ -772,6 +772,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             AggregatorFactories.Builder aggs = AggregatorFactories.builder();
             List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
+            Map<String, Object> runtimeMappings = Collections.emptyMap();
             // tag::update-datafeed-config
             DatafeedUpdate.Builder datafeedUpdateBuilder = new DatafeedUpdate.Builder(datafeedId) // <1>
                 .setAggregations(aggs) // <2>
@@ -781,7 +782,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setQuery(QueryBuilders.matchAllQuery()) // <6>
                 .setQueryDelay(TimeValue.timeValueMinutes(1)) // <7>
                 .setScriptFields(scriptFields) // <8>
-                .setScrollSize(1000); // <9>
+                .setScrollSize(1000) // <9>
+                .setRuntimeMappings(runtimeMappings); // <10>
             // end::update-datafeed-config
 
             // Clearing aggregation to avoid complex validation rules
@@ -3613,7 +3615,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(otherClassesCount, equalTo(0L));
 
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocScore, closeTo(0.6425, 1e-9));
+            assertThat(aucRocScore, closeTo(0.619, 1e-3));
         }
     }
 
@@ -3825,11 +3827,12 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             .setDefinition(definition) // <1>
             .setCompressedDefinition(InferenceToXContentCompressor.deflate(definition)) // <2>
             .setModelId("my-new-trained-model") // <3>
-            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4")) // <4>
-            .setDescription("test model") // <5>
-            .setMetadata(new HashMap<>()) // <6>
-            .setTags("my_regression_models") // <7>
-            .setInferenceConfig(new RegressionConfig("value", 0)) // <8>
+            .setModelType(TrainedModelType.TREE_ENSEMBLE) // <4>
+            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4")) // <5>
+            .setDescription("test model") // <6>
+            .setMetadata(new HashMap<>()) // <7>
+            .setTags("my_regression_models") // <8>
+            .setInferenceConfig(new RegressionConfig("value", 0)) // <9>
             .build();
         // end::put-trained-model-config
 

@@ -19,7 +19,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -41,9 +41,11 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -58,8 +60,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -106,7 +106,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final Map<String, RuntimeFieldType> runtimeMappings;
+    private final Map<String, MappedFieldType> runtimeMappings;
+    private Predicate<String> allowedFields;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -154,7 +155,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             ),
             allowExpensiveQueries,
             valuesSourceRegistry,
-            parseRuntimeMappings(runtimeMappings, mapperService)
+            parseRuntimeMappings(runtimeMappings, mapperService),
+            null
         );
     }
 
@@ -177,7 +179,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.fullyQualifiedIndex,
             source.allowExpensiveQueries,
             source.valuesSourceRegistry,
-            source.runtimeMappings
+            source.runtimeMappings,
+            source.allowedFields
         );
     }
 
@@ -199,7 +202,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
                                    Index fullyQualifiedIndex,
                                    BooleanSupplier allowExpensiveQueries,
                                    ValuesSourceRegistry valuesSourceRegistry,
-                                   Map<String, RuntimeFieldType> runtimeMappings) {
+                                   Map<String, MappedFieldType> runtimeMappings,
+                                   Predicate<String> allowedFields) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -218,6 +222,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.runtimeMappings = runtimeMappings;
+        this.allowedFields = allowedFields;
     }
 
     private void reset() {
@@ -227,8 +232,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.nestedScope = new NestedScope();
     }
 
+    /**
+     * The similarity to use in searches, which takes into account per-field configuration.
+     */
     public Similarity getSearchSimilarity() {
         return similarityService != null ? similarityService.similarity(this::fieldType) : null;
+    }
+
+    /**
+     * The default similarity configured in the index settings.
+     */
+    public Similarity getDefaultSimilarity() {
+        return similarityService != null ? similarityService.getDefaultSimilarity() : null;
     }
 
     public List<String> defaultFields() {
@@ -276,7 +291,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Parse a document with current mapping.
      */
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
-        return mappingLookup.parseDocument(source);
+        return mapperService.documentParser().parseDocument(source, mappingLookup);
     }
 
     public boolean hasNested() {
@@ -287,26 +302,35 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.hasMappings();
     }
 
-    public List<ObjectMapper> nestedMappings() {
+    public List<NestedObjectMapper> nestedMappings() {
         return mappingLookup.getNestedMappers();
     }
 
     /**
-     * Returns all the fields that match a given pattern. If prefixed with a
-     * type then the fields will be returned with a type prefix.
+     * Returns the names of all mapped fields that match a given pattern
+     *
+     * All names returned by this method are guaranteed to resolve to a
+     * MappedFieldType if passed to {@link #getFieldType(String)}
+     *
+     * @param pattern the field name pattern
      */
-    public Set<String> simpleMatchToIndexNames(String pattern) {
+    public Set<String> getMatchingFieldNames(String pattern) {
         if (runtimeMappings.isEmpty()) {
-            return mappingLookup.simpleMatchToFullName(pattern);
+            return mappingLookup.getMatchingFieldNames(pattern);
         }
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            return Collections.singleton(pattern);
-        }
-        Set<String> matches = new HashSet<>(mappingLookup.simpleMatchToFullName(pattern));
-        for (String name : runtimeMappings.keySet()) {
-            if (Regex.simpleMatch(pattern, name)) {
-                matches.add(name);
+        Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
+        if ("*".equals(pattern)) {
+            matches.addAll(runtimeMappings.keySet());
+        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
+            // no wildcard
+            if (runtimeMappings.containsKey(pattern)) {
+                matches.add(pattern);
+            }
+        } else {
+            for (String name : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(pattern, name)) {
+                    matches.add(name);
+                }
             }
         }
         return matches;
@@ -326,15 +350,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns the registered mapped field types.
-     */
-    public Collection<MappedFieldType> getFieldTypes() {
-        List<MappedFieldType> fields = new ArrayList<>(mappingLookup.fieldTypes());
-        fields.addAll(runtimeMappings.values());
-        return fields;
-    }
-
-    /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
      */
     public boolean isFieldMapped(String name) {
@@ -342,6 +357,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     private MappedFieldType fieldType(String name) {
+        // If the field is not allowed, behave as if it is not mapped
+        if (allowedFields != null && false == allowedFields.test(name)) {
+            return null;
+        }
         MappedFieldType fieldType = runtimeMappings.get(name);
         return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
     }
@@ -367,7 +386,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Generally used to handle unmapped fields in the context of sorting.
      */
     public MappedFieldType buildAnonymousFieldType(String type) {
-        Mapper.TypeParser.ParserContext parserContext = mapperService.parserContext();
+        MappingParserContext parserContext = mapperService.parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
@@ -407,6 +426,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    }
+
+    public void setAllowedFields(Predicate<String> allowedFields) {
+        this.allowedFields = allowedFields;
     }
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
@@ -608,11 +631,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fullyQualifiedIndex;
     }
 
-    private static Map<String, RuntimeFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
+    private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
-        return RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(), false);
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
+            mapperService.parserContext(), false);
+        return RuntimeField.collectFieldTypes(runtimeFields.values());
     }
 
     /**

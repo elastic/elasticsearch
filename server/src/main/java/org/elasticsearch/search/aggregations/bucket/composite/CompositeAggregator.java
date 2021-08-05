@@ -32,7 +32,8 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -86,7 +87,7 @@ final class CompositeAggregator extends BucketsAggregator {
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
-        this.sources = new SingleDimensionValuesSource[sourceConfigs.length];
+        this.sources = new SingleDimensionValuesSource<?>[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
         int bucketLimit = context.multiBucketConsumer().getLimit();
         if (size > bucketLimit) {
@@ -103,7 +104,15 @@ final class CompositeAggregator extends BucketsAggregator {
                 this::addRequestCircuitBreakerBytes
             );
         }
-        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
+        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size);
+        if (rawAfterKey != null) {
+            try {
+                this.queue.setAfterKey(rawAfterKey);
+            } catch (IllegalArgumentException ex) {
+                throw new ElasticsearchParseException("Cannot set after key in the composite aggregation [" + name + "] - " +
+                    ex.getMessage(), ex);
+            }
+        }
         this.rawAfterKey = rawAfterKey;
     }
 
@@ -118,8 +127,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected void doPreCollection() throws IOException {
-        List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        deferredCollectors = MultiBucketCollector.wrap(collectors);
+        deferredCollectors = MultiBucketCollector.wrap(false, Arrays.asList(subAggregators));
         collectableSubAggregators = BucketCollector.NO_OP_COLLECTOR;
     }
 
@@ -340,7 +348,7 @@ final class CompositeAggregator extends BucketsAggregator {
             formats[i] = sources[i].format;
         }
         FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(new SortAndFormats(indexSortPrefix, formats),
-            Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length));
+            Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length), null);
         if (indexSortPrefix.getSort().length < sources.length) {
             // include all docs that belong to the partial bucket
             fieldDoc.doc = -1;
@@ -374,7 +382,7 @@ final class CompositeAggregator extends BucketsAggregator {
         Sort indexSortPrefix = buildIndexSortPrefix(ctx);
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
-        SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0  ?
+        SortedDocsProducer sortedDocsProducer = (sortPrefixLen == 0 && parent == null) ?
             sources[0].createSortedDocsProducerOrNull(ctx.reader(), topLevelQuery()) : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates
@@ -388,7 +396,7 @@ final class CompositeAggregator extends BucketsAggregator {
             // Throwing this exception will terminate the execution of the search for this root aggregation,
             // see {@link MultiCollector} for more details on how we handle early termination in aggregations.
             earlyTerminated = true;
-            throw new CollectionTerminatedException();
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         } else {
             if (fillDocIdSet) {
                 currentLeaf = ctx;
@@ -398,10 +406,22 @@ final class CompositeAggregator extends BucketsAggregator {
                 // We have an after key and index sort is applicable so we jump directly to the doc
                 // that is after the index sort prefix using the rawAfterKey and we start collecting
                 // document from there.
-                processLeafFromQuery(ctx, indexSortPrefix);
-                throw new CollectionTerminatedException();
+                try {
+                    processLeafFromQuery(ctx, indexSortPrefix);
+                } catch (CollectionTerminatedException e) {
+                    /*
+                     * Signal that there isn't anything to collect. We're going
+                     * to return noop collector anyway so we can ignore it.
+                     */
+                }
+                return LeafBucketCollector.NO_OP_COLLECTOR;
             } else {
-                final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
+                final LeafBucketCollector inner;
+                try {
+                    inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
+                } catch (CollectionTerminatedException e) {
+                    return LeafBucketCollector.NO_OP_COLLECTOR;
+                }
                 return new LeafBucketCollector() {
                     @Override
                     public void collect(int doc, long zeroBucket) throws IOException {

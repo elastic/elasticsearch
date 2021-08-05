@@ -8,62 +8,32 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.StoredField;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.stream.Stream;
 
 public class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
-    private final DocumentParser documentParser;
     private final MappingLookup mappingLookup;
-    private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
-    private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
+    private final DocumentParser documentParser;
 
-    public DocumentMapper(RootObjectMapper.Builder rootBuilder, MapperService mapperService) {
-        this(
-            mapperService.getIndexSettings(),
-            mapperService.getIndexAnalyzers(),
-            mapperService.documentParser(),
-            new Mapping(
-                rootBuilder.build(new ContentPath(1)),
-                mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]),
-                Collections.emptyMap()));
+    /**
+     * Create a new {@link DocumentMapper} that holds empty mappings.
+     * @param mapperService the mapper service that holds the needed components
+     * @return the newly created document mapper
+     */
+    public static DocumentMapper createEmpty(MapperService mapperService) {
+        RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(new ContentPath(1));
+        MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
+        Mapping mapping = new Mapping(root, metadata, null);
+        return new DocumentMapper(mapperService.documentParser(), mapping);
     }
 
-    DocumentMapper(IndexSettings indexSettings,
-                   IndexAnalyzers indexAnalyzers,
-                   DocumentParser documentParser,
-                   Mapping mapping) {
-        this.type = mapping.getRoot().name();
+    DocumentMapper(DocumentParser documentParser, Mapping mapping) {
         this.documentParser = documentParser;
-        this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
-
-        try {
-            mappingSource = new CompressedXContent(mapping, XContentType.JSON, ToXContent.EMPTY_PARAMS);
-        } catch (Exception e) {
-            throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
-        }
-
-        final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(VersionFieldMapper.NAME, IdFieldMapper.NAME,
-            SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
-        this.deleteTombstoneMetadataFieldMappers = Stream.of(mapping.getSortedMetadataMappers())
-            .filter(field -> deleteTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
-        final Collection<String> noopTombstoneMetadataFields = Arrays.asList(
-            VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
-        this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.getSortedMetadataMappers())
-            .filter(field -> noopTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
+        this.type = mapping.getRoot().name();
+        this.mappingLookup = MappingLookup.fromMapping(mapping);
+        this.mappingSource = mapping.toCompressedXContent();
     }
 
     public Mapping mapping() {
@@ -104,22 +74,6 @@ public class DocumentMapper {
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
         return documentParser.parseDocument(source, mappingLookup);
-    }
-
-    public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {
-        final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers, mappingLookup).toTombstone();
-    }
-
-    public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
-        final String id = ""; // _id won't be used.
-        final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers, mappingLookup)
-            .toTombstone();
-        // Store the reason of a noop as a raw string in the _source field
-        final BytesRef byteRef = new BytesRef(reason);
-        parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
-        return parsedDoc;
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

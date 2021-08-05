@@ -301,7 +301,8 @@ public class SeedHostsResolverTests extends ESTestCase {
                 getTestName(),
                 logger.getName(),
                 Level.WARN,
-                "timed out after [" + SeedHostsResolver.getResolveTimeout(Settings.EMPTY) + "] resolving host [hostname2]"));
+                "timed out after [*] ([discovery.seed_resolver.timeout]=[" + SeedHostsResolver.getResolveTimeout(Settings.EMPTY)
+                        + "]) resolving host [hostname2]"));
 
         try {
             Loggers.addAppender(logger, appender);

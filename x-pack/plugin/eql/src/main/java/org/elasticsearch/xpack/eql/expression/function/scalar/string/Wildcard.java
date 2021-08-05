@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BaseSurrogateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
@@ -66,7 +67,7 @@ public class Wildcard extends BaseSurrogateFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution lastResolution = isStringAndExact(field, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution lastResolution = isStringAndExact(field, sourceText(), FIRST);
         if (lastResolution.unresolved()) {
             return lastResolution;
         }
@@ -75,12 +76,12 @@ public class Wildcard extends BaseSurrogateFunction {
 
         for (Expression p: patterns) {
 
-            lastResolution = isFoldable(p, sourceText(), ParamOrdinal.fromIndex(index));
+            lastResolution = isFoldable(p, sourceText(), TypeResolutions.ParamOrdinal.fromIndex(index));
             if (lastResolution.unresolved()) {
                 break;
             }
 
-            lastResolution = isString(p, sourceText(), ParamOrdinal.fromIndex(index));
+            lastResolution = isString(p, sourceText(), TypeResolutions.ParamOrdinal.fromIndex(index));
             if (lastResolution.unresolved()) {
                 break;
             }

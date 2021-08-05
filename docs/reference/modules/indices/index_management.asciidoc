@@ -38,7 +38,7 @@ Specifies the hosts that can be <<reindex-from-remote,reindexed from remotely>>.
 +
 --
 (<<dynamic-cluster-setting,Dynamic>>)
-If `true`, enables built-in index and component templates. The
+If `true`, enables built-in index and component templates.
 {fleet-guide}/fleet-overview.html[{agent}] uses these templates to create data
 streams. If `false`, {es} disables these index and component templates. Defaults
 to `true`.

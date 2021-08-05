@@ -10,6 +10,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -22,10 +23,10 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryVerificationException;
@@ -273,9 +275,9 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
         void run() {
             writeRandomBlob(
-                request.readEarly || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean()),
+                request.readEarly || request.getAbortWrite() || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean()),
                 true,
-                this::doReadBeforeWriteComplete,
+                this::onLastReadForInitialWrite,
                 write1Step
             );
 
@@ -321,7 +323,11 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                         }
                     };
                     if (atomic) {
-                        blobContainer.writeBlobAtomic(request.blobName, bytesReference, failIfExists);
+                        try {
+                            blobContainer.writeBlobAtomic(request.blobName, bytesReference, failIfExists);
+                        } catch (BlobWriteAbortedException e) {
+                            assert request.getAbortWrite() : "write unexpectedly aborted";
+                        }
                     } else {
                         blobContainer.writeBlob(request.blobName, bytesReference, failIfExists);
                     }
@@ -345,12 +351,15 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             });
         }
 
-        private void doReadBeforeWriteComplete() {
+        private void onLastReadForInitialWrite() {
             if (earlyReadNodes.isEmpty() == false) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("sending read request to [{}] for [{}] before write complete", earlyReadNodes, request.getDescription());
                 }
                 readOnNodes(earlyReadNodes, true);
+            }
+            if (request.getAbortWrite()) {
+                throw new BlobWriteAbortedException();
             }
         }
 
@@ -438,7 +447,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 logger.trace(new ParameterizedMessage("analysis failed [{}] cleaning up", request.getDescription()), exception);
             }
             try {
-                blobContainer.deleteBlobsIgnoringIfNotExists(List.of(request.blobName));
+                blobContainer.deleteBlobsIgnoringIfNotExists(Iterators.single(request.blobName));
             } catch (IOException ioException) {
                 exception.addSuppressed(ioException);
                 logger.warn(
@@ -479,15 +488,14 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 expectedChecksumDescription = write1Details.checksum + " or " + write2Details.checksum;
             }
 
+            boolean anyFound = false;
             RepositoryVerificationException failure = null;
             for (final NodeResponse nodeResponse : responses) {
                 final GetBlobChecksumAction.Response response = nodeResponse.response;
                 final RepositoryVerificationException nodeFailure;
                 if (response.isNotFound()) {
-                    if (request.readEarly) {
+                    if (request.readEarly || request.getAbortWrite()) {
                         nodeFailure = null; // "not found" is legitimate iff we tried to read it before the write completed
-                    } else if (request.writeAndOverwrite) {
-                        nodeFailure = null; // overwrites surprisingly not necessarily atomic, e.g. in a FsBlobContainer
                     } else {
                         nodeFailure = new RepositoryVerificationException(
                             request.getRepositoryName(),
@@ -495,6 +503,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                         );
                     }
                 } else {
+                    anyFound = true;
                     final long actualChecksum = response.getChecksum();
                     if (response.getBytesRead() == checksumLength && checksumPredicate.test(actualChecksum)) {
                         nodeFailure = null; // checksum ok
@@ -526,6 +535,19 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                     }
                 }
             }
+
+            if (request.getAbortWrite() && anyFound) {
+                final RepositoryVerificationException atomicityFailure = new RepositoryVerificationException(
+                    request.getRepositoryName(),
+                    "upload of blob was aborted, but blob was erroneously found by at least one node"
+                );
+                if (failure == null) {
+                    failure = atomicityFailure;
+                } else {
+                    failure.addSuppressed(atomicityFailure);
+                }
+            }
+
             if (failure != null) {
                 cleanUpAndReturnFailure(failure);
                 return;
@@ -611,6 +633,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         private final int earlyReadNodeCount;
         private final boolean readEarly;
         private final boolean writeAndOverwrite;
+        private final boolean abortWrite;
 
         Request(
             String repositoryName,
@@ -622,10 +645,12 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             int readNodeCount,
             int earlyReadNodeCount,
             boolean readEarly,
-            boolean writeAndOverwrite
+            boolean writeAndOverwrite,
+            boolean abortWrite
         ) {
             assert 0 < targetLength;
             assert targetLength <= MAX_ATOMIC_WRITE_SIZE || (readEarly == false && writeAndOverwrite == false) : "oversized atomic write";
+            assert writeAndOverwrite == false || abortWrite == false : "cannot set writeAndOverwrite and abortWrite";
             this.repositoryName = repositoryName;
             this.blobPath = blobPath;
             this.blobName = blobName;
@@ -636,6 +661,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             this.earlyReadNodeCount = earlyReadNodeCount;
             this.readEarly = readEarly;
             this.writeAndOverwrite = writeAndOverwrite;
+            this.abortWrite = abortWrite;
         }
 
         Request(StreamInput in) throws IOException {
@@ -650,6 +676,11 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             earlyReadNodeCount = in.readVInt();
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+                abortWrite = in.readBoolean();
+            } else {
+                abortWrite = false;
+            }
         }
 
         @Override
@@ -665,6 +696,11 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             out.writeVInt(earlyReadNodeCount);
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
+            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+                out.writeBoolean(abortWrite);
+            } else if (abortWrite) {
+                throw new IllegalStateException("cannot send abortWrite request to node of version [" + out.getVersion() + "]");
+            }
         }
 
         @Override
@@ -688,6 +724,8 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 + readEarly
                 + ", writeAndOverwrite="
                 + writeAndOverwrite
+                + ", abortWrite="
+                + abortWrite
                 + "]";
         }
 
@@ -722,8 +760,8 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             return targetLength;
         }
 
-        public long getSeed() {
-            return seed;
+        public boolean getAbortWrite() {
+            return abortWrite;
         }
 
     }

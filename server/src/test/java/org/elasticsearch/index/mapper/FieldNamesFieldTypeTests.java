@@ -34,7 +34,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(
                 new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(), settings);
         List<FieldMapper> mappers = Stream.of(fieldNamesFieldType, fieldType).map(MockFieldMapper::new).collect(Collectors.toList());
-        MappingLookup mappingLookup = new MappingLookup(Mapping.EMPTY, mappers, emptyList(), emptyList(), null, null, null);
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(0, 0,
                 indexSettings, null, null, null, mappingLookup,
                 null, null, null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());

@@ -21,7 +21,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING;
 
 public class FrozenCacheInfoNodeAction extends ActionType<FrozenCacheInfoResponse> {
 
@@ -53,7 +53,7 @@ public class FrozenCacheInfoNodeAction extends ActionType<FrozenCacheInfoRespons
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
             super(NAME, transportService, actionFilters, Request::new);
-            response = new FrozenCacheInfoResponse(SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes() > 0);
+            response = new FrozenCacheInfoResponse(SNAPSHOT_CACHE_SIZE_SETTING.get(settings).isNonZeroSize());
         }
 
         @Override

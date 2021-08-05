@@ -14,6 +14,10 @@ name
 * <<path-match-unmatch,`path_match` and `path_unmatch`>> operate on the full
 dotted path to the field
 
+* If a dynamic template doesn't define `match_mapping_type`, `match`, or
+`path_match`, it won't match any field. You can still refer to the template by
+name in `dynamic_templates` section of a <<bulk,bulk request>>.
+
 Use the `{name}` and `{dynamic_type}` <<template-variables,template variables>>
 in the mapping specification as placeholders.
 
@@ -30,7 +34,7 @@ Dynamic templates are specified as an array of named objects:
   "dynamic_templates": [
     {
       "my_template_name": { <1>
-        ...  match conditions ... <2>
+        ... match conditions ... <2>
         "mapping": { ... } <3>
       }
     },
@@ -61,7 +65,7 @@ snippet may cause the update or validation of a dynamic template to fail under c
   at index time.
 
 Templates are processed in order -- the first matching template wins. When
-putting new dynamic templates through the <<indices-put-mapping, put mapping>> API,
+putting new dynamic templates through the <<indices-put-mapping, update mapping>> API,
 all existing templates are overwritten. This allows for dynamic templates to be
 reordered or deleted after they were initially added.
 
@@ -168,7 +172,7 @@ PUT my-index-000001/_doc/1
 --------------------------------------------------
 
 <1> The `my_integer` field is mapped as an `integer`.
-<2> The `my_string` field is mapped as a `text`, with a `keyword` <<multi-fields,multi field>>.
+<2> The `my_string` field is mapped as a `text`, with a `keyword` <<multi-fields,multi-field>>.
 
 [[match-unmatch]]
 ==== `match` and `unmatch`
@@ -287,7 +291,7 @@ PUT my-index-000001/_doc/2
 ==== Template variables
 
 The `{name}` and `{dynamic_type}` placeholders are replaced in the `mapping`
-with the field name and detected dynamic type.  The following example sets all
+with the field name and detected dynamic type. The following example sets all
 string fields to use an <<analyzer,`analyzer`>> with the same name as the
 field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 

@@ -9,9 +9,9 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.CheckedSupplier;
 
 import java.util.ArrayList;
@@ -232,7 +232,33 @@ public interface ActionListener<Response> {
      * @return a listener that listens for responses and invokes the runnable when received
      */
     static <Response> ActionListener<Response> wrap(Runnable runnable) {
-        return wrap(r -> runnable.run(), e -> runnable.run());
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+                try {
+                    runnable.run();
+                } catch (RuntimeException e) {
+                    assert false : e;
+                    throw e;
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    runnable.run();
+                } catch (RuntimeException ex) {
+                    ex.addSuppressed(e);
+                    assert false : ex;
+                    throw ex;
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "RunnableWrappingActionListener{" + runnable + "}";
+            }
+        };
     }
 
     /**

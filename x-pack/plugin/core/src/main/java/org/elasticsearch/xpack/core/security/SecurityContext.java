@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -167,6 +167,7 @@ public class SecurityContext {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, Object> rewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
         Map<String, Object> metadata = authentication.getMetadata();
         if (authentication.getAuthenticationType() == AuthenticationType.API_KEY) {

@@ -42,7 +42,7 @@ The primary shard follows this basic flow:
 . Execute the operation locally i.e. indexing or deleting the relevant document. This will also validate the content of fields
    and reject if needed (Example: a keyword value is too long for indexing in Lucene).
 . Forward the operation to each replica in the current in-sync copies set. If there are multiple replicas, this is done in parallel.
-. Once all replicas have successfully performed the operation and responded to the primary, the primary acknowledges the successful
+. Once all in-sync replicas have successfully performed the operation and responded to the primary, the primary acknowledges the successful
    completion of the request to the client.
 
 Each in-sync replica copy performs the indexing operation locally so that it has a copy. This stage of indexing is the
@@ -89,7 +89,7 @@ This is a valid scenario that can happen due to index configuration or simply
 because all the replicas have failed. In that case the primary is processing operations without any external validation,
 which may seem problematic. On the other hand, the primary cannot fail other shards on its own but request the master to do
 so on its behalf. This means that the master knows that the primary is the only single good copy. We are therefore guaranteed
-that the master will not promote any other (out-of-date) shard copy to be a  new primary and that any operation indexed
+that the master will not promote any other (out-of-date) shard copy to be a new primary and that any operation indexed
 into the primary will not be lost. Of course, since at that point we are running with only single copy of the data, physical hardware
 issues can cause data loss. See <<index-wait-for-active-shards>> for some mitigation options.
 ************

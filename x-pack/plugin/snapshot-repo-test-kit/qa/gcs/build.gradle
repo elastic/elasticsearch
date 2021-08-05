@@ -5,8 +5,7 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -28,8 +27,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'snapshot_repo_test_kit'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'snapshot_repo_test_kit'
   }
 }
 
@@ -108,6 +106,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   } else {
     println "Using an external service to test " + project.name
   }
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.register("gcsThirdPartyTest")  {

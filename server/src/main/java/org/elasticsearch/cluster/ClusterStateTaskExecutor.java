@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.util.IdentityHashMap;
 import java.util.List;

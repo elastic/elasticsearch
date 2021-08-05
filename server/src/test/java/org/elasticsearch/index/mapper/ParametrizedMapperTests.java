@@ -23,6 +23,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -135,7 +136,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name,
+                                    Map<String, Object> node,
+                                    MappingParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             builder.parse(name, parserContext, node);
             return builder;
@@ -176,7 +179,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected void parseCreateField(DocumentParserContext context) {
 
         }
 
@@ -194,7 +197,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 "default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Collections.emptyMap(), Collections.emptyMap());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        Mapper.TypeParser.ParserContext pc = new Mapper.TypeParser.ParserContext(s -> null, s -> {
+        MappingParserContext pc = new MappingParserContext(s -> null, s -> {
             if (Objects.equals("keyword", s)) {
                 return KeywordFieldMapper.PARSER;
             }
@@ -202,12 +205,12 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 return BinaryFieldMapper.PARSER;
             }
             return null;
-        }, name -> null, version, () -> null, null, null,
+        }, name -> null, version, () -> null, null, ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
         });
         if (fromDynamicTemplate) {
-            pc = pc.createDynamicTemplateFieldContext(pc);
+            pc = new MappingParserContext.DynamicTemplateParserContext(pc);
         }
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)

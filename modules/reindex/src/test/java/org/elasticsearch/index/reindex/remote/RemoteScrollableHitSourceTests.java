@@ -38,7 +38,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -67,8 +67,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -94,11 +94,10 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        final ExecutorService directExecutor = EsExecutors.newDirectExecutorService();
         threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ExecutorService executor(String name) {
-                return directExecutor;
+                return EsExecutors.DIRECT_EXECUTOR_SERVICE;
             }
 
             @Override

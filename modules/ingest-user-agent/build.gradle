@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'Ingest processor that extracts information from a user agent'
@@ -14,7 +15,7 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
   }
 }
 
@@ -22,3 +23,6 @@ testClusters.all {
   extraConfigFile 'ingest-user-agent/test-regexes.yml', file('src/test/test-regexes.yml')
 }
 
+tasks.named("transformV7RestTests").configure({ task ->
+  task.addAllowedWarningRegex("setting \\[ecs\\] is deprecated as ECS format is the default and only option")
+})

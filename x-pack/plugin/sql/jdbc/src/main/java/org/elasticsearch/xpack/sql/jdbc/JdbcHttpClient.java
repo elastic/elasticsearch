@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -23,6 +23,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
 /**
@@ -67,7 +68,8 @@ class JdbcHttpClient {
                 new RequestInfo(Mode.JDBC, ClientVersion.CURRENT),
                 conCfg.fieldMultiValueLeniency(),
                 conCfg.indexIncludeFrozen(),
-                conCfg.binaryCommunication());
+                conCfg.binaryCommunication(),
+                emptyMap());
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }

@@ -43,6 +43,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        @SuppressWarnings({"rawtypes", "unchecked"})
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
@@ -60,7 +61,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                 String varName = entry.getKey();
                 String bucketsPath = entry.getValue();
                 Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
-                if (GapPolicy.SKIP == gapPolicy && (value == null || Double.isNaN(value))) {
+                if (gapPolicy.isSkippable && (value == null || Double.isNaN(value))) {
                     skipBucket = true;
                     break;
                 }

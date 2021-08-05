@@ -9,6 +9,7 @@
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
@@ -38,7 +39,7 @@ tasks.named("dependencyLicenses").configure {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
                 'scripts_painless_execute', 'put_script', 'delete_script'
   }
 }
@@ -46,6 +47,11 @@ restResources {
 tasks.named("test").configure {
   // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
   jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
+}
+
+tasks.named("yamlRestCompatTest").configure {
+    systemProperty 'tests.rest.blacklist', [
+    ].join(',')
 }
 
 /* Build Javadoc for the Java classes in Painless's public API that are in the
@@ -100,7 +106,7 @@ tasks.register("generateContextDoc", DefaultTestClustersTask) {
   useCluster testClusters.generateContextCluster
   doFirst {
     project.javaexec {
-      main = 'org.elasticsearch.painless.ContextDocGenerator'
+      mainClass = 'org.elasticsearch.painless.ContextDocGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI().get(0)}"
     }.assertNormalExitValue()
@@ -120,7 +126,7 @@ tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
   useCluster testClusters.generateContextApiSpecCluster
   doFirst {
     project.javaexec {
-      main = 'org.elasticsearch.painless.ContextApiSpecGenerator'
+      mainClass = 'org.elasticsearch.painless.ContextApiSpecGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextApiSpecCluster.singleNode().getAllHttpSocketURI().get(0)}"
       systemProperty "jdksrc", System.getProperty("jdksrc")
@@ -146,7 +152,7 @@ String outputPath = 'src/main/java/org/elasticsearch/painless/antlr'
 
 tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {
-    include '*.tokens'
+    include '*Painless*.tokens'
   }
   delete fileTree(outputPath) {
     include 'Painless*.java'
@@ -155,7 +161,7 @@ tasks.register("cleanGenerated", Delete) {
 
 tasks.register("regenLexer", JavaExec) {
   dependsOn "cleanGenerated"
-  main = 'org.antlr.v4.Tool'
+  mainClass = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
   systemProperty 'user.language', 'en'
@@ -169,7 +175,7 @@ tasks.register("regenLexer", JavaExec) {
 
 tasks.register("regenParser", JavaExec) {
   dependsOn "regenLexer"
-  main = 'org.antlr.v4.Tool'
+  mainClass = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
   systemProperty 'user.language', 'en'
@@ -217,4 +223,70 @@ tasks.register("regen") {
       patternset(includes: 'Painless*.java')
     }
   }
+}
+
+/**********************************************
+ *         Suggest lexer regeneration          *
+ **********************************************/
+
+configurations {
+    suggestRegenerate
+}
+
+dependencies {
+    regenerate 'org.antlr:antlr4:4.5.3'
+}
+
+String suggestGrammarPath = 'src/main/antlr'
+String suggestOutputPath = 'src/main/java/org/elasticsearch/painless/antlr'
+
+tasks.register("cleanSuggestGenerated", Delete) {
+    delete fileTree(suggestGrammarPath) {
+        include 'SuggestLexer.tokens'
+    }
+    delete fileTree(suggestOutputPath) {
+        include 'Suggest*.java'
+    }
+}
+
+tasks.register("regenSuggestLexer", JavaExec) {
+    dependsOn "cleanSuggestGenerated"
+    mainClass = 'org.antlr.v4.Tool'
+    classpath = configurations.regenerate
+    systemProperty 'file.encoding', 'UTF-8'
+    systemProperty 'user.language', 'en'
+    systemProperty 'user.country', 'US'
+    systemProperty 'user.variant', ''
+    args '-Werror',
+            '-package', 'org.elasticsearch.painless.antlr',
+            '-o', suggestOutputPath,
+            "${file(suggestGrammarPath)}/SuggestLexer.g4"
+}
+
+tasks.register("regenSuggest") {
+    dependsOn "regenSuggestLexer"
+    doLast {
+        // moves token files to grammar directory for use with IDE's
+        ant.move(file: "${suggestOutputPath}/SuggestLexer.tokens", toDir: suggestGrammarPath)
+        // make the lexer abstract
+        ant.replaceregexp(match: '(class \\QSuggest\\ELexer)',
+                replace: 'abstract \\1',
+                encoding: 'UTF-8') {
+            fileset(dir: suggestOutputPath, includes: 'SuggestLexer.java')
+        }
+        // nuke timestamps/filenames in generated files
+        ant.replaceregexp(match: '\\Q// Generated from \\E.*',
+                replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+                encoding: 'UTF-8') {
+            fileset(dir: suggestOutputPath, includes: 'Suggest*.java')
+        }
+        // remove tabs in antlr generated files
+        ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
+            fileset(dir: suggestOutputPath, includes: 'Suggest*.java')
+        }
+        // fix line endings
+        ant.fixcrlf(srcdir: suggestOutputPath, eol: 'lf') {
+            patternset(includes: 'Suggest*.java')
+        }
+    }
 }

@@ -13,6 +13,9 @@ tasks.named("test").configure { enabled = false }
 
 dependencies {
   api project(':server')
+  api project(':distribution:tools:geoip-cli')
+  api project(":libs:elasticsearch-cli")
+  api project(":libs:elasticsearch-x-content")
 }
 
 tasks.named("preProcessFixture").configure {

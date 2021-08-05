@@ -7,7 +7,7 @@
 
 evaluationDependsOn(xpackModule('core'))
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
   name 'unsigned-long'

@@ -604,6 +604,17 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         createTestSuite(skipSection, containsAssertion).validate();
     }
 
+    public void testAddingCloseToWithSkip() {
+        int lineNumber = between(1, 10000);
+        SkipSection skipSection = new SkipSection(null, singletonList("close_to"), emptyList(), null);
+        CloseToAssertion closeToAssertion = new CloseToAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            randomDouble(),
+            randomDouble());
+        createTestSuite(skipSection, closeToAssertion).validate();
+    }
+
     private static ClientYamlTestSuite createTestSuite(SkipSection skipSection, ExecutableSection executableSection) {
         final SetupSection setupSection;
         final TeardownSection teardownSection;

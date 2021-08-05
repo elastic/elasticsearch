@@ -14,7 +14,7 @@ especially in clusters with a high load or few resources.
 
 If you increase this setting, we recommend you also increase the
 <<search-settings,`indices.query.bool.max_clause_count`>> setting, which
-limits the maximum number of <<query-dsl-bool-query,boolean clauses>> in a query.
+limits the maximum number of clauses in a query.
 ====
 +
 [TIP]

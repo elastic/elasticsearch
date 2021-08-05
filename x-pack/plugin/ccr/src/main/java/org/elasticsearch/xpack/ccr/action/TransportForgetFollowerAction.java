@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -102,7 +102,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
 
         final IndexShard indexShard = indicesService.indexServiceSafe(leaderIndex).getShard(shardRouting.shardId().id());
 
-        indexShard.acquirePrimaryOperationPermit(new ActionListener<Releasable>() {
+        indexShard.acquirePrimaryOperationPermit(new ActionListener.Delegating<>(listener) {
             @Override
             public void onResponse(Releasable releasable) {
                 try {
@@ -110,24 +110,19 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
                         @Override
                         public void onResponse(ReplicationResponse replicationResponse) {
                             releasable.close();
-                            listener.onResponse(EmptyResult.INSTANCE);
+                            delegate.onResponse(EmptyResult.INSTANCE);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             releasable.close();
-                            listener.onFailure(e);
+                            delegate.onFailure(e);
                         }
                     });
                 } catch (Exception e) {
                     releasable.close();
-                    listener.onFailure(e);
+                    onFailure(e);
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
             }
         }, ThreadPool.Names.SAME, request);
     }

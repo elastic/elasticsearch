@@ -27,6 +27,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -165,7 +166,7 @@ public class TermVectorsUnitTests extends ESTestCase {
 
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
-        TermVectorsRequest.parseRequest(tvr, parser);
+        TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
 
         Set<String> fields = tvr.selectedFields();
         assertThat(fields.contains("a"), equalTo(true));
@@ -186,7 +187,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         inputBytes = new BytesArray(" {\"offsets\":false, \"positions\":false, \"payloads\":true}");
         tvr = new TermVectorsRequest(null, null);
         parser = createParser(JsonXContent.jsonXContent, inputBytes);
-        TermVectorsRequest.parseRequest(tvr, parser);
+        TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
         additionalFields = "";
         RestTermVectorsAction.addFieldStringsFromParameter(tvr, additionalFields);
         assertThat(tvr.selectedFields(), equalTo(null));
@@ -203,7 +204,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         boolean threwException = false;
         try {
             XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
-            TermVectorsRequest.parseRequest(tvr, parser);
+            TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
         } catch (Exception e) {
             threwException = true;
         }

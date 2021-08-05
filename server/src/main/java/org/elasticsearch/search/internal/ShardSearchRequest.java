@@ -17,15 +17,16 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -80,6 +81,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
 
+    private final Version channelVersion;
+
     public ShardSearchRequest(OriginalIndices originalIndices,
                               SearchRequest searchRequest,
                               ShardId shardId,
@@ -128,7 +131,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                               long nowInMillis,
                               AliasFilter aliasFilter) {
         this(OriginalIndices.NONE, shardId, -1, -1, SearchType.QUERY_THEN_FETCH, null, null,
-            aliasFilter, 1.0f, false, null, nowInMillis, null, null, null);
+            aliasFilter, 1.0f, true, null, nowInMillis, null, null, null);
     }
 
     private ShardSearchRequest(OriginalIndices originalIndices,
@@ -162,6 +165,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.readerId = readerId;
         this.keepAlive = keepAlive;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        this.channelVersion = Version.CURRENT;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -201,8 +205,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             readerId = null;
             keepAlive = null;
         }
-        originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        channelVersion = Version.min(Version.readVersion(in), in.getVersion());
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {
@@ -223,6 +228,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
+        this.channelVersion = clone.channelVersion;
     }
 
     @Override
@@ -265,6 +271,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }
+        Version.writeVersion(channelVersion, out);
     }
 
     @Override
@@ -390,10 +397,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     /**
      * Returns the cache key for this shard search request, based on its content
      */
-    public BytesReference cacheKey() throws IOException {
+    public BytesReference cacheKey(CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator) throws IOException {
         BytesStreamOutput out = scratch.get();
         try {
             this.innerWriteTo(out, true);
+            if (differentiator != null) {
+                differentiator.accept(this, out);
+            }
             // copy it over since we don't want to share the thread-local bytes in #scratch
             return out.copyBytes();
         } finally {
@@ -519,5 +529,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public final Map<String, Object> getRuntimeMappings() {
         return source == null ? emptyMap() : source.runtimeMappings();
+    }
+
+    /**
+     * Returns the minimum version of the channel that the request has been passed. If the request never passes around, then the channel
+     * version is {@link Version#CURRENT}; otherwise, it's the minimum version of the coordinating node and data node (and the proxy node
+     * in case the request is sent to the proxy node of the remote cluster before reaching the data node).
+     */
+    public Version getChannelVersion() {
+        return channelVersion;
     }
 }

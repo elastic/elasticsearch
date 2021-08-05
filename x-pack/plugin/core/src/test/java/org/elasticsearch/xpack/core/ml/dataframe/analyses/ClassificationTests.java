@@ -518,6 +518,6 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     private static FieldCapabilities createFieldCapabilities(String field, String type) {
-        return new FieldCapabilities(field, type, true, true, null, null, null, Collections.emptyMap());
+        return new FieldCapabilities(field, type, false, true, true, null, null, null, Collections.emptyMap());
     }
 }

@@ -8,6 +8,7 @@
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 
 apply plugin: 'war'
 apply plugin: 'elasticsearch.java'
@@ -47,7 +48,7 @@ if (Architecture.current() == Architecture.X64) {
 
 elasticsearch_distributions {
   docker {
-    type = 'docker'
+    type = DOCKER
     architecture = Architecture.current()
     version = VersionProperties.getElasticsearch()
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable

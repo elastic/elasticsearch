@@ -15,7 +15,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -681,14 +681,28 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             ensureGreen(index);
             final int totalHits = (int) XContentMapValues.extractValue("hits.total.value",
                 entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
-            assertOK(client().performRequest(new Request("POST", index + "/_freeze")));
+            Request freezeRequest = new Request("POST", index + "/_freeze");
+            freezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given "
+                        + "improvements in heap memory utilization. They will be removed in a future release."
+                )
+            );
+            assertOK(client().performRequest(freezeRequest));
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
             final Request request = new Request("GET", "/" + index + "/_search");
             request.addParameter("ignore_throttled", "false");
             assertThat(XContentMapValues.extractValue("hits.total.value", entityAsMap(client().performRequest(request))),
                 equalTo(totalHits));
-            assertOK(client().performRequest(new Request("POST", index + "/_unfreeze")));
+            final Request unfreezeRequest = new Request("POST", index + "/_unfreeze");
+            unfreezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given "
+                        + "improvements in heap memory utilization. They will be removed in a future release."
+                )
+            );
+            assertOK(client().performRequest(unfreezeRequest));
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
         }
@@ -701,10 +715,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createComposableTemplate(client(), "dst", "ds");
 
             Request indexRequest = new Request("POST", "/ds/_doc/1?op_type=create&refresh");
-            XContentBuilder builder = JsonXContent.contentBuilder().startObject()
-                .field("f", "v")
-                .field("@timestamp", System.currentTimeMillis())
-                .endObject();
+            XContentBuilder
+                builder =
+                JsonXContent.contentBuilder().startObject().field("f", "v").field("@timestamp", System.currentTimeMillis()).endObject();
             indexRequest.setJsonEntity(Strings.toString(builder));
             assertOK(client().performRequest(indexRequest));
         }
@@ -731,7 +744,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
-        assertEquals(DataStream.getDefaultBackingIndexName("ds", 1, timestamp, getOldClusterVersion()), indices.get(0).get("index_name"));
+        assertEquals(DataStreamTestHelper.getLegacyDefaultBackingIndexName("ds", 1, timestamp, getOldClusterVersion()),
+            indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
     }
 

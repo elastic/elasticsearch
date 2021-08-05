@@ -231,7 +231,7 @@ user for confirmation before continuing with installation.
 When running the plugin install script from another program (e.g. install
 automation scripts), the plugin script should detect that it is not being
 called from the console and skip the confirmation response, automatically
-granting all requested permissions.  If console detection fails, then batch
+granting all requested permissions. If console detection fails, then batch
 mode can be forced by specifying `-b` or `--batch` as follows:
 
 [source,shell]
@@ -243,7 +243,7 @@ sudo bin/elasticsearch-plugin install --batch [pluginname]
 === Custom config directory
 
 If your `elasticsearch.yml` config file is in a custom location, you will need
-to specify the path to the config file when using the `plugin` script.  You
+to specify the path to the config file when using the `plugin` script. You
 can do this as follows:
 
 [source,sh]

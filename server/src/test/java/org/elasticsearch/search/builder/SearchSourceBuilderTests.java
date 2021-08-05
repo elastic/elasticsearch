@@ -13,7 +13,8 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -401,6 +402,17 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testParseIndicesBoost() throws IOException {
         {
+            String restContent = " { \"indices_boost\": {\"foo\": 1.0, \"bar\": 2.0}}";
+            try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertEquals(2, searchSourceBuilder.indexBoosts().size());
+                assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
+                assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
+                assertWarnings("Object format in indices_boost is deprecated, please use array format instead");
+            }
+        }
+
+        {
             String restContent = "{" +
                 "    \"indices_boost\" : [\n" +
                 "        { \"foo\" : 1.0 },\n" +
@@ -460,27 +472,26 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testNegativeSizeErrors() throws IOException {
-        int randomSize = randomIntBetween(-100000, -2);
+        int randomSize = randomIntBetween(-100000, -1);
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
                 () -> new SearchSourceBuilder().size(randomSize));
         assertEquals("[size] parameter cannot be negative, found [" + randomSize + "]", expected.getMessage());
         expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().size(-1));
         assertEquals("[size] parameter cannot be negative, found [-1]", expected.getMessage());
 
-        // we don't want to error on -1 for bwc reasons, this is treated as if the value is unset later
-        String restContent = "{\"size\" : -1}";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
-            assertEquals(-1, searchSourceBuilder.size());
-        }
-        assertWarnings("Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` "
-            + "parameter if you don't want to set it explicitely.");
-
-        restContent = "{\"size\" : " + randomSize + "}";
+        String restContent = "{\"size\" : " + randomSize + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
             assertThat(ex.getMessage(), containsString(Integer.toString(randomSize)));
         }
+
+        restContent = "{\"size\" : -1}";
+        try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            assertEquals(-1, searchSourceBuilder.size());
+        }
+        assertWarnings("Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` "
+            + "parameter if you don't want to set it explicitly.");
     }
 
     public void testNegativeTerminateAfter() throws IOException {

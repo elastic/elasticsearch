@@ -7,9 +7,8 @@
  */
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -368,13 +367,20 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
 
             if (RestApiVersion.minimumSupported().matches(parseField.getForRestApiVersion())) {
-                fieldParserMap.computeIfAbsent(RestApiVersion.minimumSupported(), (v)-> new HashMap<>())
-                    .putIfAbsent(fieldValue, fieldParser);
+                Map<String, FieldParser> nameToParserMap =
+                    fieldParserMap.computeIfAbsent(RestApiVersion.minimumSupported(), (v) -> new HashMap<>());
+                FieldParser previousValue = nameToParserMap.putIfAbsent(fieldValue, fieldParser);
+                if (previousValue != null) {
+                    throw new IllegalArgumentException("Parser already registered for name=[" + fieldValue + "]. " + previousValue);
+                }
             }
             if (RestApiVersion.current().matches(parseField.getForRestApiVersion())) {
-                fieldParserMap.computeIfAbsent(RestApiVersion.current(), (v)-> new HashMap<>())
-                    .putIfAbsent(fieldValue, fieldParser);
-
+                Map<String, FieldParser> nameToParserMap =
+                    fieldParserMap.computeIfAbsent(RestApiVersion.current(), (v) -> new HashMap<>());
+                FieldParser previousValue = nameToParserMap.putIfAbsent(fieldValue, fieldParser);
+                if (previousValue != null) {
+                    throw new IllegalArgumentException("Parser already registered for name=[" + fieldValue + "]. " + previousValue);
+                }
             }
         }
 

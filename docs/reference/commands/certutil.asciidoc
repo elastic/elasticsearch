@@ -214,7 +214,7 @@ parameter cannot be used with the `csr` parameter.
 applicable to the `cert` parameter.
 +
 --
-NOTE: This option is not recommended for <<ssl-tls,setting up TLS on a cluster>>.
+NOTE: This option is not recommended for <<encrypt-internode-communication,setting up TLS on a cluster>>.
 In fact, a self-signed certificate should be used only when you can be sure
 that a CA is definitely not needed and trust is directly given to the
 certificate itself.
@@ -253,7 +253,7 @@ Alternatively, you can specify the `--ca-pass`, `--out`, and `--pass` parameters
 By default, this command generates a file called `elastic-certificates.p12`,
 which you can copy to the relevant configuration directory for each Elastic
 product that you want to configure. For more information, see
-<<ssl-tls>>.
+<<encrypt-internode-communication>>.
 
 [discrete]
 [[certutil-silent]]

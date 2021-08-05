@@ -79,7 +79,7 @@ jacknich       : monitoring,unknown_role* <1>
 ------------------------------------------
 <1> `unknown_role` was not found in `roles.yml`
 
-For more information about this command, see the 
+For more information about this command, see the
 <<users-command,`elasticsearch-users` command>>.
 --
 
@@ -91,7 +91,7 @@ this error.
 |_group identification_ |
 
 Groups are located by either an LDAP search or by the "memberOf" attribute on
-the user.  Also, If subtree search is turned off, it will search only one
+the user. Also, If subtree search is turned off, it will search only one
 level deep. For all the options, see <<ref-ldap-settings>>.
 There are many options here and sticking to the defaults will not work for all
 scenarios.
@@ -211,7 +211,7 @@ below with tips on how to resolve these issues.
 Indicates that a client connection was made to `node01.example.com` but the
 certificate returned did not contain the name `node01.example.com`. In most
 cases, the issue can be resolved by ensuring the name is specified during
-certificate creation. For more information, see <<ssl-tls>>. Another scenario is
+certificate creation. For more information, see <<encrypt-internode-communication>>. Another scenario is
 when the environment does not wish to use DNS names in certificates at all. In
 this scenario, all settings in `elasticsearch.yml` should only use IP addresses
 including the `network.publish_host` setting.
@@ -225,7 +225,7 @@ certificate did not contain any `SubjectAlternativeName` entries. IP addresses
 are only used for hostname verification if they are specified as a
 `SubjectAlternativeName` during certificate creation. If the intent was to use
 IP addresses for hostname verification, then the certificate will need to be
-regenerated with the appropriate IP address. See <<ssl-tls>>.
+regenerated with the appropriate IP address. See <<encrypt-internode-communication>>.
 --
 
 `javax.net.ssl.SSLHandshakeException: null cert chain` and `javax.net.ssl.SSLException: Received fatal alert: bad_certificate`::
@@ -253,7 +253,7 @@ certificate.
 --
 The `Invalid ECDH ServerKeyExchange signature` can indicate that a key and a corresponding certificate don't match and are
 causing the handshake to fail.
-Verify the contents of each of the files you are using for your configured certificate authorities, certificates and keys. In particular, check that the key and certificate belong to the same key pair. 
+Verify the contents of each of the files you are using for your configured certificate authorities, certificates and keys. In particular, check that the key and certificate belong to the same key pair.
 --
 
 [[trb-security-ssl]]
@@ -339,9 +339,9 @@ In this case, you must install the
 
 *Symptoms:*
 
-* User authentication fails due to either GSS negotiation failure 
-or a service login failure (either on the server or in the {es} http client). 
-Some of the common exceptions are listed below with some tips to help resolve 
+* User authentication fails due to either GSS negotiation failure
+or a service login failure (either on the server or in the {es} http client).
+Some of the common exceptions are listed below with some tips to help resolve
 them.
 
 *Resolution:*
@@ -350,21 +350,21 @@ them.
 +
 --
 
-When you see this error message on the HTTP client side, then it may be 
+When you see this error message on the HTTP client side, then it may be
 related to an incorrect password.
 
-When you see this error message in the {es} server logs, then it may be 
-related to the {es} service keytab. The keytab file is present but it failed 
-to log in as the user. Please check the keytab expiry. Also check whether the 
+When you see this error message in the {es} server logs, then it may be
+related to the {es} service keytab. The keytab file is present but it failed
+to log in as the user. Please check the keytab expiry. Also check whether the
 keytab contain up-to-date credentials; if not, replace them.
 
-You can use tools like `klist` or `ktab` to list principals inside 
-the keytab and validate them. You can use `kinit` to see if you can acquire 
-initial tickets using the keytab. Please check the tools and their documentation 
+You can use tools like `klist` or `ktab` to list principals inside
+the keytab and validate them. You can use `kinit` to see if you can acquire
+initial tickets using the keytab. Please check the tools and their documentation
 in your Kerberos environment.
 
 Kerberos depends on proper hostname resolution, so please check your DNS infrastructure.
-Incorrect DNS setup, DNS SRV records or configuration for KDC servers in `krb5.conf` 
+Incorrect DNS setup, DNS SRV records or configuration for KDC servers in `krb5.conf`
 can cause problems with hostname resolution.
 
 --
@@ -375,8 +375,8 @@ can cause problems with hostname resolution.
 +
 --
 
-To prevent replay attacks, Kerberos V5 sets a maximum tolerance for computer 
-clock synchronization and it is typically 5 minutes. Please check whether 
+To prevent replay attacks, Kerberos V5 sets a maximum tolerance for computer
+clock synchronization and it is typically 5 minutes. Please check whether
 the time on the machines within the domain is in sync.
 
 --
@@ -387,10 +387,10 @@ the time on the machines within the domain is in sync.
 +
 --
 
-You would usually see this error message on the client side when using `curl` to 
-test {es} Kerberos setup. For example, these messages occur when you are using 
+You would usually see this error message on the client side when using `curl` to
+test {es} Kerberos setup. For example, these messages occur when you are using
 an old version of curl on the client and therefore Kerberos Spnego support is missing.
-The Kerberos realm in {es} only supports Spengo mechanism (Oid 1.3.6.1.5.5.2); 
+The Kerberos realm in {es} only supports Spengo mechanism (Oid 1.3.6.1.5.5.2);
 it does not yet support Kerberos mechanism (Oid 1.2.840.113554.1.2.2).
 
 Make sure that:
@@ -406,12 +406,12 @@ To download latest curl version visit https://curl.haxx.se/download.html
 
 --
 
-As Kerberos logs are often cryptic in nature and many things can go wrong 
-as it depends on external services like DNS and NTP. You might 
+As Kerberos logs are often cryptic in nature and many things can go wrong
+as it depends on external services like DNS and NTP. You might
 have to enable additional debug logs to determine the root cause of the issue.
 
-{es} uses a JAAS (Java Authentication and Authorization Service) Kerberos login 
-module to provide Kerberos support. To enable debug logs on {es} for the login 
+{es} uses a JAAS (Java Authentication and Authorization Service) Kerberos login
+module to provide Kerberos support. To enable debug logs on {es} for the login
 module use following Kerberos realm setting:
 [source,yaml]
 ----------------
@@ -420,8 +420,8 @@ xpack.security.authc.realms.kerberos.<realm-name>.krb.debug: true
 
 For detailed information, see <<ref-kerberos-settings>>.
 
-Sometimes you may need to go deeper to understand the problem during SPNEGO 
-GSS context negotiation or look at the Kerberos message exchange. To enable 
+Sometimes you may need to go deeper to understand the problem during SPNEGO
+GSS context negotiation or look at the Kerberos message exchange. To enable
 Kerberos/SPNEGO debug logging on JVM, add following JVM system properties:
 
 `-Dsun.security.krb5.debug=true`
@@ -433,13 +433,13 @@ For more information about JVM system properties, see <<jvm-options>>.
 [[trb-security-saml]]
 === Common SAML issues
 
-Some of the common SAML problems are shown below with tips on how to resolve 
+Some of the common SAML problems are shown below with tips on how to resolve
 these issues.
 
 . *Symptoms:*
 +
 --
-Authentication in {kib} fails and the following error is printed in the {es} 
+Authentication in {kib} fails and the following error is printed in the {es}
 logs:
 
 ....
@@ -519,7 +519,7 @@ Cannot find metadata for entity [your:entity.id] in [metadata.xml]
 
 *Resolution:*
 
-We could not find the metadata for the SAML Entity ID `your:entity.id` in the 
+We could not find the metadata for the SAML Entity ID `your:entity.id` in the
 configured metadata file (`metadata.xml`).
 
 .. Ensure that the `metadata.xml` file you are using is indeed the one provided
@@ -527,7 +527,7 @@ by your SAML Identity Provider.
 .. Ensure that the `metadata.xml` file contains one <EntityDescriptor> element
 as follows: `<EntityDescriptor ID="0597c9aa-e69b-46e7-a1c6-636c7b8a8070" entityID="https://saml.example.com/f174199a-a96e-4201-88f1-0d57a610c522/" ...`
 where the value of the `entityID` attribute is the same as the value of the
-`idp.entity_id` that you have set in your SAML realm configuration in 
+`idp.entity_id` that you have set in your SAML realm configuration in
 `elasticsearch.yml`.
 .. Note that these are also compared as case-sensitive strings and not as
 canonicalized URLs even when the values are URL-like.
@@ -698,28 +698,31 @@ the `basic` `authProvider` in {kib}. The process is documented in the
 
 *Logging:*
 
-Very detailed trace logging can be enabled specifically for the SAML realm by
-setting the following transient setting:
+If the previous resolutions do not solve your issue, enable additional
+logging for the SAML realm to troubleshoot further. You can enable debug
+logging by configuring the following transient setting:
 
-[source, shell]
------------------------------------------------
+[source, console]
+----
 PUT /_cluster/settings
 {
   "transient": {
-    "logger.org.elasticsearch.xpack.security.authc.saml": "trace"
+    "logger.org.elasticsearch.xpack.security.authc.saml": "debug"
   }
 }
------------------------------------------------
+----
 
-
-Alternatively, you can add the following lines to the end of the 
+Alternatively, you can add the following lines to the end of the
 `log4j2.properties` configuration file in the `ES_PATH_CONF`:
 
 [source,properties]
 ----------------
 logger.saml.name = org.elasticsearch.xpack.security.authc.saml
-logger.saml.level = TRACE
+logger.saml.level = DEBUG
 ----------------
+
+Refer to <<configuring-logging-levels,configuring logging levels>> for more
+information.
 
 [[trb-security-internalserver]]
 === Internal Server Error in Kibana
@@ -824,28 +827,27 @@ For more information about these settings, see
 
 *Symptoms:*
 
-* Active Directory or LDAP realms might stop working after upgrading to {es} 6.3 
-or later releases. In 6.4 or later releases, you might see messages in the {es} 
-log that indicate a config file is in a deprecated location. 
+* Active Directory or LDAP realms might stop working after upgrading to {es} 6.3
+or later releases. In 6.4 or later releases, you might see messages in the {es}
+log that indicate a config file is in a deprecated location.
 
 *Resolution:*
 
 By default, in 6.2 and earlier releases, the security configuration files are
 located in the `ES_PATH_CONF/x-pack` directory, where `ES_PATH_CONF` is an
-environment variable that defines the location of the 
-<<config-files-location,config directory>>. 
+environment variable that defines the location of the
+<<config-files-location,config directory>>.
 
-In 6.3 and later releases, the config directory no longer contains an `x-pack` 
-directory. The files that were stored in this folder, such as the 
-`log4j2.properties`, `role_mapping.yml`, `roles.yml`, `users`, and `users_roles` 
-files, now exist directly in the config directory. 
+In 6.3 and later releases, the config directory no longer contains an `x-pack`
+directory. The files that were stored in this folder, such as the
+`log4j2.properties`, `role_mapping.yml`, `roles.yml`, `users`, and `users_roles`
+files, now exist directly in the config directory.
 
-IMPORTANT: If you upgraded to 6.3 or later releases, your old security 
-configuration files still exist in an `x-pack` folder. That file path is 
-deprecated, however, and you should move your files out of that folder. 
+IMPORTANT: If you upgraded to 6.3 or later releases, your old security
+configuration files still exist in an `x-pack` folder. That file path is
+deprecated, however, and you should move your files out of that folder.
 
-In 6.3 and later releases, settings such as `files.role_mapping` default to 
-`ES_PATH_CONF/role_mapping.yml`. If you do not want to use the default locations, 
-you must update the settings appropriately. See 
-<<security-settings>>. 
-
+In 6.3 and later releases, settings such as `files.role_mapping` default to
+`ES_PATH_CONF/role_mapping.yml`. If you do not want to use the default locations,
+you must update the settings appropriately. See
+<<security-settings>>.

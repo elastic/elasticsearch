@@ -42,7 +42,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.config.InitializationService;

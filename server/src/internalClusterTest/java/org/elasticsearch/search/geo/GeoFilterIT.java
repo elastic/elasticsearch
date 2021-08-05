@@ -200,8 +200,9 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject()
                 .endObject());
 
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes")
-            .setMapping(mapping);
+            .setMapping(mapping).setSettings(settings(version).build());
         mappingRequest.get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.repositories.encrypted;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -961,6 +961,7 @@ public class ChainingInputStreamTests extends ESTestCase {
             verify(lastCurrentIn).close();
         }
         verify(currentIn).reset();
+        final InputStream firstResetStream = currentIn;
         // assert the "nextComponet" arg is the current component
         nextComponentArg.set(currentIn);
         // possibly skips over several components
@@ -991,7 +992,11 @@ public class ChainingInputStreamTests extends ESTestCase {
         if (lastCurrentIn != currentIn) {
             verify(lastCurrentIn).close();
         }
-        verify(currentIn).reset();
+        if (currentIn != firstResetStream) {
+            verify(currentIn).reset();
+        } else {
+            verify(currentIn, times(2)).reset();
+        }
     }
 
     public void testMarkAfterResetNoMock() throws Exception {

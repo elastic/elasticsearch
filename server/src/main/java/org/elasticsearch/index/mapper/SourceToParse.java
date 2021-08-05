@@ -8,11 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 
+import java.util.Map;
 import java.util.Objects;
 
 public class SourceToParse {
@@ -27,7 +28,10 @@ public class SourceToParse {
 
     private final XContentType xContentType;
 
-    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing) {
+    private final Map<String, String> dynamicTemplates;
+
+    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing,
+                         Map<String, String> dynamicTemplates) {
         this.index = Objects.requireNonNull(index);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -35,10 +39,11 @@ public class SourceToParse {
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
+        this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
     }
 
     public SourceToParse(String index, String id, BytesReference source, XContentType xContentType) {
-        this(index, id, source, xContentType, null);
+        this(index, id, source, xContentType, null, Map.of());
     }
 
     public BytesReference source() {
@@ -55,6 +60,13 @@ public class SourceToParse {
 
     public @Nullable String routing() {
         return this.routing;
+    }
+
+    /**
+     * Returns a map from the full path (i.e. foo.bar) of field names to the names of dynamic mapping templates.
+     */
+    public Map<String, String> dynamicTemplates() {
+        return dynamicTemplates;
     }
 
     public XContentType getXContentType() {

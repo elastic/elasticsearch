@@ -92,7 +92,7 @@ include::targz-daemon.asciidoc[]
 ==== Configuring Elasticsearch on the command line
 
 Elasticsearch loads its configuration from the `$ES_HOME/config/elasticsearch.yml`
-file by default.  The format of this config file is explained in
+file by default. The format of this config file is explained in
 <<settings>>.
 
 Any settings that can be specified in the config file can also be specified on
@@ -116,7 +116,7 @@ created when unpacking the archive.
 
 This is very convenient because you don't have to create any directories to
 start using Elasticsearch, and uninstalling Elasticsearch is as easy as
-removing the `$ES_HOME` directory.  However, it is advisable to change the
+removing the `$ES_HOME` directory. However, it is advisable to change the
 default locations of the config directory, the data directory, and the logs
 directory so that you do not delete important data later on.
 
@@ -142,7 +142,7 @@ directory so that you do not delete important data later on.
 
 | data
   | The location of the data files of each index / shard allocated
-    on the node. Can hold multiple locations.
+    on the node.
   | $ES_HOME/data
   | path.data
 

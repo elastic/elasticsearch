@@ -10,7 +10,7 @@ a data stream that is replicated by CCR into a regular
 data stream.
 
 Via CCR Auto Following, a data stream from a remote cluster
-can  be replicated to the local cluster. These data streams
+can be replicated to the local cluster. These data streams
 can't be rolled over in the local cluster. Only if the upstream
 data stream rolls over then these replicated data streams roll
 over as well. In the event that the remote cluster is no longer

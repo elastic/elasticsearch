@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.rollup.job;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.rollup.RollupField.formatFieldName;
 
@@ -130,7 +131,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
 
         if (response.getBuckets().isEmpty()) {
             // do not reset the position as we want to continue from where we stopped
-            return new IterationResult<>(Collections.emptyList(), getPosition(), true);
+            return new IterationResult<>(Stream.empty(), getPosition(), true);
         }
 
         return new IterationResult<>(
@@ -227,7 +228,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         } else if (dateHistogram instanceof DateHistogramGroupConfig.CalendarInterval) {
             dateHistogramBuilder.calendarInterval(dateHistogram.getInterval());
         } else {
-            dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+            throw new IllegalStateException("[date_histogram] must use either [fixed_interval] or [calendar_interval]");
         }
         dateHistogramBuilder.field(dateHistogramField);
         dateHistogramBuilder.timeZone(ZoneId.of(dateHistogram.getTimeZone()));

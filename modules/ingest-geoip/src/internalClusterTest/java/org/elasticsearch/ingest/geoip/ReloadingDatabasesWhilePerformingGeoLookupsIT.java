@@ -10,6 +10,8 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -41,6 +43,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
 public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
@@ -57,7 +60,9 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         Path geoIpConfigDir = createTempDir();
         Path geoIpTmpDir = createTempDir();
         DatabaseRegistry databaseRegistry = createRegistry(geoIpModulesDir, geoIpConfigDir, geoIpTmpDir);
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, clusterService);
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
             geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
@@ -168,7 +173,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         LocalDatabases localDatabases = new LocalDatabases(geoIpModulesDir, geoIpConfigDir, cache);
         DatabaseRegistry databaseRegistry =
             new DatabaseRegistry(geoIpTmpDir, mock(Client.class), cache, localDatabases, Runnable::run);
-        databaseRegistry.initialize(mock(ResourceWatcherService.class), mock(IngestService.class));
+        databaseRegistry.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class));
         return databaseRegistry;
     }
 

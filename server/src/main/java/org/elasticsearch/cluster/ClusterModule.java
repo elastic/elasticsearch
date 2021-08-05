@@ -22,8 +22,8 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
@@ -48,7 +49,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
@@ -65,7 +66,6 @@ import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
-import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
@@ -134,10 +134,8 @@ public class ClusterModule extends AbstractModule {
         registerMetadataCustom(entries, ComposableIndexTemplateMetadata.TYPE, ComposableIndexTemplateMetadata::new,
             ComposableIndexTemplateMetadata::readDiffFrom);
         registerMetadataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
+        registerMetadataCustom(entries, NodesShutdownMetadata.TYPE, NodesShutdownMetadata::new, NodesShutdownMetadata::readDiffFrom);
 
-        if (RollupV2.isEnabled()) {
-            registerMetadataCustom(entries, RollupMetadata.TYPE, RollupMetadata::new, RollupMetadata::readDiffFrom);
-        }
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
@@ -162,25 +160,23 @@ public class ClusterModule extends AbstractModule {
             ComposableIndexTemplateMetadata::fromXContent));
         entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(DataStreamMetadata.TYPE),
             DataStreamMetadata::fromXContent));
-        if (RollupV2.isEnabled()) {
-            entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(RollupMetadata.TYPE),
-                RollupMetadata::fromXContent));
-        }
+        entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(NodesShutdownMetadata.TYPE),
+            NodesShutdownMetadata::fromXContent));
         return entries;
     }
 
     private static <T extends ClusterState.Custom> void registerClusterCustom(List<Entry> entries, String name, Reader<? extends T> reader,
-                                                                       Reader<NamedDiff> diffReader) {
+                                                                       Reader<NamedDiff<?>> diffReader) {
         registerCustom(entries, ClusterState.Custom.class, name, reader, diffReader);
     }
 
     private static <T extends Metadata.Custom> void registerMetadataCustom(List<Entry> entries, String name, Reader<? extends T> reader,
-                                                                           Reader<NamedDiff> diffReader) {
+                                                                           Reader<NamedDiff<?>> diffReader) {
         registerCustom(entries, Metadata.Custom.class, name, reader, diffReader);
     }
 
     private static <T extends NamedWriteable> void registerCustom(List<Entry> entries, Class<T> category, String name,
-                                                                  Reader<? extends T> reader, Reader<NamedDiff> diffReader) {
+                                                                  Reader<? extends T> reader, Reader<NamedDiff<?>> diffReader) {
         entries.add(new Entry(category, name, reader));
         entries.add(new Entry(NamedDiff.class, name, diffReader));
     }
@@ -194,7 +190,7 @@ public class ClusterModule extends AbstractModule {
     public static Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings,
                                                                          List<ClusterPlugin> clusterPlugins) {
         // collect deciders by class so that we can detect duplicates
-        Map<Class, AllocationDecider> deciders = new LinkedHashMap<>();
+        Map<Class<?>, AllocationDecider> deciders = new LinkedHashMap<>();
         addAllocationDecider(deciders, new MaxRetryAllocationDecider());
         addAllocationDecider(deciders, new ResizeAllocationDecider());
         addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider());
@@ -205,6 +201,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new NodeVersionAllocationDecider());
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
+        addAllocationDecider(deciders, new NodeShutdownAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
@@ -220,7 +217,7 @@ public class ClusterModule extends AbstractModule {
     }
 
     /** Add the given allocation decider to the given deciders collection, erroring if the class name is already used. */
-    private static void addAllocationDecider(Map<Class, AllocationDecider> deciders, AllocationDecider decider) {
+    private static void addAllocationDecider(Map<Class<?>, AllocationDecider> deciders, AllocationDecider decider) {
         if (deciders.put(decider.getClass(), decider) != null) {
             throw new IllegalArgumentException("Cannot specify allocation decider [" + decider.getClass().getName() + "] twice");
         }

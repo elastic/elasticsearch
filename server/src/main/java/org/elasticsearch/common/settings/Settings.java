@@ -13,7 +13,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,7 +22,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -62,7 +62,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 /**
  * An immutable settings implementation.
@@ -386,7 +386,9 @@ public final class Settings implements ToXContentFragment {
         final Object valueFromPrefix = settings.get(key);
         if (valueFromPrefix != null) {
             if (valueFromPrefix instanceof List) {
-                return Collections.unmodifiableList((List<String>) valueFromPrefix);
+                @SuppressWarnings("unchecked")
+                final List<String> valuesAsList = (List<String>) valueFromPrefix;
+                return Collections.unmodifiableList(valuesAsList);
             } else if (commaDelimited) {
                 String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
@@ -524,7 +526,9 @@ public final class Settings implements ToXContentFragment {
             if (value == null) {
                 builder.putNull(key);
             } else if (value instanceof List) {
-                builder.putList(key, (List<String>) value);
+                @SuppressWarnings("unchecked")
+                List<String> stringList = (List<String>) value;
+                builder.putList(key, stringList);
             } else {
                 builder.put(key, value.toString());
             }
@@ -832,7 +836,9 @@ public final class Settings implements ToXContentFragment {
             }
             final Object value = source.settings.get(sourceKey);
             if (value instanceof List) {
-                return putList(key, (List)value);
+                @SuppressWarnings("unchecked")
+                final List<String> stringList = (List<String>) value;
+                return putList(key, stringList);
             } else if (value == null) {
                 return putNull(key);
             } else {
@@ -1124,6 +1130,7 @@ public final class Settings implements ToXContentFragment {
                     continue;
                 }
                 if (entry.getValue() instanceof List) {
+                    @SuppressWarnings("unchecked")
                     final ListIterator<String> li = ((List<String>) entry.getValue()).listIterator();
                     while (li.hasNext()) {
                         final String settingValueRaw = li.next();

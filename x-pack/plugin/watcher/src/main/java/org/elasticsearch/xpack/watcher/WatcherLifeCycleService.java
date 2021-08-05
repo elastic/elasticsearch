@@ -99,7 +99,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         boolean isWatcherStoppedManually = isWatcherStoppedManually(event.state());
         boolean isStoppedOrStopping = stopStates.contains(this.state.get());
         // if this is not a data node, we need to start it ourselves possibly
-        if (event.state().nodes().getLocalNode().isDataNode() == false &&
+        if (event.state().nodes().getLocalNode().canContainData() == false &&
             isWatcherStoppedManually == false && isStoppedOrStopping) {
             this.state.set(WatcherState.STARTING);
             watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));

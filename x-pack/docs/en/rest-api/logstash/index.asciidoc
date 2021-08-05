@@ -10,6 +10,6 @@ Management]:
 * <<logstash-api-get-pipeline>>
 * <<logstash-api-delete-pipeline>>
 
+include::put-pipeline.asciidoc[]
 include::delete-pipeline.asciidoc[]
 include::get-pipeline.asciidoc[]
-include::put-pipeline.asciidoc[]

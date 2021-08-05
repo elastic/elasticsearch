@@ -77,7 +77,7 @@ public class TokenCountFieldMapper extends FieldMapper {
 
         TokenCountFieldType(String name, boolean isSearchable, boolean isStored,
                             boolean hasDocValues, Number nullValue, Map<String, String> meta) {
-            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta);
+            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta, null, false);
         }
 
         @Override
@@ -110,13 +110,8 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        final String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            value = context.parser().textOrNull();
-        }
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        final String value = context.parser().textOrNull();
 
         if (value == null && nullValue == null) {
             return;

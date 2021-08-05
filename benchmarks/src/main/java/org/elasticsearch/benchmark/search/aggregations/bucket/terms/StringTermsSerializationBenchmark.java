@@ -70,7 +70,7 @@ public class StringTermsSerializationBenchmark {
             false,
             100000,
             resultBuckets,
-            0
+            0L
         );
     }
 

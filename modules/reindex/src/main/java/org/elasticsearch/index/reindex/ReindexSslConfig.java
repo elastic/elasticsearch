@@ -80,6 +80,10 @@ public class ReindexSslConfig {
 
     public ReindexSslConfig(Settings settings, Environment environment, ResourceWatcherService resourceWatcher) {
         final SslConfigurationLoader loader = new SslConfigurationLoader("reindex.ssl.") {
+            @Override
+            protected boolean hasSettings(String prefix) {
+                return settings.getAsSettings(prefix).isEmpty() == false;
+            }
 
             @Override
             protected String getSettingAsString(String key) {

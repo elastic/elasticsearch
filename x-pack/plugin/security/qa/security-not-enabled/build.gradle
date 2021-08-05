@@ -21,4 +21,5 @@ testClusters.all {
   // We run with a trial license, but do not enable security.
   // This means the security plugin is loaded and all feature are permitted, but they are not enabled
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'false'
 }

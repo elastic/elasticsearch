@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -28,6 +28,8 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.LegacyReaderContext;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
@@ -49,6 +51,8 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
@@ -151,7 +155,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             remoteCluster.ensureAtLeastNumDataNodes(3);
             List<String> remoteDataNodes = StreamSupport.stream(remoteCluster.clusterService().state().nodes().spliterator(), false)
-                .filter(DiscoveryNode::isDataNode)
+                .filter(DiscoveryNode::canContainData)
                 .map(DiscoveryNode::getName)
                 .collect(Collectors.toList());
             assertThat(remoteDataNodes.size(), Matchers.greaterThanOrEqualTo(3));
@@ -246,6 +250,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         @Override
         public void onIndexModule(IndexModule indexModule) {
             indexModule.addSearchOperationListener(new SearchOperationListener() {
+                @Override
+                public void onNewReaderContext(ReaderContext readerContext) {
+                    assertThat(readerContext, not(instanceOf(LegacyReaderContext.class)));
+                }
+
                 @Override
                 public void onPreQueryPhase(SearchContext searchContext) {
                     startedLatch.get().countDown();

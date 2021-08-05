@@ -1,0 +1,65 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+
+---
+"Usage stats on frozen indices":
+  - skip:
+      features: [ "warnings" ]
+      version: " - 7.3.99"
+      reason:  "frozen indices have usage stats starting in version 7.4"
+
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  { "foo": "bar" }
+
+  - do:
+      index:
+        index: test
+        id:    2
+        body:  { "foo": "bar" }
+
+  - do:
+      index:
+        index: test
+        id:    3
+        body:  { "foo": "bar" }
+
+  - do: {xpack.usage: {}}
+  - match: { frozen_indices.available: true }
+  - match: { frozen_indices.enabled: true }
+  - match: { frozen_indices.indices_count: 0 }
+
+  # freeze index
+  - do:
+      warnings:
+        - "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
+      indices.freeze:
+        index: test
+  - is_true: acknowledged
+
+
+  - do: {xpack.usage: {}}
+  - match: { frozen_indices.available: true }
+  - match: { frozen_indices.enabled: true }
+  - match: { frozen_indices.indices_count: 1 }
+
+  # unfreeze index
+  - do:
+      warnings:
+        - "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
+      indices.unfreeze:
+        index: test
+  - is_true: acknowledged
+
+  - do: {xpack.usage: {}}
+  - match: { frozen_indices.available: true }
+  - match: { frozen_indices.enabled: true }
+  - match: { frozen_indices.indices_count: 0 }

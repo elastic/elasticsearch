@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,6 +19,8 @@ import java.util.Objects;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -39,12 +40,12 @@ public abstract class BinaryComparisonCaseInsensitiveFunction extends CaseInsens
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = isStringAndExact(left, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(left, sourceText(), FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        return isStringAndExact(right, sourceText(), ParamOrdinal.SECOND);
+        return isStringAndExact(right, sourceText(), SECOND);
     }
 
     public Expression left() {

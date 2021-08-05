@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
@@ -96,7 +96,7 @@ public class TransportBulkActionTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
         DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.BUILT_IN_ROLES, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+            DiscoveryNodeRole.roles(), VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         clusterService = createClusterService(threadPool, discoveryNode);
         CapturingTransport capturingTransport = new CapturingTransport();
         transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
@@ -245,7 +245,7 @@ public class TransportBulkActionTests extends ESTestCase {
         indicesLookup.put(".bar",
             new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
         SystemIndices systemIndices = new SystemIndices(
-            Map.of("plugin", new SystemIndices.Feature("test feature", List.of(new SystemIndexDescriptor(".test", "")))));
+            Map.of("plugin", new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(".test", "")))));
         List<String> onlySystem = List.of(".foo", ".bar");
         assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 

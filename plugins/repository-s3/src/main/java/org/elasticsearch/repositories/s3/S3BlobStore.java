@@ -22,6 +22,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,6 +35,8 @@ class S3BlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
     private final S3Service service;
+
+    private final BigArrays bigArrays;
 
     private final String bucket;
 
@@ -56,43 +59,58 @@ class S3BlobStore implements BlobStore {
 
     S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass,
-                RepositoryMetadata repositoryMetadata) {
+                RepositoryMetadata repositoryMetadata, BigArrays bigArrays) {
         this.service = service;
+        this.bigArrays = bigArrays;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
-        this.getMetricCollector = new RequestMetricCollector() {
+        this.getMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
+            public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
                 stats.getCount.addAndGet(getRequestCount(request));
             }
         };
-        this.listMetricCollector = new RequestMetricCollector() {
+        this.listMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
+            public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
                 stats.listCount.addAndGet(getRequestCount(request));
             }
         };
-        this.putMetricCollector = new RequestMetricCollector() {
+        this.putMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
+            public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT");
                 stats.putCount.addAndGet(getRequestCount(request));
             }
         };
-        this.multiPartUploadMetricCollector = new RequestMetricCollector() {
+        this.multiPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
+            public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT")
                     || request.getHttpMethod().name().equals("POST");
                 stats.postCount.addAndGet(getRequestCount(request));
             }
         };
+    }
+
+    // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
+    // issue
+    private abstract static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
+
+        @Override
+        public final void collectMetrics(Request<?> request, Response<?> response) {
+            if (response != null) {
+                collectMetrics(request);
+            }
+        }
+
+        protected abstract void collectMetrics(Request<?> request);
     }
 
     private long getRequestCount(Request<?> request) {
@@ -120,6 +138,10 @@ class S3BlobStore implements BlobStore {
 
     public String bucket() {
         return bucket;
+    }
+
+    public BigArrays bigArrays() {
+        return bigArrays;
     }
 
     public boolean serverSideEncryption() {

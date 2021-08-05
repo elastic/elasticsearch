@@ -29,10 +29,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
@@ -424,18 +424,17 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> verifying no temporary recoveries are left");
         for (String node : internalCluster().getNodeNames()) {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
-            for (final Path shardLoc : nodeEnvironment.availableShardPaths(new ShardId(indexName, "_na_", 0))) {
-                if (Files.exists(shardLoc)) {
-                    assertBusy(() -> {
-                        try {
-                            forEachFileRecursively(shardLoc,
-                                (file, attrs) -> assertThat("found a temporary recovery file: " + file, file.getFileName().toString(),
-                                    not(startsWith("recovery."))));
-                        } catch (IOException e) {
-                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
-                        }
-                    });
-                }
+            final Path shardLoc = nodeEnvironment.availableShardPath(new ShardId(indexName, "_na_", 0));
+            if (Files.exists(shardLoc)) {
+                assertBusy(() -> {
+                    try {
+                        forEachFileRecursively(shardLoc,
+                            (file, attrs) -> assertThat("found a temporary recovery file: " + file, file.getFileName().toString(),
+                                not(startsWith("recovery."))));
+                    } catch (IOException e) {
+                        throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
+                    }
+                });
             }
         }
     }

@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -15,6 +16,12 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'search'
+    include '_common', 'indices', 'index', 'search'
   }
+}
+
+tasks.named('splitPackagesAudit').configure {
+    // TODO: rename this package to be annotated text specific
+  ignoreClasses 'org.elasticsearch.search.fetch.subphase.highlight.AnnotatedPassageFormatter',
+    'org.elasticsearch.search.fetch.subphase.highlight.AnnotatedTextHighlighter'
 }

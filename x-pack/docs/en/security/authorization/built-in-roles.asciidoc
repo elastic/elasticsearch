@@ -17,6 +17,7 @@ Grants access necessary for the APM system user to send system-level data
 [[built-in-roles-apm-user]] `apm_user` ::
 Grants the privileges required for APM users (such as `read` and
 `view_index_metadata` privileges on the `apm-*` and `.ml-anomalies*` indices).
+deprecated:[7.13.0,"See {kibana-ref}/apm-app-users.html[APM app users and privileges\] for alternatives."].
 
 [[built-in-roles-beats-admin]] `beats_admin` ::
 Grants access to the `.management-beats` index, which contains configuration
@@ -48,6 +49,19 @@ Grants `monitor_data_frame_transforms` cluster privileges, which enable you to
 use {transforms}. This role also includes all
 {kibana-ref}/kibana-privileges.html[Kibana privileges] for the {ml-features}.
 deprecated:[7.5.0,"Replaced by <<built-in-roles-transform-user,`transform_user`>>"].
+
+[[built-in-roles-editor]] `editor` ::
+experimental:[]
+Grants full access to all features in {kib} (including Solutions) and read-only access to data indices.
++
+--
+[NOTE]
+===============================
+* This role provides read access to any index that is not prefixed with a dot.
+* This role automatically grants full access to new {kib} features as soon as they are released.
+===============================
+
+--
 
 [[built-in-roles-enrich-user]] `enrich_user` ::
 Grants access to manage *all* enrich indices (`.enrich-*`) and *all* operations on
@@ -180,6 +194,19 @@ NOTE: Using the Transport Client effectively means the users are granted access
 to the cluster state. This means users can view the metadata over all indices,
 index templates, mappings, node and basically everything about the cluster.
 However, this role does not grant permission to view the data in all indices.
+
+[[built-in-roles-viewer]] `viewer` ::
+experimental:[]
+Grants read-only access to all features in {kib} (including Solutions) and to data indices.
++
+--
+[NOTE]
+===============================
+* This role provides read access to any index that is not prefixed with a dot.
+* This role automatically grants read-only access to new {kib} features as soon as they are available.
+===============================
+
+--
 
 [[built-in-roles-watcher-admin]] `watcher_admin`::
 +

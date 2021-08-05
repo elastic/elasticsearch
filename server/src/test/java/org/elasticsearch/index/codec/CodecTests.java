@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -108,7 +109,7 @@ public class CodecTests extends ESTestCase {
         MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
             MapperPlugin.NOOP_FIELD_FILTER);
         MapperService service = new MapperService(settings, indexAnalyzers, xContentRegistry(), similarityService, mapperRegistry,
-                () -> null, () -> false, null);
+                () -> null, () -> false, ScriptCompiler.NONE);
         return new CodecService(service, LogManager.getLogger("test"));
     }
 

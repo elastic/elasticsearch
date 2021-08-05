@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -23,7 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,6 +41,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.TransportSettings;
@@ -52,7 +54,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -116,6 +121,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     public void tearDown() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         ensureNoInitializingShards();
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        assertThat(searchService.getActiveContexts(), equalTo(0));
+        assertThat(searchService.getOpenScrollContexts(), equalTo(0));
         super.tearDown();
         assertAcked(
             client().admin().indices().prepareDelete("*")
@@ -182,12 +190,21 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return true;
     }
 
+    @Override
+    protected List<String> filteredWarnings() {
+        return Stream.concat(super.filteredWarnings().stream(),
+            List.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                    "See the breaking changes documentation for the next major version.").stream())
+            .collect(Collectors.toList());
+    }
+
     private Node newNode() {
         final Path tempDir = createTempDir();
         final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), "node_s_0");
 
         Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random().nextLong()))
+            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
             // TODO: use a consistent data path for custom paths

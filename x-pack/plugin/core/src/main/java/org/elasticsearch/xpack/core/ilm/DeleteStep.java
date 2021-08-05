@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
 import java.util.Locale;
@@ -30,7 +31,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, Listener listener) {
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Boolean> listener) {
         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         String indexName = indexMetadata.getIndex().getName();
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(indexName);
@@ -57,7 +58,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
         }
 
         getClient().admin().indices()
-            .delete(new DeleteIndexRequest(indexName).masterNodeTimeout(getMasterTimeout(currentState)),
+            .delete(new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE),
                 ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
 

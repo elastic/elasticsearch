@@ -1,0 +1,16 @@
+---
+"Create API key in the old cluster":
+
+  - skip:
+      features: headers
+
+  - do:
+      security.create_api_key:
+        body:  >
+          {
+            "name": "my-old-api-key"
+          }
+  - match: { name: "my-old-api-key" }
+  - is_true: id
+  - is_true: api_key
+

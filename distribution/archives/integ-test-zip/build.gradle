@@ -5,7 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-import org.elasticsearch.gradle.MavenFilteringHack
+
+import org.apache.tools.ant.filters.ReplaceTokens
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -17,7 +18,7 @@ group = "org.elasticsearch.distribution.integ-test-zip"
 
 tasks.named("processTestResources").configure {
   inputs.properties(project(':distribution').restTestExpansions)
-  MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
+  filter("tokens" : project(':distribution').restTestExpansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 // make the pom file name use elasticsearch instead of the project name

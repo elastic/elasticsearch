@@ -12,9 +12,18 @@ Returns search results for an <<eql,Event Query Language (EQL)>> query.
 EQL assumes each document in a data stream or index corresponds to an
 event.
 
+////
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+DELETE /_data_stream/*
+DELETE /_index_template/*
+----
+// TEARDOWN
+////
+
+[source,console]
+----
+GET /my-data-stream/_eql/search
 {
   "query": """
     process where process.name == "regsvr32.exe"
@@ -35,9 +44,12 @@ GET /my-index-000001/_eql/search
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias.
+or alias.
 
 * See <<eql-required-fields>>.
+
+* experimental:[] For cross-cluster search, the local and remote clusters must
+use the same {es} version. For security, see <<cross-cluster-configuring>>.
 
 [[eql-search-api-limitations]]
 ===== Limitations
@@ -48,12 +60,12 @@ See <<eql-syntax-limitations,EQL limitations>>.
 ==== {api-path-parms-title}
 
 `<target>`::
-(Required, string)
-Comma-separated list of data streams, indices, or <<indices-aliases,index
-aliases>> used to limit the request. Accepts wildcard (`*`) expressions.
+(Required, string) Comma-separated list of data streams, indices, or aliases
+used to limit the request. Supports wildcards (`*`). To search all data streams
+and indices, use `*` or `_all`.
 +
-To search all data streams and indices in a cluster, use
-`_all` or `*`.
+experimental:[] To search a remote cluster, use the `<cluster>:<target>` syntax.
+See <<run-eql-search-across-clusters>>.
 
 [[eql-search-api-query-params]]
 ==== {api-query-parms-title}
@@ -64,11 +76,11 @@ To search all data streams and indices in a cluster, use
 NOTE: This parameter's behavior differs from the `allow_no_indices` parameter
 used in other <<multi-index,multi-target APIs>>.
 +
-If `false`, the request returns an error if any wildcard expression,
-<<indices-aliases,index alias>>, or `_all` value targets only missing or closed
-indices. This behavior applies even if the request targets other open indices.
-For example, a request targeting `foo*,bar*` returns an error if an index
-starts with `foo` but no index starts with `bar`.
+If `false`, the request returns an error if any wildcard pattern, alias, or
+`_all` value targets only missing or closed indices. This behavior applies even
+if the request targets other open indices. For example, a request targeting
+`foo*,bar*` returns an error if an index starts with `foo` but no index starts
+with `bar`.
 +
 If `true`, only requests that exclusively target missing or closed indices
 return an error. For example, a request targeting `foo*,bar*` does not return an
@@ -285,6 +297,9 @@ command].
 NOTE: This parameter may change the set of returned hits. However, it does not
 change the sort order of hits in the response.
 
+include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
+
+[[eql-search-api-params-size]]
 `size`::
 (Optional, integer or float)
 For <<eql-basic-syntax,basic queries>>, the maximum number of matching events to
@@ -533,7 +548,7 @@ The following EQL search request searches for events with an `event.category` of
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     process where (process.name == "cmd.exe" and process.pid != 2013)
@@ -565,7 +580,7 @@ the events in ascending order.
     },
     "events": [
       {
-        "_index": "my-index-000001",
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
         "_id": "babI3XMBI9IjHuIqU0S_",
         "_source": {
           "@timestamp": "2099-12-06T11:04:05.000Z",
@@ -582,7 +597,7 @@ the events in ascending order.
         }
       },
       {
-        "_index": "my-index-000001",
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
         "_id": "b6bI3XMBI9IjHuIqU0S_",
         "_source": {
           "@timestamp": "2099-12-07T11:06:07.000Z",
@@ -603,6 +618,7 @@ the events in ascending order.
 }
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 // TESTRESPONSE[s/"_id": "babI3XMBI9IjHuIqU0S_"/"_id": $body.hits.events.0._id/]
 // TESTRESPONSE[s/"_id": "b6bI3XMBI9IjHuIqU0S_"/"_id": $body.hits.events.1._id/]
 
@@ -630,7 +646,7 @@ These events must also share the same `process.pid` value.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence by process.pid
@@ -664,7 +680,7 @@ shared `process.pid` value for each matching event.
         ],
         "events": [
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "AtOJ4UjUBAAx3XR5kcCM",
             "_source": {
               "@timestamp": "2099-12-06T11:04:07.000Z",
@@ -688,7 +704,7 @@ shared `process.pid` value for each matching event.
             }
           },
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "OQmfCaduce8zoHT93o4H",
             "_source": {
               "@timestamp": "2099-12-07T11:07:09.000Z",
@@ -712,5 +728,6 @@ shared `process.pid` value for each matching event.
 }
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.sequences.0.events.0._index/]
 // TESTRESPONSE[s/"_id": "AtOJ4UjUBAAx3XR5kcCM"/"_id": $body.hits.sequences.0.events.0._id/]
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.1._id/]

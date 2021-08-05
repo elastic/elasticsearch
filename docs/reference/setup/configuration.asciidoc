@@ -1,7 +1,7 @@
 [[settings]]
-== Configuring Elasticsearch
+== Configuring {es}
 
-Elasticsearch ships with good defaults and requires very little configuration.
+{es} ships with good defaults and requires very little configuration.
 Most settings can be changed on a running cluster using the
 <<cluster-update-settings>> API.
 
@@ -13,11 +13,11 @@ able to join a cluster, such as `cluster.name` and `network.host`.
 [discrete]
 === Config files location
 
-Elasticsearch has three configuration files:
+{es} has three configuration files:
 
-* `elasticsearch.yml` for configuring Elasticsearch
-* `jvm.options` for configuring Elasticsearch JVM settings
-* `log4j2.properties` for configuring Elasticsearch logging
+* `elasticsearch.yml` for configuring {es}
+* `jvm.options` for configuring {es} JVM settings
+* `log4j2.properties` for configuring {es} logging
 
 These files are located in the config directory, whose default location depends
 on whether or not the installation is from an archive distribution (`tar.gz` or
@@ -96,7 +96,7 @@ node.name:    ${HOSTNAME}
 network.host: ${ES_NETWORK_HOST}
 --------------------------------------------------
 
-Values for environment variables must be simple strings. Use a comma-separated string to provide values that Elasticsearch will parse as a list. For example, Elasticsearch will split the following string into a list of values for the `${HOSTNAME}` environment variable:
+Values for environment variables must be simple strings. Use a comma-separated string to provide values that {es} will parse as a list. For example, {es} will split the following string into a list of values for the `${HOSTNAME}` environment variable:
 
 [source,yaml]
 ----

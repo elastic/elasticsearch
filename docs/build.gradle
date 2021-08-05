@@ -1,4 +1,5 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
@@ -12,6 +13,25 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
+
+ext.docsFileTree = fileTree(projectDir) {
+  // No snippets in here!
+  exclude 'build.gradle'
+  // That is where the snippets go, not where they come from!
+  exclude 'build/**'
+  exclude 'build-idea/**'
+  exclude 'build-eclipse/**'
+  // Just syntax examples
+  exclude 'README.asciidoc'
+  // Broken code snippet tests
+  exclude 'reference/graph/explore.asciidoc'
+  if (BuildParams.inFipsJvm) {
+    // We don't install/support this plugin in FIPS 140
+    exclude 'plugins/ingest-attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment plugin
+    exclude 'reference/cat/plugins.asciidoc'
+  }
+}
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 tasks.named("buildRestTests").configure {
@@ -35,7 +55,7 @@ tasks.named("buildRestTests").configure {
 
 restResources {
   restApi {
-    includeCore '*'
+    include '*'
   }
 }
 
@@ -43,12 +63,14 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
-    systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+    setting 'ingest.geoip.downloader.enabled', 'false'
+    systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
   setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
     extraConfigFile it, file("src/test/cluster/config/$it")
@@ -62,6 +84,8 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   configFile 'KeywordTokenizer.rbbi'
   extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
+  extraConfigFile 'httpCa.p12', file("./httpCa.p12")
+  extraConfigFile 'transport.p12', file("./transport.p12")
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 
@@ -87,25 +111,6 @@ testClusters.matching { it.name == "integTest"}.configureEach {
 tasks.named("integTest").configure {
   doFirst {
     delete("${buildDir}/cluster/shared/repo")
-  }
-}
-
-ext.docsFileTree = fileTree(projectDir) {
-  // No snippets in here!
-  exclude 'build.gradle'
-  // That is where the snippets go, not where they come from!
-  exclude 'build'
-  exclude 'build-idea'
-  exclude 'build-eclipse'
-  // Just syntax examples
-  exclude 'README.asciidoc'
-  // Broken code snippet tests
-  exclude 'reference/graph/explore.asciidoc'
-  if (BuildParams.inFipsJvm) {
-    // We don't install/support this plugin in FIPS 140
-    exclude 'plugins/ingest-attachment.asciidoc'
-    // We can't conditionally control output, this would be missing the ingest-attachment plugin
-    exclude 'reference/cat/plugins.asciidoc'
   }
 }
 
@@ -143,6 +148,9 @@ Closure setupMyIndex = { String name, int count ->
                           type: keyword
                 message:
                   type: text
+                  fields:
+                    keyword:
+                      type: keyword
                 user:
                   properties:
                     id:
@@ -174,6 +182,38 @@ setupMyIndex('my_index_huge', 1200)
 
 tasks.named("buildRestTests").configure {buildRestTests ->
 
+setups['my_data_stream_template'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-data-stream-template
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { },
+            "priority": 500
+          }
+'''
+
+setups['my_data_stream'] = setups['my_data_stream_template'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/my-data-stream'
+'''
+
+teardowns['data_stream_cleanup'] = '''
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+'''
+
 // Used for several full-text search and agg examples
 buildRestTests.setups['messages'] = '''
   - do:
@@ -189,41 +229,35 @@ buildRestTests.setups['messages'] = '''
           refresh: true
           body: |
             {"index":{"_id": "0"}}
-            {"message": "trying out Elasticsearch"}
+            {"message": "trying out Elasticsearch", "context": "foo"}
             {"index":{"_id": "1"}}
-            {"message": "some message with the number 1"}
+            {"message": "some message with the number 1", "context": "bar"}
             {"index":{"_id": "2"}}
-            {"message": "some message with the number 2"}
+            {"message": "some message with the number 2", "context": "bar"}
             {"index":{"_id": "3"}}
-            {"message": "some message with the number 3"}
+            {"message": "some message with the number 3", "context": "bar"}
             {"index":{"_id": "4"}}
-            {"message": "some message with the number 4"}'''
+            {"message": "some message with the number 4", "context": "bar"}
+'''
 
 // Used for EQL
-buildRestTests.setups['sec_logs'] = '''
-  - do:
-        indices.create:
-          index: my-index-000001
-          body:
-            settings:
-              number_of_shards: 1
-              number_of_replicas: 1
+setups['sec_logs'] = setups['my_data_stream'] + '''
   - do:
         bulk:
-          index: my-index-000001
+          index: my-data-stream
           refresh: true
           body: |
-            {"index":{}}
+            {"create":{}}
             {"@timestamp": "2099-12-06T11:04:05.000Z", "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
-            {"index":{}}
+            {"create":{}}
             {"@timestamp": "2099-12-06T11:04:07.000Z", "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2099-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\\\Windows\\\\System32\\\\cmd.exe", "type": "file", "size": 16384 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
-            {"index":{}}
+            {"create":{}}
             {"@timestamp": "2099-12-07T11:06:07.000Z", "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" } }
-            {"index":{}}
+            {"create":{}}
             {"@timestamp": "2099-12-07T11:07:09.000Z", "event": { "category": "process", "id": "aR3NWVOs", "sequence": 4 }, "process": { "pid": 2012, "name": "regsvr32.exe", "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}
-            {"index":{}}
+            {"create":{}}
             {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "file", "id": "tZ1NWVOs", "sequence": 5 }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }, "file": { "path": "C:\\\\Windows\\\\System32\\\\scrobj.dll", "name": "scrobj.dll" }}
-            {"index":{}}
+            {"create":{}}
             {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}'''
 
 buildRestTests.setups['host'] = '''
@@ -344,36 +378,6 @@ buildRestTests.setups['user_hits'] = '''
             {"timestamp": "2019-01-03T13:00:00", "user_id": "2"}
             {"index":{}}
             {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
-
-
-// Fake bank account data used by getting-started.asciidoc
-buildRestTests.setups['bank'] = '''
-  - do:
-        indices.create:
-          index: bank
-          body:
-            settings:
-              number_of_shards: 5
-              number_of_routing_shards: 5
-  - do:
-        bulk:
-          index: bank
-          refresh: true
-          body: |
-#bank_data#
-'''
-/* Load the actual accounts only if we're going to use them. This complicates
- * dependency checking but that is a small price to pay for not building a
- * 400kb string every time we start the build. */
-File accountsFile = new File("$projectDir/src/test/resources/accounts.json")
-buildRestTests.inputs.file(accountsFile)
-buildRestTests.doFirst {
-  String accounts = accountsFile.getText('UTF-8')
-  // Indent like a yaml test needs
-  accounts = accounts.replaceAll('(?m)^', '            ')
-  buildRestTests.setups['bank'] =
-    buildRestTests.setups['bank'].replace('#bank_data#', accounts)
-}
 
 // Used by sampler and diversified-sampler aggregation docs
 buildRestTests.setups['stackoverflow'] = '''
@@ -505,14 +509,6 @@ buildRestTests.setups['exams'] = '''
             {"index":{}}
             {"grade": 50, "weight": 3}'''
 
-buildRestTests.setups['stored_example_script'] = '''
-  # Simple script to load a field. Not really a good example, but a simple one.
-  - do:
-      put_script:
-        id: "my_script"
-        body: { "script": { "lang": "painless", "source": "doc[params.field].value" } }
-  - match: { acknowledged: true }
-'''
 
 buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:
@@ -1294,6 +1290,30 @@ setups['remote_cluster_and_leader_index'] = setups['remote_cluster'] + '''
             index.soft_deletes.enabled: true
 '''
 
+setups['remote_cluster_and_leader_index_and_follower_index'] = setups['remote_cluster_and_leader_index'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: 'follower_index/_ccr/follow'
+        wait_for_active_shards: 1
+        body: |
+          {
+            "remote_cluster" : "remote_cluster",
+            "leader_index" : "leader_index"
+          }
+  - is_true: follow_index_created
+  - is_true: follow_index_shards_acked
+  - is_true: index_following_started
+'''
+
+teardowns['pause_follow'] = '''
+  - do:
+      raw:
+        method: POST
+        path: 'follower_index/_ccr/pause_follow'
+  - is_true: acknowledged
+'''
+
 setups['seats'] = '''
   - do:
         indices.create:
@@ -1496,21 +1516,55 @@ setups['setup-repository'] = '''
 '''
 
 // Fake sec logs data used by EQL search
-  setups['atomic_red_regsvr32'] = '''
-  - do:
-        indices.create:
-          index: my-index-000001
-          body:
-            settings:
-              number_of_shards: 5
-              number_of_routing_shards: 5
+  setups['atomic_red_regsvr32'] = setups['my_data_stream'] + '''
   - do:
         bulk:
-          index: my-index-000001
+          index: my-data-stream
           refresh: true
           body: |
 #atomic_red_data#
 '''
+  // fake data used by the correlation bucket agg
+  buildRestTests.setups['correlate_latency'] = '''
+  - do:
+        indices.create:
+          index: correlate_latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                latency:
+                  type: double
+                version:
+                  type: keyword
+  - do:
+        bulk:
+          index: correlate_latency
+          refresh: true
+          body: |'''
+
+
+  for (int i = 100; i < 200; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "1.0"}"""
+  }
+  for (int i = 0; i < 100; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "2.0"}"""
+  }
+
   /* Load the actual events only if we're going to use them. */
   File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
   inputs.file(atomicRedRegsvr32File)

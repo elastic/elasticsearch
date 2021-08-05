@@ -23,16 +23,17 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -91,23 +92,47 @@ public class MetadataCreateDataStreamService {
         return createDataStream(metadataCreateIndexService, current, request);
     }
 
-    public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
+    public static final class CreateDataStreamClusterStateUpdateRequest
+        extends ClusterStateUpdateRequest<CreateDataStreamClusterStateUpdateRequest> {
 
         private final String name;
+        private final SystemDataStreamDescriptor descriptor;
 
         public CreateDataStreamClusterStateUpdateRequest(String name,
                                                          TimeValue masterNodeTimeout,
                                                          TimeValue timeout) {
+            this(name, null, masterNodeTimeout, timeout);
+        }
+
+        public CreateDataStreamClusterStateUpdateRequest(String name,
+                                                         SystemDataStreamDescriptor systemDataStreamDescriptor,
+                                                         TimeValue masterNodeTimeout,
+                                                         TimeValue timeout) {
             this.name = name;
+            this.descriptor = systemDataStreamDescriptor;
             masterNodeTimeout(masterNodeTimeout);
             ackTimeout(timeout);
+        }
+
+        public boolean isSystem() {
+            return descriptor != null;
+        }
+
+        public SystemDataStreamDescriptor getSystemDataStreamDescriptor() {
+            return descriptor;
         }
     }
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
                                          CreateDataStreamClusterStateUpdateRequest request) throws Exception {
-        return createDataStream(metadataCreateIndexService, currentState, request.name, List.of(), null);
+        return createDataStream(
+            metadataCreateIndexService,
+            currentState,
+            request.name,
+            List.of(),
+            null,
+            request.getSystemDataStreamDescriptor());
     }
 
     /**
@@ -124,11 +149,19 @@ public class MetadataCreateDataStreamService {
                                          ClusterState currentState,
                                          String dataStreamName,
                                          List<IndexMetadata> backingIndices,
-                                         IndexMetadata writeIndex) throws Exception
-    {
-        if (writeIndex == null) {
-            Objects.requireNonNull(metadataCreateIndexService);
-        }
+                                         IndexMetadata writeIndex) throws Exception {
+        assert metadataCreateIndexService.getSystemIndices().isSystemDataStream(dataStreamName) == false :
+            "dataStream [" + dataStreamName + "] is system but no system descriptor was provided!";
+        return createDataStream(metadataCreateIndexService, currentState, dataStreamName, backingIndices, writeIndex, null);
+    }
+
+    static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
+                                         ClusterState currentState,
+                                         String dataStreamName,
+                                         List<IndexMetadata> backingIndices,
+                                         IndexMetadata writeIndex,
+                                         SystemDataStreamDescriptor systemDataStreamDescriptor) throws Exception {
+        Objects.requireNonNull(metadataCreateIndexService);
         Objects.requireNonNull(currentState);
         Objects.requireNonNull(backingIndices);
         if (currentState.metadata().dataStreams().containsKey(dataStreamName)) {
@@ -142,19 +175,26 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must be lowercase");
         }
         if (dataStreamName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
-            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '"
-                + DataStream.BACKING_INDEX_PREFIX + "'");
+            throw new IllegalArgumentException(
+                "data_stream [" + dataStreamName + "] must not start with '" + DataStream.BACKING_INDEX_PREFIX + "'");
         }
 
-        ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+        final boolean isSystem = systemDataStreamDescriptor != null;
+        final ComposableIndexTemplate template = isSystem ?
+            systemDataStreamDescriptor.getComposableIndexTemplate() :
+            lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
         if (writeIndex == null) {
-            String firstBackingIndexName =
-                DataStream.getDefaultBackingIndexName(dataStreamName, 1, currentState.nodes().getMinNodeVersion());
+            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             CreateIndexClusterStateUpdateRequest createIndexRequest =
                 new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
                     .dataStreamName(dataStreamName)
-                    .settings(Settings.builder().put("index.hidden", true).build());
+                    .systemDataStreamDescriptor(systemDataStreamDescriptor);
+
+            if (isSystem == false) {
+                createIndexRequest.settings(Settings.builder().put("index.hidden", true).build());
+            }
+
             try {
                 currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
             } catch (ResourceAlreadyExistsException e) {
@@ -173,13 +213,28 @@ public class MetadataCreateDataStreamService {
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
         dsBackingIndices.add(writeIndex.getIndex());
-        boolean hidden = template.getDataStreamTemplate().isHidden();
+        boolean hidden = isSystem ? false : template.getDataStreamTemplate().isHidden();
         DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
-            template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden, false);
+            template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden, false, isSystem);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
-        logger.info("adding data stream [{}] with write index [{}] and backing indices [{}]", dataStreamName,
+
+        List<String> aliases = new ArrayList<>();
+        var resolvedAliases = MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
+        for (var resolvedAliasMap : resolvedAliases) {
+            for (var alias : resolvedAliasMap.values()) {
+                aliases.add(alias.getAlias());
+                builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
+            }
+        }
+
+        logger.info(
+            "adding data stream [{}] with write index [{}], backing indices [{}], and aliases [{}]",
+            dataStreamName,
             writeIndex.getIndex().getName(),
-            Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()));
+            Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()),
+            Strings.collectionToCommaDelimitedString(aliases)
+        );
+
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 
@@ -196,22 +251,16 @@ public class MetadataCreateDataStreamService {
         return composableIndexTemplate;
     }
 
-    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) throws IOException {
-        MetadataFieldMapper fieldMapper =
-            (MetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_data_stream_timestamp");
-        assert fieldMapper != null : "[_data_stream_timestamp] meta field mapper must exist";
-
-        Map<String, Object> parsedTemplateMapping =
-            MapperService.parseMapping(NamedXContentRegistry.EMPTY, mapperService.documentMapper().mappingSource().string());
-        Boolean enabled = ObjectPath.eval("_doc._data_stream_timestamp.enabled", parsedTemplateMapping);
+    public static void validateTimestampFieldMapping(MappingLookup mappingLookup) throws IOException {
+        MetadataFieldMapper fieldMapper = (MetadataFieldMapper) mappingLookup.getMapper(DataStreamTimestampFieldMapper.NAME);
+        assert fieldMapper != null : DataStreamTimestampFieldMapper.NAME + " meta field mapper must exist";
         // Sanity check: if this fails then somehow the mapping for _data_stream_timestamp has been overwritten and
         // that would be a bug.
-        if (enabled == null || enabled == false) {
-            throw new IllegalStateException("[_data_stream_timestamp] meta field has been disabled");
+        if (mappingLookup.isDataStreamTimestampFieldEnabled() == false) {
+            throw new IllegalStateException("[" + DataStreamTimestampFieldMapper.NAME + "] meta field has been disabled");
         }
-
         // Sanity check (this validation logic should already have been executed when merging mappings):
-        fieldMapper.validate(mapperService.documentMapper().mappers());
+        fieldMapper.validate(mappingLookup);
     }
 
 }

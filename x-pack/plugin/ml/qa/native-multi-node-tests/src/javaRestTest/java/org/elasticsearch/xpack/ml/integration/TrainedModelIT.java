@@ -10,9 +10,14 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.ml.GetTrainedModelsResponse;
+import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
+import org.elasticsearch.client.ml.inference.trainedmodel.IndexLocation;
+import org.elasticsearch.client.ml.inference.TrainedModelType;
+import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
@@ -23,10 +28,12 @@ import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -44,11 +51,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
+/**
+ * This test uses a mixture of HLRC and server side classes.
+ *
+ * The server classes have builders that set the one-time fields that
+ * can only be set on creation e.g. create_time. The HLRC classes must
+ * be used when creating PUT trained model requests as they do not set
+ * these one-time fields.
+ */
 public class TrainedModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE = UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user",
@@ -57,6 +71,11 @@ public class TrainedModelIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
     @Override
@@ -96,6 +115,7 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
         assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
         assertThat(response, containsString("\"estimated_heap_memory_usage\""));
+        assertThat(response, containsString("\"model_type\":\"tree_ensemble\""));
         assertThat(response, containsString("\"definition\""));
         assertThat(response, not(containsString("\"compressed_definition\"")));
         assertThat(response, containsString("\"count\":1"));
@@ -228,6 +248,24 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"count\":2"));
     }
 
+    public void testPyTorchModelConfig() throws IOException {
+        String modelId = "pytorch1";
+        String pytorchModelId = "pytorch_model";
+        String index = "pytorch_index";
+        putPyTorchModel(modelId, pytorchModelId, index);
+        Response getModel = client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "trained_models/" + modelId));
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), getModel.getEntity().getContent())) {
+            GetTrainedModelsResponse response = GetTrainedModelsResponse.fromXContent(parser);
+            TrainedModelConfig model = response.getTrainedModels().get(0);
+            assertThat(model.getModelType(), equalTo(TrainedModelType.PYTORCH));
+            IndexLocation location = (IndexLocation) model.getLocation();
+            assertThat(location.getModelId(), equalTo(pytorchModelId));
+            assertThat(location.getIndex(), equalTo(index));
+            assertThat(model.getEstimatedOperations(), equalTo(0L));
+        }
+    }
+
     private void putRegressionModel(String modelId) throws IOException {
         try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
             TrainedModelDefinition.Builder definition = new TrainedModelDefinition.Builder()
@@ -238,6 +276,21 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setInferenceConfig(new RegressionConfig())
                 .setModelId(modelId)
                 .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3")))
+                .build().toXContent(builder, ToXContent.EMPTY_PARAMS);
+            Request model = new Request("PUT", "_ml/trained_models/" + modelId);
+            model.setJsonEntity(XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON));
+            assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
+        }
+    }
+
+    private void putPyTorchModel(String modelId, String pytorchModelId, String index) throws IOException {
+        try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            TrainedModelConfig.builder()
+                .setLocation(new IndexLocation(pytorchModelId, index))
+                .setModelType(TrainedModelType.PYTORCH)
+                .setInferenceConfig(new ClassificationConfig())
+                .setModelId(modelId)
+                .setInput(new TrainedModelInput(Collections.singletonList("text")))
                 .build().toXContent(builder, ToXContent.EMPTY_PARAMS);
             Request model = new Request("PUT", "_ml/trained_models/" + modelId);
             model.setJsonEntity(XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON));

@@ -14,7 +14,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.DocIdSetBuilder;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 
@@ -41,7 +41,7 @@ abstract class SortedDocsProducer {
      * composite buckets.
      */
     protected boolean processBucket(CompositeValuesCollectorQueue queue, LeafReaderContext context, DocIdSetIterator iterator,
-                                    Comparable leadSourceBucket, @Nullable DocIdSetBuilder builder) throws IOException {
+                                    Comparable<?> leadSourceBucket, @Nullable DocIdSetBuilder builder) throws IOException {
         final int[] topCompositeCollected = new int[1];
         final boolean[] hasCollected = new boolean[1];
         final DocCountProvider docCountProvider = new DocCountProvider();

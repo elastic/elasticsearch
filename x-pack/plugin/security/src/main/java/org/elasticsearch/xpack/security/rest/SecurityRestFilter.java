@@ -62,8 +62,13 @@ public class SecurityRestFilter implements RestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        if (licenseState.isSecurityEnabled() && request.method() != Method.OPTIONS) {
+        if (request.method() == Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
+            restHandler.handleRequest(request, channel, client);
+            return;
+        }
+
+        if (licenseState.isSecurityEnabled()) {
             if (extractClientCertificate) {
                 HttpChannel httpChannel = request.getHttpChannel();
                 SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
@@ -104,7 +109,10 @@ public class SecurityRestFilter implements RestHandler {
                 @Override
                 public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
                     if (headers.containsKey("Warning")) {
-                        return Maps.copyMapWithRemovedEntry(headers, "Warning");
+                        headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
+                    }
+                    if (headers.containsKey("X-elastic-product")) {
+                        headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
                     }
                     return headers;
                 }

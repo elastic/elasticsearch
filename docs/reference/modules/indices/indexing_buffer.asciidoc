@@ -1,7 +1,7 @@
 [[indexing-buffer]]
 === Indexing buffer settings
 
-The indexing buffer is used to store newly indexed documents.  When it fills
+The indexing buffer is used to store newly indexed documents. When it fills
 up, the documents in the buffer are written to a segment on disk. It is divided
 between all shards on the node.
 
@@ -17,9 +17,9 @@ indexing buffer size shared across all shards.
 `indices.memory.min_index_buffer_size`::
 (<<static-cluster-setting,Static>>)
 If the `index_buffer_size` is specified as a percentage, then this
-setting can be used to specify an absolute minimum.  Defaults to `48mb`.
+setting can be used to specify an absolute minimum. Defaults to `48mb`.
 
 `indices.memory.max_index_buffer_size`::
 (<<static-cluster-setting,Static>>)
 If the `index_buffer_size` is specified as a percentage, then this
-setting can be used to specify an absolute maximum.  Defaults to unbounded.
+setting can be used to specify an absolute maximum. Defaults to unbounded.

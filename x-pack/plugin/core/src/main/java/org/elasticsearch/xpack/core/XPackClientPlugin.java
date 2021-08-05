@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +33,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.ccr.CCRInfoTransportAction;
+import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
@@ -40,11 +41,9 @@ import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
-import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
@@ -201,9 +200,11 @@ import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.transform.TransformFeatureSetUsage;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
@@ -217,7 +218,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConf
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
-import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
 import org.elasticsearch.xpack.core.votingonly.VotingOnlyNodeFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
@@ -267,8 +267,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     @Override
     public List<ActionType<? extends ActionResponse>> getClientActions() {
         List<ActionType<? extends ActionResponse>> actions = new ArrayList<>(Arrays.asList(
-            // deprecation
-            DeprecationInfoAction.INSTANCE,
             // graph
             GraphExploreAction.INSTANCE,
             // ML
@@ -398,6 +396,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             DeleteSnapshotLifecycleAction.INSTANCE,
             ExecuteSnapshotLifecycleAction.INSTANCE,
             GetSnapshotLifecycleStatsAction.INSTANCE,
+            MigrateToDataTiersAction.INSTANCE,
+
             // Freeze
             FreezeIndexAction.INSTANCE,
             // Data Frame
@@ -413,7 +413,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             GetAsyncSearchAction.INSTANCE,
             DeleteAsyncResultAction.INSTANCE,
             // Text Structure
-            FindStructureAction.INSTANCE
+            FindStructureAction.INSTANCE,
+            // Terms enum API
+            TermsEnumAction.INSTANCE
         ));
 
         // rollupV2
@@ -501,6 +503,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
             new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::new),
             // Transforms
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, TransformMetadata.TYPE, TransformMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, TransformMetadata.TYPE, TransformMetadata.TransformMetadataDiff::new),
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.TRANSFORM, TransformFeatureSetUsage::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TransformField.TASK_NAME, TransformTaskParams::new),
             new NamedWriteableRegistry.Entry(Task.Status.class, TransformField.TASK_NAME, TransformState::new),
@@ -511,10 +515,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 TransformField.TIME.getPreferredName(),
                 TimeRetentionPolicyConfig::new
             ),
-            // Flattened for backward compatibility with 7.x
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FLATTENED, FlattenedFeatureSetUsage::new),
-            // Vectors
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VECTORS, VectorsFeatureSetUsage::new),
             // Voting Only Node
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new),
             // Frozen indices
@@ -583,7 +583,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(TransformField.TASK_NAME),
                         TransformState::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(TransformField.TASK_NAME),
-                        TransformState::fromXContent)
+                        TransformState::fromXContent),
+                new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(TransformMetadata.TYPE),
+                    parser -> TransformMetadata.LENIENT_PARSER.parse(parser, null).build())
             );
     }
 }

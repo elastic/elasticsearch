@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.execution.search.AggRef;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -124,8 +124,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 );
 
         Batch local = new Batch("Local queries",
-                new PropagateEmptyLocal(),
-                new LocalLimit()
+                new LocalLimit(),
+                new PropagateEmptyLocal()
                 );
 
         Batch finish = new Batch("Finish query", Limiter.ONCE,
@@ -600,10 +600,13 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 else {
                     GroupByKey matchingGroup = null;
                     if (groupingContext != null) {
+                        target = queryC.aliases().resolve(target, target);
+                        id = Expressions.id(target);
                         matchingGroup = groupingContext.groupFor(target);
                         Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                        queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())), id);
+                        queryC = queryC.addColumn(
+                            new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())), id);
                     }
                     // fallback
                     else {
@@ -647,7 +650,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // COUNT(<field_name>)
                 } else if (c.distinct() == false) {
                     LeafAgg leafAgg = toAgg(functionId, f);
-                    AggPathInput a = new AggPathInput(f, new MetricAggRef(leafAgg.id(), "doc_count", "_count", false));
+                    AggPathInput a = new AggPathInput(f, new MetricAggRef(leafAgg.id(), "doc_count", "_count", null));
                     queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
                     return new Tuple<>(queryC, a);
                 }
@@ -675,14 +678,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 aggInput = new AggPathInput(f,
                         new MetricAggRef(cAggPath, ia.innerName(),
                             ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null,
-                            isDateBased(ia.dataType())));
+                            ia.dataType()));
             }
             else {
                 LeafAgg leafAgg = toAgg(functionId, f);
                 if (f instanceof TopHits) {
                     aggInput = new AggPathInput(f, new TopHitsAggRef(leafAgg.id(), f.dataType()));
                 } else {
-                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id(), isDateBased(f.dataType())));
+                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id(), f.dataType()));
                 }
                 queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
             }
@@ -707,7 +710,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                     // if it's a reference, get the target expression
                     if (orderExpression instanceof ReferenceAttribute) {
-                        orderExpression = qContainer.aliases().get(orderExpression);
+                        orderExpression = qContainer.aliases().resolve(orderExpression);
                     }
                     String lookup = Expressions.id(orderExpression);
                     GroupByKey group = qContainer.findGroupForAgg(lookup);

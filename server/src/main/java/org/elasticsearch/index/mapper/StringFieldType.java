@@ -113,6 +113,22 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     @Override
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+        return wildcardQuery(value, method, caseInsensitive, false, context);
+    }
+
+
+    @Override
+    public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+        return wildcardQuery(value, method, false, true, context);
+    }
+
+    protected Query wildcardQuery(
+        String value,
+        MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        boolean shouldNormalize,
+        SearchExecutionContext context
+    ) {
         failIfNotIndexed();
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[wildcard] queries cannot be executed when '" +
@@ -120,7 +136,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
 
         Term term;
-        if (getTextSearchInfo().getSearchAnalyzer() != null) {
+        if (getTextSearchInfo().getSearchAnalyzer() != null && shouldNormalize) {
             value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
             term = new Term(name(), value);
         } else {

@@ -23,18 +23,18 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -77,7 +77,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -92,6 +91,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -345,7 +345,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return;
         }
         try {
-            IndexMetadata.FORMAT.writeAndCleanup(getMetadata(), nodeEnv.indexPaths(index()));
+            IndexMetadata.FORMAT.writeAndCleanup(getMetadata(), nodeEnv.indexPath(index()));
         } catch (WriteStateException e) {
             logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
         }
@@ -357,7 +357,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return;
         }
         try {
-            MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index()));
+            MetadataStateFormat.deleteMetaState(nodeEnv.indexPath(index()));
         } catch (IOException e) {
             logger.warn(() -> new ParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
         }
@@ -372,7 +372,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         long sum = 0;
         int count = 0;
         for (IndexShard indexShard : this) {
-            sum += indexShard.store().stats(0L).sizeInBytes();
+            sum += indexShard.store().stats(0L, LongUnaryOperator.identity()).sizeInBytes();
             count++;
         }
         if (count == 0) {
@@ -410,8 +410,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } catch (IllegalStateException ex) {
                 logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
                 try {
-                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings, shardPaths ->
-                        indexFoldersDeletionListener.beforeShardFoldersDeleted(shardId, this.indexSettings, shardPaths));
+                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings, shardPath ->
+                        indexFoldersDeletionListener.beforeShardFoldersDeleted(shardId, this.indexSettings, shardPath));
                     path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
                 } catch (Exception inner) {
                     ex.addSuppressed(inner);
@@ -420,22 +420,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
 
             if (path == null) {
-                // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
-                // that's being relocated/replicated we know how large it will become once it's done copying:
-                // Count up how many shards are currently on each data path:
-                Map<Path, Integer> dataPathToShardCount = new HashMap<>();
-                for (IndexShard shard : this) {
-                    Path dataPath = shard.shardPath().getRootStatePath();
-                    Integer curCount = dataPathToShardCount.get(dataPath);
-                    if (curCount == null) {
-                        curCount = 0;
-                    }
-                    dataPathToShardCount.put(dataPath, curCount + 1);
-                }
-                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, this.indexSettings,
-                    routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
-                        ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),
-                    dataPathToShardCount);
+                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, this.indexSettings);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);

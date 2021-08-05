@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -38,7 +37,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
@@ -84,7 +82,7 @@ public class MetadataUpdateSettingsService {
                 false, // don't validate values here we check it below never allow to change the number of shards
                 true); // validate internal or private index settings
         for (String key : normalizedSettings.keySet()) {
-            Setting setting = indexScopedSettings.get(key);
+            Setting<?> setting = indexScopedSettings.get(key);
             boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);
             assert setting != null // we already validated the normalized settings
                 || (isWildcard && normalizedSettings.hasValue(key) == false)
@@ -135,15 +133,7 @@ public class MetadataUpdateSettingsService {
                     final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
                     if (preserveExisting == false) {
                         // Verify that this won't take us over the cluster shard limit.
-                        int totalNewShards = Arrays.stream(request.indices())
-                            .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
-                            .sum();
-                        Optional<String> error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
-                        if (error.isPresent()) {
-                            ValidationException ex = new ValidationException();
-                            ex.addValidationError(error.get());
-                            throw ex;
-                        }
+                        shardLimitValidator.validateShardLimitOnReplicaUpdate(currentState, request.indices(), updatedNumberOfReplicas);
 
                         /*
                          * We do not update the in-sync allocation IDs as they will be removed upon the first index operation which makes
@@ -218,7 +208,9 @@ public class MetadataUpdateSettingsService {
                 if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings) ||
                     IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(normalizedSettings)) {
                     for (String index : actualIndices) {
-                        MetadataCreateIndexService.validateTranslogRetentionSettings(metadataBuilder.get(index).getSettings());
+                        final Settings settings = metadataBuilder.get(index).getSettings();
+                        MetadataCreateIndexService.validateTranslogRetentionSettings(settings);
+                        MetadataCreateIndexService.validateStoreTypeSetting(settings);
                     }
                 }
                 boolean changed = false;
@@ -267,14 +259,6 @@ public class MetadataUpdateSettingsService {
                 return updatedState;
             }
         });
-    }
-
-    private int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
-        IndexMetadata indexMetadata = currentState.metadata().index(index);
-        int shardsInIndex = indexMetadata.getNumberOfShards();
-        int oldNumberOfReplicas = indexMetadata.getNumberOfReplicas();
-        int replicaIncrease = updatedNumberOfReplicas - oldNumberOfReplicas;
-        return replicaIncrease * shardsInIndex;
     }
 
     /**

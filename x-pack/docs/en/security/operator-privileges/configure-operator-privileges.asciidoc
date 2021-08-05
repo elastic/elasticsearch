@@ -3,7 +3,7 @@
 [[configure-operator-privileges]]
 === Configure operator privileges
 
-include::operator-privileges-designed-for-note.asciidoc[]
+NOTE: {cloud-only}
 
 Before you can use operator privileges, you must
 <<enable-operator-privileges, enable the feature>> on all nodes in the cluster

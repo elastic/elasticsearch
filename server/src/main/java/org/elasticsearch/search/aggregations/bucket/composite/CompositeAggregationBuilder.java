@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -160,11 +161,11 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
      * this aggregator or the instance of the parent's factory that is incompatible with
      * the composite aggregation.
      */
-    private AggregatorFactory checkParentIsNullOrNested(AggregatorFactory factory) {
+    private AggregatorFactory validateParentAggregations(AggregatorFactory factory) {
         if (factory == null) {
             return null;
-        } else if (factory instanceof NestedAggregatorFactory) {
-            return checkParentIsNullOrNested(factory.getParent());
+        } else if (factory instanceof NestedAggregatorFactory || factory instanceof FilterAggregatorFactory) {
+            return validateParentAggregations(factory.getParent());
         } else {
             return factory;
         }
@@ -195,7 +196,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     @Override
     protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
                                         AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
-        AggregatorFactory invalid = checkParentIsNullOrNested(parent);
+        AggregatorFactory invalid = validateParentAggregations(parent);
         if (invalid != null) {
             throw new IllegalArgumentException("[composite] aggregation cannot be used with a parent aggregation of" +
                 " type: [" + invalid.getClass().getSimpleName() + "]");
@@ -213,7 +214,8 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                 throw new IllegalArgumentException("[after] has " + after.size() +
                     " value(s) but [sources] has " + sources.size());
             }
-            Comparable[] values = new Comparable[sources.size()];
+            @SuppressWarnings("rawtypes")
+            Comparable<?>[] values = new Comparable[sources.size()];
             for (int i = 0; i < sources.size(); i++) {
                 String sourceName = sources.get(i).name();
                 if (after.containsKey(sourceName) == false) {
@@ -223,7 +225,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                 if (configs[i].missingBucket() && obj == null) {
                     values[i] = null;
                 } else if (obj instanceof Comparable) {
-                    values[i] = (Comparable) obj;
+                    values[i] = (Comparable<?>) obj;
                 } else {
                     throw new IllegalArgumentException("Invalid value for [after." + sources.get(i).name() +
                         "], expected comparable, got [" + (obj == null ? "null" :  obj.getClass().getSimpleName()) + "]");

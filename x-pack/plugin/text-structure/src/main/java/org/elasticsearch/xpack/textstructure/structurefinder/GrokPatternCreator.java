@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 

@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,7 +32,7 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
     protected long sumOtherDocCount;
 
     @Override
-    public long getDocCountError() {
+    public Long getDocCountError() {
         return docCountErrorUpperBound;
     }
 
@@ -70,7 +70,7 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
 
     static void declareParsedTermsFields(final ObjectParser<? extends ParsedTerms, Void> objectParser,
                                          final CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser) {
-        declareMultiBucketAggregationFields(objectParser, bucketParser::apply, bucketParser::apply);
+        declareMultiBucketAggregationFields(objectParser, bucketParser, bucketParser);
         objectParser.declareLong((parsedTerms, value) -> parsedTerms.docCountErrorUpperBound = value ,
                 DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME);
         objectParser.declareLong((parsedTerms, value) -> parsedTerms.sumOtherDocCount = value,

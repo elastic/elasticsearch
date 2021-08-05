@@ -52,16 +52,22 @@ public class EsQueryExec extends LeafExec {
         return output;
     }
 
-    public SearchSourceBuilder source(EqlSession session) {
+    
+    /*
+     * {@param includeFetchFields} should be true for event queries and false for in progress sequence queries
+     * Fetching fields during in progress sequence queries is unnecessary.
+     */
+    public SearchSourceBuilder source(EqlSession session, boolean includeFetchFields) {
         EqlConfiguration cfg = session.configuration();
         // by default use the configuration size
-        return SourceGenerator.sourceBuilder(queryContainer, cfg.filter(), cfg.fetchFields());
+        return SourceGenerator.sourceBuilder(queryContainer, cfg.filter(), includeFetchFields ? cfg.fetchFields() : null,
+            cfg.runtimeMappings());
     }
 
     @Override
     public void execute(EqlSession session, ActionListener<Payload> listener) {
         // endpoint - fetch all source
-        QueryRequest request = () -> source(session).fetchSource(FetchSourceContext.FETCH_SOURCE);
+        QueryRequest request = () -> source(session, true).fetchSource(FetchSourceContext.FETCH_SOURCE);
         listener = shouldReverse(request) ? new ReverseListener(listener) : listener;
         new BasicQueryClient(session).query(request, new AsEventListener(listener));
     }

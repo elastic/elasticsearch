@@ -70,7 +70,7 @@ public class Rectangle implements Geometry {
         this.maxZ = maxZ;
         empty = false;
         if (maxY < minY) {
-            throw new IllegalArgumentException("max y cannot be less than min x");
+            throw new IllegalArgumentException("max y cannot be less than min y");
         }
         if (Double.isNaN(minZ) != Double.isNaN(maxZ)) {
             throw new IllegalArgumentException("only one z value is specified");
@@ -133,7 +133,7 @@ public class Rectangle implements Geometry {
 
     @Override
     public String toString() {
-        return WellKnownText.INSTANCE.toWKT(this);
+        return WellKnownText.toWKT(this);
     }
 
 

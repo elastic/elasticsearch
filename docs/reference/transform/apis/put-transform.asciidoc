@@ -18,16 +18,12 @@ Instantiates a {transform}.
 [[put-transform-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-built-in roles and privileges:
+Requires the following privileges:
 
-* `transform_admin`
-* source index: `read`, `view_index_metadata`
-* destination index: `read`, `create_index`, `manage` and `index`
-
-For more information, see <<built-in-roles>>, <<security-privileges>>, and
-{ml-docs-setup-privileges}.
-
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`
+* destination index: `read`, `create_index`, index`.
 
 [[put-transform-desc]]
 == {api-description-title}
@@ -35,7 +31,7 @@ For more information, see <<built-in-roles>>, <<security-privileges>>, and
 This API defines a {transform}, which copies data from source indices, 
 transforms it, and persists it into an entity-centric destination index. If you
 choose to use the pivot method for your {transform}, the entities are defined by
-the set of `group_by` fields in the `pivot` object.  If you choose to use the
+the set of `group_by` fields in the `pivot` object. If you choose to use the
 latest method, the entities are defined by the `unique_key` field values in the
 `latest` object.
 
@@ -56,7 +52,7 @@ creation and uses those same roles. If those roles do not have the required
 privileges on the source and destination indices, the {transform} fails when it 
 attempts unauthorized operations.
 
-IMPORTANT: You must use {kib} or this API to create a {transform}. Do not put a
+IMPORTANT: You must use {kib} or this API to create a {transform}. Do not add a
 {transform} directly into any `.transform-internal*` indices using the {es}
 index API. If {es} {security-features} are enabled, do not give users any
 privileges on `.transform-internal*` indices. If you used {transforms} prior to
@@ -247,7 +243,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
 --
 TIP: In general, it’s a good idea to use a field that contains the
-<<accessing-ingest-metadata,ingest timestamp>>. If you use a different field,
+<<access-ingest-metadata,ingest timestamp>>. If you use a different field,
 you might need to set the `delay` such that it accounts for data transmission
 delays.
 

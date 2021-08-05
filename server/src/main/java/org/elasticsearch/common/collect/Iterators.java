@@ -10,8 +10,34 @@ package org.elasticsearch.common.collect;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 
 public class Iterators {
+
+    /**
+     * Returns a single element iterator over the supplied value.
+     */
+    public static <T> Iterator<T> single(T element) {
+        return new Iterator<>() {
+
+            private T value = Objects.requireNonNull(element);
+
+            @Override
+            public boolean hasNext() {
+                return value != null;
+            }
+
+            @Override
+            public T next() {
+                final T res = value;
+                value = null;
+                return res;
+            }
+        };
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {
         if (iterators == null) {
             throw new NullPointerException("iterators");
@@ -25,6 +51,8 @@ public class Iterators {
         private final Iterator<? extends T>[] iterators;
         private int index = 0;
 
+        @SafeVarargs
+        @SuppressWarnings("varargs")
         ConcatenatedIterator(Iterator<? extends T>... iterators) {
             if (iterators == null) {
                 throw new NullPointerException("iterators");

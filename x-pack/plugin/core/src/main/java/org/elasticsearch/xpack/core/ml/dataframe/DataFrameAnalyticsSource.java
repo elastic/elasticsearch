@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,6 +43,7 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField _SOURCE = new ParseField("_source");
 
+    @SuppressWarnings({ "unchecked"})
     public static ConstructingObjectParser<DataFrameAnalyticsSource, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<DataFrameAnalyticsSource, Void> parser = new ConstructingObjectParser<>("data_frame_analytics_source",
             ignoreUnknownFields, a -> new DataFrameAnalyticsSource(

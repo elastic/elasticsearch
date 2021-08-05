@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
+import net.minidev.json.JSONArray;
+
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
@@ -40,8 +42,7 @@ import com.nimbusds.openid.connect.sdk.claims.AccessTokenHash;
 import com.nimbusds.openid.connect.sdk.token.OIDCTokens;
 import com.nimbusds.openid.connect.sdk.validators.AccessTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
-import net.minidev.json.JSONArray;
-import net.minidev.json.JSONObject;
+
 import org.apache.commons.codec.Charsets;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -76,12 +77,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -92,8 +92,6 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -112,6 +110,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.ALLOWED_CLOCK_SKEW;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_READ_TIMEOUT;
@@ -226,6 +226,7 @@ public class OpenIdConnectAuthenticator {
      * @param expectedNonce  The nonce value we sent in the authentication request and should be contained in the Id Token
      * @param claimsListener The listener to notify with the resolved {@link JWTClaimsSet}
      */
+    @SuppressWarnings("unchecked")
     private void getUserClaims(@Nullable AccessToken accessToken, JWT idToken, Nonce expectedNonce, boolean shouldRetry,
                                ActionListener<JWTClaimsSet> claimsListener) {
         try {
@@ -234,9 +235,9 @@ public class OpenIdConnectAuthenticator {
                 LOGGER.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
             }
             // Add the Id Token string as a synthetic claim
-            final JSONObject verifiedIdTokenClaimsObject = verifiedIdTokenClaims.toJSONObject();
+            final Map<String, Object> verifiedIdTokenClaimsObject = verifiedIdTokenClaims.toJSONObject();
             final JWTClaimsSet idTokenClaim = new JWTClaimsSet.Builder().claim("id_token_hint", idToken.serialize()).build();
-            verifiedIdTokenClaimsObject.merge(idTokenClaim.toJSONObject());
+            mergeObjects(verifiedIdTokenClaimsObject, idTokenClaim.toJSONObject());
             final JWTClaimsSet enrichedVerifiedIdTokenClaims = JWTClaimsSet.parse(verifiedIdTokenClaimsObject);
             if (accessToken != null && opConfig.getUserinfoEndpoint() != null) {
                 getAndCombineUserInfoClaims(accessToken, enrichedVerifiedIdTokenClaims, claimsListener);
@@ -413,9 +414,9 @@ public class OpenIdConnectAuthenticator {
                     final JWTClaimsSet userInfoClaims = JWTClaimsSet.parse(contentAsString);
                     validateUserInfoResponse(userInfoClaims, verifiedIdTokenClaims.getSubject(), claimsListener);
                     if (LOGGER.isTraceEnabled()) {
-                        LOGGER.trace("Successfully retrieved user information: [{}]", userInfoClaims.toJSONObject().toJSONString());
+                        LOGGER.trace("Successfully retrieved user information: [{}]", userInfoClaims);
                     }
-                    final JSONObject combinedClaims = verifiedIdTokenClaims.toJSONObject();
+                    final Map<String, Object> combinedClaims = verifiedIdTokenClaims.toJSONObject();
                     mergeObjects(combinedClaims, userInfoClaims.toJSONObject());
                     claimsListener.onResponse(JWTClaimsSet.parse(combinedClaims));
                 } else if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/jwt")) {
@@ -638,8 +639,8 @@ public class OpenIdConnectAuthenticator {
                 if (jwkSetPath.startsWith("http://")) {
                     throw new IllegalArgumentException("The [http] protocol is not supported as it is insecure. Use [https] instead");
                 } else if (jwkSetPath.startsWith("https://")) {
-                    final JWSVerificationKeySelector keySelector = new JWSVerificationKeySelector(requestedAlgorithm,
-                        new ReloadableJWKSource(new URL(jwkSetPath)));
+                    final JWSVerificationKeySelector<SecurityContext> keySelector = new JWSVerificationKeySelector<>(requestedAlgorithm,
+                        new ReloadableJWKSource<>(new URL(jwkSetPath)));
                     idTokenValidator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), keySelector, null);
                 } else {
                     if (addFileWatcherIfRequired) {
@@ -664,9 +665,8 @@ public class OpenIdConnectAuthenticator {
     }
 
     /**
-     * Merges the JsonObject with the claims of the ID Token with the JsonObject with the claims of the UserInfo response. This is
-     * necessary as some OPs return slightly different values for some claims (i.e. Google for the profile picture) and
-     * {@link JSONObject#merge(Object)} would throw a runtime exception. The merging is performed based on the following rules:
+     * Merges the Map with the claims of the ID Token with the Map with the claims of the UserInfo response.
+     * The merging is performed based on the following rules:
      * <ul>
      * <li>If the values for a given claim are primitives (of the same type), the value from the ID Token is retained</li>
      * <li>If the values for a given claim are Objects, the values are merged</li>
@@ -674,12 +674,13 @@ public class OpenIdConnectAuthenticator {
      * <li>If the values for a given claim are of different types, an exception is thrown</li>
      * </ul>
      *
-     * @param userInfo The JsonObject with the ID Token claims
-     * @param idToken  The JsonObject with the UserInfo Response claims
-     * @return the merged JsonObject
+     * @param userInfo The Map with the ID Token claims
+     * @param idToken  The Map with the UserInfo Response claims
+     * @return the merged Map
      */
     // pkg protected for testing
-    static JSONObject mergeObjects(JSONObject idToken, JSONObject userInfo) {
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> mergeObjects(Map<String, Object> idToken, Map<String, Object> userInfo) {
         for (Map.Entry<String, Object> entry : idToken.entrySet()) {
             Object value1 = entry.getValue();
             Object value2 = userInfo.get(entry.getKey());
@@ -688,8 +689,8 @@ public class OpenIdConnectAuthenticator {
             }
             if (value1 instanceof JSONArray) {
                 idToken.put(entry.getKey(), mergeArrays((JSONArray) value1, value2));
-            } else if (value1 instanceof JSONObject) {
-                idToken.put(entry.getKey(), mergeObjects((JSONObject) value1, value2));
+            } else if (value1 instanceof Map) {
+                idToken.put(entry.getKey(), mergeObjects((Map<String, Object>) value1, value2));
             } else if (value1.getClass().equals(value2.getClass()) == false) {
                 // A special handling for certain OPs that mix the usage of true and "true"
                 if (value1 instanceof Boolean && value2 instanceof String && String.valueOf(value1).equals(value2)) {
@@ -710,15 +711,16 @@ public class OpenIdConnectAuthenticator {
         return idToken;
     }
 
-    private static JSONObject mergeObjects(JSONObject jsonObject1, Object jsonObject2) {
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> mergeObjects(Map<String, Object>  jsonObject1, Object jsonObject2) {
         if (jsonObject2 == null) {
             return jsonObject1;
         }
-        if (jsonObject2 instanceof JSONObject) {
-            return mergeObjects(jsonObject1, (JSONObject) jsonObject2);
+        if (jsonObject2 instanceof Map) {
+            return mergeObjects(jsonObject1, (Map<String, Object>) jsonObject2);
         }
         throw new IllegalStateException("Error while merging ID token and userinfo claims. " +
-            "Cannot merge JSONObject with [" + jsonObject2.getClass().getName() + "]");
+            "Cannot merge a Map with a [" + jsonObject2.getClass().getName() + "]");
     }
 
     private static JSONArray mergeArrays(JSONArray jsonArray1, Object jsonArray2) {
@@ -811,7 +813,7 @@ public class OpenIdConnectAuthenticator {
                     future = reloadFutureRef.get();
                 }
             }
-            future.addListener(toNotify, EsExecutors.newDirectExecutorService(), null);
+            future.addListener(toNotify);
         }
 
         void reloadAsync(final ListenableFuture<Void> future) {

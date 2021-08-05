@@ -45,8 +45,9 @@ public class MiniHDFS {
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1 && args.length != 3) {
-            throw new IllegalArgumentException("Expected: MiniHDFS <baseDirectory> [<kerberosPrincipal> <kerberosKeytab>], " +
-                "got: " + Arrays.toString(args));
+            throw new IllegalArgumentException(
+                "Expected: MiniHDFS <baseDirectory> [<kerberosPrincipal> <kerberosKeytab>], got: " + Arrays.toString(args)
+            );
         }
         boolean secure = args.length == 3;
 
@@ -89,7 +90,7 @@ public class MiniHDFS {
 
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(cfg);
         String explicitPort = System.getProperty("hdfs.config.port");
-        if(explicitPort != null) {
+        if (explicitPort != null) {
             builder.nameNodePort(Integer.parseInt(explicitPort));
         } else {
             if (secure) {
@@ -142,7 +143,9 @@ public class MiniHDFS {
                 FileUtils.copyURLToFile(readOnlyRepositoryArchiveURL, readOnlyRepositoryArchive);
                 FileUtil.unTar(readOnlyRepositoryArchive, tempDirectory.toFile());
 
-                fs.copyFromLocalFile(true, true,
+                fs.copyFromLocalFile(
+                    true,
+                    true,
                     new org.apache.hadoop.fs.Path(tempDirectory.resolve(directoryName).toAbsolutePath().toUri()),
                     esUserPath.suffix("/existing/" + directoryName)
                 );

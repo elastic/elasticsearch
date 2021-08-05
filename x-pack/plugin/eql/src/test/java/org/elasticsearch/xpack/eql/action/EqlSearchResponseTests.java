@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql.action;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -233,7 +233,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 mutatedSequences.add(new Sequence(s.joinKeys(), mutateEvents(s.events(), version)));
             }
         }
-        
+
         return new EqlSearchResponse(new EqlSearchResponse.Hits(mutatedEvents, mutatedSequences, instance.hits().totalHits()),
             instance.took(), instance.isTimeout(), instance.id(), instance.isRunning(), instance.isPartial());
     }

@@ -8,15 +8,16 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -24,13 +25,13 @@ import java.util.function.Supplier;
  * Parser for {@link Mapping} provided in {@link CompressedXContent} format
  */
 public final class MappingParser {
-    private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
+    private final Supplier<MappingParserContext> parserContextSupplier;
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
 
-    MappingParser(Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier,
+    MappingParser(Supplier<MappingParserContext> parserContextSupplier,
                   Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
                   Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
                   Function<String, String> documentTypeResolver) {
@@ -72,33 +73,28 @@ public final class MappingParser {
 
     @SuppressWarnings("unchecked")
     Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
-        Map<String, Object> mapping = null;
-        if (source != null) {
-            mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
-            if (mapping.isEmpty()) {
-                if (type == null) {
-                    throw new MapperParsingException("malformed mapping, no type name found");
-                }
-            } else {
-                String rootName = mapping.keySet().iterator().next();
-                if (type == null || type.equals(rootName) || documentTypeResolver.apply(type).equals(rootName)) {
-                    type = rootName;
-                    mapping = (Map<String, Object>) mapping.get(rootName);
-                }
+        Objects.requireNonNull(source, "source cannot be null");
+        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
+        if (mapping.isEmpty()) {
+            if (type == null) {
+                throw new MapperParsingException("malformed mapping, no type name found");
+            }
+        } else {
+            String rootName = mapping.keySet().iterator().next();
+            if (type == null || type.equals(rootName) || documentTypeResolver.apply(type).equals(rootName)) {
+                type = rootName;
+                mapping = (Map<String, Object>) mapping.get(rootName);
             }
         }
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
-        }
-        if (mapping == null) {
-            mapping = new HashMap<>();
         }
         return parse(type, mapping);
     }
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         ContentPath contentPath = new ContentPath(1);
-        Mapper.TypeParser.ParserContext parserContext = parserContextSupplier.get();
+        MappingParserContext parserContext = parserContextSupplier.get();
         RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(contentPath);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();

@@ -1,20 +1,20 @@
 [
   {
-    "md5_hash": "a7813f5053276eb22639b61c61e3e56c",
-    "name": "GeoLite2-City.mmdb.gz",
-    "url": "endpoint/db/GeoLite2-City.mmdb.gz",
+    "md5_hash": "da5bb1c00c74e3f5a34ca1ec0022c550",
+    "name": "GeoLite2-City.tgz",
+    "url": "db/GeoLite2-City.tgz",
     "provider": "maxmind"
   },
   {
-    "md5_hash": "f452b1aece8dc6137485ddbb0401d6fe",
-    "name": "GeoLite2-ASN.mmdb.gz",
-    "url": "endpoint/db/GeoLite2-ASN.mmdb.gz",
+    "md5_hash": "61c38f0fcec4a7b0b359201f124004df",
+    "name": "GeoLite2-ASN.tgz",
+    "url": "db/GeoLite2-ASN.tgz",
     "provider": "maxmind"
   },
   {
-    "md5_hash": "dc366cf57a4f101d722b4cd10d4a9825",
-    "name": "GeoLite2-Country.mmdb.gz",
-    "url": "endpoint/db/GeoLite2-Country.mmdb.gz",
+    "md5_hash": "8f3229d6158f85adef296f8781f7ab49",
+    "name": "GeoLite2-Country.tgz",
+    "url": "db/GeoLite2-Country.tgz",
     "provider": "maxmind"
   }
 ]

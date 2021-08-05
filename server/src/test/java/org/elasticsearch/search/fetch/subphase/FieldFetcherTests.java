@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -181,15 +182,22 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .field("field", "value")
+            .field("_doc_count", 100)
         .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, "_routing");
-        assertTrue(fields.isEmpty());
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "_doc_count");
+        assertNotNull(fields.get("_doc_count"));
+        assertEquals(100, ((Integer) fields.get("_doc_count").getValue()).intValue());
 
         // The _type field was deprecated in 7.x and is not supported in 8.0. So the behavior
         // should be the same as if the field didn't exist.
         fields = fetchFields(mapperService, source, "_type");
         assertTrue(fields.isEmpty());
+
+        // several other metadata fields throw exceptions via their value fetchers when trying to get them
+        for (String fieldname : List.of("_id", "_index", "_seq_no", "_routing", "_ignored")) {
+            expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
+        }
     }
 
     public void testFetchAllFields() throws IOException {
@@ -668,6 +676,55 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testFlattenedField() throws IOException {
+        XContentBuilder mapping = mapping(b -> b.startObject("flat").field("type", "flattened").endObject());
+        MapperService mapperService = createMapperService(mapping);
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("flat")
+              .field("f1", "value1")
+              .field("f2", 1)
+            .endObject()
+          .endObject();
+
+        // requesting via wildcard should retrieve the root field as a structured map
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
+        assertEquals(1, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("flat"));
+        Map<String, Object> flattenedValue = (Map<String, Object>) fields.get("flat").getValue();
+        assertThat(flattenedValue.keySet(), containsInAnyOrder("f1", "f2"));
+        assertEquals("value1", flattenedValue.get("f1"));
+        assertEquals(1, flattenedValue.get("f2"));
+
+        // direct retrieval of subfield is possible
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
+        fieldAndFormatList.add(new FieldAndFormat("flat.f1", null));
+        fields = fetchFields(mapperService, source, fieldAndFormatList);
+        assertEquals(1, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("flat.f1"));
+        assertThat(fields.get("flat.f1").getValue(), equalTo("value1"));
+
+        // direct retrieval of root field and subfield is possible
+        fieldAndFormatList.add(new FieldAndFormat("*", null));
+        fields = fetchFields(mapperService, source, fieldAndFormatList);
+        assertEquals(2, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("flat", "flat.f1"));
+        flattenedValue = (Map<String, Object>) fields.get("flat").getValue();
+        assertThat(flattenedValue.keySet(), containsInAnyOrder("f1", "f2"));
+        assertEquals("value1", flattenedValue.get("f1"));
+        assertEquals(1, flattenedValue.get("f2"));
+        assertThat(fields.get("flat.f1").getValue(), equalTo("value1"));
+
+        // retrieval of subfield with wildcard is not possible
+        fields = fetchFields(mapperService, source, fieldAndFormatList("flat.f*", null, false));
+        assertEquals(0, fields.size());
+
+        // retrieval of non-existing subfield returns empty result
+        fields = fetchFields(mapperService, source, fieldAndFormatList("flat.baz", null, false));
+        assertEquals(0, fields.size());
+    }
+
     public void testUnmappedFieldsInsideObject() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("_doc")
@@ -844,6 +901,23 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("date_field").getValues().size(), equalTo(2));
         assertThat(fields.get("date_field").getValues().get(0), equalTo("11"));
         assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
+    }
+
+    /**
+     * Field patterns retrieved with "include_unmapped" use an automaton with a maximal allowed size internally.
+     * This test checks we have a bound in place to avoid misuse of this with exceptionally large field patterns
+     */
+    public void testTooManyUnmappedFieldWildcardPattern() throws IOException {
+        MapperService mapperService = createMapperService();
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("a", "foo").endObject();
+
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
+        boolean includeUnmapped = true;
+        for (int i = 0; i < 1000; i++) {
+            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, includeUnmapped));
+        }
+        expectThrows(TooComplexToDeterminizeException.class, () -> fetchFields(mapperService, source, fieldAndFormatList));
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {

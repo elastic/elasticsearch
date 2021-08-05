@@ -2,9 +2,9 @@
 [[ilm-freeze]]
 === Freeze
 
-Phases allowed: cold, frozen.
+Phases allowed: cold.
 
-<<frozen-indices, Freezes>> an index to minimize its memory footprint.
+<<freeze-index-api, Freezes>> an index.
 
 IMPORTANT: Freezing an index closes the index and reopens it within the same API call.
 This means that for a short time no primaries are allocated.

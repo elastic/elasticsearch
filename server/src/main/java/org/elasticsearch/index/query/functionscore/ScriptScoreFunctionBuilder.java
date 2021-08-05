@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -82,9 +83,9 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     protected ScoreFunction doToFunction(SearchExecutionContext context) {
         try {
             ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
-            ScoreScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
-            return new ScriptScoreFunction(script, searchScript,
-                context.index().getName(), context.getShardId(), context.indexVersionCreated());
+            SearchLookup lookup = context.lookup();
+            ScoreScript.LeafFactory searchScript = factory.newFactory(script.getParams(), lookup);
+            return new ScriptScoreFunction(script, searchScript, lookup, context.index().getName(), context.getShardId());
         } catch (Exception e) {
             throw new QueryShardException(context, "script_score: the script could not be loaded", e);
         }

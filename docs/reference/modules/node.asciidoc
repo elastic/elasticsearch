@@ -36,7 +36,18 @@ set `node.roles`, the node is assigned the following roles:
 [IMPORTANT]
 ====
 If you set `node.roles`, ensure you specify every node role your cluster needs.
-Some {stack} features require specific node roles:
+Every cluster requires the following node roles:
+
+* `master`
+* {blank}
++
+--
+`data_content` and `data_hot` +
+OR +
+`data`
+--
+
+Some {stack} features also require specific node roles:
 
 - {ccs-cap} and {ccr} require the `remote_cluster_client` role.
 - {stack-monitor-app} and ingest pipelines require the `ingest` role.
@@ -75,10 +86,9 @@ as a remote client.
 
 <<ml-node,Machine learning node>>::
 
-A node that has `xpack.ml.enabled` and the `ml` role. If you want to use
-{ml-features}, there must be at least one {ml} node in your cluster. For more
-information about {ml-features}, see {ml-docs}/index.html[Machine learning in
-the {stack}].
+A node that has the `ml` role. If you want to use {ml-features}, there must be
+at least one {ml} node in your cluster. For more information, see
+<<ml-settings>> and {ml-docs}/index.html[Machine learning in the {stack}].
 
 <<transform-node,{transform-cap} node>>::
 
@@ -97,8 +107,8 @@ phases which are coordinated by the node which receives the client request --
 the _coordinating node_.
 
 In the _scatter_ phase, the coordinating node forwards the request to the data
-nodes which hold the data.  Each data node executes the request locally and
-returns its results to the coordinating node. In the _gather_  phase, the
+nodes which hold the data. Each data node executes the request locally and
+returns its results to the coordinating node. In the _gather_ phase, the
 coordinating node reduces each data node's results into a single global
 result set.
 
@@ -121,25 +131,30 @@ Any master-eligible node that is not a <<voting-only-node,voting-only node>> may
 be elected to become the master node by the <<modules-discovery,master election
 process>>.
 
-IMPORTANT: Master nodes must have access to the `data/` directory (just like
-`data` nodes) as this is where the cluster state is persisted between node
-restarts.
+IMPORTANT: Master nodes must have a `path.data` directory whose contents
+persist across restarts, just like data nodes, because this is where the
+cluster metadata is stored. The cluster metadata describes how to read the data
+stored on the data nodes, so if it is lost then the data stored on the data
+nodes cannot be read.
 
 [[dedicated-master-node]]
 ===== Dedicated master-eligible node
 
 It is important for the health of the cluster that the elected master node has
 the resources it needs to fulfill its responsibilities. If the elected master
-node is overloaded with other tasks then the cluster may not operate well. In
-particular, indexing and searching your data can be very resource-intensive, so
-in large or high-throughput clusters it is a good idea to avoid using the
-master-eligible nodes for tasks such as indexing and searching. You can do this
-by configuring three of your nodes to be dedicated master-eligible nodes.
-Dedicated master-eligible nodes only have the `master` role, allowing them to
-focus on managing the cluster. While master nodes can also behave as
-<<coordinating-node,coordinating nodes>> and route search and indexing requests
-from clients to data nodes, it is better _not_ to use dedicated master nodes for
-this purpose.
+node is overloaded with other tasks then the cluster will not operate well. The
+most reliable way to avoid overloading the master with other tasks is to
+configure all the master-eligible nodes to be _dedicated master-eligible nodes_
+which only have the `master` role, allowing them to focus on managing the
+cluster. Master-eligible nodes will still also behave as
+<<coordinating-node,coordinating nodes>> that route requests from clients to
+the other nodes in the cluster, but you should _not_ use dedicated master nodes
+for this purpose.
+
+A small or lightly-loaded cluster may operate well if its master-eligible nodes
+have other roles and responsibilities, but once your cluster comprises more
+than a handful of nodes it usually makes sense to use dedicated master-eligible
+nodes.
 
 To create a dedicated master-eligible node, set:
 
@@ -219,8 +234,9 @@ assign data nodes to specific tiers: `data_content`,`data_hot`, `data_warm`,
 `data_cold`, or `data_frozen`. A node can belong to multiple tiers, but a node
 that has one of the specialized data roles cannot have the generic `data` role.
 
+[role="xpack"]
 [[data-content-node]]
-==== [x-pack]#Content data node#
+==== Content data node
 
 Content data nodes accommodate user-created content. They enable operations like CRUD,
 search and aggregations.
@@ -231,8 +247,9 @@ To create a dedicated content node, set:
 node.roles: [ data_content ]
 ----
 
+[role="xpack"]
 [[data-hot-node]]
-==== [x-pack]#Hot data node#
+==== Hot data node
 
 Hot data nodes store time series data as it enters {es}. The hot tier must be fast for
 both reads and writes, and requires more hardware resources (such as SSD drives).
@@ -243,8 +260,9 @@ To create a dedicated hot node, set:
 node.roles: [ data_hot ]
 ----
 
+[role="xpack"]
 [[data-warm-node]]
-==== [x-pack]#Warm data node#
+==== Warm data node
 
 Warm data nodes store indices that are no longer being regularly updated, but are still being
 queried. Query volume is usually at a lower frequency than it was while the index was in the hot tier.
@@ -256,8 +274,9 @@ To create a dedicated warm node, set:
 node.roles: [ data_warm ]
 ----
 
+[role="xpack"]
 [[data-cold-node]]
-==== [x-pack]#Cold data node#
+==== Cold data node
 
 Cold data nodes store read-only indices that are accessed less frequently. This tier uses less performant hardware and may leverage searchable snapshot indices to minimize the resources required.
 
@@ -267,15 +286,15 @@ To create a dedicated cold node, set:
 node.roles: [ data_cold ]
 ----
 
+[role="xpack"]
 [[data-frozen-node]]
-==== [x-pack]#Frozen data node#
+==== Frozen data node
 
-Frozen data nodes store read-only indices that are accessed rarely. Nodes in the
-frozen tier use less performant hardware than the cold tier. To minimize
-resources, indices in the frozen tier may rely on searchable snapshots for
-resiliency.
+The frozen tier stores <<partially-mounted,partially mounted indices>>
+exclusively. We recommend you use dedicated nodes in the frozen tier.
 
 To create a dedicated frozen node, set:
+
 [source,yaml]
 ----
 node.roles: [ data_frozen ]
@@ -305,7 +324,7 @@ can only route requests, handle the search reduce phase, and distribute bulk
 indexing. Essentially, coordinating only nodes behave as smart load balancers.
 
 Coordinating only nodes can benefit large clusters by offloading the
-coordinating node role from data and master-eligible nodes.  They join the
+coordinating node role from data and master-eligible nodes. They join the
 cluster and receive the full <<cluster-state,cluster state>>, like every other
 node, and they use the cluster state to route requests directly to the
 appropriate place(s).
@@ -339,27 +358,20 @@ node.roles: [ remote_cluster_client ]
 [[ml-node]]
 ==== [xpack]#Machine learning node#
 
-The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API
-requests. If `xpack.ml.enabled` is set to `true` and the node does not have the
-`ml` role, the node can service API requests but it cannot run jobs.
-
-If you want to use {ml-features} in your cluster, you must enable {ml}
-(set `xpack.ml.enabled` to `true`) on all master-eligible nodes. If you want to
-use {ml-features} in clients (including {kib}), it must also be enabled on all
-coordinating nodes.
-
-For more information about these settings, see <<ml-settings>>.
+{ml-cap} nodes run jobs and handle {ml} API requests. For more information, see
+<<ml-settings>>.
 
 To create a dedicated {ml} node, set:
 
 [source,yaml]
 ----
-node.roles: [ ml, remote_cluster_client] <1>
-xpack.ml.enabled: true <2>
+node.roles: [ ml, remote_cluster_client]
 ----
-<1> The `remote_cluster_client` role is optional but strongly recommended.
-Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
-<2> The `xpack.ml.enabled` setting is enabled by default.
+
+The `remote_cluster_client` role is optional but strongly recommended.
+Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. If you use {ccs} in
+your {anomaly-jobs}, the `remote_cluster_client` role is also required on all
+master-eligible nodes. Otherwise, the {dfeed} cannot start. See <<remote-node>>.
 
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#
@@ -371,9 +383,10 @@ To create a dedicated {transform} node, set:
 
 [source,yaml]
 ----
-node.roles: [ transform, remote_cluster_client ] <1>
+node.roles: [ transform, remote_cluster_client ]
 ----
-<1> The `remote_cluster_client` role is optional but strongly recommended.
+
+The `remote_cluster_client` role is optional but strongly recommended.
 Otherwise, {ccs} fails when used in {transforms}. See <<remote-node>>.
 
 [[change-node-role]]

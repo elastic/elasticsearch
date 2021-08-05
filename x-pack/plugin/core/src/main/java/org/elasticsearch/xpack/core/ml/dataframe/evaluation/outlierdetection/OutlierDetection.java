@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -38,6 +38,7 @@ public class OutlierDetection implements Evaluation {
 
     private static final ParseField METRICS = new ParseField("metrics");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<OutlierDetection, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(), a -> new OutlierDetection((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
 

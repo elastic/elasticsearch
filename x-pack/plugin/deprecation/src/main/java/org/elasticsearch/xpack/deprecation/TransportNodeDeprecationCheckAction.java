@@ -18,11 +18,6 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckRequest;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckResponse;
 
 import java.io.IOException;
 import java.util.List;

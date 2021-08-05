@@ -12,7 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
 import org.elasticsearch.license.License;
@@ -59,11 +59,11 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         // Enable http so we can test JDBC licensing because only exists on the REST layer.
         String httpPlugin = randomBoolean() ? Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME : NioTransportPlugin.NIO_TRANSPORT_NAME;
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(NetworkModule.HTTP_TYPE_KEY, httpPlugin)
                 .build();
     }

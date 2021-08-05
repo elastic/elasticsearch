@@ -3,6 +3,146 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="grok-basics"]
+=== Grok basics
+
+See <<grok,Grokking grok>>.
+
+// [START] Security redirects
+
+[role="exclude",id="get-started-users"]
+=== Create users
+
+See <<security-create-builtin-users,Create passwords for built-in users>>.
+
+[role="exclude",id="encrypting-communications-certificates"]
+=== Generate certificates
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="encrypting-internode-communications"]
+=== Tutorial: Encrypting communications
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="encrypting-internode"]
+=== Encrypting internode communication
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="security-getting-started"]
+=== Tutorial: Getting started with security
+
+See <<secure-cluster,Secure the Elastic Stack>>.
+
+// [START] OpenID Connect authentication
+[role="exclude",id="oidc-guide-authentication"]
+=== Configure {es} for OpenID Connect authentication
+
+See <<oidc-elasticsearch-authentication,Configure {es} for OpenID Connect authentication>>.
+
+[role="exclude",id="oidc-claims-mapping"]
+==== Claims mapping
+
+See <<oidc-claims-mappings,Claims mapping for OpenID Connect>>.
+
+[role="exclude",id="oidc-kibana"]
+=== Configuring {kib}
+
+See <<oidc-configure-kibana,Configuring {kib} for OpenID Connect>>.
+
+[role="exclude",id="oidc-role-mapping"]
+=== Configuring role mappings
+
+See <<oidc-role-mappings,Configuring OpenID Connect role mappings>>.
+// [END] OpenID Connect authentication
+
+// [START] SAML authentication
+[role="exclude",id="saml-guide"]
+=== Configure SAML single-sign on
+
+See <<saml-guide-stack,Configuring SAML single-sign-on on the {stack}>>.
+
+[role="exclude",id="saml-kibana"]
+=== Configuring {kib}
+
+See <<saml-configure-kibana,Configuring {kib} for SAML>>.
+
+[role="exclude",id="saml-guide-authentication"]
+=== Configure {es} for SAML authentication
+
+See <<saml-elasticsearch-authentication,Configure {es} for SAML authentication>>.
+
+[role="exclude",id="saml-attribute-mapping"]
+==== Attribute mapping
+
+See <<saml-attributes-mapping,SAML attribute mapping>>.
+
+[role="exclude",id="saml-user-properties"]
+===== User properties
+
+See <<saml-es-user-properties,{es} user properties>>.
+// [END] SAML authentication
+
+[role="exclude",id="active-directory-ssl"]
+=== Setting up SSL between {es} and Active Directory
+
+See <<tls-active-directory,Encrypting communications between {es} and Active Directory>>.
+
+[role="exclude",id="elasticsearch-security"]
+=== Security overview
+
+See <<secure-cluster,Secure the Elastic Stack>>.
+
+[role="exclude",id="get-started-enable-security"]
+=== Enable {es} {security-features}
+
+See <<security-minimal-setup,Set up minimal security for {es}>>.
+
+[role="exclude",id="ssl-tls"]
+=== Set up TLS on a cluster
+
+See <<encrypt-internode-communication,Encrypt internode communication>>.
+
+// [START] Configuring TLS
+[role="exclude",id="configuring-tls"]
+=== Configure TLS
+
+See <<encrypt-internode-communication,Encrypt internode communication>>.
+
+[role="exclude",id="tls-http"]
+==== Encrypt HTTP client communications
+
+See <<encrypt-http-communication,Encrypt HTTP client communications>>.
+
+[role="exclude",id="tls-transport"]
+==== Encrypt internode communication
+
+See <<encrypt-internode-communication,Encrypt internode communications>>.
+
+[role="exclude",id="node-certificates"]
+==== Generating node certificates
+
+See <<generate-certificates,Generate the certificate authority>>.
+
+[role="exclude",id="configuring-security"]
+=== Configure security in {es}
+
+See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+
+// [END] Configuring TLS
+
+[role="exclude",id="encrypting-communications"]
+=== Encrypting communications
+
+See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+// [END] Security redirects
+
+[roles="exclude",id="modules-scripting-stored-scripts"]
+=== Stored scripts
+
+See <<script-stored-scripts,Store and retrieve scripts>>
+
 [role="exclude",id="node.name"]
 === Node name setting
 
@@ -46,7 +186,7 @@ See <<xpack-ccr,Cross-cluster replication>>.
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
-The `_upgrade` API is no longer useful and will be removed.  Instead, see
+The `_upgrade` API is no longer useful and will be removed. Instead, see
 <<reindex-upgrade>>.
 
 [role="exclude",id="mapping-parent-field"]
@@ -80,19 +220,19 @@ See <<commands>>.
 === Calendar resources
 
 See <<ml-get-calendar>> and
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="ml-filter-resource"]
 === Filter resources
 
 See <<ml-get-filter>> and
-{ml-docs}/ml-rules.html[Machine learning custom rules].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Machine learning custom rules].
 
 [role="exclude",id="ml-event-resource"]
 === Scheduled event resources
 
 See <<ml-get-calendar-event>> and
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="index-apis"]
 === Index APIs
@@ -401,7 +541,7 @@ See <<ref-native-settings>>.
 [role="exclude",id="configuring-saml-realm"]
 === Configuring a SAML realm
 
-See <<saml-guide>>.
+See <<saml-guide-stack>>.
 
 [role="exclude",id="saml-settings"]
 ==== SAML realm settings
@@ -493,7 +633,7 @@ See <<ad-realm-configuration>>.
 [role="exclude",id="how-security-works"]
 === How security works
 
-See <<elasticsearch-security>>.
+See <<configuring-stack-security>>.
 
 [role="exclude",id="rollup-job-config"]
 === Rollup job configuration
@@ -686,7 +826,7 @@ See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
 [role="exclude",id="indices-component-templates"]
 === Component template APIs
 
-coming::[7.x]
+See <<index-templates-apis,index template APIs>>.
 
 [role="exclude",id="modules-indices"]
 === Indices module
@@ -706,7 +846,7 @@ See:
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[#55257]) from the {es} Reference
+({es-issue}55257[#55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -716,7 +856,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference because it was out of date and
+({es-issue}55257[55257]) from the {es} Guide because it was out of date and
 erroneously implied that it should be used by application developers.
 
 There is an issue ({es-issue}55258[#55258]) for providing general testing
@@ -728,7 +868,7 @@ guidance for applications that communicate with {es}.
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -739,7 +879,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -750,7 +890,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -761,7 +901,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -1023,7 +1163,7 @@ See <<ilm-gs-apply-policy>>.
 [role="exclude",id="indices-status"]
 === Index status API
 
-The  index `_status` API has been replaced with the <<indices-stats,index
+The index `_status` API has been replaced with the <<indices-stats,index
 stats>> and <<indices-recovery,index recovery>> APIs.
 
 [role="exclude",id="search-facets"]
@@ -1272,24 +1412,6 @@ See <<constant-keyword-field-type>>.
 
 See <<wildcard-field-type>>.
 
-[role="exclude",id="searchable-snapshots-api-clear-cache"]
-=== Clear cache API
-
-We have removed documentation for this API. This a low-level API used to clear
-the searchable snapshot cache. We plan to remove or drastically change this API
-as part of a future release.
-
-For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
-
-[role="exclude",id="searchable-snapshots-api-stats"]
-=== Searchable snapshot statistics API
-
-We have removed documentation for this API. This a low-level API used to get
-information about searchable snapshot indices. We plan to remove or drastically
-change this API as part of a future release.
-
-For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
-
 [role="exclude",id="searchable-snapshots-repository-stats"]
 === Searchable snapshot repository statistics API
 
@@ -1357,38 +1479,163 @@ instead.
 
 See <<fielddata-mapping-param>>.
 
-ifdef::permanently-unreleased-branch[]
-[role="exclude",id="rollup-overview"]
-=== {rollup-cap} overview
+[role="exclude",id="pipeline"]
+=== Pipeline definition
 
-// tag::legacy-rollup-redirect[]
-Legacy rollups are deprecated and will be replaced by <<xpack-rollup,new rollup
-functionality>> introduced in Elasticsearch 7.x. For legacy rollup API
-documentation, see <<legacy-rollup-apis>>.
-// end::legacy-rollup-redirect[]
+See <<ingest>>.
 
-[role="exclude",id="rollup-getting-started"]
-=== Getting started with {rollups}
+[role="exclude",id="accessing-data-in-pipelines"]
+=== Accessing data in pipelines
 
-include::redirects.asciidoc[tag=legacy-rollup-redirect]
+See <<access-source-fields>>, <<access-metadata-fields>>, and
+<<access-ingest-metadata>>.
 
-[role="exclude",id="rollup-api-quickref"]
-=== {rollup-cap} API quick reference
+[role="exclude",id="ingest-conditionals"]
+=== Conditional execution in pipelines
 
-include::redirects.asciidoc[tag=legacy-rollup-redirect]
+See <<conditionally-run-processor>>.
 
-[role="exclude",id="rollup-understanding-groups"]
-=== Understanding rollup groups
+[role="exclude",id="ingest-conditional-nullcheck"]
+=== Handling nested fields in conditionals
 
-include::redirects.asciidoc[tag=legacy-rollup-redirect]
+See <<conditionally-run-processor>>.
 
-[role="exclude",id="rollup-agg-limitations"]
-=== {rollup-cap} aggregation limitations
+[role="exclude",id="ingest-conditional-complex"]
+=== Complex conditionals
 
-include::redirects.asciidoc[tag=legacy-rollup-redirect]
+See <<conditionally-run-processor>>.
 
-[role="exclude",id="rollup-search-limitations"]
-=== {rollup-cap} search limitations
+[role="exclude",id="conditionals-with-multiple-pipelines"]
+=== Conditionals with the pipeline processor
 
-include::redirects.asciidoc[tag=legacy-rollup-redirect]
-endif::[]
+See <<conditionally-apply-pipelines>>.
+
+[role="exclude",id="conditionals-with-regex"]
+=== Conditionals with the regular expressions
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="handling-failure-in-pipelines"]
+=== Handling failures in pipelines
+
+See <<handling-pipeline-failures>>.
+
+[role="exclude",id="ingest-processors"]
+=== Ingest processors
+
+See <<processors>>.
+
+[role="exclude",id="enrich-policy-definition"]
+=== Enrich policy definition
+
+See <<put-enrich-policy-api>>.
+
+[role="exclude",id="rollup-api"]
+=== Rollup API
+
+See <<rollup-apis>>.
+
+[role="exclude",id="getting-started-install"]
+=== Get {es} up and running
+
+See <<run-elasticsearch>>.
+
+[role="exclude",id="getting-started-index"]
+=== Index some documents
+
+See <<add-data>>.
+
+[role="exclude",id="getting-started-search"]
+=== Start searching
+
+See <<qs-search-data>>.
+
+[role="exclude",id="getting-started-aggregations"]
+=== Analyze results with aggregations
+
+See <<getting-started>>.
+
+[role="exclude",id="getting-started-next-steps"]
+=== Where to go from here
+
+See <<getting-started>>.
+
+[role="exclude",id="jvm-options"]
+=== Settng JVM options
+
+See <<set-jvm-options>>.
+
+[role="exclude",id="terms-enum"]
+=== Terms enum API
+
+See <<search-terms-enum>>.
+
+[role="exclude",id="frozen-indices"]
+=== Frozen indices
+
+// tag::frozen-index-redirect[]
+include::{es-repo-dir}/indices/apis/freeze.asciidoc[tag=freeze-api-dep]
+
+For API documentation, see <<freeze-index-api>> and <<unfreeze-index-api>>.
+// end::frozen-index-redirect[]
+
+[role="exclude",id="best_practices"]
+=== Best practices for frozen indices
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="searching_a_frozen_index"]
+=== Searching a frozen index
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="monitoring_frozen_indices"]
+=== Monitoring frozen indices
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="glossary"]
+=== Glossary
+
+See the {glossary}/terms.html[Elastic glossary].
+[role="exclude",id="multi-index"]
+=== Multi-target syntax
+
+See <<api-multi-index>>. 
+
+[float]
+[[hidden]]
+==== Hidden data streams and indices
+
+See <<multi-hidden>>. 
+
+[role="exclude",id="date-math-index-names"]
+=== Date math support in system and index alias names 
+
+See <<api-date-math-index-names>>.
+
+[role="exclude",id="cron-expressions"]
+=== Cron expressions
+
+See <<api-cron-expressions>>.
+
+[role="exclude",id="url-access-control"]
+=== URL-based access control
+
+See <<api-url-access-control>>.
+
+[role="exclude",id="indices-field-usage-stats"]
+=== Field usage stats API
+
+See <<field-usage-stats>>.
+
+[role="exclude",id="security-api-enroll-kibana"]
+=== Enroll {kib} API
+
+See <<security-api-kibana-enrollment>>.
+
+[role="exclude",id="sql-rest-fields"]
+=== Supported REST parameters for SQL search API
+
+See the <<sql-search-api-request-body,request body parameters>> for the
+<<sql-search-api,SQL search API>>.

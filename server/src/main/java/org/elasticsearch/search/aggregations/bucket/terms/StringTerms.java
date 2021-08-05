@@ -94,7 +94,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
     public StringTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount,
             Map<String, Object> metadata, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
-            List<Bucket> buckets, long docCountError) {
+            List<Bucket> buckets, Long docCountError) {
         super(name, reduceOrder, order, requiredSize, minDocCount, metadata, format,
                 shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
     }
@@ -132,10 +132,5 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
     protected StringTerms create(String name, List<Bucket> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount) {
         return new StringTerms(name, reduceOrder, order, requiredSize, minDocCount, getMetadata(), format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
-    }
-
-    @Override
-    protected Bucket[] createBucketsArray(int size) {
-        return new Bucket[size];
     }
 }

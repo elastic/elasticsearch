@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,9 +47,11 @@ public abstract class ParsedMultiBucketAggregation<B extends ParsedMultiBucketAg
         return builder;
     }
 
-    protected static void declareMultiBucketAggregationFields(final ObjectParser<? extends ParsedMultiBucketAggregation, Void> objectParser,
-                                                  final CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser,
-                                                  final CheckedFunction<XContentParser, ParsedBucket, IOException> keyedBucketParser) {
+    protected static <A extends ParsedMultiBucketAggregation<T>, T extends ParsedBucket> void declareMultiBucketAggregationFields(
+        final ObjectParser<A, Void> objectParser,
+        final CheckedFunction<XContentParser, T, IOException> bucketParser,
+        final CheckedFunction<XContentParser, T, IOException> keyedBucketParser
+    ) {
         declareAggregationFields(objectParser);
         objectParser.declareField((parser, aggregation, context) -> {
             XContentParser.Token token = parser.currentToken();

@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -23,7 +23,8 @@ import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardS
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.CacheIndexInputStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.Counter;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.TimedCounter;
-import org.elasticsearch.index.store.IndexInputStats;
+import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.IOException;
 import java.util.List;
@@ -100,7 +101,9 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
         return new CacheIndexInputStats(
             fileExt,
             inputStats.getNumFiles(),
-            inputStats.getTotalSize(),
+            new ByteSizeValue(inputStats.getTotalSize()),
+            new ByteSizeValue(inputStats.getMinSize()),
+            new ByteSizeValue(inputStats.getMaxSize()),
             inputStats.getOpened().sum(),
             inputStats.getClosed().sum(),
             toCounter(inputStats.getForwardSmallSeeks()),
@@ -115,6 +118,7 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
             toTimedCounter(inputStats.getDirectBytesRead()),
             toTimedCounter(inputStats.getOptimizedBytesRead()),
             toCounter(inputStats.getBlobStoreBytesRequested()),
+            toCounter(inputStats.getLuceneBytesRead()),
             inputStats.getCurrentIndexCacheFills()
         );
     }

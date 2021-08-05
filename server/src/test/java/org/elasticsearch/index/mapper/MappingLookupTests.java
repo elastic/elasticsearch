@@ -12,8 +12,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -34,12 +34,12 @@ public class MappingLookupTests extends ESTestCase {
 
     private static MappingLookup createMappingLookup(List<FieldMapper> fieldMappers,
                                                      List<ObjectMapper> objectMappers,
-                                                     List<RuntimeFieldType> runtimeFields) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
-        Map<String, RuntimeFieldType> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(MappedFieldType::name, r -> r));
+                                                     List<RuntimeField> runtimeFields) {
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
+        Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
-        return new MappingLookup(mapping, fieldMappers, objectMappers, emptyList(), null, null, null);
+        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, emptyList());
     }
 
     public void testOnlyRuntimeField() {
@@ -48,7 +48,7 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(0, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
         assertNull(mappingLookup.getMapper("test"));
-        assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.class));
+        assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
     }
 
     public void testRuntimeFieldLeafOverride() {
@@ -58,14 +58,13 @@ public class MappingLookupTests extends ESTestCase {
         assertThat(mappingLookup.getMapper("test"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
-        assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.class));
-        assertEquals(1, size(mappingLookup.fieldTypesLookup().filter(ft -> true)));
+        assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
     }
 
     public void testSubfieldOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("object.subfield");
-        ObjectMapper objectMapper = new ObjectMapper("object", "object", new Explicit<>(true, true), ObjectMapper.Nested.NO,
-            ObjectMapper.Dynamic.TRUE, Collections.singletonMap("object.subfield", fieldMapper), Version.CURRENT);
+        ObjectMapper objectMapper = new ObjectMapper("object", "object", new Explicit<>(true, true),
+            ObjectMapper.Dynamic.TRUE, Collections.singletonMap("object.subfield", fieldMapper));
         MappingLookup mappingLookup = createMappingLookup(
             Collections.singletonList(fieldMapper),
             Collections.singletonList(objectMapper),
@@ -74,8 +73,7 @@ public class MappingLookupTests extends ESTestCase {
         assertThat(mappingLookup.getMapper("object.subfield"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(1, mappingLookup.objectMappers().size());
-        assertThat(mappingLookup.fieldTypesLookup().get("object.subfield"), instanceOf(TestRuntimeField.class));
-        assertEquals(1, size(mappingLookup.fieldTypesLookup().filter(ft -> true)));
+        assertThat(mappingLookup.fieldTypesLookup().get("object.subfield"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
     }
 
     public void testAnalyzers() throws IOException {
@@ -97,6 +95,16 @@ public class MappingLookupTests extends ESTestCase {
             () -> mappingLookup.indexAnalyzer("field3", f -> {
                 throw new IllegalArgumentException();
             }).tokenStream("field3", "blah"));
+    }
+
+    public void testEmptyMappingLookup() {
+        MappingLookup mappingLookup = MappingLookup.EMPTY;
+        assertEquals("{\"_doc\":{}}", Strings.toString(mappingLookup.getMapping()));
+        assertFalse(mappingLookup.hasMappings());
+        assertNull(mappingLookup.getMapping().getMeta());
+        assertEquals(0, mappingLookup.getMapping().getMetadataMappersMap().size());
+        assertFalse(mappingLookup.fieldMappers().iterator().hasNext());
+        assertEquals(0, mappingLookup.getMatchingFieldNames("*").size());
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {
@@ -173,7 +181,7 @@ public class MappingLookupTests extends ESTestCase {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected void parseCreateField(DocumentParserContext context) {
         }
 
         @Override

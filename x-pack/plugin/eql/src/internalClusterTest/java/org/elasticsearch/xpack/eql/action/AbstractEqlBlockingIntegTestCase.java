@@ -30,12 +30,16 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
@@ -128,6 +132,8 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
 
         private final String nodeId;
 
+        private final ExecutorService executorService = Executors.newFixedThreadPool(1);
+
         public void reset() {
             contexts.set(0);
             fieldCaps.set(0);
@@ -183,11 +189,14 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
 
                 @Override
                 public <Request extends ActionRequest, Response extends ActionResponse> void apply(
-                    Task task, String action, Request request, ActionListener<Response> listener,
+                    Task task,
+                    String action,
+                    Request request,
+                    ActionListener<Response> listener,
                     ActionFilterChain<Request, Response> chain) {
-                    ActionListener<Response> listenerWrapper = listener;
+
                     if (action.equals(FieldCapabilitiesAction.NAME)) {
-                        listenerWrapper = ActionListener.wrap(resp -> {
+                        final Consumer<Response> actionWrapper = resp -> {
                             try {
                                 fieldCaps.incrementAndGet();
                                 logger.trace("blocking field caps on " + nodeId);
@@ -198,13 +207,23 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
                             } finally {
                                 listener.onResponse(resp);
                             }
-                        }, listener::onFailure);
-
+                            logger.trace("unblocking field caps on " + nodeId);
+                        };
+                        chain.proceed(task, action, request,
+                            ActionListener.wrap(resp -> executorService.execute(() -> actionWrapper.accept(resp)), listener::onFailure)
+                        );
+                    } else {
+                        chain.proceed(task, action, request, listener);
                     }
-                    chain.proceed(task, action, request, listenerWrapper);
                 }
             });
             return list;
+        }
+
+        @Override
+        public void close() throws IOException {
+            List<Runnable> runnables = executorService.shutdownNow();
+            assertTrue(runnables.isEmpty());
         }
     }
 

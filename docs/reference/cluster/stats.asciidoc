@@ -240,6 +240,18 @@ Total size of all shards assigned to selected nodes.
 (integer)
 Total size, in bytes, of all shards assigned to selected nodes.
 
+`total_data_set_size`::
+(<<byte-units, byte units>>)
+Total data set size of all shards assigned to selected nodes.
+This includes the size of shards not stored fully on the nodes, such as the
+cache for <<partially-mounted,partially mounted indices>>.
+
+`total_data_set_size_in_bytes`::
+(integer)
+Total data set size, in bytes, of all shards assigned to selected nodes.
+This includes the size of shards not stored fully on the nodes, such as the
+cache for <<partially-mounted,partially mounted indices>>.
+
 `reserved`::
 (<<byte-units,byte value>>)
 A prediction of how much larger the shard stores will eventually grow due to
@@ -492,6 +504,46 @@ Number of fields mapped to the field data type in selected nodes.
 `index_count`::
 (integer)
 Number of indices containing a mapping of the field data type in selected nodes.
+
+`script_count`::
+(integer)
+Number of fields that declare a script.
+
+`lang`::
+(array of strings)
+Script languages used for the optional scripts
+
+`lines_max`::
+(integer)
+Maximum number of lines for a single field script
+
+`lines_total`::
+(integer)
+Total number of lines for the scripts
+
+`chars_max`::
+(integer)
+Maximum number of characters for a single field script
+
+`chars_total`::
+(integer)
+Total number of characters for the scripts
+
+`source_max`::
+(integer)
+Maximum number of accesses to _source for a single field script
+
+`source_total`::
+(integer)
+Total number of accesses to _source for the scripts
+
+`doc_max`::
+(integer)
+Maximum number of accesses to doc_values for a single field script
+
+`doc_total`::
+(integer)
+Total number of accesses to doc_values for the scripts
 ======
 
 `runtime_field_types`::
@@ -1238,6 +1290,8 @@ The API returns the following response:
       "store": {
          "size": "16.2kb",
          "size_in_bytes": 16684,
+         "total_data_set_size": "16.2kb",
+         "total_data_set_size_in_bytes": 16684,
          "reserved": "0b",
          "reserved_in_bytes": 0
       },
@@ -1263,19 +1317,19 @@ The API returns the following response:
       "segments": {
          "count": 4,
          "memory": "8.6kb",
-         "memory_in_bytes": 8898,
-         "terms_memory": "6.3kb",
-         "terms_memory_in_bytes": 6522,
-         "stored_fields_memory": "1.2kb",
-         "stored_fields_memory_in_bytes": 1248,
+         "memory_in_bytes": 0,
+         "terms_memory": "0b",
+         "terms_memory_in_bytes": 0,
+         "stored_fields_memory": "0b",
+         "stored_fields_memory_in_bytes": 0,
          "term_vectors_memory": "0b",
          "term_vectors_memory_in_bytes": 0,
-         "norms_memory": "384b",
-         "norms_memory_in_bytes": 384,
+         "norms_memory": "0b",
+         "norms_memory_in_bytes": 0,
          "points_memory" : "0b",
          "points_memory_in_bytes" : 0,
-         "doc_values_memory": "744b",
-         "doc_values_memory_in_bytes": 744,
+         "doc_values_memory": "0b",
+         "doc_values_memory_in_bytes": 0,
          "index_writer_memory": "0b",
          "index_writer_memory_in_bytes": 0,
          "version_map_memory": "0b",

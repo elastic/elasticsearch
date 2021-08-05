@@ -157,7 +157,7 @@ The size of the interval that the analysis is aggregated into, typically between
 `5m` and `1h`. The default value is `5m`. If the {anomaly-job} uses a {dfeed}
 with {ml-docs}/ml-configuring-aggregation.html[aggregations], this value must be
 divisible by the interval of the date histogram aggregation. For more
-information, see {ml-docs}/ml-buckets.html[Buckets].
+information, see {ml-docs}/ml-ad-finding-anomalies.html#ml-ad-bucket-span[Bucket span].
 end::bucket-span[]
 
 tag::bucket-span-results[]
@@ -229,7 +229,7 @@ end::categorization-analyzer[]
 
 tag::categorization-examples-limit[]
 The maximum number of examples stored per category in memory and in the results
-data store. The default value is 4.  If you increase this value, more examples
+data store. The default value is 4. If you increase this value, more examples
 are available, however it requires that you have more storage available. If you
 set this value to `0`, no examples are stored.
 +
@@ -296,18 +296,6 @@ tag::chunking-config[]
 months or years. This search is split into time chunks in order to ensure the
 load on {es} is managed. Chunking configuration controls how the size of these
 time chunks are calculated and is an advanced configuration option.
-+
-.Properties of `chunking_config`
-[%collapsible%open]
-====
-`mode`:::
-(string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
-
-`time_span`:::
-(<<time-units,time units>>)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
-====
 end::chunking-config[]
 
 tag::class-assignment-objective[]
@@ -335,7 +323,8 @@ end::custom-preprocessor[]
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
 operate. For example, a rule may dictate to the detector conditions under which
-results should be skipped. For more examples, see
+results should be skipped. {kib} refers to custom rules as _job rules_. For more 
+examples, see
 {ml-docs}/ml-configuring-detector-custom-rules.html[Customizing detectors with custom rules].
 end::custom-rules[]
 
@@ -410,7 +399,7 @@ of the most recent snapshot for this job. Valid values range from `0` to
 `model_snapshot_retention_days`. For new jobs, the default value is `1`. For
 jobs created before version 7.8.0, the default value matches
 `model_snapshot_retention_days`. For more information, refer to
-{ml-docs}/ml-model-snapshots.html[Model snapshots].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-model-snapshots[Model snapshots].
 end::daily-model-snapshot-retention-after-days[]
 
 tag::data-description[]
@@ -467,22 +456,20 @@ that moment in time. See
 {ml-docs}/ml-delayed-data-detection.html[Working with delayed data].
 +
 This check runs only on real-time {dfeeds}.
-+
-.Properties of `delayed_data_check_config`
-[%collapsible%open]
-====
-`check_window`::
-(<<time-units,time units>>) The window of time that is searched for late data.
-This window of time ends with the latest finalized bucket. It defaults to
-`null`, which causes an appropriate `check_window` to be calculated when the
-real-time {dfeed} runs. In particular, the default `check_window` span
-calculation is based on the maximum of `2h` or `8 * bucket_span`.
-
-`enabled`::
-(Boolean) Specifies whether the {dfeed} periodically checks for delayed data.
-Defaults to `true`.
-====
 end::delayed-data-check-config[]
+
+tag::delayed-data-check-config-check-window[]
+The window of time that is searched for late data. This window of time ends with
+the latest finalized bucket. It defaults to `null`, which causes an appropriate
+`check_window` to be calculated when the real-time {dfeed} runs. In particular,
+the default `check_window` span calculation is based on the maximum of `2h` or
+`8 * bucket_span`.
+end::delayed-data-check-config-check-window[]
+
+tag::delayed-data-check-config-enabled[]
+Specifies whether the {dfeed} periodically checks for delayed data. Defaults to
+`true`.
+end::delayed-data-check-config-enabled[]
 
 tag::dependent-variable[]
 Defines which field of the document is to be predicted.
@@ -560,7 +547,7 @@ end::dfas-downsample-factor[]
 tag::dfas-early-stopping-enabled[]
 Advanced configuration option.
 Specifies whether the training process should finish if it is not finding any
-better perfoming models. If disabled, the training process can take significantly
+better performing models. If disabled, the training process can take significantly
 longer and the chance of finding a better performing model is unremarkable.
 By default, early stoppping is enabled.
 end::dfas-early-stopping-enabled[]
@@ -773,8 +760,7 @@ working with both over and by fields, then you can set `exclude_frequent` to
 end::exclude-frequent[]
 
 tag::exclude-interim-results[]
-If `true`, the output excludes interim results. By default, interim results are
-included.
+If `true`, the output excludes interim results. Defaults to `false`, which means interim results are included.
 end::exclude-interim-results[]
 
 tag::failed-category-count[]
@@ -1101,6 +1087,11 @@ the forest. The maximum value is 2000. By default, this value is calculated
 during hyperparameter optimization.
 end::max-trees[]
 
+tag::max-trees-trained-models[]
+The maximum number of decision trees in the forest. The maximum value is 2000. 
+By default, this value is calculated during hyperparameter optimization.
+end::max-trees-trained-models[]
+
 tag::method[]
 The method that {oldetection} uses. Available methods are `lof`, `ldof`,
 `distance_kth_nn`, `distance_knn`, and `ensemble`. The default value is
@@ -1238,6 +1229,12 @@ applied. For example, "CPU,NetworkIn,DiskWrites". Wildcards are not supported.
 Only the specified `terms` can be viewed when using the Single Metric Viewer.
 end::model-plot-config-terms[]
 
+tag::model-prune-window[]
+Advanced configuration option, which affects the pruning of models that have not
+been updated for the given time duration. The value of this option must be at least
+two whole multiples of `bucket_span`. If not set, a default value is not supplied.
+end::model-prune-window[]
+
 tag::model-snapshot-id[]
 A numerical character string that uniquely identifies the model snapshot. For
 example, `1575402236000 `.
@@ -1249,7 +1246,7 @@ snapshots for this job. It specifies the maximum period of time (in days) that
 snapshots are retained. This period is relative to the timestamp of the most
 recent snapshot for this job. The default value is `10`, which means snapshots
 ten days older than the newest snapshot are deleted. For more information, refer
-to {ml-docs}/ml-model-snapshots.html[Model snapshots].
+to {ml-docs}/ml-ad-finding-anomalies.html#ml-ad-model-snapshots[Model snapshots].
 end::model-snapshot-retention-days[]
 
 tag::model-timestamp[]
@@ -1321,11 +1318,12 @@ For open jobs only, the elapsed time for which the job has been open.
 end::open-time[]
 
 tag::out-of-order-timestamp-count[]
-The number of input documents that are out of time sequence and outside
-of the latency window. This information is applicable only when you provide data
-to the {anomaly-job} by using the <<ml-post-data,post data API>>. These out of
-order documents are  discarded, since jobs require time series data to be in
-ascending chronological order.
+The number of input documents that have a timestamp chronologically
+preceding the start of the current anomaly detection bucket offset by 
+the latency window. This information is applicable only when you provide 
+data to the {anomaly-job} by using the <<ml-post-data,post data API>>. 
+These out of order documents are discarded, since jobs require time 
+series data to be in ascending chronological order.
 end::out-of-order-timestamp-count[]
 
 tag::outlier-fraction[]
@@ -1432,7 +1430,9 @@ retained. Age is calculated relative to the timestamp of the latest bucket
 result. If this property has a non-null value, once per day at 00:30 (server
 time), results that are the specified number of days older than the latest
 bucket result are deleted from {es}. The default value is null, which means all
-results are retained.
+results are retained. Annotations generated by the system also count as results
+for retention purposes; they are deleted after the same number of days as
+results. Annotations added by users are retained forever.
 end::results-retention-days[]
 
 tag::retain[]
@@ -1585,11 +1585,17 @@ end::timestamp-results[]
 tag::tokenizer[]
 The name or definition of the <<analysis-tokenizers,tokenizer>> to use after
 character filters are applied. This property is compulsory if
-`categorization_analyzer` is specified as an object. Machine learning provides a
-tokenizer called `ml_classic` that tokenizes in the same way as the
-non-customizable tokenizer in older versions of the product. If you want to use
-that tokenizer but change the character or token filters, specify
-`"tokenizer": "ml_classic"` in your `categorization_analyzer`.
+`categorization_analyzer` is specified as an object. Machine learning provides
+a tokenizer called `ml_standard` that tokenizes in a way that has been
+determined to produce good categorization results on a variety of log
+file formats for logs in English. If you want to use that tokenizer but
+change the character or token filters, specify `"tokenizer": "ml_standard"`
+in your `categorization_analyzer`. Additionally, the `ml_classic` tokenizer
+is available, which tokenizes in the same way as the non-customizable
+tokenizer in old versions of the product (before 6.2). `ml_classic` was
+the default categorization tokenizer in versions 6.2 to 7.13, so if you
+need categorization identical to the default for jobs created in these
+versions, specify `"tokenizer": "ml_classic"` in your `categorization_analyzer`.
 end::tokenizer[]
 
 tag::total-by-field-count[]

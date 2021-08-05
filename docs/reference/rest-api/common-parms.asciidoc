@@ -18,32 +18,14 @@ the response only includes ongoing shard recoveries.
 Defaults to `false`.
 end::active-only[]
 
-tag::index-alias[]
-Comma-separated list or wildcard expression of index alias names
-used to limit the request.
-end::index-alias[]
-
-tag::aliases[]
-`aliases`::
-(Optional, <<indices-aliases,alias object>>) Index aliases which include the
-index. See <<indices-aliases>>.
-end::aliases[]
-
-tag::target-index-aliases[]
-`aliases`::
-(Optional, <<indices-aliases,alias object>>)
-Index aliases which include the target index.
-See <<indices-aliases>>.
-end::target-index-aliases[]
-
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, Boolean)
 If `false`, the request returns an error if any wildcard expression,
-<<indices-aliases,index alias>>, or `_all` value targets only missing or closed
-indices. This behavior applies even if the request targets other open indices.
-For example, a request targeting `foo*,bar*` returns an error if an index
-starts with `foo` but no index starts with `bar`.
+<<alias,index alias>>, or `_all` value targets only missing or closed indices.
+This behavior applies even if the request targets other open indices. For
+example, a request targeting `foo*,bar*` returns an error if an index starts
+with `foo` but no index starts with `bar`.
 end::allow-no-indices[]
 
 tag::allow-no-match-transforms1[]
@@ -214,27 +196,22 @@ The number of documents that have been processed from the source index of
 the {transform}.
 end::docs-processed[]
 
-tag::enrich-policy[]
-Enrich policy name
-used to limit the request.
-end::enrich-policy[]
-
 tag::ds-expand-wildcards[]
 `expand_wildcards`::
 +
 --
 (Optional, string)
-Type of data stream that wildcard expressions can match. Supports
+Type of data stream that wildcard patterns can match. Supports
 comma-separated values, such as `open,hidden`. Valid values are:
 
 `all`, `hidden`::
-Match any data stream, including <<hidden-indices,hidden>> ones.
+Match any data stream, including <<hidden,hidden>> ones.
 
 `open`, `closed`::
 Matches any non-hidden data stream. Data streams cannot be closed.
 
 `none`::
-Wildcard expressions are not accepted.
+Wildcard patterns are not accepted.
 --
 end::ds-expand-wildcards[]
 
@@ -243,13 +220,13 @@ tag::expand-wildcards[]
 +
 --
 (Optional, string)
-Type of index that wildcard expressions can match. If the request can target
-data streams, this argument determines whether wildcard expressions match
-hidden data streams. Supports comma-separated values, such as `open,hidden`.
-Valid values are:
+Type of index that wildcard patterns can match. If the request can target data
+streams, this argument determines whether wildcard expressions match hidden data
+streams. Supports comma-separated values, such as `open,hidden`. Valid values
+are:
 
 `all`::
-Match any data stream or index, including <<hidden-indices,hidden>> ones.
+Match any data stream or index, including <<hidden,hidden>> ones.
 
 `open`::
 Match open, non-hidden indices. Also matches any non-hidden data stream.
@@ -263,7 +240,7 @@ Match hidden data streams and hidden indices. Must be combined with `open`,
 `closed`, or both.
 
 `none`::
-Wildcard expressions are not accepted.
+Wildcard patterns are not accepted.
 --
 end::expand-wildcards[]
 
@@ -308,14 +285,6 @@ unless a specific field list is provided
 in the `completion_fields` or `fielddata_fields` parameters.
 --
 end::fields[]
-
-tag::index-alias-filter[]
-<<query-dsl-bool-query, Filter query>>
-used to limit the index alias.
-+
-If specified,
-the index alias only applies to documents returned by the filter.
-end::index-alias-filter[]
 
 tag::flat-settings[]
 `flat_settings`::
@@ -423,7 +392,7 @@ end::index-ignore-unavailable[]
 
 tag::include-defaults[]
 `include_defaults`::
-(Optional, string) If `true`, return all default settings in the response.
+(Optional, Boolean) If `true`, return all default settings in the response.
 Defaults to `false`.
 end::include-defaults[]
 
@@ -431,7 +400,7 @@ tag::include-segment-file-sizes[]
 `include_segment_file_sizes`::
 (Optional, Boolean)
 If `true`, the call reports the aggregated disk usage of
-each one  of the Lucene index files (only applies if segment stats are
+each one of the Lucene index files (only applies if segment stats are
 requested). Defaults to `false`.
 end::include-segment-file-sizes[]
 
@@ -619,16 +588,24 @@ end::memory[]
 tag::bulk-require-alias[]
 `require_alias`::
 (Optional, Boolean)
-If `true`, the action must target an <<indices-aliases,index alias>>. Defaults
-to `false`.
+If `true`, the action must target an <<alias,index alias>>. Defaults to
+`false`.
 end::bulk-require-alias[]
 
 tag::require-alias[]
 `require_alias`::
-(Optional, Boolean)
-If `true`, the destination must be an <<indices-aliases,index alias>>. Defaults to
-`false`.
+(Optional, Boolean) If `true`, the destination must be an <<alias,index alias>>.
+Defaults to `false`.
 end::require-alias[]
+
+tag::bulk-dynamic-templates[]
+`dynamic_templates`::
+(Optional, map)
+A map from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
+Defaults to an empty map. If a name matches a dynamic template, then that template will be
+applied regardless of other match predicates defined in the template. And if a field is
+already defined in the mapping, then this parameter won't be used.
+end::bulk-dynamic-templates[]
 
 tag::node-filter[]
 `<node_filter>`::
@@ -711,8 +688,10 @@ currently supported:
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
 * <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
+* <<search-aggregations-metrics-stats-aggregation,Stats>>
 * <<search-aggregations-metrics-sum-aggregation,Sum>>
 * <<search-aggregations-bucket-terms-aggregation, Terms>>
+* <<search-aggregations-metrics-top-metrics,Top Metrics>>
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
@@ -791,15 +770,9 @@ end::requests_per_second[]
 
 tag::routing[]
 `routing`::
-(Optional, string) Target the specified primary shard.
-end::routing[]
-
-tag::index-routing[]
-`routing`::
 (Optional, string)
-Custom <<mapping-routing-field, routing value>>
-used to route operations to a specific shard.
-end::index-routing[]
+Custom value used to route operations to a specific shard.
+end::routing[]
 
 tag::cat-s[]
 `s`::
@@ -923,11 +896,11 @@ end::source-transforms[]
 tag::source-index-transforms[]
 The _source indices_ for the {transform}. It can be a single index, an index
 pattern (for example, `"my-index-*"`), an array of indices (for example,
-`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for 
-example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax 
+`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for
+example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax
 `"remote_name:index_name"`.
 
-NOTE: If any indices are in remote clusters then the master node and at least 
+NOTE: If any indices are in remote clusters then the master node and at least
 one transform node must have the `remote_cluster_client` node role.
 end::source-index-transforms[]
 
@@ -937,8 +910,8 @@ A query clause that retrieves a subset of data from the source index. See
 end::source-query-transforms[]
 
 tag::source-runtime-mappings-transforms[]
-Definitions of search-time runtime fields that can be used by the transform. For 
-search runtime fields all data nodes, including remote nodes, must be 7.12 or 
+Definitions of search-time runtime fields that can be used by the transform. For
+search runtime fields all data nodes, including remote nodes, must be 7.12 or
 later.
 end::source-runtime-mappings-transforms[]
 
@@ -998,7 +971,7 @@ unique key.
 end::transform-latest[]
 
 tag::transform-retention[]
-Defines a retention policy for the {transform}. Data that meets the defined 
+Defines a retention policy for the {transform}. Data that meets the defined
 criteria is deleted from the destination index.
 end::transform-retention[]
 
@@ -1011,7 +984,7 @@ The date field that is used to calculate the age of the document.
 end::transform-retention-time-field[]
 
 tag::transform-retention-time-max-age[]
-Specifies the maximum age of a document in the destination index. Documents that 
+Specifies the maximum age of a document in the destination index. Documents that
 are older than the configured value are removed from the destination index.
 end::transform-retention-time-max-age[]
 
@@ -1020,7 +993,7 @@ Defines optional {transform} settings.
 end::transform-settings[]
 
 tag::transform-settings-dates-as-epoch-milli[]
-Defines if dates in the ouput should be written as ISO formatted string (default)
+Defines if dates in the output should be written as ISO formatted string (default)
 or as millis since epoch. `epoch_millis` has been the default for transforms created
 before version `7.11`. For compatible output set this to `true`.
 The default value is `false`.
@@ -1035,7 +1008,7 @@ end::transform-settings-docs-per-second[]
 tag::transform-settings-max-page-search-size[]
 Defines the initial page size to use for the composite aggregation for each
 checkpoint. If circuit breaker exceptions occur, the page size is dynamically
-adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
+adjusted to a lower value. The minimum value is `10` and the maximum is `65,536`.
 The default value is `500`.
 end::transform-settings-max-page-search-size[]
 
@@ -1072,8 +1045,14 @@ end::term_statistics[]
 
 tag::terminate_after[]
 `terminate_after`::
-(Optional, integer) The maximum number of documents to collect for each shard,
-upon reaching which the query execution will terminate early.
+(Optional, integer) Maximum number of documents to collect for each shard. If a
+query reaches this limit, {es} terminates the query early. {es} collects
+documents before sorting.
++
+IMPORTANT: Use with caution. {es} applies this parameter to each shard handling
+the request. When possible, let {es} perform early termination automatically.
+Avoid specifying this parameter for requests that target data streams with
+backing indices across multiple data tiers.
 end::terminate_after[]
 
 tag::time[]
@@ -1142,7 +1121,7 @@ end::segment-version[]
 
 tag::version_type[]
 `version_type`::
-(Optional, enum) Specific version type: `internal`, `external`,
+(Optional, enum) Specific version type: `external`,
 `external_gte`.
 end::version_type[]
 

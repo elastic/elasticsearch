@@ -29,6 +29,7 @@ public final class Whitelist {
     private static final String[] BASE_WHITELIST_FILES = new String[] {
         "org.elasticsearch.txt",
         "org.elasticsearch.net.txt",
+        "org.elasticsearch.script.fields.txt",
         "java.lang.txt",
         "java.math.txt",
         "java.text.txt",

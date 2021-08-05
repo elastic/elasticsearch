@@ -19,8 +19,10 @@ public class GradleTestPolicySetupPlugin implements Plugin<Project> {
     public void apply(Project project) {
         Gradle gradle = project.getGradle();
         project.getTasks().withType(Test.class).configureEach(test -> {
-            SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
+            test.systemProperty("tests.gradle", true);
+            test.systemProperty("tests.task", test.getPath());
 
+            SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
             // don't track these as inputs since they contain absolute paths and break cache relocatability
             nonInputProperties.systemProperty("gradle.dist.lib", gradle.getGradleHomeDir().getAbsolutePath() + "/lib");
             nonInputProperties.systemProperty(
@@ -29,8 +31,6 @@ public class GradleTestPolicySetupPlugin implements Plugin<Project> {
             );
             test.getJvmArgumentProviders().add(nonInputProperties);
 
-            test.systemProperty("tests.gradle", true);
-            test.systemProperty("tests.task", test.getPath());
         });
 
     }

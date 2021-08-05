@@ -55,10 +55,9 @@ class GradleTestPolicySetupPluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(":test").outcome == TaskOutcome.SUCCESS
 
-        when:
+        when: // changing gradle user home
         result = gradleRunner('test', '-g', "guh2").build()
-        then:
+        then: // still up-to-date
         result.task(":test").outcome == TaskOutcome.UP_TO_DATE
-
     }
 }

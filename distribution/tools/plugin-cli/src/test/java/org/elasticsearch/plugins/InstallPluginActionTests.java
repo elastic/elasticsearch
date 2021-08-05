@@ -59,7 +59,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.net.MalformedURLException;
-import java.net.Proxy;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -219,7 +218,7 @@ public class InstallPluginActionTests extends ESTestCase {
         Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
             forEachFileRecursively(structure, (file, attrs) -> {
-                String target = (prefix == null ? "" : prefix + "/") + structure.relativize(file).toString();
+                String target = (prefix == null ? "" : prefix + "/") + structure.relativize(file);
                 stream.putNextEntry(new ZipEntry(target));
                 Files.copy(file, stream);
             });
@@ -864,7 +863,7 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
-            URL openUrl(String urlString, Proxy proxy) throws IOException {
+            URL openUrl(String urlString) throws IOException {
                 if ((url + shaExtension).equals(urlString)) {
                     // calc sha an return file URL to it
                     Path shaFile = temp.apply("shas").resolve("downloaded.zip" + shaExtension);
@@ -883,9 +882,9 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
-            void verifySignature(Path zip, String urlString, Proxy proxy) throws IOException, PGPException {
+            void verifySignature(Path zip, String urlString) throws IOException, PGPException {
                 if (InstallPluginAction.OFFICIAL_PLUGINS.contains(name)) {
-                    super.verifySignature(zip, urlString, proxy);
+                    super.verifySignature(zip, urlString);
                 } else {
                     throw new UnsupportedOperationException("verify signature should not be called for unofficial plugins");
                 }
@@ -1368,7 +1367,7 @@ public class InstallPluginActionTests extends ESTestCase {
                 }
                 generator.generate().encode(pout);
             }
-            return new String(output.toByteArray(), "UTF-8");
+            return output.toString(StandardCharsets.UTF_8);
         } catch (IOException | PGPException e) {
             throw new RuntimeException(e);
         }

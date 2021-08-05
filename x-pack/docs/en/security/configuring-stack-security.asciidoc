@@ -29,9 +29,9 @@ The `elasticsearch-security-config` tool generates the following security
 certificates and keys in `$ES_PATH_CONF/auto_config_on_<timestamp>`:
 +
 --
-`http.p12`::
-Certificate for the HTTP layer, which you can use to enroll additional clients
-such as {kib}.
+`http_ca.crt`::
+The CA certificate that is used to sign the certificates for the HTTP layer of
+this {es} cluster.
 
 `http_keystore_local_node.p12`::
 Keystore for the first {es} node in your cluster.
@@ -109,7 +109,7 @@ This account is not meant for individual users and does not have permission to
 log in to {kib} from a browser. Instead, you'll log in to {kib} as the `elastic`
 superuser. 
 
-. Add the `elasticsearch.username` setting to the `KIB_PATH_CONF/kibana.yml`
+. Add the `elasticsearch.username` setting to the `$KBN_PATH_CONF/kibana.yml`
 file and set the value to the `kibana_system` user:
 +
 [source,yaml]
@@ -117,9 +117,9 @@ file and set the value to the `kibana_system` user:
 elasticsearch.username: "kibana_system"
 ----
 +
-NOTE: The `KIB_PATH_CONF` variable is the path for the {kib}
+NOTE: The `$KBN_PATH_CONF` variable is the path for the {kib}
 configuration files. If you installed {kib} using archive distributions
-(`zip` or `tar.gz`), the variable defaults to `KIB_HOME/config`. If you used
+(`zip` or `tar.gz`), the variable defaults to `$KBN_HOME/config`. If you used
 package distributions (Debian or RPM), the variable defaults to `/etc/kibana`.
 
 . From the directory where you installed {kib}, run the following commands
@@ -150,3 +150,47 @@ When prompted, enter the password for the `kibana_system` user.
 
 . Log in to {kib} as the `elastic` user. Use this superuser account to 
 {kibana-ref}/tutorial-secure-access-to-kibana.html[manage spaces, create new users, and assign roles]. If you're running {kib} locally, go to `http://localhost:5601` to view the login page.
+
+*Next*: <<encrypt-kibana-with-elasticsearch,Encrypt traffic between {kib} and {es}>>
+
+[discrete]
+[[encrypt-kibana-with-elasticsearch]]
+=== Encrypt traffic between {kib} and {es}
+
+When you ran the `elasticsearch-security-config` tool, it
+created an `http_ca.crt` file in `$ES_PATH_CONF/auto_config_on_<timestamp>`.
+Use this file to configure {kib} to trust the {es} CA for the HTTP layer.
+
+1. Copy the `http_ca.crt` file to the {kib} configuration directory, as defined
+by the `$KBN_PATH_CONF` path.
+
+2. Open `kibana.yml` and add the following line to specify the location of the
+security certificate for the HTTP layer.
++
+[source,yaml]
+----
+elasticsearch.ssl.certificateAuthorities: $KBN_PATH_CONF/http_ca.crt
+----
+
+3. Add the following line to specify the HTTPS URL for your {es}
+cluster.
++
+[source,yaml]
+----
+elasticsearch.hosts: https://<your_elasticsearch_host>.com:9200
+----
+
+4. Restart {kib}. You can now connect to {kib} securely over HTTPS, such as
+`https://localhost:5601`.
+
+.Connect to a secure monitoring cluster
+****
+If the Elastic monitoring features are enabled and you configured a separate
+{es} monitoring cluster, you can also configure {kib} to connect to
+the monitoring cluster via HTTPS. The steps are the same, but each setting is
+prefixed by `monitoring`. For example, `monitoring.ui.elasticsearch.hosts` and
+`monitoring.ui.elasticsearch.ssl.truststore.path`.
+
+NOTE: You must create a separate `elasticsearch-ca.pem` security file for the
+monitoring cluster.
+****

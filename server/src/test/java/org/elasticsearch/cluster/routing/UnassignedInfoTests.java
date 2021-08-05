@@ -368,7 +368,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .setReason(this.getTestName())
             .setStartedAtMillis(randomNonNegativeLong())
             .setType(SingleNodeShutdownMetadata.Type.RESTART)
-            .setShardReallocationDelay(TimeValue.timeValueMinutes(1))
+            .setAllocationDelay(TimeValue.timeValueMinutes(1))
             .build();
         shutdowns.put(shutdown.getNodeId(), shutdown);
 
@@ -417,7 +417,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .setReason(this.getTestName())
             .setStartedAtMillis(randomNonNegativeLong())
             .setType(SingleNodeShutdownMetadata.Type.RESTART)
-            .setShardReallocationDelay(shutdownDelay)
+            .setAllocationDelay(shutdownDelay)
             .build();
         shutdowns.put(shutdown.getNodeId(), shutdown);
 

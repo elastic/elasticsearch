@@ -428,7 +428,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             .filter(nodeId -> reason.equals(Reason.NODE_RESTARTING))
             .map(nodesShutdownMap::get)
             .filter(shutdownMetadata -> SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownMetadata.getType()))
-            .map(SingleNodeShutdownMetadata::getShardReallocationDelay)
+            .map(SingleNodeShutdownMetadata::getAllocationDelay)
             .map(TimeValue::nanos)
             .map(knownRestartDelay -> Math.max(indexLevelDelay, knownRestartDelay))
             .orElse(indexLevelDelay);

@@ -86,7 +86,7 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
             .setReason(randomAlphaOfLength(5))
             .setStartedAtMillis(randomNonNegativeLong());
         if (type.equals(SingleNodeShutdownMetadata.Type.RESTART) && randomBoolean()) {
-            builder.setShardReallocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
+            builder.setAllocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
         }
         return builder.build();
     }

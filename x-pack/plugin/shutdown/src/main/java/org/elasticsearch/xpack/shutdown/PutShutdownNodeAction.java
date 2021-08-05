@@ -38,7 +38,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         private final SingleNodeShutdownMetadata.Type type;
         private final String reason;
         @Nullable
-        private final TimeValue shardReallocationDelay;
+        private final TimeValue allocationDelay;
 
         private static final ParseField TYPE_FIELD = new ParseField("type");
         private static final ParseField REASON_FIELD = new ParseField("reason");
@@ -60,18 +60,18 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             return PARSER.apply(parser, nodeId);
         }
 
-        public Request(String nodeId, SingleNodeShutdownMetadata.Type type, String reason, @Nullable TimeValue shardReallocationDelay) {
+        public Request(String nodeId, SingleNodeShutdownMetadata.Type type, String reason, @Nullable TimeValue allocationDelay) {
             this.nodeId = nodeId;
             this.type = type;
             this.reason = reason;
-            this.shardReallocationDelay = shardReallocationDelay;
+            this.allocationDelay = allocationDelay;
         }
 
         public Request(StreamInput in) throws IOException {
             this.nodeId = in.readString();
             this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
             this.reason = in.readString();
-            this.shardReallocationDelay = in.readOptionalTimeValue();
+            this.allocationDelay = in.readOptionalTimeValue();
         }
 
         @Override
@@ -79,7 +79,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             out.writeString(nodeId);
             out.writeEnum(type);
             out.writeString(reason);
-            out.writeOptionalTimeValue(shardReallocationDelay);
+            out.writeOptionalTimeValue(allocationDelay);
         }
 
         public String getNodeId() {
@@ -94,8 +94,8 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             return reason;
         }
 
-        public TimeValue getShardReallocationDelay() {
-            return shardReallocationDelay;
+        public TimeValue getAllocationDelay() {
+            return allocationDelay;
         }
 
         @Override
@@ -114,7 +114,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
                 arve.addValidationError("the reason for shutdown is required");
             }
 
-            if (shardReallocationDelay != null && SingleNodeShutdownMetadata.Type.RESTART.equals(type) == false) {
+            if (allocationDelay != null && SingleNodeShutdownMetadata.Type.RESTART.equals(type) == false) {
                 arve.addValidationError(ALLOCATION_DELAY_FIELD + "is only allowed for RESTART-type shutdown requests");
             }
 

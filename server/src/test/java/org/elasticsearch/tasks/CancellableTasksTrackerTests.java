@@ -83,7 +83,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
 
                     assertThat(stateBefore, lessThanOrEqualTo(stateAfter));
 
-                    if (getResult != null && tracker.get(task.getId()) != null) {
+                    if (getResult != null && task.getParentTaskId().isSet() && tracker.get(task.getId()) != null) {
                         assertThat(getByParentResult, hasItem(item));
                     }
 

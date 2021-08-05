@@ -11,7 +11,7 @@ package org.elasticsearch.gradle.internal;
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
-import org.elasticsearch.gradle.test.GrantTestPermissionPlugin;
+import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
@@ -41,7 +41,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(GrantTestPermissionPlugin.class);
+        project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         // Default test task should run only unit tests

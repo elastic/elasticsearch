@@ -11,7 +11,7 @@ package org.elasticsearch.gradle.test
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
-class GrantTestPermissionPluginFuncTest extends AbstractGradleFuncTest {
+class GradleTestPolicySetupPluginFuncTest extends AbstractGradleFuncTest {
 
     def "configures test tasks"() {
         file("src/test/java/org/acme/SysPropTest.java") << """
@@ -36,7 +36,7 @@ class GrantTestPermissionPluginFuncTest extends AbstractGradleFuncTest {
         given:
         buildFile << """
         plugins {
-            id "elasticsearch.test-permissions"
+            id "elasticsearch.test-gradle-policy"
             id "java"
         }
         

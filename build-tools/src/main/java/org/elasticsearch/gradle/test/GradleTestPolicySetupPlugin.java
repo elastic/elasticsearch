@@ -13,7 +13,7 @@ import org.gradle.api.Project;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.tasks.testing.Test;
 
-public class GrantTestPermissionPlugin implements Plugin<Project> {
+public class GradleTestPolicySetupPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {

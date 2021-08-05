@@ -16,7 +16,7 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.jarhell.JarHellPlugin;
-import org.elasticsearch.gradle.test.GrantTestPermissionPlugin;
+import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.RunTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
@@ -60,7 +60,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(TestClustersPlugin.class);
         project.getPluginManager().apply(CompileOnlyResolvePlugin.class);
         project.getPluginManager().apply(JarHellPlugin.class);
-        project.getPluginManager().apply(GrantTestPermissionPlugin.class);
+        project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
 
         var extension = project.getExtensions().create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension.class, project);
         configureDependencies(project);

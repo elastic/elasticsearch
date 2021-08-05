@@ -682,7 +682,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         boolean shouldStopAtCheckpoint,
         ActionListener<Void> shouldStopAtCheckpointListener
     ) throws InterruptedException {
-
         // in case the indexer is already shutting down
         if (indexerThreadShuttingDown) {
             context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
@@ -697,8 +696,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             IndexerState newIndexerState = IndexerState.STARTED;
             TransformTaskState newtaskState = context.getTaskState();
 
-            // check if the transform is at a checkpoint, if so, we will stop it below
-            // otherwise we set shouldStopAtCheckpoint and wait
+            // check if the transform is at a checkpoint, if so, we will shortcut and stop it below
+            // otherwise we set shouldStopAtCheckpoint, for this case the transform needs to get
+            // triggered, complete the checkpoint and stop
             if (shouldStopAtCheckpoint && initialRun()) {
                 newIndexerState = IndexerState.STOPPED;
                 newtaskState = TransformTaskState.STOPPED;
@@ -715,7 +715,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 context.getStateReason(),
                 getProgress(),
                 null,
-                shouldStopAtCheckpoint
+                newIndexerState == IndexerState.STARTED
             );
 
             // because save state is async we need to block the call until state is persisted, so that the job can not

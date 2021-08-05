@@ -155,4 +155,3 @@ setup:
   - match: {items.0.index.error.reason: "routing cannot be set because the destination index [test] is in time series mode"}
 
 # TODO should indexing without a @timestamp fail too?
-# TODO should an alias with search_routing fail?

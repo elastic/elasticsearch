@@ -1,36 +1,57 @@
 [[mapping-routing-field]]
 === `_routing` field
 
-A document is routed to a particular shard in an index using the following
-formula:
+By default, {es} uses a hash of the <<mapping-id-field,document `_id`>> to
+assign new documents to a primary shard. This default is designed to spread an
+index's data evenly across multiple shards. However, it also means a search on
+the index must hit each shard.
 
-    shard_num = hash(_routing) % num_primary_shards
+Custom routing lets you add data to a specific shard. You can later limit
+searches to this shard to drastically improve search speeds.
 
-The default value used for `_routing` is the document's <<mapping-id-field,`_id`>>.
+[[use-custom-routing]]
+==== Use custom routing
 
-Custom routing patterns can be implemented by specifying a custom `routing`
-value per document. For instance:
+To use custom routing, specify a `routing` string when you add a document. {es}
+uses a hash of this string to route documents to a primary shard. Documents with
+the same routing value are routed to the same shard. The routing value is stored
+in the document's `_routing` metadata field.
+
+Data streams don't support custom routing.
 
 [source,console]
-------------------------------
-PUT my-index-000001/_doc/1?routing=user1&refresh=true <1>
+----
+PUT my-index-000001/_doc/1?refresh&routing=user1
 {
-  "title": "This is a document"
+  "my-field": "A field value"
 }
-
-GET my-index-000001/_doc/1?routing=user1 <2>
-------------------------------
+----
 // TESTSETUP
 
-<1> This document uses `user1` as its routing value, instead of its ID.
-<2> The same `routing` value needs to be provided when
-    <<docs-get,getting>>, <<docs-delete,deleting>>, or <<docs-update,updating>>
-    the document.
+You can later specify these same `routing` values in a search request. If
+specified, the request will only search shards associated with the routing
+values.
 
-The value of the `_routing` field is accessible in queries:
+For example, the following request only searches shards for the `user1` and
+`user2` routing values. For more search routing options, see
+<<search-shard-routing>>.
 
 [source,console]
---------------------------
+----
+GET my-index-000001/_search?routing=user1,user2
+{
+  "query": {
+    "match": {
+      "my-field": "value"
+    }
+  }
+}
+----
+
+The value of the `_routing` field is also accessible in queries:
+
+[source,console]
+----
 GET my-index-000001/_search
 {
   "query": {
@@ -39,39 +60,15 @@ GET my-index-000001/_search
     }
   }
 }
---------------------------
+----
 
 <1> Querying on the `_routing` field (also see the <<query-dsl-ids-query,`ids` query>>)
 
-NOTE: Data streams do not support custom routing. Instead, target the
-appropriate backing index for the stream.
-
-==== Searching with custom routing
-
-Custom routing can reduce the impact of searches. Instead of having to fan
-out a search request to all the shards in an index, the request can be sent to
-just the shard that matches the specific routing value (or values):
-
-[source,console]
-------------------------------
-GET my-index-000001/_search?routing=user1,user2 <1>
-{
-  "query": {
-    "match": {
-      "title": "document"
-    }
-  }
-}
-------------------------------
-
-<1> This search request will only be executed on the shards associated with the `user1` and `user2` routing values.
-
-
 ==== Making a routing value required
 
-When using custom routing, it is important to provide the routing value
-whenever <<docs-index_,indexing>>, <<docs-get,getting>>,
-<<docs-delete,deleting>>, or <<docs-update,updating>> a document.
+When you add a document with custom routing, you must provide the same routing
+value when you <<docs-index_,index>>, <<docs-get,get>>, <<docs-delete,delete>>,
+or <<docs-update,update>> the document.
 
 Forgetting the routing value can lead to a document being indexed on more than
 one shard. As a safeguard, the `_routing` field can be configured to make a
@@ -110,23 +107,16 @@ It is up to the user to ensure that IDs are unique across the index.
 [[routing-index-partition]]
 ==== Routing to an index partition
 
-An index can be configured such that custom routing values will go to a subset of the shards rather
-than a single shard. This helps mitigate the risk of ending up with an imbalanced cluster while still
-reducing the impact of searches.
+Use the <<routing-partition-size,`index.routing_partition_size`>> index setting
+to route a document to a set of shards rather than a single shard.
 
-This is done by providing the index level setting <<routing-partition-size,`index.routing_partition_size`>> at index creation.
-As the partition size increases, the more evenly distributed the data will become at the
-expense of having to search more shards per request.
+When the setting is enabled, {es} uses the document’s `_routing` value to select
+a set of shards. {es} then uses the document `_id` to assign the document to a
+shard from the set.
 
-When this setting is present, the formula for calculating the shard becomes:
-
-    shard_num = (hash(_routing) + hash(_id) % routing_partition_size) % num_primary_shards
-
-That is, the `_routing` field is used to calculate a set of shards within the index and then the
-`_id` is used to pick a shard within that set.
-
-To enable this feature, the `index.routing_partition_size` should have a value greater than 1 and
-less than `index.number_of_shards`.
+The `index.routing_partition_size` value determines the number of shards in the
+set. A larger set means your data is more evenly distributed. However, it also
+means searches will hit more shards.
 
 Once enabled, the partitioned index will have the following limitations:
 

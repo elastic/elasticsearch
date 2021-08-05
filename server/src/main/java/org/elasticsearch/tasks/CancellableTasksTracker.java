@@ -67,7 +67,7 @@ public class CancellableTasksTracker<T> {
     public T remove(Task task) {
         final long taskId = task.getId();
         final T oldItem = byTaskId.remove(taskId);
-        if (oldItem != null) {
+        if (oldItem != null && task.getParentTaskId().isSet()) {
             byParentTaskId.compute(task.getParentTaskId(), (ignored, oldValue) -> {
                 if (oldValue == null) {
                     return null;

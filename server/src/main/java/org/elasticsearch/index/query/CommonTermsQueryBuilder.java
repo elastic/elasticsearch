@@ -30,6 +30,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("common_term_query is not meant to be serialized.");
     }
 
     @Override
@@ -55,6 +56,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     public String getWriteableName() {
         return null;
     }
+
     public static CommonTermsQueryBuilder fromXContent(XContentParser parser) throws IOException {
         deprecationLogger.compatibleApiWarning("common_term_query", COMMON_TERMS_QUERY_DEPRECATION_MSG);
         throw new ParsingException(parser.getTokenLocation(), COMMON_TERMS_QUERY_DEPRECATION_MSG);

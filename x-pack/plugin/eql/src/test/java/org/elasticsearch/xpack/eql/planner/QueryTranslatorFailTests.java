@@ -205,4 +205,12 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
         assertEquals("1:15: second argument of [stringContains(process_name, 1)] must be [string], found value [1] type [integer]",
                 error("process where stringContains(process_name, 1)"));
     }
+
+    public void testLikeWithNumericField() {
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> plan("process where pid like \"*.exe\""));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\n" +
+                "line 1:15: argument of [pid like \"*.exe\"] must be [string], found value [pid] type [long]", msg);
+    }
 }

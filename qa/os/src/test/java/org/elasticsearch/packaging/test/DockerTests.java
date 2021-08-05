@@ -489,7 +489,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that settings are applied when they are supplied as environment variables with names that are:
      * <ul>
-     *     <li>Prefixed with {@code ES_}</li>
+     *     <li>Prefixed with {@code ES_SETTING_}</li>
      *     <li>All uppercase</li>
      *     <li>Dots (periods) are converted to underscores</li>
      *     <li>Underscores in setting names are escaped by doubling them</li>
@@ -497,7 +497,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test086EnvironmentVariablesInSnakeCaseAreTranslated() {
         // Note the double-underscore in the var name here, which retains the underscore in translation
-        installation = runContainer(distribution(), builder().envVars(Map.of("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")));
+        installation = runContainer(distribution(), builder().envVars(Map.of("ES_SETTING_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")));
 
         final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
             .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
@@ -513,8 +513,10 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test087EnvironmentVariablesInIncorrectFormatAreIgnored() {
         final Map<String, String> envVars = new HashMap<>();
-        // No ES_ prefix
+        // No ES_SETTING_ prefix
         envVars.put("XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
+        // Incomplete prefix
+        envVars.put("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
         // Not underscore-separated
         envVars.put("ES.XPACK.SECURITY.FIPS_MODE.ENABLED", "false");
         // Not uppercase

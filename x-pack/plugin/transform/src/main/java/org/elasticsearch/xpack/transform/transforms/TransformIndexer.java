@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.TransformServices;
@@ -163,6 +164,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
 
     abstract void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener);
+
+    abstract void persistState(TransformState state, ActionListener<Void> listener);
 
     public int getPageSize() {
         return pageSize;
@@ -691,14 +694,36 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         // in case the indexer isn't running, respond immediately
         if (state == IndexerState.STARTED && context.shouldStopAtCheckpoint() != shouldStopAtCheckpoint) {
-            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+            IndexerState newIndexerState = IndexerState.STARTED;
+            TransformTaskState newtaskState = context.getTaskState();
+
+            // check if the transform is at a checkpoint, if so, we will stop it below
+            // otherwise we set shouldStopAtCheckpoint and wait
+            if (shouldStopAtCheckpoint && initialRun()) {
+                newIndexerState = IndexerState.STOPPED;
+                newtaskState = TransformTaskState.STOPPED;
+                logger.debug("[{}] transform is at a checkpoint, initiating stop.", transformConfig.getId());
+            } else {
+                context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+            }
+
+            final TransformState newTransformState = new TransformState(
+                newtaskState,
+                newIndexerState,
+                getPosition(),
+                context.getCheckpoint(),
+                context.getStateReason(),
+                getProgress(),
+                null,
+                shouldStopAtCheckpoint
+            );
 
             // because save state is async we need to block the call until state is persisted, so that the job can not
             // be triggered (ensured by synchronized)
             CountDownLatch latch = new CountDownLatch(1);
             logger.debug("[{}] persisting stop at checkpoint", getJobId());
 
-            doSaveState(IndexerState.STARTED, getPosition(), () -> { latch.countDown(); });
+            persistState(newTransformState, ActionListener.wrap(() -> latch.countDown()));
 
             if (latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
                 logger.error(
@@ -709,6 +734,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     )
                 );
             }
+
+            // stop the transform if the decision was to stop it above
+            if (newtaskState.equals(TransformTaskState.STOPPED)) {
+                context.shutdown();
+            }
+
             return false;
         }
 

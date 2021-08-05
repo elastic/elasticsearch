@@ -256,6 +256,11 @@ public class TransformIndexerStateTests extends ESTestCase {
         void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
             fieldMappingsListener.onResponse(Collections.emptyMap());
         }
+
+        @Override
+        void persistState(TransformState state, ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
     }
 
     @Before

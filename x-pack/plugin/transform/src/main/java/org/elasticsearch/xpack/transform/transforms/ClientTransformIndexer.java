@@ -337,7 +337,7 @@ class ClientTransformIndexer extends TransformIndexer {
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
         // we might need to call the save state listeners, but do not want to stop rolling
-        doSaveState(state, ActionListener.wrap(r -> {
+        persistStateWithAutoStop(state, ActionListener.wrap(r -> {
             try {
                 if (saveStateListenersAtTheMomentOfCalling != null) {
                     ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, r);
@@ -362,13 +362,19 @@ class ClientTransformIndexer extends TransformIndexer {
         }));
     }
 
+    private void persistStateWithAutoStop(TransformState state, ActionListener<Void> listener) {
+        persistState(state, ActionListener.runBefore(listener, () -> {
+            if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
+                context.shutdown();
+            }
+        }));
+    }
+
     /**
-     * Runs the persistent part of state storage
-     *
-     * Important: Might call into TransformTask, this should _only_ be called with an acquired indexer lock if and only if
-     * the lock for TransformTask has been acquired, too. See gh#75846
+     * Runs the persistence part of state storage
      */
-    private void doSaveState(TransformState state, ActionListener<Void> listener) {
+    @Override
+    protected void persistState(TransformState state, ActionListener<Void> listener) {
         // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = getSeqNoPrimaryTermAndIndex();
 
@@ -380,10 +386,6 @@ class ClientTransformIndexer extends TransformIndexer {
             seqNoPrimaryTermAndIndex,
             ActionListener.wrap(r -> {
                 updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
-                // for auto stop shutdown the task
-                if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
-                    context.shutdown();
-                }
 
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
@@ -427,9 +429,6 @@ class ClientTransformIndexer extends TransformIndexer {
                 } else {
                     logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
                     auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
-                }
-                if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
-                    context.shutdown();
                 }
                 listener.onFailure(statsExc);
             })

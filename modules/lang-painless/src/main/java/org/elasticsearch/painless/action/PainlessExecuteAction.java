@@ -69,6 +69,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.GeoPointFieldScript;
@@ -81,6 +82,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -518,9 +520,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == FilterScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     FilterScript.Factory factory = scriptService.compile(request.script, FilterScript.CONTEXT);
-                    FilterScript.LeafFactory leafFactory =
-                            factory.newFactory(request.getScript().getParams(), context.lookup());
-                    FilterScript filterScript = leafFactory.newInstance(leafReaderContext);
+                    SearchLookup lookup = context.lookup();
+                    FilterScript.LeafFactory leafFactory = factory.newFactory(request.getScript().getParams(), lookup);
+                    FilterScript filterScript = leafFactory.newInstance(new DocValuesDocReader(lookup, leafReaderContext));
                     filterScript.setDocument(0);
                     boolean result = filterScript.execute();
                     return new Response(result);
@@ -528,9 +530,10 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == ScoreScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     ScoreScript.Factory factory = scriptService.compile(request.script, ScoreScript.CONTEXT);
+                    SearchLookup lookup = context.lookup();
                     ScoreScript.LeafFactory leafFactory =
-                            factory.newFactory(request.getScript().getParams(), context.lookup());
-                    ScoreScript scoreScript = leafFactory.newInstance(leafReaderContext);
+                            factory.newFactory(request.getScript().getParams(), lookup);
+                    ScoreScript scoreScript = leafFactory.newInstance(new DocValuesDocReader(lookup, leafReaderContext));
                     scoreScript.setDocument(0);
 
                     if (request.contextSetup.query != null) {

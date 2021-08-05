@@ -110,7 +110,7 @@ d:i                  | l:s
 ;
 
 weekOfYear
-SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date) DESC, birth_date DESC LIMIT 15;
+SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date) DESC NULLS LAST, birth_date DESC LIMIT 15;
 
     week:i     |     birth_date:ts
 ---------------+------------------------
@@ -292,7 +292,7 @@ schema::languages:byte|first_name:s|gender:s|hire_date:ts|date_add:date
 SELECT languages, first_name, gender, hire_date,
 CAST(DATE_ADD(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN NULL ELSE 'quarter' END,
     5, hire_date + INTERVAL 10 month) AS DATE) AS date_add
-FROM test_emp WHERE languages >= 3 AND first_name LIKE '%y%' ORDER BY date_add ASC, languages DESC;
+FROM test_emp WHERE languages >= 3 AND first_name LIKE '%y%' ORDER BY date_add ASC NULLS FIRST, languages DESC;
 
    languages   |  first_name   |    gender     |      hire_date          |   date_add
 ---------------+---------------+---------------+-------------------------+---------------
@@ -468,7 +468,7 @@ SELECT first_name, gender, birth_date, hire_date, DATE_DIFF(CASE WHEN gender = '
 birth_date, hire_date + INTERVAL 10 month) AS date_diff1,
 DATE_DIFF(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'year' ELSE 'quarter' END,
 hire_date + INTERVAL 10 month, birth_date - INTERVAL 20 month) AS date_diff2
-FROM test_emp WHERE (date_diff2 IS NULL OR date_diff2 < -455) AND first_name LIKE '%y%' ORDER BY date_diff1 DESC;
+FROM test_emp WHERE (date_diff2 IS NULL OR date_diff2 < -455) AND first_name LIKE '%y%' ORDER BY date_diff1 DESC NULLS LAST;
 
   first_name   |     gender |      birth_date          |       hire_date          |   date_diff1  |   date_diff2
 ---------------+------------+--------------------------+--------------------------+---------------+-------------
@@ -937,7 +937,7 @@ SELECT birth_date, DATE_TRUNC(CAST(CHAR(109) AS VARCHAR), birth_date + INTERVAL 
 ;
 
 selectDateTruncWithTruncArgFromField
-SELECT DATE_TRUNC(CONCAT(gender, 'illennium'), birth_date) AS dt FROM test_emp WHERE gender='M' ORDER BY 1 DESC LIMIT 2;
+SELECT DATE_TRUNC(CONCAT(gender, 'illennium'), birth_date) AS dt FROM test_emp WHERE gender='M' ORDER BY 1 DESC NULLS LAST LIMIT 2;
 
      dt:ts
 ------------------------

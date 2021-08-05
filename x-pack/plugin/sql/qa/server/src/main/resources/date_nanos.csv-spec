@@ -314,7 +314,7 @@ SELECT id, "@timestamp"::string AS ts_string FROM logs_nanos WHERE id < 20 ORDER
 
 orderByScalar
 schema::id:i|ts_string:s
-SELECT id, "@timestamp"::string AS ts_string FROM logs_nanos ORDER BY DATE_PART('nanoseconds', "@timestamp") DESC LIMIT 10;
+SELECT id, "@timestamp"::string AS ts_string FROM logs_nanos ORDER BY DATE_PART('nanoseconds', "@timestamp") DESC NULLS LAST LIMIT 10;
 
       id       |          ts_string
 ---------------+------------------------------

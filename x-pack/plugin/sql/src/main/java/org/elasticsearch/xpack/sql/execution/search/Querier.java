@@ -74,6 +74,7 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -119,7 +120,9 @@ public class Querier {
 
         // set runtime mappings
         if (this.cfg.runtimeMappings() != null) {
-            sourceBuilder.runtimeMappings(this.cfg.runtimeMappings());
+            Map<String, Object> allMappings = new HashMap<>(sourceBuilder.runtimeMappings());
+            allMappings.putAll(this.cfg.runtimeMappings());
+            sourceBuilder.runtimeMappings(allMappings);
         }
 
         if (log.isTraceEnabled()) {

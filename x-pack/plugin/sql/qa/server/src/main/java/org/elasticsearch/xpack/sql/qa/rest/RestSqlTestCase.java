@@ -500,20 +500,14 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }, containsString("unknown field [columnar]"));
     }
 
+    private String boolAsLongRuntimeMapping =
+        "{\"bool_as_long\": {\"type\":\"long\", \"script\": {\"source\":\"if(doc['test'].value == true) emit(1);" + "else emit(0);\"}}}";
+
     public void testValidateRuntimeMappingsInSqlQuery() throws IOException {
         testValidateRuntimeMappingsInQuery(SQL_QUERY_REST_ENDPOINT);
 
         String mode = randomMode();
-        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         index("{\"test\":true}", "{\"test\":false}");
-        String runtimeMappings = "{\"bool_as_long\": {\"type\":\"long\", \"script\": {\"source\":\"if(doc['test'].value == true) emit(1);"
-            + "else emit(0);\"}}}";
-        request.setEntity(
-            new StringEntity(
-                query("SELECT * FROM test").mode(mode).runtimeMappings(runtimeMappings).toString(),
-                ContentType.APPLICATION_JSON
-            )
-        );
         Map<String, Object> expected = new HashMap<>();
         expected.put(
             "columns",
@@ -527,7 +521,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             expected,
             runSql(
                 new StringEntity(
-                    query("SELECT * FROM test").mode(mode).runtimeMappings(runtimeMappings).toString(),
+                    query("SELECT * FROM test").mode(mode).runtimeMappings(boolAsLongRuntimeMapping).toString(),
                     ContentType.APPLICATION_JSON
                 ),
                 StringUtils.EMPTY,
@@ -540,9 +534,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         testValidateRuntimeMappingsInQuery(SQL_TRANSLATE_REST_ENDPOINT);
 
         index("{\"test\":true}", "{\"test\":false}");
-        String runtimeMappings = "{\"bool_as_long\": {\"type\":\"long\", \"script\": {\"source\":\"if(doc['test'].value == true) emit(1);"
-            + "else emit(0);\"}}}";
-        Map<String, Object> response = runTranslateSql(query("SELECT * FROM test").runtimeMappings(runtimeMappings).toString());
+        Map<String, Object> response = runTranslateSql(query("SELECT * FROM test").runtimeMappings(boolAsLongRuntimeMapping).toString());
         assertEquals(response.get("size"), 1000);
         assertFalse((Boolean) response.get("_source"));
         @SuppressWarnings("unchecked")
@@ -582,6 +574,36 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             client().performRequest(request);
             return emptyMap();
         }, containsString("Expected map for runtime field [address] definition but got [String]"));
+    }
+
+    public void testMergeCustomRuntimeMappingsWithInternalRuntimeMappings() throws IOException {
+        String mode = randomMode();
+        index("{\"test\":true}", "{\"test\":false}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "bool_as_long", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "test", "boolean", JDBCType.BOOLEAN, 1)
+            )
+        );
+        expected.put("rows", Arrays.asList(Arrays.asList(1, true), Arrays.asList(0, false)));
+
+        assertResponse(
+            expected,
+            runSql(
+                new StringEntity(
+                    // order expression will be executed using an additional runtime mapping
+                    query("SELECT * FROM test ORDER BY bool_as_long + 10 DESC").mode(mode)
+                        .runtimeMappings(boolAsLongRuntimeMapping)
+                        .toString(),
+                    ContentType.APPLICATION_JSON
+                ),
+                StringUtils.EMPTY,
+                mode
+            )
+        );
     }
 
     public static void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {

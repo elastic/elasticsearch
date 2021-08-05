@@ -44,7 +44,7 @@ SELECT count(*) FROM "test_emp" WHERE birth_date::TIME = CAST('12:34:56.789' AS 
 ;
 
 timeAsOrderBy
-SELECT last_name FROM "test_emp" ORDER BY birth_date::TIME, emp_no LIMIT 5;
+SELECT last_name FROM "test_emp" ORDER BY birth_date::TIME NULLS FIRST, emp_no LIMIT 5;
 
 last_name:s
 Meriste
@@ -125,7 +125,7 @@ FROM logs WHERE client_ip = '10.0.1.13' ORDER BY "@timestamp" desc;
 2017-11-10 20:36:15.000Z | 20:36:15.000Z
 2017-11-10 20:36:07.000Z | 20:36:07.000Z
 2017-11-10 20:35:55.000Z | 20:35:55.000Z
-2017-11-10 20:35:54.000Z | 20:35:54.000Z 
+2017-11-10 20:35:54.000Z | 20:35:54.000Z
 2017-11-10 17:54:43.000Z | 17:54:43.000Z
 ;
 

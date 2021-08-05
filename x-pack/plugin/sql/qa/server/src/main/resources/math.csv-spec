@@ -62,7 +62,7 @@ SELECT TRUNC(salary, 2) TRUNCATED, salary FROM test_emp GROUP BY TRUNCATED, sala
 ;
 
 truncateWithAsciiAndOrderBy
-SELECT TRUNCATE(ASCII(LEFT(first_name,1)), -1) AS initial, first_name, ASCII(LEFT(first_name, 1)) FROM test_emp ORDER BY ASCII(LEFT(first_name, 1)) DESC LIMIT 15;
+SELECT TRUNCATE(ASCII(LEFT(first_name,1)), -1) AS initial, first_name, ASCII(LEFT(first_name, 1)) FROM test_emp ORDER BY ASCII(LEFT(first_name, 1)) DESC NULLS LAST LIMIT 15;
 
     initial    |  first_name   |ASCII(LEFT(first_name, 1))
 ---------------+---------------+--------------------------

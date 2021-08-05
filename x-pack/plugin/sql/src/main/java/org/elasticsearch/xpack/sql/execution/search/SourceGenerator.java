@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -18,11 +19,15 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
@@ -68,6 +73,8 @@ public abstract class SourceGenerator {
 
         sorting(container, source);
 
+        source.runtimeMappings(runtimeMappings(container));
+
         // set page size
         if (size != null) {
             int sz = container.limit() > 0 ? Math.min(container.limit(), size) : size;
@@ -92,6 +99,29 @@ public abstract class SourceGenerator {
         optimize(container, source);
 
         return source;
+    }
+
+    private static Map<String, Object> runtimeMappings(QueryContainer container) {
+        Map<String, Object> runtimeMappings = new HashMap<>(container.runtimeMappings().size());
+
+        for (Map.Entry<String, ScriptTemplate> entry : container.runtimeMappings().entrySet()) {
+            Script script = entry.getValue().toPainless();
+            Map<String, Object> mapping = new HashMap<>() {
+                {
+                    put("type", entry.getValue().outputType().esType());
+                    put(Script.SCRIPT_PARSE_FIELD.getPreferredName(), new HashMap<>() {
+                        {
+                            put(Script.LANG_PARSE_FIELD.getPreferredName(), script.getLang());
+                            put(Script.SOURCE_PARSE_FIELD.getPreferredName(), script.getIdOrCode());
+                            put(Script.PARAMS_PARSE_FIELD.getPreferredName(), script.getParams());
+                        }
+                    });
+                }
+            };
+            runtimeMappings.put(entry.getKey(), mapping);
+        }
+
+        return runtimeMappings;
     }
 
     private static void sorting(QueryContainer container, SearchSourceBuilder source) {

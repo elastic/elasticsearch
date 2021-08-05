@@ -38,7 +38,7 @@ dateTimeQuarter
 SELECT QUARTER(hire_date) q, hire_date FROM test_emp ORDER BY hire_date LIMIT 15;
 
 dateTimeDayOfWeek
-SELECT DAY_OF_WEEK(birth_date) day, birth_date FROM test_emp ORDER BY DAY_OF_WEEK(birth_date);
+SELECT DAY_OF_WEEK(birth_date) day, birth_date FROM test_emp ORDER BY DAY_OF_WEEK(birth_date) NULLS LAST;
 
 //
 // Filter

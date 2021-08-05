@@ -169,3 +169,23 @@ selectGroupByWithAliasedSubQuery
 SELECT max, languages FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) AS subquery;
 selectConstantFromSubQuery
 SELECT * FROM (SELECT * FROM (SELECT 1));
+
+//
+// ORDER BY derived fields
+//
+orderByDerivedNumericFieldNullsFirst
+SELECT languages - 2 l FROM test_emp ORDER BY 1 NULLS LAST;
+orderByDerivedNumericFieldNullsLast
+SELECT languages - 2 l FROM test_emp ORDER BY 1 NULLS LAST;
+orderByDerivedNumericFieldDescNullsFirst
+SELECT languages - 2 l FROM test_emp ORDER BY 1 DESC NULLS LAST;
+orderByDerivedNumericFieldDescNullsLast
+SELECT languages - 2 l FROM test_emp ORDER BY 1 DESC NULLS LAST;
+orderByDerivedKeywordFieldNullsFirst
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 NULLS LAST;
+orderByDerivedKeywordFieldNullsLast
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 NULLS LAST;
+orderByDerivedKeywordFieldDescNullsFirst
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 DESC NULLS LAST;
+orderByDerivedKeywordFieldDescNullsLast
+SELECT LCASE(gender) l FROM test_emp ORDER BY 1 DESC NULLS LAST;

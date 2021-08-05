@@ -32,15 +32,17 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
-import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
@@ -88,6 +90,7 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -161,16 +164,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
                 }
 
-                QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.fields(),
-                        aliases.build(),
-                        queryC.pseudoFunctions(),
-                        processors.build(),
-                        queryC.sort(),
-                        queryC.limit(),
-                        queryC.shouldTrackHits(),
-                        queryC.shouldIncludeFrozen(),
-                        queryC.minPageSize());
-                return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
+                return new EsQueryExec(exec.source(), exec.index(), project.output(),
+                    queryC.withAliases(aliases.build()).withScalarProcessors(processors.build()));
             }
             return project;
         }
@@ -192,15 +187,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 }
                 Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 
-                qContainer = new QueryContainer(query, aggs, qContainer.fields(),
-                        qContainer.aliases(),
-                        qContainer.pseudoFunctions(),
-                        qContainer.scalarFunctions(),
-                        qContainer.sort(),
-                        qContainer.limit(),
-                        qContainer.shouldTrackHits(),
-                        qContainer.shouldIncludeFrozen(),
-                        qContainer.minPageSize());
+                qContainer = qContainer.with(query).with(aggs);
 
                 return exec.with(qContainer);
             }
@@ -725,11 +712,15 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         qContainer = qContainer.addSort(lookup,
                                 new AttributeSort((FieldAttribute) orderExpression, direction, missing));
                     }
-                    // scalar functions typically require script ordering
+                    // scalar functions require a script to calculate sort key
+                    // uses a runtime field because script ordering does not support to specify order of missing values
                     else if (orderExpression instanceof ScalarFunction) {
-                        ScalarFunction sf = (ScalarFunction) orderExpression;
-                        // nope, use scripted sorting
-                        qContainer = qContainer.addSort(lookup, new ScriptSort(sf.asScript(), direction, missing));
+                        ScriptTemplate script = Scripts.nullSafeEmitForSorting(((ScalarFunction) orderExpression).asScript());
+                        FieldAttribute attribute = new FieldAttribute(Source.EMPTY, lookup,
+                            new EsField(lookup, script.outputType(), Collections.emptyMap(), false));
+                        qContainer = qContainer
+                            .addRuntimeMapping(lookup, script)
+                            .addSort(lookup, new AttributeSort(attribute, direction, missing));
                     }
                     // histogram
                     else if (orderExpression instanceof Histogram) {
@@ -754,6 +745,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             }
             return plan;
         }
+
     }
 
 
@@ -832,7 +824,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         query.limit(),
                         query.shouldTrackHits(),
                         query.shouldIncludeFrozen(),
-                        values.size()));
+                        values.size(),
+                        query.runtimeMappings()));
             }
             return plan;
         }

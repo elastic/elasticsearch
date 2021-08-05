@@ -79,6 +79,21 @@ public final class Scripts {
                 script.outputType());
     }
 
+    public static ScriptTemplate nullSafeEmitForSorting(ScriptTemplate script){
+        if (script.outputType().isNumeric()) {
+            return new ScriptTemplate(
+                "def r=" + script.template() + ";if(r!=null){emit(r)}",
+                script.params(),
+                DataTypes.DOUBLE);
+        } else {
+            return new ScriptTemplate(
+                "def r=" + script.template() + ";if(r!=null){emit(r.toString())}",
+                script.params(),
+                DataTypes.KEYWORD
+            );
+        }
+    }
+
     public static ScriptTemplate and(ScriptTemplate left, ScriptTemplate right) {
         return binaryMethod("{ql}", "and", left, right, DataTypes.BOOLEAN);
     }

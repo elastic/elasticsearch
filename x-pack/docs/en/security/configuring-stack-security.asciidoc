@@ -192,5 +192,6 @@ prefixed by `monitoring`. For example, `monitoring.ui.elasticsearch.hosts` and
 `monitoring.ui.elasticsearch.ssl.truststore.path`.
 
 NOTE: You must create a separate `elasticsearch-ca.pem` security file for the
-monitoring cluster.
+monitoring cluster. Refer to
+<<encrypt-http-communication,Encrypt HTTP client communications for {es}>>.
 ****

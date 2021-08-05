@@ -189,7 +189,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     }
 
     void createModelDeployment() {
-        client().admin().indices().prepareCreate("ml-models").setMapping(
+        String indexname = "model_store";
+        client().admin().indices().prepareCreate(indexname).setMapping(
             "    {\"properties\": {\n" +
                 "        \"doc_type\":    { \"type\": \"keyword\"  },\n" +
                 "        \"model_id\":    { \"type\": \"keyword\"  },\n" +
@@ -205,7 +206,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 "      }\n" +
                 "    }}"
         ).get();
-        client().prepareIndex("ml-models")
+        client().prepareIndex(indexname)
             .setId(TRAINED_MODEL_ID + "_task_config")
             .setSource(
                 "{  " +
@@ -216,7 +217,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 XContentType.JSON
             ).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        client().prepareIndex("ml-models")
+        client().prepareIndex(indexname)
             .setId("trained_model_definition_doc-" + TRAINED_MODEL_ID + "-0")
             .setSource(
                 "{  " +
@@ -240,7 +241,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                         .setModelType(TrainedModelType.PYTORCH)
                         .setInferenceConfig(new ClassificationConfig(1))
                         .setInput(new TrainedModelInput(Arrays.asList("text_field")))
-                        .setLocation(new IndexLocation(TRAINED_MODEL_ID, "ml-models"))
+                        .setLocation(new IndexLocation(TRAINED_MODEL_ID, indexname))
                         .setModelId(TRAINED_MODEL_ID)
                         .build()
                 )

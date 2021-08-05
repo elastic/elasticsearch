@@ -8,9 +8,10 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import com.google.common.annotations.VisibleForTesting;
 import groovy.text.SimpleTemplateEngine;
-import org.elasticsearch.gradle.Version;
+
+import com.google.common.annotations.VisibleForTesting;
+
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.GradleException;
 
@@ -24,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -52,17 +52,19 @@ public class ReleaseNotesGenerator {
         final String templateString = Files.readString(templateFile.toPath());
 
         try (FileWriter output = new FileWriter(outputFile)) {
-            generateFile(VersionProperties.getElasticsearchVersion(), templateString, changelogs, output);
+            generateFile(templateString, changelogs, output);
         }
     }
 
     @VisibleForTesting
-    static void generateFile(Version version, String template, List<ChangelogEntry> changelogs, Writer outputWriter) throws IOException {
-        final var changelogsByVersionByTypeByArea = buildChangelogBreakdown(version, changelogs);
+    static void generateFile(String template, List<ChangelogEntry> changelogs, Writer outputWriter) throws IOException {
+        final var changelogsByTypeByArea = buildChangelogBreakdown(changelogs);
 
         final Map<String, Object> bindings = new HashMap<>();
-        bindings.put("changelogsByVersionByTypeByArea", changelogsByVersionByTypeByArea);
+        bindings.put("changelogsByTypeByArea", changelogsByTypeByArea);
         bindings.put("TYPE_LABELS", TYPE_LABELS);
+        bindings.put("version", VersionProperties.getElasticsearchVersion());
+        bindings.put("versionString", VersionProperties.getElasticsearch());
 
         try {
             final SimpleTemplateEngine engine = new SimpleTemplateEngine();
@@ -72,56 +74,35 @@ public class ReleaseNotesGenerator {
         }
     }
 
-    private static Map<Version, Map<String, Map<String, List<ChangelogEntry>>>> buildChangelogBreakdown(
-        Version elasticsearchVersion,
+    private static Map<String, Map<String, List<ChangelogEntry>>> buildChangelogBreakdown(
         List<ChangelogEntry> changelogs
     ) {
-        final Predicate<Version> includedInSameMinor = v -> v.getMajor() == elasticsearchVersion.getMajor()
-            && v.getMinor() == elasticsearchVersion.getMinor();
-
-        final Map<Version, Map<String, Map<String, List<ChangelogEntry>>>> changelogsByVersionByTypeByArea = changelogs.stream()
+        final Map<String, Map<String, List<ChangelogEntry>>> changelogsByTypeByArea = changelogs.stream()
             .collect(
                 Collectors.groupingBy(
-                    // Key changelog entries by the earlier version in which they were released
-                    entry -> entry.getVersions()
-                        .stream()
-                        .map(v -> Version.fromString(v.replaceFirst("^v", "")))
-                        .filter(includedInSameMinor)
-                        .sorted()
-                        .findFirst()
-                        .get(),
-
-                    // Generate a reverse-ordered map. Despite the IDE saying the type can be inferred, removing it
-                    // causes the compiler to complain.
-                    () -> new TreeMap<Version, Map<String, Map<String, List<ChangelogEntry>>>>(Comparator.reverseOrder()),
-
                     // Group changelogs entries by their change type
+                    // Entries with breaking info are always put in the breaking section
+                    entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
+                    TreeMap::new,
+                    // Group changelogs for each type by their team area
                     Collectors.groupingBy(
-                        // Entries with breaking info are always put in the breaking section
-                        entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
+                        // `security` and `known-issue` areas don't need to supply an area
+                        entry -> entry.getType().equals("known-issue") || entry.getType().equals("security")
+                            ? "_all_"
+                            : entry.getArea(),
                         TreeMap::new,
-                        // Group changelogs for each type by their team area
-                        Collectors.groupingBy(
-                            // `security` and `known-issue` areas don't need to supply an area
-                            entry -> entry.getType().equals("known-issue") || entry.getType().equals("security")
-                                ? "_all_"
-                                : entry.getArea(),
-                            TreeMap::new,
-                            Collectors.toList()
-                        )
+                        Collectors.toList()
                     )
                 )
             );
 
         // Sort per-area changelogs by their summary text. Assumes that the underlying list is sortable
-        changelogsByVersionByTypeByArea.forEach(
-            (_version, byVersion) -> byVersion.forEach(
-                (_type, byTeam) -> byTeam.forEach(
-                    (_team, changelogsForTeam) -> changelogsForTeam.sort(Comparator.comparing(ChangelogEntry::getSummary))
-                )
+        changelogsByTypeByArea.forEach(
+            (_type, byTeam) -> byTeam.forEach(
+                (_team, changelogsForTeam) -> changelogsForTeam.sort(Comparator.comparing(ChangelogEntry::getSummary))
             )
         );
 
-        return changelogsByVersionByTypeByArea;
+        return changelogsByTypeByArea;
     }
 }

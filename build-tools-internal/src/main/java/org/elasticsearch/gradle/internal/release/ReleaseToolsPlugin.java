@@ -40,8 +40,10 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-         project.getPluginManager().apply(PrecommitTaskPlugin.class);
+        project.getPluginManager().apply(PrecommitTaskPlugin.class);
         final Directory projectDirectory = projectLayout.getProjectDirectory();
+
+        final Version version = VersionProperties.getElasticsearchVersion();
 
         final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
             .getAsFileTree()
@@ -65,8 +67,6 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             });
 
         project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(task -> {
-            final Version version = VersionProperties.getElasticsearchVersion();
-
             task.setGroup("Documentation");
             task.setDescription("Generates release notes from changelog files held in this checkout");
             task.setChangelogs(yamlFiles);
@@ -76,7 +76,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
             task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/release-notes.asciidoc"));
             task.setReleaseNotesFile(
-                projectDirectory.file(String.format("docs/reference/release-notes/%d.%d.asciidoc", version.getMajor(), version.getMinor()))
+                projectDirectory.file(String.format("docs/reference/release-notes/%s.asciidoc", VersionProperties.getElasticsearch()))
             );
 
             task.setReleaseHighlightsTemplate(projectDirectory.file(RESOURCES + "templates/release-highlights.asciidoc"));
@@ -92,6 +92,17 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.dependsOn(validateChangelogsTask);
         });
 
-         project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
+        project.getTasks().register("compileReleaseNotes", CompileReleaseNotesTask.class).configure(task -> {
+            final FileTree releaseNotesFiles = projectDirectory.dir("docs/reference/release-notes")
+                .getAsFileTree()
+                .matching(new PatternSet().include(version.getMajor() + ".*.*.asciidoc"));
+
+            task.setInputFiles(releaseNotesFiles);
+            task.setOutputFile(
+                projectDirectory.file("docs/reference/release-notes/%d.%d.asciidoc".formatted(version.getMajor(), version.getMinor()))
+            );
+        });
+
+        project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
     }
 }

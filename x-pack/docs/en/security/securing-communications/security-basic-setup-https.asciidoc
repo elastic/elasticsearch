@@ -127,7 +127,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 [source,yaml]
 ----
 xpack.security.http.ssl.enabled: true
-xpack.security.http.ssl.keystore.path: config/http.p12
+xpack.security.http.ssl.keystore.path: http.p12
 ----
 
   .. Add the password for your private key to the secure settings in {es}.

@@ -175,10 +175,15 @@ public class FilterRepository implements Repository {
         SnapshotId source,
         SnapshotId target,
         RepositoryShardId shardId,
-        String shardGeneration,
+        ShardGeneration shardGeneration,
         ActionListener<ShardSnapshotResult> listener
     ) {
         in.cloneShardSnapshot(source, target, shardId, shardGeneration, listener);
+    }
+
+    @Override
+    public void awaitIdle() {
+        in.awaitIdle();
     }
 
     @Override

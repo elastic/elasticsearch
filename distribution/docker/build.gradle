@@ -53,9 +53,9 @@ ext.expansions = { Architecture architecture, DockerBase base ->
   String buildArgs = ''
   if (base == DockerBase.IRON_BANK) {
     buildArgs = """
-ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.4
+ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
+ARG BASE_IMAGE=redhat/ubi/ubi8
+ARG BASE_TAG=8.3
 """
   }
 
@@ -68,7 +68,7 @@ ARG BASE_TAG=8.4
     'build_date'          : BuildParams.buildDate,
     'config_dir'          : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'        : BuildParams.gitRevision,
-    'license'             : base == DockerBase.IRON_BANK ? 'Elastic License 1.0' : 'Elastic-License-2.0',
+    'license'             : 'Elastic-License-2.0',
     'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
     'docker_base'         : base.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch,

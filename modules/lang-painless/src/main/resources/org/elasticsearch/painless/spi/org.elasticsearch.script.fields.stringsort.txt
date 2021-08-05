@@ -7,13 +7,8 @@
 #
 
 # The whitelist for the fields api
-# The scripts must be whitelisted for painless to find the classes
+# The scripts must be whitelisted for painless to find the classes for the field API
 class org.elasticsearch.script.StringSortScript @no_import {
 }
 class org.elasticsearch.script.StringSortScript$Factory @no_import {
-}
-
-# Class bindings
-static_import {
-    org.elasticsearch.script.Field field(org.elasticsearch.script.StringSortScript, String) bound_to org.elasticsearch.script.StringSortScript$FieldAccess
 }

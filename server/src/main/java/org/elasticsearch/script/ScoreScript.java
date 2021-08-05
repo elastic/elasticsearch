@@ -207,16 +207,4 @@ public abstract class ScoreScript extends DocBasedScript {
     }
 
     public static final ScriptContext<ScoreScript.Factory> CONTEXT = new ScriptContext<>("score", ScoreScript.Factory.class);
-
-    public static class FieldAccess {
-        private final ScoreScript script;
-
-        public FieldAccess(ScoreScript script) {
-            this.script = script;
-        }
-
-        public Field<?> field(String fieldName) {
-            return script.field(fieldName);
-        }
-    }
 }

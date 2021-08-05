@@ -49,16 +49,4 @@ public abstract class NumberSortScript extends AbstractSortScript {
         // in LeafFactory.newInstance to set fallbacks.
         LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
     }
-
-    public static class FieldAccess {
-        private final NumberSortScript script;
-
-        public FieldAccess(NumberSortScript script) {
-            this.script = script;
-        }
-
-        public Field<?> field(String fieldName) {
-            return script.field(fieldName);
-        }
-    }
 }

@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.core.ml.inference.allocation;
 
+import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
+
+import java.util.Arrays;
 import java.util.Locale;
 
-public enum RoutingState {
+public enum RoutingState implements MemoryTrackedTaskState {
     STARTING,
     STARTED,
     STOPPING,
@@ -20,8 +23,25 @@ public enum RoutingState {
         return valueOf(value.toUpperCase(Locale.ROOT));
     }
 
+    /**
+     * @return {@code true} if state matches none of the given {@code candidates}
+     */
+    public boolean isNoneOf(RoutingState... candidates) {
+        return Arrays.stream(candidates).noneMatch(candidate -> this == candidate);
+    }
+
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
+    }
+
+    @Override
+    public boolean consumesMemory() {
+        return isNoneOf(FAILED, STOPPED);
+    }
+
+    @Override
+    public boolean isAllocating() {
+        return this == STARTING;
     }
 }

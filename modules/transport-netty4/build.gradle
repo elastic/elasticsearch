@@ -82,6 +82,12 @@ tasks.named("check").configure {
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // classes are missing
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 
     // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
     'com.google.protobuf.ExtensionRegistry',
@@ -142,6 +148,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
+    'com.github.luben.zstd.Zstd',
     'com.jcraft.jzlib.Deflater',
     'com.jcraft.jzlib.Inflater',
     'com.jcraft.jzlib.JZlib$WrapperType',
@@ -154,11 +161,16 @@ tasks.named("thirdPartyAudit").configure {
     'com.ning.compress.lzf.util.ChunkDecoderFactory',
     'com.ning.compress.lzf.util.ChunkEncoderFactory',
     'lzma.sdk.lzma.Encoder',
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
     'io.netty.internal.tcnative.CertificateCallback',
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
     'io.netty.internal.tcnative.SSL',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
+    'io.netty.internal.tcnative.ResultCallback',
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
     'org.eclipse.jetty.alpn.ALPN',

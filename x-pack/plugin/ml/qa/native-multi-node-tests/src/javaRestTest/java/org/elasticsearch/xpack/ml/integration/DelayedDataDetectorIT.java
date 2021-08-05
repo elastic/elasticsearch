@@ -69,7 +69,9 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
         DatafeedConfig.Builder datafeedConfigBuilder =
             createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
-        datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
+        datafeedConfigBuilder.setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12), TimeValue.timeValueMinutes(5))
+        );
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         putJob(job);
         openJob(job.getId());
@@ -105,7 +107,9 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
         DatafeedConfig.Builder datafeedConfigBuilder =
             createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
-        datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
+        datafeedConfigBuilder.setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12), null)
+        );
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
 
         putJob(job);
@@ -160,7 +164,9 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
                     .interval(TimeValue.timeValueMinutes(5).millis())));
         datafeedConfigBuilder.setParsedQuery(QueryBuilders.rangeQuery("value").gte(numDocs/2));
         datafeedConfigBuilder.setFrequency(TimeValue.timeValueMinutes(5));
-        datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
+        datafeedConfigBuilder.setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12), null)
+        );
 
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         putJob(job);

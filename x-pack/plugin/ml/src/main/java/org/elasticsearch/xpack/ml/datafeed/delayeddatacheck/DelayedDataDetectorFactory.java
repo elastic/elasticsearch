@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Builds the appropriate {@link DelayedDataDetector} implementation, with the appropriate settings, given the parameters.
@@ -25,6 +26,7 @@ public class DelayedDataDetectorFactory {
     // There are eight 15min buckets in a two hour span, so matching that number as the fallback for very long buckets
     private static final int DEFAULT_NUMBER_OF_BUCKETS_TO_SPAN = 8;
     private static final long DEFAULT_CHECK_WINDOW_MS = 7_200_000L; // 2 hours in Milliseconds
+    public static final long MISSING_DATA_CHECK_INTERVAL_MS = 900_000; //15 minutes in ms
 
     /**
      * This will build the appropriate detector given the parameters.
@@ -43,11 +45,17 @@ public class DelayedDataDetectorFactory {
                                                     Client client,
                                                     NamedXContentRegistry xContentRegistry) {
         if (datafeedConfig.getDelayedDataCheckConfig().isEnabled()) {
-            long window = validateAndCalculateWindowLength(job.getAnalysisConfig().getBucketSpan(),
-                datafeedConfig.getDelayedDataCheckConfig().getCheckWindow());
+            long window = validateAndCalculateWindowLength(
+                job.getAnalysisConfig().getBucketSpan(),
+                datafeedConfig.getDelayedDataCheckConfig().getCheckWindow()
+            );
+            long interval = Optional.ofNullable(datafeedConfig.getDelayedDataCheckConfig().getCheckFrequency())
+                .map(TimeValue::millis)
+                .orElse(MISSING_DATA_CHECK_INTERVAL_MS);
             long bucketSpan = job.getAnalysisConfig().getBucketSpan() == null ? 0 : job.getAnalysisConfig().getBucketSpan().millis();
             return new DatafeedDelayedDataDetector(bucketSpan,
                 window,
+                interval,
                 job.getId(),
                 job.getDataDescription().getTimeField(),
                 datafeedConfig.getParsedQuery(xContentRegistry),

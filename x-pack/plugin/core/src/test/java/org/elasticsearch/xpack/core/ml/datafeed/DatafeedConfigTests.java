@@ -461,6 +461,19 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "scroll_size", -1000L), e.getMessage());
     }
 
+    public void testCheckValid_GivenDelayedDataFrequencyLessThanFreq() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1")
+            .setIndices(Arrays.asList("foo"))
+            .setDelayedDataCheckConfig(
+                DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(15), TimeValue.timeValueMinutes(1))
+            ).setFrequency(TimeValue.timeValueMinutes(5));
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, conf::build);
+        assertThat(
+            e.getMessage(),
+            containsString("[delayed_data_check_config.check_frequency] value [1m] must be greater than or equal to [latency] value [5m]")
+        );
+    }
+
     public void testBuild_GivenScriptFieldsAndAggregations() {
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", "job1");
         datafeed.setIndices(Collections.singletonList("my_index"));

@@ -1003,6 +1003,17 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             validateScriptFields();
             RuntimeMappingsValidator.validate(runtimeMappings);
             setDefaultChunkingConfig();
+            if (frequency != null
+                && Optional.ofNullable(delayedDataCheckConfig).map(DelayedDataCheckConfig::isEnabled).orElse(false)
+                && delayedDataCheckConfig.getCheckFrequency() != null) {
+                if (delayedDataCheckConfig.getCheckFrequency().compareTo(frequency) < 0) {
+                    throw ExceptionsHelper.badRequestException(
+                        "[delayed_data_check_config.check_frequency] value [{}] must be greater than or equal to [latency] value [{}]",
+                        delayedDataCheckConfig.getCheckFrequency().getStringRep(),
+                        frequency.getStringRep()
+                    );
+                }
+            }
 
             setDefaultQueryDelay();
             if (indicesOptions == null) {

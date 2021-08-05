@@ -56,6 +56,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
@@ -77,11 +78,17 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     public static DatafeedUpdate createRandomized(String datafeedId, @Nullable DatafeedConfig datafeed) {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(datafeedId);
+        TimeValue frequency;
+        boolean frequencySet = false;
         if (randomBoolean()) {
             builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, Integer.MAX_VALUE)));
         }
         if (randomBoolean()) {
-            builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, Integer.MAX_VALUE)));
+            frequencySet = true;
+            frequency = TimeValue.timeValueSeconds(randomIntBetween(1, Integer.MAX_VALUE));
+            builder.setFrequency(frequency);
+        } else {
+            frequency = Optional.ofNullable(datafeed).map(DatafeedConfig::getFrequency).orElse(null);
         }
         if (randomBoolean()) {
             builder.setIndices(DatafeedConfigTests.randomStringList(1, 10));
@@ -110,8 +117,13 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
-        if (randomBoolean()) {
-            builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(randomLongBetween(300_001, 400_000)));
+        if (randomBoolean() || frequencySet) {
+            builder.setDelayedDataCheckConfig(
+                DelayedDataCheckConfigTests.createRandomizedConfig(
+                    randomLongBetween(300_001, 400_000),
+                    Optional.ofNullable(frequency).map(TimeValue::millis).orElse(null)
+                )
+            );
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
@@ -257,12 +269,15 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
         update.setIndices(Collections.singletonList("i_2"));
         update.setQueryDelay(TimeValue.timeValueSeconds(42));
-        update.setFrequency(TimeValue.timeValueSeconds(142));
+        TimeValue freq = TimeValue.timeValueSeconds(142);
+        update.setFrequency(freq);
         update.setQuery(queryProvider);
         update.setScriptFields(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false)));
         update.setScrollSize(8000);
         update.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
-        update.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1)));
+        update.setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1), freq)
+        );
         Map<String, Object> settings = new HashMap<>();
         settings.put("type", "keyword");
         settings.put("script", "");

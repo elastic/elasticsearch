@@ -100,7 +100,7 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
         builder.setIndices(Collections.singletonList("index1"));
 
         if (shouldDetectDelayedData) {
-            builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(delayedDatacheckWindow));
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(delayedDatacheckWindow, null));
         } else {
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
         }

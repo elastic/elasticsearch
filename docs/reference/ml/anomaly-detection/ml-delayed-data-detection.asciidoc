@@ -2,7 +2,7 @@
 [[ml-delayed-data-detection]]
 = Handling delayed data
 
-Delayed data are documents that are indexed late. That is to say, it is data 
+Delayed data are documents that are indexed late. That is to say, it is data
 related to a time that your {dfeed} has already processed and it is therefore
 never analyzed by your {anomaly-job}.
 
@@ -32,8 +32,9 @@ next course of action.
 
 In addition to the `query_delay` field, there is a delayed data check config,
 which enables you to configure the datafeed to look in the past for delayed data.
-Every 15 minutes or every `check_window`, whichever is smaller, the datafeed
-triggers a document search over the configured indices. This search looks over a
+Every `check_frequency` or every `check_window`, whichever is smaller, the datafeed
+triggers a document search over the configured indices. If both are smaller than
+`frequency`, then the check is every `frequency`. This search looks over a
 time span with a length of `check_window` ending with the latest finalized bucket.
 That time span is partitioned into buckets, whose length equals the bucket span
 of the associated {anomaly-job}. The `doc_count` of those buckets are then
@@ -59,4 +60,4 @@ delayed data is too great or the situation calls for it, the next course of
 action to consider is to increase the `query_delay` of the datafeed. This
 increased delay allows more time for data to be indexed. If you have real-time
 constraints, however, an increased delay might not be desirable. In which case,
-you would have to {ref}/tune-for-indexing-speed.html[tune for better indexing speed]. 
+you would have to {ref}/tune-for-indexing-speed.html[tune for better indexing speed].

@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests.randomStringList;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
@@ -36,6 +37,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
 
     public static DatafeedConfig.Builder createRandomizedDatafeedConfigBuilder(String jobId, String datafeedId, long bucketSpanMillis) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder();
+        TimeValue frequency = null;
         if (jobId != null) {
             builder.setJobId(jobId);
         }
@@ -86,9 +88,11 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
         }
         if (randomBoolean()) {
             if (aggHistogramInterval == null) {
-                builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
+                frequency = TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000));
+                builder.setFrequency(frequency);
             } else {
-                builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 5) * aggHistogramInterval));
+                frequency = TimeValue.timeValueSeconds(randomIntBetween(1, 5) * aggHistogramInterval);
+                builder.setFrequency(frequency);
             }
         }
         if (randomBoolean()) {
@@ -98,7 +102,12 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
         if (randomBoolean()) {
-            builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(bucketSpanMillis));
+            builder.setDelayedDataCheckConfig(
+                DelayedDataCheckConfigTests.createRandomizedConfig(
+                    bucketSpanMillis,
+                    Optional.ofNullable(frequency).map(TimeValue::millis).orElse(null)
+                )
+            );
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomIntBetween(10, 100));

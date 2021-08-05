@@ -197,16 +197,22 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         builder.setAnalysisConfig(ac);
         Job job = builder.build(new Date());
         DatafeedConfig.Builder datafeedBuilder = createValidDatafeedConfig();
-        datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10)));
+        datafeedBuilder.setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10), null)
+        );
 
         DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry());
 
-        datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueSeconds(1)));
+        datafeedBuilder.setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueSeconds(1), null)
+        );
         ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
             () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry()));
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, "1s", "2s"), e.getMessage());
 
-        datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(24)));
+        datafeedBuilder.setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(24), null)
+        );
         e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
             () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry()));
         assertEquals(Messages.getMessage(

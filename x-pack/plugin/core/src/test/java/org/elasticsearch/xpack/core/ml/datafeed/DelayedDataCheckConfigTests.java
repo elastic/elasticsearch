@@ -11,8 +11,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
-import java.io.IOException;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
@@ -21,7 +19,7 @@ public class DelayedDataCheckConfigTests extends AbstractSerializingTestCase<Del
 
     @Override
     protected DelayedDataCheckConfig createTestInstance(){
-        return createRandomizedConfig(100);
+        return createRandomizedConfig(100, randomBoolean() ? null : randomLongBetween(10, 10000L));
     }
 
     @Override
@@ -35,14 +33,24 @@ public class DelayedDataCheckConfigTests extends AbstractSerializingTestCase<Del
     }
 
     public void testConstructor() {
-        expectThrows(IllegalArgumentException.class, () -> new DelayedDataCheckConfig(true, TimeValue.MINUS_ONE));
-        expectThrows(IllegalArgumentException.class, () -> new DelayedDataCheckConfig(true, TimeValue.timeValueHours(25)));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DelayedDataCheckConfig(true, TimeValue.MINUS_ONE, TimeValue.timeValueMinutes(1))
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DelayedDataCheckConfig(true, TimeValue.timeValueMinutes(1), TimeValue.MINUS_ONE)
+        );
     }
 
     public void testEnabledDelayedDataCheckConfig() {
-        DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(5));
+        DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.enabledDelayedDataCheckConfig(
+            TimeValue.timeValueHours(5),
+            TimeValue.timeValueHours(1)
+        );
         assertThat(delayedDataCheckConfig.isEnabled(), equalTo(true));
         assertThat(delayedDataCheckConfig.getCheckWindow(), equalTo(TimeValue.timeValueHours(5)));
+        assertThat(delayedDataCheckConfig.getCheckFrequency(), equalTo(TimeValue.timeValueHours(1)));
     }
 
     public void testDisabledDelayedDataCheckConfig() {
@@ -57,40 +65,21 @@ public class DelayedDataCheckConfigTests extends AbstractSerializingTestCase<Del
         assertThat(delayedDataCheckConfig.getCheckWindow(), is(nullValue()));
     }
 
-    public static DelayedDataCheckConfig createRandomizedConfig(long bucketSpanMillis) {
+    public static DelayedDataCheckConfig createRandomizedConfig(long bucketSpanMillis, Long frequency) {
         boolean enabled = randomBoolean();
         TimeValue timeWindow = null;
+        Long checkWindow = null;
         if (enabled || randomBoolean()) {
             // time span is required to be at least 1 millis, so we use a custom method to generate a time value here
             timeWindow = new TimeValue(randomLongBetween(bucketSpanMillis,bucketSpanMillis*2));
+            checkWindow = randomBoolean() ? null :
+                frequency == null ? randomLongBetween(bucketSpanMillis,bucketSpanMillis*2) : randomLongBetween(frequency, frequency*2);
         }
-        return new DelayedDataCheckConfig(enabled, timeWindow);
+        return new DelayedDataCheckConfig(
+            enabled,
+            timeWindow,
+            checkWindow == null ? null : new TimeValue(checkWindow)
+        );
     }
 
-    @Override
-    protected DelayedDataCheckConfig mutateInstance(DelayedDataCheckConfig instance) throws IOException {
-        boolean enabled = instance.isEnabled();
-        TimeValue timeWindow = instance.getCheckWindow();
-        switch (between(0, 1)) {
-        case 0:
-            enabled = enabled == false;
-            if (randomBoolean()) {
-                timeWindow = TimeValue.timeValueMillis(randomLongBetween(1, 1000));
-            } else {
-                timeWindow = null;
-            }
-            break;
-        case 1:
-            if (timeWindow == null) {
-                timeWindow = TimeValue.timeValueMillis(randomLongBetween(1, 1000));
-            } else {
-                timeWindow = new TimeValue(timeWindow.getMillis() + between(10, 100));
-            }
-            enabled = true;
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
-        }
-        return new DelayedDataCheckConfig(enabled, timeWindow);
-    }
 }

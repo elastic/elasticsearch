@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,6 +29,7 @@ public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
 
     public static final ParseField ENABLED = new ParseField("enabled");
     public static final ParseField CHECK_WINDOW = new ParseField("check_window");
+    public static final ParseField CHECK_FREQUENCY = new ParseField("check_frequency");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<DelayedDataCheckConfig, Void> LENIENT_PARSER = createParser(true);
@@ -35,33 +37,42 @@ public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
 
     private static ConstructingObjectParser<DelayedDataCheckConfig, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<DelayedDataCheckConfig, Void> parser = new ConstructingObjectParser<>(
-            "delayed_data_check_config", ignoreUnknownFields, a -> new DelayedDataCheckConfig((Boolean) a[0], (TimeValue) a[1]));
+            "delayed_data_check_config",
+            ignoreUnknownFields,
+            a -> new DelayedDataCheckConfig((Boolean) a[0], (TimeValue) a[1], (TimeValue) a[2])
+        );
 
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
         parser.declareString(
             ConstructingObjectParser.optionalConstructorArg(),
             text -> TimeValue.parseTimeValue(text, CHECK_WINDOW.getPreferredName()),
-            CHECK_WINDOW);
-
+            CHECK_WINDOW
+        );
+        parser.declareString(
+            ConstructingObjectParser.optionalConstructorArg(),
+            text -> TimeValue.parseTimeValue(text, CHECK_FREQUENCY.getPreferredName()),
+            CHECK_FREQUENCY
+        );
         return parser;
     }
 
     public static DelayedDataCheckConfig defaultDelayedDataCheckConfig() {
-        return new DelayedDataCheckConfig(true, null);
+        return new DelayedDataCheckConfig(true, null, null);
     }
 
-    public static DelayedDataCheckConfig enabledDelayedDataCheckConfig(TimeValue timeValue) {
-        return new DelayedDataCheckConfig(true, timeValue);
+    public static DelayedDataCheckConfig enabledDelayedDataCheckConfig(TimeValue checkWindow, TimeValue checkInterval) {
+        return new DelayedDataCheckConfig(true, checkWindow, checkInterval);
     }
 
     public static DelayedDataCheckConfig disabledDelayedDataCheckConfig() {
-        return new DelayedDataCheckConfig(false, null);
+        return new DelayedDataCheckConfig(false, null, null);
     }
 
     private final boolean enabled;
     private final TimeValue checkWindow;
+    private final TimeValue checkFrequency;
 
-    DelayedDataCheckConfig(Boolean enabled, TimeValue checkWindow) {
+    DelayedDataCheckConfig(Boolean enabled, TimeValue checkWindow, TimeValue checkFrequency) {
         this.enabled = enabled;
         if (enabled && checkWindow != null) {
             TimeUtils.checkPositive(checkWindow, CHECK_WINDOW);
@@ -69,18 +80,30 @@ public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
                 throw new IllegalArgumentException("check_window [" + checkWindow.getStringRep() + "] must be less than or equal to [24h]");
             }
         }
+        if (enabled && checkFrequency != null) {
+            TimeUtils.checkPositive(checkFrequency, CHECK_FREQUENCY);
+        }
         this.checkWindow = checkWindow;
+        this.checkFrequency = checkFrequency;
     }
 
     public DelayedDataCheckConfig(StreamInput in) throws IOException {
         enabled = in.readBoolean();
         checkWindow = in.readOptionalTimeValue();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            checkFrequency = in.readOptionalTimeValue();
+        } else {
+            checkFrequency = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(enabled);
         out.writeOptionalTimeValue(checkWindow);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalTimeValue(checkFrequency);
+        }
     }
 
     public boolean isEnabled() {
@@ -92,6 +115,11 @@ public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
         return checkWindow;
     }
 
+    @Nullable
+    public TimeValue getCheckFrequency() {
+        return checkFrequency;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -99,13 +127,16 @@ public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
         if (checkWindow != null) {
             builder.field(CHECK_WINDOW.getPreferredName(), checkWindow.getStringRep());
         }
+        if (checkFrequency != null) {
+            builder.field(CHECK_FREQUENCY.getPreferredName(), checkFrequency.getStringRep());
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(enabled, checkWindow);
+        return Objects.hash(enabled, checkWindow, checkFrequency);
     }
 
     @Override
@@ -118,7 +149,9 @@ public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
         }
 
         DelayedDataCheckConfig other = (DelayedDataCheckConfig) obj;
-        return Objects.equals(this.enabled, other.enabled) && Objects.equals(this.checkWindow, other.checkWindow);
+        return Objects.equals(this.enabled, other.enabled)
+            && Objects.equals(this.checkWindow, other.checkWindow)
+            && Objects.equals(this.checkFrequency, other.checkFrequency);
     }
 
 }

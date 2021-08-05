@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -84,6 +86,9 @@ import static org.mockito.Mockito.when;
 public class DatafeedJobTests extends ESTestCase {
 
     private static final String jobId = "_job_id";
+    private static final long DELAYED_DATA_WINDOW = TimeValue.timeValueMinutes(15).millis();
+    private static final long DELAYED_DATA_FREQ = TimeValue.timeValueMinutes(2).millis();
+    private static final long DELAYED_DATA_FREQ_HALF = TimeValue.timeValueMinutes(1).millis();
 
     private AnomalyDetectionAuditor auditor;
     private DataExtractorFactory dataExtractorFactory;
@@ -121,7 +126,8 @@ public class DatafeedJobTests extends ESTestCase {
         annotationDocId = "AnnotationDocId";
         flushJobResponse = new FlushJobAction.Response(true, Instant.now());
         delayedDataDetector = mock(DelayedDataDetector.class);
-        when(delayedDataDetector.getWindow()).thenReturn(DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS);
+        when(delayedDataDetector.getWindow()).thenReturn(DELAYED_DATA_WINDOW);
+        when(delayedDataDetector.getFrequency()).thenReturn(DELAYED_DATA_FREQ);
         currentTime = 0;
 
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
@@ -248,7 +254,7 @@ public class DatafeedJobTests extends ESTestCase {
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
         when(delayedDataDetector.detectMissingData(2000))
             .thenReturn(Collections.singletonList(BucketWithMissingData.fromMissingAndBucket(10, bucket)));
-        currentTime = 60000L;
+        currentTime = DELAYED_DATA_FREQ_HALF;
         long frequencyMs = 100;
         long queryDelayMs = 1000;
         DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1, false);
@@ -264,7 +270,7 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
 
         // Execute a second valid time, but do so in a smaller window than the interval
-        currentTime = 62000L;
+        currentTime = currentTime + DELAYED_DATA_FREQ_HALF - 1;
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
@@ -274,7 +280,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         // Execute a third time, but this time make sure we exceed the data check interval, but keep the delayedDataDetector response
         // the same
-        currentTime = 62000L + DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS + 1;
+        currentTime = currentTime + DELAYED_DATA_FREQ_HALF;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
@@ -309,7 +315,7 @@ public class DatafeedJobTests extends ESTestCase {
             IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
             assertThat(indexRequest.index(), equalTo(AnnotationIndex.WRITE_ALIAS_NAME));
             assertThat(indexRequest.id(), nullValue());
-            assertThat(indexRequest.source(), equalTo(expectedSource));
+            assertThat(indexRequest.source().utf8ToString(), equalTo(expectedSource.utf8ToString()));
             assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.INDEX));
         }
 
@@ -321,7 +327,7 @@ public class DatafeedJobTests extends ESTestCase {
         when(delayedDataDetector.detectMissingData(2000))
             .thenReturn(Arrays.asList(BucketWithMissingData.fromMissingAndBucket(10, bucket),
                 BucketWithMissingData.fromMissingAndBucket(5, bucket2)));
-        currentTime = currentTime + DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS + 1;
+        currentTime = currentTime + DelayedDataDetectorFactory.MISSING_DATA_CHECK_INTERVAL_MS + 1;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
@@ -361,7 +367,7 @@ public class DatafeedJobTests extends ESTestCase {
         }
 
         // Execute a fifth time, no changes should occur as annotation is the same
-        currentTime = currentTime + DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS + 1;
+        currentTime = currentTime + DelayedDataDetectorFactory.MISSING_DATA_CHECK_INTERVAL_MS + 1;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));

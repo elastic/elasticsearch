@@ -12,4 +12,6 @@ public interface DelayedDataDetector {
     List<DelayedDataDetectorFactory.BucketWithMissingData> detectMissingData(long endingTimeStamp);
 
     long getWindow();
+
+    long getFrequency();
 }

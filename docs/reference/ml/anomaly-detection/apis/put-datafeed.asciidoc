@@ -20,7 +20,7 @@ Instantiates a {dfeed}.
 
 * You must create an {anomaly-job} before you create a {dfeed}.
 * Requires the following privileges:
-** cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
+** cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this
   privilege)
 ** source index configured in the {dfeed}: `read`
 
@@ -85,6 +85,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
 .Properties of `delayed_data_check_config`
 [%collapsible%open]
 ====
+`check_frequency`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-frequency]
+
 `check_window`::
 (<<time-units,time units>>)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-window]

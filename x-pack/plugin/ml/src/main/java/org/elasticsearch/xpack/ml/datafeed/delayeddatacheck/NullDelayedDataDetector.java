@@ -33,4 +33,9 @@ public class NullDelayedDataDetector implements DelayedDataDetector {
         return 0L;
     }
 
+    @Override
+    public long getFrequency() {
+        return 0;
+    }
+
 }

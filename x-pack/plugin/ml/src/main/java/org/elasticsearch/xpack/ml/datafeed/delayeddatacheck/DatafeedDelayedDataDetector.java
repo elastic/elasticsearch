@@ -44,6 +44,7 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
 
     private final long bucketSpan;
     private final long window;
+    private final long interval;
     private final Client client;
     private final String timeField;
     private final String jobId;
@@ -52,13 +53,14 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     private final IndicesOptions indicesOptions;
     private final Map<String, Object> runtimeMappings;
 
-    DatafeedDelayedDataDetector(long bucketSpan, long window, String jobId, String timeField, QueryBuilder datafeedQuery,
+    DatafeedDelayedDataDetector(long bucketSpan, long window, long interval, String jobId, String timeField, QueryBuilder datafeedQuery,
                                 String[] datafeedIndices, IndicesOptions indicesOptions, Map<String, Object> runtimeMappings,
                                 Client client) {
         this.bucketSpan = bucketSpan;
         this.window = window;
         this.jobId = jobId;
         this.timeField = timeField;
+        this.interval = interval;
         this.datafeedQuery = datafeedQuery;
         this.datafeedIndices = datafeedIndices;
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
@@ -99,6 +101,11 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     @Override
     public long getWindow() {
         return window;
+    }
+
+    @Override
+    public long getFrequency() {
+        return interval;
     }
 
     private List<Bucket> checkBucketEvents(long start, long end) {

@@ -33,7 +33,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TaskTransportChannel;
@@ -78,7 +77,7 @@ public class TaskManager implements ClusterStateApplier {
     private final List<String> taskHeaders;
     private final ThreadPool threadPool;
 
-    private final ConcurrentMapLong<Task> tasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
+    private final Map<Long, Task> tasks = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     private final CancellableTasksTracker<CancellableTaskHolder> cancellableTasks
         = new CancellableTasksTracker<>(CancellableTaskHolder[]::new);

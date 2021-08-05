@@ -39,7 +39,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         TaskParams taskParams,
         TrainedModelAllocationNodeService trainedModelAllocationNodeService
     ) {
-        super(id, type, action, MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + taskParams.getModelId(), parentTask, headers);
+        super(id, type, action, MlTasks.trainedModelDeploymentTaskId(taskParams.getModelId()), parentTask, headers);
         this.params = taskParams;
         this.trainedModelAllocationNodeService = ExceptionsHelper.requireNonNull(
             trainedModelAllocationNodeService,

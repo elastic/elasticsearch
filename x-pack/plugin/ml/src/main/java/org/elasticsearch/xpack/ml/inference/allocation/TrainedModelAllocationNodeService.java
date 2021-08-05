@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
@@ -248,6 +249,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.metadataChanged()) {
+            final boolean isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
             TrainedModelAllocationMetadata modelAllocationMetadata = TrainedModelAllocationMetadata.fromState(event.state());
             final String currentNode = event.state().nodes().getLocalNodeId();
             for (TrainedModelAllocation trainedModelAllocation : modelAllocationMetadata.modelAllocations().values()) {
@@ -257,7 +259,9 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                     // periodic retries should be handled in a separate thread think
                     && routingStateAndReason.getState().equals(RoutingState.STARTING)
                     // This means we don't already have a task and should attempt creating one and starting the model loading
-                    && modelIdToTask.containsKey(trainedModelAllocation.getTaskParams().getModelId()) == false) {
+                    && modelIdToTask.containsKey(trainedModelAllocation.getTaskParams().getModelId()) == false
+                    // If we are in reset mode, don't start loading a new model on this node.
+                    && isResetMode == false) {
                     prepareModelToLoad(trainedModelAllocation.getTaskParams());
                 }
                 // This mode is not routed to the current node at all

@@ -9,11 +9,10 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
@@ -28,8 +27,8 @@ public class CancellableTasksTracker<T> {
         this.arrayConstructor = arrayConstructor;
     }
 
-    private final ConcurrentMapLong<T> byTaskId = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
-    private final ConcurrentMap<TaskId, T[]> byParentTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<Long, T> byTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<TaskId, T[]> byParentTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     /**
      * Add an item for the given task. Should only be called once for each task.

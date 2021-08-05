@@ -82,21 +82,7 @@ public class CertParsingUtils {
     public static Certificate[] readCertificates(List<String> certPaths, Environment environment)
         throws CertificateException, IOException {
         final List<Path> resolvedPaths = resolvePaths(certPaths, environment);
-        return readCertificates(resolvedPaths);
-    }
-
-    public static Certificate[] readCertificates(List<Path> certPaths) throws CertificateException, IOException {
-        Collection<Certificate> certificates = new ArrayList<>();
-        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        for (Path path : certPaths) {
-            try (InputStream input = Files.newInputStream(path)) {
-                certificates.addAll(certFactory.generateCertificates(input));
-                if (certificates.isEmpty()) {
-                    throw new CertificateException("failed to parse any certificates from [" + path.toAbsolutePath() + "]");
-                }
-            }
-        }
-        return certificates.toArray(new Certificate[0]);
+        return readX509Certificates(resolvedPaths);
     }
 
     public static X509Certificate readX509Certificate(Path path) throws CertificateException, IOException {

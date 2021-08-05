@@ -52,7 +52,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
 
     public void testBuildFromSimpleQuery() {
         final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
-        final QueryBuilder q1 = randomSimpleQuery(randomFrom("name", "creation", "expiration"));
+        final QueryBuilder q1 = randomSimpleQuery("name");
         final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q1, authentication);
         assertCommonFilterQueries(apiKeyQb1, authentication);
         final List<QueryBuilder> mustQueries = apiKeyQb1.must();
@@ -119,6 +119,19 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final ApiKeyBoolQueryBuilder apiKeyQb3 = ApiKeyBoolQueryBuilder.build(q3, authentication);
         assertCommonFilterQueries(apiKeyQb3, authentication);
         assertThat(apiKeyQb3.must().get(0), equalTo(QueryBuilders.wildcardQuery("creator.realm", q3.value())));
+
+
+        // creation_time
+        final TermQueryBuilder q4 = QueryBuilders.termQuery("creation", randomLongBetween(0, Long.MAX_VALUE));
+        final ApiKeyBoolQueryBuilder apiKeyQb4 = ApiKeyBoolQueryBuilder.build(q4, authentication);
+        assertCommonFilterQueries(apiKeyQb4, authentication);
+        assertThat(apiKeyQb4.must().get(0), equalTo(QueryBuilders.termQuery("creation_time", q4.value())));
+
+        // expiration_time
+        final TermQueryBuilder q5 = QueryBuilders.termQuery("expiration", randomLongBetween(0, Long.MAX_VALUE));
+        final ApiKeyBoolQueryBuilder apiKeyQb5 = ApiKeyBoolQueryBuilder.build(q5, authentication);
+        assertCommonFilterQueries(apiKeyQb5, authentication);
+        assertThat(apiKeyQb5.must().get(0), equalTo(QueryBuilders.termQuery("expiration_time", q5.value())));
     }
 
     public void testAllowListOfFieldNames() {

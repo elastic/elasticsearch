@@ -333,14 +333,12 @@ public class WildcardFieldMapper extends FieldMapper {
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
-                return new ConstantScoreQuery(
-                    new BinaryDvConfirmedAutomatonQuery(approxQuery, name(), wildcardPattern, automaton));                
+                return new BinaryDvConfirmedAutomatonQuery(approxQuery, name(), wildcardPattern, automaton);                
             } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
                 return new DocValuesFieldExistsQuery(name());
             }
-            return new ConstantScoreQuery(
-                new BinaryDvConfirmedAutomatonQuery(name(), wildcardPattern, automaton));
+            return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), wildcardPattern, automaton);
 
         }
 
@@ -367,7 +365,7 @@ public class WildcardFieldMapper extends FieldMapper {
             // MatchAllButRequireVerificationQuery is a special case meaning the regex is reduced to a single
             // clause which we can't accelerate at all and needs verification. Example would be ".."
             if (approxNgramQuery instanceof MatchAllButRequireVerificationQuery) {
-                return new BinaryDvConfirmedAutomatonQuery(name(), value, automaton);            
+                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), value, automaton);            
             }
 
             // We can accelerate execution with the ngram query
@@ -741,7 +739,8 @@ public class WildcardFieldMapper extends FieldMapper {
             Automaton automaton =  TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
 
             if (accelerationQuery == null) {
-                return new BinaryDvConfirmedAutomatonQuery(name(), lower + "-" + upper, automaton);            
+                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+                    name(), lower + "-" + upper, automaton);            
             }
             return new BinaryDvConfirmedAutomatonQuery(accelerationQuery, name(), lower + "-" + upper, automaton);            
         }
@@ -822,7 +821,8 @@ public class WildcardFieldMapper extends FieldMapper {
                     transpositions
                 );
                 if (ngramQ.clauses().size() == 0) {
-                    return new BinaryDvConfirmedAutomatonQuery(name(), searchTerm, fq.getAutomata().automaton);            
+                    return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+                        name(), searchTerm, fq.getAutomata().automaton);            
                 }
 
                 return new BinaryDvConfirmedAutomatonQuery(ngramQ, name(), searchTerm, fq.getAutomata().automaton);            

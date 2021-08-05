@@ -600,14 +600,17 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             new Term("field", pattern),
             Integer.MAX_VALUE
         );
-        BinaryDvConfirmedAutomatonQuery csQ = new BinaryDvConfirmedAutomatonQuery("field", pattern, caseSensitiveAutomaton);
-        BinaryDvConfirmedAutomatonQuery ciQ = new BinaryDvConfirmedAutomatonQuery("field", pattern, caseInSensitiveAutomaton);
+        BinaryDvConfirmedAutomatonQuery csQ = new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+            "field", pattern, caseSensitiveAutomaton);
+        BinaryDvConfirmedAutomatonQuery ciQ = new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+            "field", pattern, caseInSensitiveAutomaton);
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
         Automaton caseSensitiveAutomaton2 = WildcardQuery.toAutomaton(new Term("field", pattern));
-        BinaryDvConfirmedAutomatonQuery csQ2 = new BinaryDvConfirmedAutomatonQuery("field", pattern, caseSensitiveAutomaton2);
+        BinaryDvConfirmedAutomatonQuery csQ2 = new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+            "field", pattern, caseSensitiveAutomaton2);
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
     }

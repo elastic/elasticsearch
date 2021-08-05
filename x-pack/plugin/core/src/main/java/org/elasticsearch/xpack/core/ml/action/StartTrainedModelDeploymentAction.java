@@ -11,15 +11,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -31,7 +35,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledgedResponse> {
+public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAllocationAction.Response> {
 
     public static final StartTrainedModelDeploymentAction INSTANCE = new StartTrainedModelDeploymentAction();
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/start";
@@ -39,7 +43,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
 
     public StartTrainedModelDeploymentAction() {
-        super(NAME, NodeAcknowledgedResponse::new);
+        super(NAME, CreateTrainedModelAllocationAction.Response::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -118,11 +122,31 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
         }
     }
 
-    public static class TaskParams implements PersistentTaskParams, MlTaskParams {
+    public static class TaskParams implements MlTaskParams, Writeable, ToXContentObject {
+
+        // TODO add support for other roles? If so, it may have to be an instance method...
+        // NOTE, whatever determines allocation should not be dynamically set on the node
+        // Otherwise allocation logic might fail
+        public static boolean mayAllocateToNode(DiscoveryNode node) {
+            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) && node.getVersion().onOrAfter(VERSION_INTRODUCED);
+        }
 
         public static final Version VERSION_INTRODUCED = Version.V_8_0_0;
-
         private static final ParseField MODEL_BYTES = new ParseField("model_bytes");
+        private static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
+            "trained_model_deployment_params",
+            true,
+            a -> new TaskParams((String)a[0], (String)a[1], (Long)a[2])
+        );
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), TrainedModelConfig.MODEL_ID);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), IndexLocation.INDEX);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODEL_BYTES);
+        }
+
+        public static TaskParams fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
 
         /**
          * This has been found to be approximately 300MB on linux by manual testing.
@@ -163,12 +187,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
             return MEMORY_OVERHEAD.getBytes() + 2 * modelBytes;
         }
 
-        @Override
-        public String getWriteableName() {
-            return MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME;
-        }
-
-        @Override
         public Version getMinimalSupportedVersion() {
             return VERSION_INTRODUCED;
         }

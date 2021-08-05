@@ -7,23 +7,23 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper.UserData;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.ietf.jgss.GSSException;
 
-import javax.security.auth.login.LoginException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.security.auth.login.LoginException;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -45,7 +45,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(username));
         metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
-        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
+        final User expectedUser = new User(expectedUsername, roles.toArray(new String[0]), null, null, metadata, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
         final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
@@ -59,9 +59,9 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
 
         assertThat(user1, sameInstance(user2));
         verify(mockKerberosTicketValidator, times(2)).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug),
-                any(ActionListener.class));
+                anyActionListener());
         verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
-        verify(mockNativeRoleMappingStore).resolveRoles(any(UserData.class), any(ActionListener.class));
+        verify(mockNativeRoleMappingStore).resolveRoles(any(UserData.class), anyActionListener());
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
 
@@ -97,13 +97,13 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
 
         if (expireAll || expireThisUser.equals(authNUsername)) {
             assertThat(user1, is(not(sameInstance(user2))));
-            verify(mockNativeRoleMappingStore, times(2)).resolveRoles(any(UserData.class), any(ActionListener.class));
+            verify(mockNativeRoleMappingStore, times(2)).resolveRoles(any(UserData.class), anyActionListener());
         } else {
             assertThat(user1, sameInstance(user2));
-            verify(mockNativeRoleMappingStore).resolveRoles(any(UserData.class), any(ActionListener.class));
+            verify(mockNativeRoleMappingStore).resolveRoles(any(UserData.class), anyActionListener());
         }
         verify(mockKerberosTicketValidator, times(2)).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug),
-                any(ActionListener.class));
+                anyActionListener());
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
 
@@ -120,7 +120,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(username));
         metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
-        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
+        final User expectedUser = new User(expectedUsername, roles.toArray(new String[0]), null, null, metadata, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
         final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
@@ -134,9 +134,9 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
 
         assertThat(user1, not(sameInstance(user2)));
         verify(mockKerberosTicketValidator, times(2)).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug),
-                any(ActionListener.class));
+                anyActionListener());
         verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
-        verify(mockNativeRoleMappingStore, times(2)).resolveRoles(any(UserData.class), any(ActionListener.class));
+        verify(mockNativeRoleMappingStore, times(2)).resolveRoles(any(UserData.class), anyActionListener());
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
 

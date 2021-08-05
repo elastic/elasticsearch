@@ -134,6 +134,22 @@ public class JobNodeSelector {
                                                                long maxNodeSize,
                                                                boolean useAutoMemoryPercentage) {
         final Long estimatedMemoryFootprint = memoryTracker.getJobMemoryRequirement(taskName, jobId);
+        return selectNode(
+            estimatedMemoryFootprint,
+            dynamicMaxOpenJobs,
+            maxConcurrentJobAllocations,
+            maxMachineMemoryPercent,
+            maxNodeSize,
+            useAutoMemoryPercentage
+        );
+    }
+
+    public PersistentTasksCustomMetadata.Assignment selectNode(Long estimatedMemoryFootprint,
+                                                               int dynamicMaxOpenJobs,
+                                                               int maxConcurrentJobAllocations,
+                                                               int maxMachineMemoryPercent,
+                                                               long maxNodeSize,
+                                                               boolean useAutoMemoryPercentage) {
         if (estimatedMemoryFootprint == null) {
             memoryTracker.asyncRefresh();
             String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
@@ -143,6 +159,7 @@ public class JobNodeSelector {
         List<String> reasons = new LinkedList<>();
         long maxAvailableMemory = Long.MIN_VALUE;
         DiscoveryNode minLoadedNodeByMemory = null;
+        long requiredMemoryForJob = estimatedMemoryFootprint;
         for (DiscoveryNode node : candidateNodes) {
 
             // First check conditions that would rule out the node regardless of what other tasks are assigned to it
@@ -211,7 +228,6 @@ public class JobNodeSelector {
                 continue;
             }
 
-            long requiredMemoryForJob = estimatedMemoryFootprint;
             // If this will be the first job assigned to the node then it will need to
             // load the native code shared libraries, so add the overhead for this
             if (currentLoad.getNumAssignedJobs() == 0) {
@@ -242,6 +258,7 @@ public class JobNodeSelector {
         }
 
         return createAssignment(
+            estimatedMemoryFootprint,
             minLoadedNodeByMemory,
             reasons,
             maxNodeSize > 0L ?
@@ -249,7 +266,8 @@ public class JobNodeSelector {
                 Long.MAX_VALUE);
     }
 
-    PersistentTasksCustomMetadata.Assignment createAssignment(DiscoveryNode minLoadedNode,
+    PersistentTasksCustomMetadata.Assignment createAssignment(long estimatedMemoryUsage,
+                                                              DiscoveryNode minLoadedNode,
                                                               List<String> reasons,
                                                               long biggestPossibleJob) {
         if (minLoadedNode == null) {
@@ -257,9 +275,7 @@ public class JobNodeSelector {
             PersistentTasksCustomMetadata.Assignment currentAssignment =
                 new PersistentTasksCustomMetadata.Assignment(null, explanation);
             logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
-            Long estimatedMemoryUsage = memoryTracker.getJobMemoryRequirement(taskName, jobId);
-            if (estimatedMemoryUsage != null
-                && (MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage) > biggestPossibleJob) {
+            if ((MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage) > biggestPossibleJob) {
                 ParameterizedMessage message = new ParameterizedMessage(
                     "[{}] not waiting for node assignment as estimated job size [{}] is greater than largest possible job size [{}]",
                     jobId,
@@ -310,7 +326,7 @@ public class JobNodeSelector {
         return builder.toString();
     }
 
-    static String nodeNameAndMlAttributes(DiscoveryNode node) {
+    public static String nodeNameAndMlAttributes(DiscoveryNode node) {
         String nodeNameOrID = nodeNameOrId(node);
 
         StringBuilder builder = new StringBuilder("{").append(nodeNameOrID).append('}');

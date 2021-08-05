@@ -120,8 +120,7 @@ public class TransformTaskTests extends ESTestCase {
         ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder();
         indexerBuilder.setClient(new ParentTaskAssigningClient(client, TaskId.EMPTY_TASK_ID))
             .setTransformConfig(transformConfig)
-            .setTransformServices(transformServices)
-            .setFieldMappings(Collections.emptyMap());
+            .setTransformServices(transformServices);
 
         transformTask.initializeIndexer(indexerBuilder);
         TransformState state = transformTask.getState();

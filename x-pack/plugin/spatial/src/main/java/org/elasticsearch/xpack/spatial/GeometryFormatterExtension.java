@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.spatial;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.geometry.Geometry;
 
+import java.util.List;
 
-public interface VectorTileExtension {
+/**
+ * Extension point for geometry formatters
+ */
+public interface GeometryFormatterExtension {
     /**
-     * Get the vector tile engine. This is called when user ask for the MVT format on the field API.
-     * We are only expecting one instance of a vector tile engine coming from the vector tile module.
+     * Get a list of geometry formatters.
      */
-    GeoFormatterFactory.VectorTileEngine<Geometry> getVectorTileEngine();
+    List<GeoFormatterFactory.FormatterFactory<Geometry>> getGeometryFormatterFactories();
 }

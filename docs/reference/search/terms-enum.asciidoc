@@ -36,7 +36,8 @@ The API returns the following response:
 --------------------------------------------------
 
 If the `complete` flag is `false`, the returned `terms` set may be incomplete
-and should be treated as approximate. This can occur due to a few reasons such as a request timeout or a node error.
+and should be treated as approximate. This can occur due to a few reasons, such
+as a request timeout or a node error.
 
 [[search-terms-enum-api-request]]
 ==== {api-request-title}

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.List;
 
 public class NlpTask {
 
@@ -60,7 +61,7 @@ public class NlpTask {
          *
          * @param inputs Text to validate
          */
-        void validateInputs(String inputs);
+        void validateInputs(List<String> inputs);
 
         RequestBuilder getRequestBuilder();
         ResultProcessor getResultProcessor();

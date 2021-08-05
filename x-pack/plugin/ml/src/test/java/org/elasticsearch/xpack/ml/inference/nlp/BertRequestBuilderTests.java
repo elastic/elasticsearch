@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -32,7 +33,6 @@ public class BertRequestBuilderTests extends ESTestCase {
 
         BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
         NlpTask.Request request = requestBuilder.buildRequest("Elasticsearch fun", "request1");
-
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
@@ -56,7 +56,8 @@ public class BertRequestBuilderTests extends ESTestCase {
         {
             BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
             ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> requestBuilder.buildRequest("Elasticsearch fun Elasticsearch fun Elasticsearch fun", "request1"));
+                () -> requestBuilder.buildRequest(Collections.singletonList("Elasticsearch fun Elasticsearch fun Elasticsearch fun"),
+                    "request1"));
 
             assertThat(e.getMessage(),
                 containsString("Input too large. The tokenized input length [11] exceeds the maximum sequence length [5]"));
@@ -65,7 +66,12 @@ public class BertRequestBuilderTests extends ESTestCase {
             BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
             // input will become 3 tokens + the Class and Separator token = 5 which is
             // our max sequence length
-            requestBuilder.buildRequest("Elasticsearch fun", "request1");
+            requestBuilder.buildRequest(Collections.singletonList("Elasticsearch fun"), "request1");
         }
+    }
+
+    public void testBatchWithPadding() {
+        BertTokenizer tokenizer = BertTokenizer.builder(
+            Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN)).build();
     }
 }

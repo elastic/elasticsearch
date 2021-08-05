@@ -68,8 +68,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return builder.build();
         }
 
-        private String deploymentId;
-        private List<Map<String, Object>> docs;
+        private final String deploymentId;
+        private final List<Map<String, Object>> docs;
 
         public Request(String deploymentId, List<Map<String, Object>> docs) {
             this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);

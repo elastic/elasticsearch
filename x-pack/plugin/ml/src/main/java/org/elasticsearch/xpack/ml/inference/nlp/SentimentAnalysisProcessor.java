@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -51,7 +50,7 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
     }
 
     @Override
-    public void validateInputs(String inputs) {
+    public void validateInputs(List<String> inputs) {
         // nothing to validate
     }
 
@@ -60,9 +59,9 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
         return this::buildRequest;
     }
 
-    NlpTask.Request buildRequest(String input, String requestId) throws IOException {
-        TokenizationResult tokenization = tokenizer.tokenize(input);
-        return new NlpTask.Request(tokenization, jsonRequest(tokenization.getTokenIds(), requestId));
+    NlpTask.Request buildRequest(List<String> inputs, String requestId) throws IOException {
+        BertTokenizer.Tokenization tokenization = tokenizer.tokenize(inputs);
+        return new NlpTask.Request(tokenization, jsonRequest(tokenization, requestId, tokenizer.getPadToken());
     }
 
     @Override
@@ -86,15 +85,17 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
             classLabels.get(0), normalizedScores[0]);
     }
 
-    static BytesReference jsonRequest(int[] tokens, String requestId) throws IOException {
+    static BytesReference jsonRequest(BertTokenizer.Tokenization tokenization, String requestId, int padToken) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field(BertRequestBuilder.REQUEST_ID, requestId);
-        builder.array(BertRequestBuilder.TOKENS, tokens);
 
-        int[] inputMask = new int[tokens.length];
-        Arrays.fill(inputMask, 1);
-        builder.array(BertRequestBuilder.ARG1, inputMask);
+        BertRequestBuilder.writePaddedTokens(
+            BertRequestBuilder.TOKENS, tokenization, padToken, (tokens, i) -> tokens.getTokenIds()[i], builder);
+
+        BertRequestBuilder.writePaddedTokens(
+            BertRequestBuilder.ARG1, tokenization, padToken, (tokens, i) -> 1, builder);
+
         builder.endObject();
 
         // BytesReference.bytes closes the builder

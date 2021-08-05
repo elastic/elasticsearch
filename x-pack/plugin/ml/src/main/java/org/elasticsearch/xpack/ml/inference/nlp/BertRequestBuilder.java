@@ -14,7 +14,8 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class BertRequestBuilder implements NlpTask.RequestBuilder {
 
@@ -33,38 +34,70 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
     @Override
     public NlpTask.Request buildRequest(String input, String requestId) throws IOException {
         TokenizationResult tokenization = tokenizer.tokenize(input);
-        return new NlpTask.Request(tokenization, jsonRequest(tokenization.getTokenIds(), requestId));
+        if (tokenization.getTokenIds().length > maxSequenceLength) {
+            throw ExceptionsHelper.badRequestException(
+                "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
+                tokenization.getLongestSequenceLength(), maxSequenceLength);
+        }
+
+        if (tokenizer.getPadToken() == null) {
+            throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN +
+                " token in its vocabulary");
+        }
+
+        return new NlpTask.Request(tokenization, jsonRequest(tokenization, tokenizer.getPadToken(), requestId));
     }
 
-    static BytesReference jsonRequest(int[] tokens, String requestId) throws IOException {
+    static BytesReference jsonRequest(BertTokenizer.Tokenization tokenization,
+                                      int padToken,
+                                      String requestId) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field(REQUEST_ID, requestId);
-        write1DArrayAs2D(TOKENS, tokens, builder);
 
-        int[] inputMask = new int[tokens.length];
-        Arrays.fill(inputMask, 1);
-        int[] segmentMask = new int[tokens.length];
-        Arrays.fill(segmentMask, 0);
-        int[] positionalIds = new int[tokens.length];
-        Arrays.setAll(positionalIds, i -> i);
-
-        write1DArrayAs2D(ARG1, inputMask, builder);
-        write1DArrayAs2D(ARG2, segmentMask, builder);
-        write1DArrayAs2D(ARG3, positionalIds, builder);
+        writePaddedTokens(TOKENS, tokenization, padToken, (tokens, i) -> tokens.getTokenIds()[i], builder);
+        writePaddedTokens(ARG1, tokenization, padToken, (tokens, i) -> 1, builder);
+        writeNonPaddedIds(ARG2, tokenization.getTokenizations().size(), tokenization.getLongestSequenceLength(), i -> 0, builder);
+        writeNonPaddedIds(ARG3, tokenization.getTokenizations().size(), tokenization.getLongestSequenceLength(), i -> i, builder);
         builder.endObject();
 
         // BytesReference.bytes closes the builder
         return BytesReference.bytes(builder);
     }
 
-    private static void write1DArrayAs2D(String fieldName, int[] values, XContentBuilder builder) throws IOException {
+    static void writePaddedTokens(String fieldName,
+                                  BertTokenizer.Tokenization tokenization,
+                                  int padToken,
+                                  BiFunction<BertTokenizer.TokenizationResult, Integer, Integer> generator,
+                                  XContentBuilder builder) throws IOException {
         builder.startArray(fieldName);
-        builder.startArray();
-        for (var t : values) {
-            builder.value(t);
+        for (var inputTokens : tokenization.getTokenizations()) {
+            builder.startArray();
+            int i = 0;
+            for (; i < inputTokens.getTokenIds().length; i++) {
+                builder.value(generator.apply(inputTokens, i));
+            }
+
+            for (; i < tokenization.getLongestSequenceLength(); i++) {
+                builder.value(padToken);
+            }
+            builder.endArray();
         }
         builder.endArray();
+    }
+
+    static void writeNonPaddedIds(String fieldName,
+                                  int numTokenizations, int longestSequenceLength,
+                                  Function<Integer, Integer> generator,
+                                  XContentBuilder builder) throws IOException {
+        builder.startArray(fieldName);
+        for (int i = 0; i < numTokenizations; i++) {
+            builder.startArray();
+            for (int j = 0; j < longestSequenceLength; j++) {
+                builder.value(generator.apply(j));
+            }
+            builder.endArray();
+        }
         builder.endArray();
     }
 }

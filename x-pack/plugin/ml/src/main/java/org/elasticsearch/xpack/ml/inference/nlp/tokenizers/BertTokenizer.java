@@ -78,16 +78,28 @@ public class BertTokenizer implements NlpTokenizer {
     }
 
     /**
-     * Tokenize the input according to the basic tokenization options
-     * then perform Word Piece tokenization with the given vocabulary.
+     * Tokenize the list of inputs according to the basic tokenization
+     * options then perform Word Piece tokenization with the given vocabulary.
      *
      * The result is the Word Piece tokens, a map of the Word Piece
-     * token position to the position of the token in the source
+     * token position to the position of the token in the source for
+     * each input string grouped into a {@link Tokenization}.
+     *
      * @param text Text to tokenize
-     * @return Tokenized text, token Ids and map
+     * @return A {@link Tokenization}
      */
     @Override
-    public TokenizationResult tokenize(String text) {
+    public Tokenization tokenize(List<String> text) {
+        Tokenization tokenization = new Tokenization(originalVocab);
+
+        for (String input: text) {
+            tokenization.addTokenization(tokenize(input));
+        }
+        return tokenization;
+    }
+
+
+    private TokenizationResult tokenize(String text) {
         BasicTokenizer basicTokenizer = new BasicTokenizer(doLowerCase, doTokenizeCjKChars, doStripAccents, neverSplit);
 
         List<String> delineatedTokens = basicTokenizer.tokenize(text);
@@ -147,6 +159,42 @@ public class BertTokenizer implements NlpTokenizer {
 
         return new TokenizationResult(text, originalVocab, tokens, tokenIds, tokenMap);
     }
+
+    public Integer getPadToken() {
+        return vocab.get(PAD_TOKEN);
+    }
+
+    public static class TokenizationResult {
+        String input;
+        private final List<String> tokens;
+        private final int [] tokenIds;
+        private final int [] tokenMap;
+
+        public TokenizationResult(String input, List<String> tokens, int[] tokenIds, int[] tokenMap) {
+            assert tokens.size() == tokenIds.length;
+            assert tokenIds.length == tokenMap.length;
+            this.input = input;
+            this.tokens = tokens;
+            this.tokenIds = tokenIds;
+            this.tokenMap = tokenMap;
+        }
+
+        /**
+         * The token strings from the tokenization process
+         * @return A list of tokens
+         */
+        public List<String> getTokens() {
+            return tokens;
+        }
+
+        /**
+         * The integer values of the tokens in {@link #getTokens()}
+         * @return A list of token Ids
+         */
+        public int[] getTokenIds() {
+            return tokenIds;
+        }
+>>>>>>> WIP: abandoned because maybe we do not want to batch now
 
     @Override
     public NlpTask.RequestBuilder requestBuilder() {

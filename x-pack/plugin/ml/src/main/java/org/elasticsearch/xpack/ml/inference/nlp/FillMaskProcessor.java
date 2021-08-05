@@ -30,19 +30,21 @@ public class FillMaskProcessor implements NlpTask.Processor {
     }
 
     @Override
-    public void validateInputs(String inputs) {
-        if (inputs.isBlank()) {
+    public void validateInputs(List<String> inputs) {
+        if (inputs.isEmpty()) {
             throw new IllegalArgumentException("input request is empty");
         }
 
-        int maskIndex = inputs.indexOf(BertTokenizer.MASK_TOKEN);
-        if (maskIndex < 0) {
-            throw new IllegalArgumentException("no " + BertTokenizer.MASK_TOKEN + " token could be found");
-        }
+        for (String input : inputs) {
+            int maskIndex = input.indexOf(BertTokenizer.MASK_TOKEN);
+            if (maskIndex < 0) {
+                throw new IllegalArgumentException("no " + BertTokenizer.MASK_TOKEN + " token could be found");
+            }
 
-        maskIndex = inputs.indexOf(BertTokenizer.MASK_TOKEN, maskIndex + BertTokenizer.MASK_TOKEN.length());
-        if (maskIndex > 0) {
-            throw new IllegalArgumentException("only one " + BertTokenizer.MASK_TOKEN + " token should exist in the input");
+            maskIndex = input.indexOf(BertTokenizer.MASK_TOKEN, maskIndex + BertTokenizer.MASK_TOKEN.length());
+            if (maskIndex > 0) {
+                throw new IllegalArgumentException("only one " + BertTokenizer.MASK_TOKEN + " token should exist in the input");
+            }
         }
     }
 
@@ -58,18 +60,18 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
 
-        if (tokenization.getTokens().isEmpty()) {
+        if (tokenization.getTokenizations().isEmpty()) {
             return new FillMaskResults(Collections.emptyList());
         }
 
-        int maskTokenIndex = tokenization.getTokens().indexOf(BertTokenizer.MASK_TOKEN);
+        int maskTokenIndex = tokenization.getTokenizations().get(0).getTokens().indexOf(BertTokenizer.MASK_TOKEN);
         double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0][maskTokenIndex]);
 
         NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(NUM_RESULTS, normalizedScores);
         List<FillMaskResults.Prediction> results = new ArrayList<>(NUM_RESULTS);
         for (NlpHelpers.ScoreAndIndex scoreAndIndex : scoreAndIndices) {
             String predictedToken = tokenization.getFromVocab(scoreAndIndex.index);
-            String sequence = tokenization.getInput().replace(BertTokenizer.MASK_TOKEN, predictedToken);
+            String sequence = tokenization.getTokenizations().get(0).getInput().replace(BertTokenizer.MASK_TOKEN, predictedToken);
             results.add(new FillMaskResults.Prediction(predictedToken, scoreAndIndex.score, sequence));
         }
         return new FillMaskResults(results);

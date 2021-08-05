@@ -16,7 +16,6 @@ import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.Key;
@@ -60,16 +59,6 @@ public class CertParsingUtils {
 
     static List<Path> resolvePaths(List<String> certPaths, Environment environment) {
         return certPaths.stream().map(p -> environment.configFile().resolve(p)).collect(Collectors.toList());
-    }
-
-    public static KeyStore readKeyStore(Path path, String type, char[] password)
-        throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException {
-        try (InputStream in = Files.newInputStream(path)) {
-            KeyStore store = KeyStore.getInstance(type);
-            assert password != null;
-            store.load(in, password);
-            return store;
-        }
     }
 
     /**
@@ -275,22 +264,6 @@ public class CertParsingUtils {
             counter++;
         }
         return store;
-    }
-
-    /**
-     * Loads the truststore and creates a {@link X509ExtendedTrustManager}
-     *
-     * @param trustStorePath      the path to the truststore
-     * @param trustStorePassword  the password to the truststore
-     * @param trustStoreAlgorithm the algorithm to use for the truststore
-     * @param env                 the environment to use for file resolution. May be {@code null}
-     * @return a trust manager with the trust material from the store
-     */
-    public static X509ExtendedTrustManager trustManager(String trustStorePath, String trustStoreType, char[] trustStorePassword,
-                                                        String trustStoreAlgorithm, Environment env)
-        throws NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException {
-        KeyStore trustStore = readKeyStore(env.configFile().resolve(trustStorePath), trustStoreType, trustStorePassword);
-        return trustManager(trustStore, trustStoreAlgorithm);
     }
 
     /**

@@ -12,7 +12,11 @@ import javax.annotation.Nullable;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -28,7 +32,7 @@ public class RewriteReflectiveFacade {
         return getClass().getClassLoader();
     }
 
-    private List<RewriteReflectiveFacade.SourceFile> parseBase(Object real, Iterable<Path> sourcePaths, Path baseDir, RewriteReflectiveFacade.InMemoryExecutionContext ctx) {
+    private List<SourceFile> parseBase(Object real, Iterable<Path> sourcePaths, Path baseDir, RewriteReflectiveFacade.InMemoryExecutionContext ctx) {
         try {
             Class<?> executionContextClass = getClass().getClassLoader().loadClass("org.openrewrite.ExecutionContext");
             List<Object> results = (List<Object>) real.getClass()
@@ -217,7 +221,7 @@ public class RewriteReflectiveFacade {
             }
         }
 
-        public Collection<RewriteReflectiveFacade.Validated> validateAll() {
+        public Collection<Validated> validateAll() {
             try {
                 List<Object> results = (List<Object>) real.getClass().getMethod("validateAll").invoke(real);
                 return results.stream().map(r -> {

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.annotations;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -33,6 +35,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class AnnotationIndex {
+
+    private static final Logger logger = LogManager.getLogger(AnnotationIndex.class);
 
     public static final String READ_ALIAS_NAME = ".ml-annotations-read";
     public static final String WRITE_ALIAS_NAME = ".ml-annotations-write";
@@ -100,6 +104,7 @@ public class AnnotationIndex {
 
             // Create the annotations index if it doesn't exist already.
             if (mlLookup.containsKey(INDEX_NAME) == false) {
+                logger.info("Creating [" + INDEX_NAME + "] because [" + mlLookup.firstKey() + "] exists");
 
                 CreateIndexRequest createIndexRequest =
                     new CreateIndexRequest(INDEX_NAME)

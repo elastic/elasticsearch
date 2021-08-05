@@ -21,6 +21,7 @@ import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.vagrant.VagrantBasePlugin;

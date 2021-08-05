@@ -161,7 +161,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     listeners.beforeRefresh();
                 }
                 final DirectoryReader dirReader = openDirectory(store.directory(), engineConfig.getIndexSettings().isSoftDeleteEnabled());
-                reader = lastOpenedReader = wrapReader(dirReader);
+                reader = lastOpenedReader = wrapReader(dirReader, Function.identity());
                 processReader(reader);
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
                 for (ReferenceManager.RefreshListener listeners : config().getInternalRefreshListener()) {

@@ -73,11 +73,17 @@ public class CompileReleaseNotesTask extends DefaultTask {
                 .sorted(Comparator.comparing(f -> Version.fromString(f.getName().replaceFirst("\\.asciidoc$", ""))))
                 .collect(Collectors.toList());
 
+            boolean first = true;
             for (File file : sortedFiles) {
                 LOGGER.info("Concatenating " + file.getAbsolutePath());
 
+                if (first) {
+                    first = false;
+                } else {
+                    writer.write("\n\n");
+                }
+
                 writer.write(Files.readString(file.toPath()));
-                writer.write("\n\n");
             }
         }
     }

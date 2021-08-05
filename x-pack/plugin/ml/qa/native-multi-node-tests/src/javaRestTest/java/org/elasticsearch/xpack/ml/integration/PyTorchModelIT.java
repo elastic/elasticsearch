@@ -15,6 +15,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -51,6 +53,32 @@ public class PyTorchModelIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
+    }
+
+    @Before
+    public void setLogging() throws IOException {
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("" +
+            "{" +
+            "\"transient\" : {\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\"\n" +
+            "    }" +
+            "}");
+        client().performRequest(loggingSettings);
+    }
+
+    @After
+    public void unsetLogging() throws IOException {
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("" +
+            "{" +
+            "\"transient\" : {\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null\n" +
+            "    }" +
+            "}");
+        client().performRequest(loggingSettings);
     }
 
     private static final String MODEL_INDEX = "model_store";
@@ -92,8 +120,11 @@ public class PyTorchModelIT extends ESRestTestCase {
         createTrainedModel();
         startDeployment();
         try {
-            Response inference = infer("my words");
-            assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference\":[[1.0,1.0]]}"));
+            // Adding multiple inference calls to verify different calls get routed to separate nodes
+            for (int i = 0; i < 10; i++) {
+                Response inference = infer("my words");
+                assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference\":[[1.0,1.0]]}"));
+            }
         } finally {
             stopDeployment();
         }

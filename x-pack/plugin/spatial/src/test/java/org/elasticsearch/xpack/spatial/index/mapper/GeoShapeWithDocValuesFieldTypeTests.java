@@ -117,7 +117,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         } catch (IllegalArgumentException iae) {
             // if parsing fails means that we must be ignoring malformed values. In case of mvt might
             // happen that the geometry is out of range (close to the poles).
-            features = List.of();
+            features = org.elasticsearch.core.List.of();
         }
         assertThat(features.size(), Matchers.equalTo(sourceValue.size()));
         for (int i = 0; i < features.size(); i++) {

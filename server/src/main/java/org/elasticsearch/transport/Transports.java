@@ -13,7 +13,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Arrays;
-import java.util.Set;
+import org.elasticsearch.core.Set;
 
 public enum Transports {
     ;

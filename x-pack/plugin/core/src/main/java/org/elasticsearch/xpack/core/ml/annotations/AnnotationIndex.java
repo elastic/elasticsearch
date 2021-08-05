@@ -107,7 +107,7 @@ public class AnnotationIndex {
             if (mlLookup.containsKey(INDEX_NAME) == false) {
                 logger.debug(
                     () -> new ParameterizedMessage(
-                        "Creating [{}]] because [{}] exists; trace {}",
+                        "Creating [{}] because [{}] exists; trace {}",
                         INDEX_NAME,
                         mlLookup.firstKey(),
                         org.elasticsearch.ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace())

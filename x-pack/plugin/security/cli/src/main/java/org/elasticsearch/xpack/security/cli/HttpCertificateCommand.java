@@ -26,6 +26,7 @@ import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;

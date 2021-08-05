@@ -25,6 +25,7 @@ import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;

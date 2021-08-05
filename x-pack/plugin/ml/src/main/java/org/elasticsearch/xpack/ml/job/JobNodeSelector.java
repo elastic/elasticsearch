@@ -326,7 +326,7 @@ public class JobNodeSelector {
         return builder.toString();
     }
 
-    static String nodeNameAndMlAttributes(DiscoveryNode node) {
+    public static String nodeNameAndMlAttributes(DiscoveryNode node) {
         String nodeNameOrID = nodeNameOrId(node);
 
         StringBuilder builder = new StringBuilder("{").append(nodeNameOrID).append('}');

@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,14 +38,14 @@ import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -321,8 +322,7 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
         return password == null ? null : password.toCharArray();
     }
 
-    private static PrivateKey readSigningKey(Path path, char[] password, Terminal terminal)
-            throws Exception {
+    private static PrivateKey readSigningKey(Path path, char[] password, Terminal terminal) throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
             return org.elasticsearch.common.ssl.PemUtils.readPrivateKey(path, () -> {

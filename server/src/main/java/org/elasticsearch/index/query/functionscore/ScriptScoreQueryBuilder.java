@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Map;
@@ -158,9 +159,10 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
                     + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
-        ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), context.lookup());
+        SearchLookup lookup = context.lookup();
+        ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), lookup);
         Query query = this.query.toQuery(context);
-        return new ScriptScoreQuery(query, script, scoreScriptFactory, minScore,
+        return new ScriptScoreQuery(query, script, scoreScriptFactory, context.lookup(), minScore,
             context.index().getName(), context.getShardId(), context.indexVersionCreated());
     }
 

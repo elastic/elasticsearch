@@ -28,10 +28,6 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
-import javax.mail.MessagingException;
-import javax.mail.internet.MimeMessage;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,6 +38,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import javax.mail.MessagingException;
+import javax.mail.internet.MimeMessage;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 
 import static org.hamcrest.Matchers.hasSize;
 

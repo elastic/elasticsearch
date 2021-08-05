@@ -317,8 +317,10 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 }
             }
 
-            PrivateKey privateKey = PemUtils.readPrivateKey(zipRoot.resolve("ca").resolve("ca.key"), () -> keyPassword != null ?
-                        SecuritySettingsSourceField.TEST_PASSWORD.toCharArray() : null);
+            PrivateKey privateKey = PemUtils.readPrivateKey(
+                zipRoot.resolve("ca").resolve("ca.key"),
+                () -> keyPassword != null ? SecuritySettingsSourceField.TEST_PASSWORD.toCharArray() : null
+            );
             assertEquals(caInfo.privateKey, privateKey);
         } else {
             assertFalse(Files.exists(zipRoot.resolve("ca")));

@@ -22,6 +22,7 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -588,8 +589,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
      * @param prompt   whether to prompt the user or not
      * @return the {@link PrivateKey} that was read from the file
      */
-    private static PrivateKey readPrivateKey(String path, char[] password, Terminal terminal, boolean prompt)
-        throws Exception {
+    private static PrivateKey readPrivateKey(String path, char[] password, Terminal terminal, boolean prompt) throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
             return PemUtils.readPrivateKey(resolvePath(path), () -> {

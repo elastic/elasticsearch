@@ -102,12 +102,12 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
                     nodeList.add(nodeInfo.getInfo(TransportInfo.class).getAddress().publishAddress().toString());
                 }
                 try {
-                    final String httpCaKey = Base64.getUrlEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v1().getEncoded());
-                    final String httpCaCert = Base64.getUrlEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v2().getEncoded());
+                    final String httpCaKey = Base64.getEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v1().getEncoded());
+                    final String httpCaCert = Base64.getEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v2().getEncoded());
                     final String transportKey =
-                        Base64.getUrlEncoder().encodeToString(transportKeysAndCertificates.get(0).v1().getEncoded());
+                        Base64.getEncoder().encodeToString(transportKeysAndCertificates.get(0).v1().getEncoded());
                     final String transportCert =
-                        Base64.getUrlEncoder().encodeToString(transportKeysAndCertificates.get(0).v2().getEncoded());
+                        Base64.getEncoder().encodeToString(transportKeysAndCertificates.get(0).v2().getEncoded());
                     listener.onResponse(new NodeEnrollmentResponse(httpCaKey,
                         httpCaCert,
                         transportKey,

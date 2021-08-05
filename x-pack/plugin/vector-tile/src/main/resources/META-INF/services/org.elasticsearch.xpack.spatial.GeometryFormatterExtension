@@ -5,4 +5,4 @@
 # 2.0.
 #
 
-org.elasticsearch.xpack.vectortile.SpatialVectorTileExtension
+org.elasticsearch.xpack.vectortile.SpatialGeometryFormatterExtension

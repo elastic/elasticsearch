@@ -7,13 +7,14 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import joptsimple.OptionSet;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;

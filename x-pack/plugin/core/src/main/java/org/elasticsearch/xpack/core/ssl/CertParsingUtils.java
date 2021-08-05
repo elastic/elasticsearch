@@ -34,7 +34,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -114,8 +113,8 @@ public class CertParsingUtils {
     /**
      * Creates a {@link KeyStore} from a PEM encoded certificate and key file
      */
-    public static KeyStore getKeyStoreFromPEM(Path certificatePath, Path keyPath, char[] keyPassword)
-        throws IOException,GeneralSecurityException {
+    public static KeyStore getKeyStoreFromPEM(Path certificatePath, Path keyPath, char[] keyPassword) throws IOException,
+        GeneralSecurityException {
         final PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, () -> keyPassword);
         final List<Certificate> certificates = PemUtils.readCertificates(List.of(certificatePath));
         return KeyStoreUtil.buildKeyStore(certificates, privateKey, keyPassword);

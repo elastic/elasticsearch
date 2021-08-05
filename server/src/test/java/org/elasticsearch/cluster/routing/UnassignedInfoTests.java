@@ -69,7 +69,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 UnassignedInfo.Reason.PRIMARY_FAILED,
                 UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
                 UnassignedInfo.Reason.MANUAL_ALLOCATION,
-                UnassignedInfo.Reason.INDEX_CLOSED,};
+                UnassignedInfo.Reason.INDEX_CLOSED,
+                UnassignedInfo.Reason.NODE_RESTARTING};
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }
@@ -93,8 +94,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 false,
                 AllocationStatus.NO_ATTEMPT,
                 failedNodes,
-                lastAssignedNodeId,
-                randomBoolean())
+                lastAssignedNodeId)
             : new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
@@ -446,7 +446,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     ) throws Exception {
         final long baseTime = System.nanoTime();
         UnassignedInfo unassignedInfo = new UnassignedInfo(
-            UnassignedInfo.Reason.NODE_LEFT,
+            nodeRestarting ? UnassignedInfo.Reason.NODE_RESTARTING : UnassignedInfo.Reason.NODE_LEFT,
             "test",
             null,
             0,
@@ -455,8 +455,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             randomBoolean(),
             AllocationStatus.NO_ATTEMPT,
             Collections.emptySet(),
-            lastNodeId,
-            nodeRestarting
+            lastNodeId
         );
         final long totalDelayNanos = expectedTotalDelay.nanos();
         final Settings indexSettings = Settings.builder()

@@ -108,7 +108,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                             "existing allocation of replica to [" + currentNode + "] cancelled, can perform a noop recovery on ["+
                                 nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false,
-                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds, null, nodeIsRestarting);
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds, null);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
                         shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo,
                             metadata.getIndexSafe(shard.index()), allocation.changes()));

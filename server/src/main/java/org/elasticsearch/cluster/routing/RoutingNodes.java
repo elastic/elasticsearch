@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Assertions;
@@ -20,8 +21,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,7 +40,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -538,9 +538,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         // re-resolve replica as earlier iteration could have changed source/target of replica relocation
                         ShardRouting replicaShard = getByAllocationId(routing.shardId(), routing.allocationId().getId());
                         assert replicaShard != null : "failed to re-resolve " + routing + " when failing replicas";
-                        boolean nodeIsRestarting = Optional.ofNullable(nodeShutdowns.get(replicaShard.currentNodeId()))
-                            .map(shutdownInfo -> shutdownInfo.getType().equals(SingleNodeShutdownMetadata.Type.RESTART))
-                            .orElse(false);
                         UnassignedInfo primaryFailedUnassignedInfo = new UnassignedInfo(
                             UnassignedInfo.Reason.PRIMARY_FAILED,
                             "primary failed while replica initializing",
@@ -551,8 +548,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             false,
                             AllocationStatus.NO_ATTEMPT,
                             Collections.emptySet(),
-                            routing.currentNodeId(),
-                            nodeIsRestarting);
+                            routing.currentNodeId());
                         failShard(logger, replicaShard, primaryFailedUnassignedInfo, indexMetadata, routingChangesObserver);
                     }
                 }
@@ -885,8 +881,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         currInfo.isDelayed(),
                         allocationStatus,
                         currInfo.getFailedNodeIds(),
-                        currInfo.getLastAllocatedNodeId(),
-                        currInfo.isLastAllocatedNodeIsRestarting());
+                        currInfo.getLastAllocatedNodeId());
                     ShardRouting updatedShard = shard.updateUnassigned(newInfo, shard.recoverySource());
                     changes.unassignedInfoUpdated(shard, newInfo);
                     shard = updatedShard;

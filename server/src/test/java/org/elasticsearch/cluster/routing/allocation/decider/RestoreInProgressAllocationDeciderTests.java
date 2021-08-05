@@ -118,8 +118,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
                 currentInfo.isDelayed(),
                 currentInfo.getLastAllocationStatus(),
                 currentInfo.getFailedNodeIds(),
-                currentInfo.getLastAllocatedNodeId(),
-                currentInfo.isLastAllocatedNodeIsRestarting());
+                currentInfo.getLastAllocatedNodeId());
             primary = primary.updateUnassigned(newInfo, primary.recoverySource());
 
             IndexRoutingTable indexRoutingTable = routingTable.index("test");

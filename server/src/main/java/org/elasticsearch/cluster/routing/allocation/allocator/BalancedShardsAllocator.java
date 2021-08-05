@@ -149,8 +149,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         unassignedInfo.isDelayed(),
                         AllocationStatus.DECIDERS_NO,
                         unassignedInfo.getFailedNodeIds(),
-                        unassignedInfo.getLastAllocatedNodeId(),
-                        unassignedInfo.isLastAllocatedNodeIsRestarting()
+                        unassignedInfo.getLastAllocatedNodeId()
                     ),
                     shardRouting.recoverySource(),
                     allocation.changes()

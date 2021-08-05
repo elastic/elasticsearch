@@ -23,6 +23,7 @@ import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
@@ -148,14 +149,23 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
+    public void awaitIdle() {
+    }
+
+    @Override
     public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
                                              Consumer<Exception> onFailure) {
         throw new UnsupportedOperationException("Unsupported for restore-only repository");
     }
 
     @Override
-    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId repositoryShardId, String shardGeneration,
-                                   ActionListener<ShardSnapshotResult> listener) {
+    public void cloneShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId repositoryShardId,
+        ShardGeneration shardGeneration,
+        ActionListener<ShardSnapshotResult> listener) {
+
         throw new UnsupportedOperationException("Unsupported for restore-only repository");
     }
 }

@@ -351,11 +351,27 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         ));
         assertThat(
             e.getMessage(),
-            containsString("can not put follower index that could override leader settings {\\\"index.mode\\\":\\\"time_series\\\"}")
+            containsString("can not put follower index that could override leader settings {\\\"index.mode\\\":\\\"standard\\\"}")
         );
     }
 
-    // TODO can't override tsdb mode setting
+    public void testFollowStandardIndexCanNotOverrideMode() throws Exception {
+        if (false == "follow".equals(targetCluster)) {
+            return;
+        }
+        logger.info("Running against follow cluster");
+        Exception e = expectThrows(ResponseException.class, () -> followIndex(
+            client(),
+            "leader_cluster",
+            "test_index1",
+            "tsdb_follower_bad",
+            Settings.builder().put("index.mode", "time_series").build()
+        ));
+        assertThat(
+            e.getMessage(),
+            containsString("can not put follower index that could override leader settings {\\\"index.mode\\\":\\\"time_series\\\"}")
+        );
+    }
 
     @Override
     protected Settings restClientSettings() {

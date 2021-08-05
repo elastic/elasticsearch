@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -30,14 +29,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
@@ -66,7 +61,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.innerRemoveComponentTemplate;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
@@ -1717,72 +1711,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-            return Collections.singletonMap("_data_stream_timestamp", new MetadataFieldMapper.ConfigurableTypeParser(
-                c -> new MetadataTimestampFieldMapper(false),
-                c -> new MetadataTimestampFieldBuilder())
-            );
-        }
-    }
-
-    private static MetadataTimestampFieldMapper toType(FieldMapper in) {
-        return (MetadataTimestampFieldMapper) in;
-    }
-
-    public static class MetadataTimestampFieldBuilder extends MetadataFieldMapper.Builder {
-
-        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled, false);
-
-        protected MetadataTimestampFieldBuilder() {
-            super("_data_stream_timestamp");
-        }
-
-        @Override
-        protected List<FieldMapper.Parameter<?>> getParameters() {
-            return Collections.singletonList(enabled);
-        }
-
-        @Override
-        public MetadataFieldMapper build() {
-            return new MetadataTimestampFieldMapper(enabled.getValue());
-        }
-    }
-
-    public static class MetadataTimestampFieldMapper extends MetadataFieldMapper {
-        final boolean enabled;
-
-        public MetadataTimestampFieldMapper(boolean enabled) {
-            super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
-                @Override
-                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public String typeName() {
-                    return "_data_stream_timestamp";
-                }
-
-                @Override
-                public Query termQuery(Object value, SearchExecutionContext context) {
-                    return null;
-                }
-
-                @Override
-                public Query existsQuery(SearchExecutionContext context) {
-                    return null;
-                }
-            });
-            this.enabled = enabled;
-        }
-
-        @Override
-        public FieldMapper.Builder getMergeBuilder() {
-            return new MetadataTimestampFieldBuilder().init(this);
-        }
-
-        @Override
-        protected String contentType() {
-            return "_data_stream_timestamp";
+            return Collections.singletonMap(DataStreamTimestampFieldMapper.NAME, DataStreamTimestampFieldMapper.PARSER);
         }
     }
 }

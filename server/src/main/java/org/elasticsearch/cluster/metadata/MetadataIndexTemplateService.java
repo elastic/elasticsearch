@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -1207,7 +1208,7 @@ public class MetadataIndexTemplateService {
                 if (template.getDataStreamTemplate() != null) {
                     // If there is no _data_stream meta field mapper and a data stream should be created then
                     // fail as if the  data_stream field can't be parsed:
-                    if (tempIndexService.mapperService().isMetadataField("_data_stream_timestamp") == false) {
+                    if (tempIndexService.mapperService().isMetadataField(DataStreamTimestampFieldMapper.NAME) == false) {
                         // Fail like a parsing expection, since we will be moving data_stream template out of server module and
                         // then we would fail with the same error message, like we do here.
                         throw new XContentParseException("[index_template] unknown field [data_stream]");

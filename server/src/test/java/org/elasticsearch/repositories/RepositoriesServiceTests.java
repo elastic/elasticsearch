@@ -316,11 +316,14 @@ public class RepositoriesServiceTests extends ESTestCase {
             SnapshotId source,
             SnapshotId target,
             RepositoryShardId shardId,
-            String shardGeneration,
+            ShardGeneration shardGeneration,
             ActionListener<ShardSnapshotResult> listener
         ) {
 
         }
+
+        @Override
+        public void awaitIdle() {}
 
         @Override
         public Lifecycle.State lifecycleState() {

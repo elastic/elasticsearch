@@ -370,7 +370,6 @@ http://www.geojson.org[GeoJSON]
 `wkt`:::
 {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
 
-ifdef::permanently-unreleased-branch[]
 `mvt(<zoom>/<x>/<y>@<extent>)` or `mvt(<zoom>/<x>/<y>)`:::
 experimental:[] Binary
 https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile]. The API
@@ -392,7 +391,6 @@ returns the tile as a base64-encoded string.
 (Optional, integer) Size, in pixels, of a side of the tile. Vector tiles are
 square with equal sides. Defaults to `4096`.
 ========
-endif::[]
 --
 // end::fields-api-props[]
 ====

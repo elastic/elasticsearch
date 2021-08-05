@@ -65,9 +65,6 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     setting 'indices.lifecycle.history_index_enabled', 'false'
     setting 'ingest.geoip.downloader.enabled', 'false'
     systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
-    if (BuildParams.isSnapshotBuild() == false) {
-      systemProperty 'es.vector_tile_feature_flag_registered', 'true'
-    }
     keystorePassword 'keystore-password'
   }
 

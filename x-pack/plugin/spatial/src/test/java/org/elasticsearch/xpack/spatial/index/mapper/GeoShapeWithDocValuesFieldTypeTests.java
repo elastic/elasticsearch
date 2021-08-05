@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -15,7 +16,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.xpack.vectortile.SpatialVectorTileExtension;
+import org.elasticsearch.xpack.vectortile.SpatialGeometryFormatterExtension;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 import org.hamcrest.Matchers;
 
@@ -91,8 +92,10 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
     }
 
     private void fetchVectorTile(Geometry geometry) throws IOException {
+        final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
+            new SpatialGeometryFormatterExtension().getGeometryFormatterFactories());
         final MappedFieldType mapper
-            = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, new SpatialVectorTileExtension())
+            = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, geoFormatterFactory)
             .build(new ContentPath()).fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);

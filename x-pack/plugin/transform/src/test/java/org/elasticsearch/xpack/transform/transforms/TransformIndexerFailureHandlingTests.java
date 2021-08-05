@@ -198,7 +198,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         @Override
         protected void doSaveState(IndexerState state, TransformIndexerPosition position, Runnable next) {
             assert state == IndexerState.STARTED || state == IndexerState.INDEXING || state == IndexerState.STOPPED;
-            next.run();
+            super.doSaveState(state, position, next);
         }
 
         @Override

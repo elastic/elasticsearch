@@ -239,7 +239,7 @@ public class TransformIndexerTests extends ESTestCase {
             assert state == IndexerState.STARTED || state == IndexerState.INDEXING || state == IndexerState.STOPPED;
 
             assertTrue(saveStateInProgress.compareAndSet(true, false));
-            next.run();
+            super.doSaveState(state, position, next);
         }
 
         @Override

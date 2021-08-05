@@ -14,6 +14,7 @@ import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
@@ -95,7 +96,7 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
     }
 
     private int computeBuckets(String hash, GeoBoundingBox bbox,
-                               GeoShapeValues.GeoShapeValue geoValue, int finalPrecision) {
+                               GeoShapeValues.GeoShapeValue geoValue, int finalPrecision) throws IOException {
         int count = 0;
         String[] hashes = Geohash.getSubGeohashes(hash);
         for (int i = 0; i < hashes.length; i++) {

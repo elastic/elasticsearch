@@ -55,7 +55,7 @@ public class GeoTestUtils {
         return field;
     }
 
-    public static GeoShapeValues.GeoShapeValue geoShapeValue(Geometry geometry) {
+    public static GeoShapeValues.GeoShapeValue geoShapeValue(Geometry geometry) throws IOException {
         GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue();
         value.reset(binaryGeoShapeDocValuesField("test", geometry).binaryValue());
         return value;

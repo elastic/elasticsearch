@@ -10,17 +10,17 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,7 +45,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StreamTests extends ESTestCase {
+public abstract class AbstractStreamTests extends ESTestCase {
+
+    protected abstract StreamInput getStreamInput(BytesReference bytesReference) throws IOException;
 
     public void testBooleanSerialization() throws IOException {
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -60,7 +62,7 @@ public class StreamTests extends ESTestCase {
         assertThat(bytes[0], equalTo((byte) 0));
         assertThat(bytes[1], equalTo((byte) 1));
 
-        final StreamInput input = bytesReference.streamInput();
+        final StreamInput input = getStreamInput(bytesReference);
         assertFalse(input.readBoolean());
         assertTrue(input.readBoolean());
 
@@ -69,7 +71,7 @@ public class StreamTests extends ESTestCase {
         set.remove((byte) 1);
         final byte[] corruptBytes = new byte[]{randomFrom(set)};
         final BytesReference corrupt = new BytesArray(corruptBytes);
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> corrupt.streamInput().readBoolean());
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readBoolean());
         final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
         assertThat(e, hasToString(containsString(message)));
     }
@@ -89,7 +91,7 @@ public class StreamTests extends ESTestCase {
         assertThat(bytes[1], equalTo((byte) 1));
         assertThat(bytes[2], equalTo((byte) 2));
 
-        final StreamInput input = bytesReference.streamInput();
+        final StreamInput input = getStreamInput(bytesReference);
         final Boolean maybeFalse = input.readOptionalBoolean();
         assertNotNull(maybeFalse);
         assertFalse(maybeFalse);
@@ -104,7 +106,7 @@ public class StreamTests extends ESTestCase {
         set.remove((byte) 2);
         final byte[] corruptBytes = new byte[]{randomFrom(set)};
         final BytesReference corrupt = new BytesArray(corruptBytes);
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> corrupt.streamInput().readOptionalBoolean());
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readOptionalBoolean());
         final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
         assertThat(e, hasToString(containsString(message)));
     }
@@ -114,7 +116,7 @@ public class StreamTests extends ESTestCase {
             long write = randomLong();
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeZLong(write);
-            long read = out.bytes().streamInput().readZLong();
+            long read = getStreamInput(out.bytes()).readZLong();
             assertEquals(write, read);
         }
     }
@@ -136,7 +138,7 @@ public class StreamTests extends ESTestCase {
             out.writeZLong(value.v1());
             assertArrayEquals(Long.toString(value.v1()), value.v2(), BytesReference.toBytes(out.bytes()));
             BytesReference bytes = new BytesArray(value.v2());
-            assertEquals(Arrays.toString(value.v2()), (long) value.v1(), bytes.streamInput().readZLong());
+            assertEquals(Arrays.toString(value.v2()), (long) value.v1(), getStreamInput(bytes).readZLong());
         }
     }
 
@@ -160,7 +162,7 @@ public class StreamTests extends ESTestCase {
         }
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeGenericValue(write);
-        LinkedHashMap<String, Integer> read = (LinkedHashMap<String, Integer>) out.bytes().streamInput().readGenericValue();
+        LinkedHashMap<String, Integer> read = (LinkedHashMap<String, Integer>) getStreamInput(out.bytes()).readGenericValue();
         assertEquals(size, read.size());
         int index = 0;
         for (Map.Entry<String, Integer> entry : read.entrySet()) {
@@ -168,48 +170,6 @@ public class StreamTests extends ESTestCase {
             assertEquals(list.get(index).v2(), entry.getValue());
             index++;
         }
-    }
-
-    public void testFilterStreamInputDelegatesAvailable() throws IOException {
-        final int length = randomIntBetween(1, 1024);
-        StreamInput delegate = StreamInput.wrap(new byte[length]);
-
-        FilterStreamInput filterInputStream = new FilterStreamInput(delegate) {
-        };
-        assertEquals(filterInputStream.available(), length);
-
-        // read some bytes
-        final int bytesToRead = randomIntBetween(1, length);
-        filterInputStream.readBytes(new byte[bytesToRead], 0, bytesToRead);
-        assertEquals(filterInputStream.available(), length - bytesToRead);
-    }
-
-    public void testInputStreamStreamInputDelegatesAvailable() throws IOException {
-        final int length = randomIntBetween(1, 1024);
-        ByteArrayInputStream is = new ByteArrayInputStream(new byte[length]);
-        InputStreamStreamInput streamInput = new InputStreamStreamInput(is);
-        assertEquals(streamInput.available(), length);
-
-        // read some bytes
-        final int bytesToRead = randomIntBetween(1, length);
-        streamInput.readBytes(new byte[bytesToRead], 0, bytesToRead);
-        assertEquals(streamInput.available(), length - bytesToRead);
-    }
-
-    public void testReadArraySize() throws IOException {
-        BytesStreamOutput stream = new BytesStreamOutput();
-        byte[] array = new byte[randomIntBetween(1, 10)];
-        for (int i = 0; i < array.length; i++) {
-            array[i] = randomByte();
-        }
-        stream.writeByteArray(array);
-        InputStreamStreamInput streamInput = new InputStreamStreamInput(StreamInput.wrap(BytesReference.toBytes(stream.bytes())), array
-            .length - 1);
-        expectThrows(EOFException.class, streamInput::readByteArray);
-        streamInput = new InputStreamStreamInput(StreamInput.wrap(BytesReference.toBytes(stream.bytes())), BytesReference.toBytes(stream
-            .bytes()).length);
-
-        assertArrayEquals(array, streamInput.readByteArray());
     }
 
     public void testWritableArrays() throws IOException {
@@ -223,10 +183,10 @@ public class StreamTests extends ESTestCase {
                 sourceArray = null;
             }
             out.writeOptionalArray(sourceArray);
-            targetArray = out.bytes().streamInput().readOptionalArray(WriteableString::new, WriteableString[]::new);
+            targetArray = getStreamInput(out.bytes()).readOptionalArray(WriteableString::new, WriteableString[]::new);
         } else {
             out.writeArray(sourceArray);
-            targetArray = out.bytes().streamInput().readArray(WriteableString::new, WriteableString[]::new);
+            targetArray = getStreamInput(out.bytes()).readArray(WriteableString::new, WriteableString[]::new);
         }
 
         assertThat(targetArray, equalTo(sourceArray));
@@ -245,11 +205,11 @@ public class StreamTests extends ESTestCase {
                 strings = generateRandomStringArray(10, 10, false, true);
             }
             out.writeOptionalArray(writer, strings);
-            deserialized = out.bytes().streamInput().readOptionalArray(reader, String[]::new);
+            deserialized = getStreamInput(out.bytes()).readOptionalArray(reader, String[]::new);
         } else {
             strings = generateRandomStringArray(10, 10, false, true);
             out.writeArray(writer, strings);
-            deserialized = out.bytes().streamInput().readArray(reader, String[]::new);
+            deserialized = getStreamInput(out.bytes()).readArray(reader, String[]::new);
         }
         assertThat(deserialized, equalTo(strings));
     }
@@ -310,7 +270,7 @@ public class StreamTests extends ESTestCase {
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             writer.accept(out, collection);
-            try (StreamInput in = out.bytes().streamInput()) {
+            try (StreamInput in = getStreamInput(out.bytes())) {
                 assertThat(collection, equalTo(reader.apply(in)));
             }
         }
@@ -327,7 +287,7 @@ public class StreamTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         out.writeCollection(sourceSet, StreamOutput::writeLong);
 
-        final Set<Long> targetSet = out.bytes().streamInput().readSet(StreamInput::readLong);
+        final Set<Long> targetSet = getStreamInput(out.bytes()).readSet(StreamInput::readLong);
         assertThat(targetSet, equalTo(sourceSet));
     }
 
@@ -335,7 +295,7 @@ public class StreamTests extends ESTestCase {
         final Instant instant = Instant.now();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeInstant(instant);
-            try (StreamInput in = out.bytes().streamInput()) {
+            try (StreamInput in = getStreamInput(out.bytes())) {
                 final Instant serialized = in.readInstant();
                 assertEquals(instant, serialized);
             }
@@ -346,7 +306,7 @@ public class StreamTests extends ESTestCase {
         final Instant instant = Instant.now();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeOptionalInstant(instant);
-            try (StreamInput in = out.bytes().streamInput()) {
+            try (StreamInput in = getStreamInput(out.bytes())) {
                 final Instant serialized = in.readOptionalInstant();
                 assertEquals(instant, serialized);
             }
@@ -355,7 +315,7 @@ public class StreamTests extends ESTestCase {
         final Instant missing = null;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeOptionalInstant(missing);
-            try (StreamInput in = out.bytes().streamInput()) {
+            try (StreamInput in = getStreamInput(out.bytes())) {
                 final Instant serialized = in.readOptionalInstant();
                 assertEquals(missing, serialized);
             }
@@ -405,7 +365,7 @@ public class StreamTests extends ESTestCase {
             output.writeSecureString(secureString);
 
             final BytesReference bytesReference = output.bytes();
-            final StreamInput input = bytesReference.streamInput();
+            final StreamInput input = getStreamInput(bytesReference);
 
             assertThat(secureString, is(equalTo(input.readSecureString())));
         }
@@ -415,7 +375,7 @@ public class StreamTests extends ESTestCase {
             output.writeOptionalSecureString(secureString);
 
             final BytesReference bytesReference = output.bytes();
-            final StreamInput input = bytesReference.streamInput();
+            final StreamInput input = getStreamInput(bytesReference);
 
             if (secureString != null) {
                 assertThat(input.readOptionalSecureString(), is(equalTo(secureString)));
@@ -432,6 +392,36 @@ public class StreamTests extends ESTestCase {
         var list = new ArrayList<>(set);
         Collections.reverse(list);
         assertGenericRoundtrip(new LinkedHashSet<>(list));
+    }
+
+    public void testReadArraySize() throws IOException {
+        BytesStreamOutput stream = new BytesStreamOutput();
+        byte[] array = new byte[randomIntBetween(1, 10)];
+        for (int i = 0; i < array.length; i++) {
+            array[i] = randomByte();
+        }
+        stream.writeByteArray(array);
+        StreamInput streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), array
+            .length - 1);
+        expectThrows(EOFException.class, streamInput::readByteArray);
+        streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), BytesReference.toBytes(stream
+            .bytes()).length);
+
+        assertArrayEquals(array, streamInput.readByteArray());
+    }
+
+    public void testFilterStreamInputDelegatesAvailable() throws IOException {
+        final int length = randomIntBetween(1, 1024);
+        StreamInput delegate = getStreamInput(BytesReference.fromByteBuffer(ByteBuffer.wrap(new byte[length])));
+
+        FilterStreamInput filterInputStream = new FilterStreamInput(delegate) {
+        };
+        assertEquals(filterInputStream.available(), length);
+
+        // read some bytes
+        final int bytesToRead = randomIntBetween(1, length);
+        filterInputStream.readBytes(new byte[bytesToRead], 0, bytesToRead);
+        assertEquals(filterInputStream.available(), length - bytesToRead);
     }
 
     private static class Unwriteable {}
@@ -469,8 +459,7 @@ public class StreamTests extends ESTestCase {
                                      CheckedConsumer<StreamInput, IOException> inputAssertions) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             outputAssertions.accept(output);
-            final BytesReference bytesReference = output.bytes();
-            final StreamInput input = bytesReference.streamInput();
+            final StreamInput input = getStreamInput(output.bytes());
             inputAssertions.accept(input);
         }
     }
@@ -483,5 +472,4 @@ public class StreamTests extends ESTestCase {
             assertThat(read, equalTo(original));
         });
     }
-
 }

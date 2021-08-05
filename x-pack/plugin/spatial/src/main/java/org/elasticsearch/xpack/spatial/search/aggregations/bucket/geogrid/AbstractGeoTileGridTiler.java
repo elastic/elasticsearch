@@ -11,6 +11,8 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
+import java.io.IOException;
+
 /**
  * Implements most of the logic for the GeoTile aggregation.
  */
@@ -44,7 +46,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
      * @return the number of tiles set by the shape
      */
     @Override
-    public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) {
+    public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
         GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         assert bounds.minX() <= bounds.maxX();
 
@@ -72,7 +74,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
         }
     }
 
-    private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
+    private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) throws IOException {
         return validTile(xTile, yTile, precision) ?
             geoValue.relate(GeoTileUtils.toBoundingBox(xTile, yTile, precision)) : GeoRelation.QUERY_DISJOINT;
     }
@@ -96,7 +98,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
      * @return the number of buckets the geoValue is found in
      */
     protected int setValuesByBruteForceScan(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue,
-                                            int minXTile, int minYTile, int maxXTile, int maxYTile) {
+                                            int minXTile, int minYTile, int maxXTile, int maxYTile) throws IOException {
         int idx = 0;
         for (int i = minXTile; i <= maxXTile; i++) {
             for (int j = minYTile; j <= maxYTile; j++) {
@@ -111,7 +113,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
     }
 
     protected int setValuesByRasterization(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex,
-                                           GeoShapeValues.GeoShapeValue geoValue) {
+                                           GeoShapeValues.GeoShapeValue geoValue) throws IOException {
         zTile++;
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 2; j++) {

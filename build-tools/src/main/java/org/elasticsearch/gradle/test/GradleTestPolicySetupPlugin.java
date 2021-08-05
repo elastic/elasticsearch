@@ -30,8 +30,6 @@ public class GradleTestPolicySetupPlugin implements Plugin<Project> {
                 gradle.getGradleUserHomeDir().getAbsolutePath() + "/caches/" + gradle.getGradleVersion() + "/workerMain/gradle-worker.jar"
             );
             test.getJvmArgumentProviders().add(nonInputProperties);
-
         });
-
     }
 }

@@ -14,6 +14,7 @@ import org.gradle.testkit.runner.TaskOutcome
 class GradleTestPolicySetupPluginFuncTest extends AbstractGradleFuncTest {
 
     def "configures test tasks"() {
+        given:
         file("src/test/java/org/acme/SysPropTest.java") << """
             package org.acme;
             
@@ -33,7 +34,6 @@ class GradleTestPolicySetupPluginFuncTest extends AbstractGradleFuncTest {
             }
         """
 
-        given:
         buildFile << """
         plugins {
             id "elasticsearch.test-gradle-policy"

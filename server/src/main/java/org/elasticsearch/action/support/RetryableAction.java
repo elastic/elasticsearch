@@ -103,8 +103,8 @@ public abstract class RetryableAction<Response> {
 
     public abstract boolean shouldRetry(Exception e);
 
-    protected long calculateDelay(long previousDelay) {
-        return Math.min(previousDelay * 2, Integer.MAX_VALUE);
+    protected long calculateDelayBound(long previousDelayBound) {
+        return Math.min(previousDelayBound * 2, Integer.MAX_VALUE);
     }
 
     protected long minimumDelayMillis() {
@@ -145,7 +145,7 @@ public abstract class RetryableAction<Response> {
                 } else {
                     addException(e);
 
-                    final long nextDelayMillisBound = calculateDelay(delayMillisBound);
+                    final long nextDelayMillisBound = calculateDelayBound(delayMillisBound);
                     final RetryingListener retryingListener = new RetryingListener(nextDelayMillisBound, caughtExceptions);
                     final Runnable runnable = createRunnable(retryingListener);
                     int range = Math.toIntExact((delayMillisBound + 1) / 2);

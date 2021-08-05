@@ -452,7 +452,7 @@ public class ResultsPersisterService {
         }
 
         @Override
-        protected long calculateDelay(long previousDelay) {
+        protected long calculateDelayBound(long previousDelayBound) {
             // Exponential backoff calculation taken from: https://en.wikipedia.org/wiki/Exponential_backoff
             int uncappedBackoff = ((1 << Math.min(currentAttempt, MAX_RETRY_EXPONENT)) - 1) * (50);
             currentMax = Math.min(uncappedBackoff, MAX_RETRY_SLEEP_MILLIS);

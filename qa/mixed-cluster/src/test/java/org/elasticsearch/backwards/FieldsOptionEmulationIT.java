@@ -179,4 +179,25 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
             }
         }
     }
+
+    @SuppressWarnings("unchecked")
+    public void testGettingObjects() throws Exception {
+        Request matchAllRequestFiltered = new Request("POST",
+            "test_field_*/_search");
+        matchAllRequestFiltered.addParameter("enable_fields_emulation", "true");
+        matchAllRequestFiltered.setJsonEntity("{\"_source\":false,\"fields\":[\"obj\"]}");
+        try (
+            RestClient client = buildClient(restClientSettings(), newNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))
+        ) {
+            Response response = client.performRequest(matchAllRequestFiltered);
+            ObjectPath responseObject = ObjectPath.createFromResponse(response);
+            List<Map<String, Object>> hits = responseObject.evaluate("hits.hits");
+            assertEquals(10, hits.size());
+            for (Map<String, Object> hit : hits) {
+                // getting a root object shouldn't return anything vie the 'fields' api
+                Map<String, Object> fieldsMap = (Map<String, Object>) hit.get("fields");
+                assertNull(fieldsMap);
+            }
+        }
+    }
 }

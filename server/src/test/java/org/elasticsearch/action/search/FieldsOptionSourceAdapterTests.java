@@ -113,6 +113,36 @@ public class FieldsOptionSourceAdapterTests extends ESTestCase {
     }
 
     /**
+     * while querying the root or object fields works in "_source" filtering, we should not
+     * return this via the fields API, since our regular lookup there only returns flattened leaf values
+     */
+    public void testFieldsAdapterObjects() {
+        SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(false).fetchField("obj");
+        FieldsOptionSourceAdapter adapter = FieldsOptionSourceAdapter.create(
+            mockConnection(VersionUtils.randomVersionBetween(random(), Version.V_6_8_18, Version.V_7_9_3)),
+            source
+        );
+
+        SearchHit hit = new SearchHit(1).sourceRef(new BytesArray("{ \"obj\": { \"foo\" : \"value\"}}"));
+        SearchHit[] searchHits = new SearchHit[] { hit };
+        adapter.adaptResponse(searchHits);
+        assertNull(hit.getFields().get("obj"));
+
+        source = new SearchSourceBuilder().fetchSource(false).fetchField("obj.*");
+        adapter = FieldsOptionSourceAdapter.create(
+            mockConnection(VersionUtils.randomVersionBetween(random(), Version.V_6_8_18, Version.V_7_9_3)),
+            source
+        );
+
+        hit = new SearchHit(1).sourceRef(new BytesArray("{ \"obj\": { \"foo\" : \"value\"}}"));
+        searchHits = new SearchHit[] { hit };
+        adapter.adaptResponse(searchHits);
+        assertNull(hit.getFields().get("obj"));
+        assertEquals(1, hit.getFields().get("obj.foo").getValues().size());
+        assertEquals("value", hit.getFields().get("obj.foo").getValues().get(0));
+    }
+
+    /**
      * when _source is enabled with includes/excludes on the original request, we error
      */
     public void testFieldsAdapterException() {

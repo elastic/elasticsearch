@@ -244,9 +244,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         modelSnapshotRetentionDays = in.readOptionalLong();
         dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
-        if (in.getVersion().onOrAfter(Version.V_7_15_0) && in.getVersion().before(Version.V_8_0_0)) {
-            /* systemAnnotationsRetentionDays = */ in.readOptionalLong();
-        }
         Map<String, Object> readCustomSettings = in.readMap();
         customSettings = readCustomSettings == null ? null : Collections.unmodifiableMap(readCustomSettings);
         modelSnapshotId = in.readOptionalString();
@@ -529,9 +526,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeOptionalLong(modelSnapshotRetentionDays);
         out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
-        if (out.getVersion().onOrAfter(Version.V_7_15_0) && out.getVersion().before(Version.V_8_0_0)) {
-            out.writeOptionalLong(resultsRetentionDays);
-        }
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
         if (modelSnapshotMinVersion != null) {
@@ -779,9 +773,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             modelSnapshotRetentionDays = in.readOptionalLong();
             dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
             resultsRetentionDays = in.readOptionalLong();
-            if (in.getVersion().onOrAfter(Version.V_7_15_0) && in.getVersion().before(Version.V_8_0_0)) {
-                /* systemAnnotationsRetentionDays = */ in.readOptionalLong();
-            }
             customSettings = in.readMap();
             modelSnapshotId = in.readOptionalString();
             if (in.readBoolean()) {
@@ -1009,9 +1000,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalLong(modelSnapshotRetentionDays);
             out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
             out.writeOptionalLong(resultsRetentionDays);
-            if (out.getVersion().onOrAfter(Version.V_7_15_0) && out.getVersion().before(Version.V_8_0_0)) {
-                out.writeOptionalLong(resultsRetentionDays);
-            }
             out.writeMap(customSettings);
             out.writeOptionalString(modelSnapshotId);
             if (modelSnapshotMinVersion != null) {

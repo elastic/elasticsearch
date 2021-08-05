@@ -463,7 +463,7 @@ public class ResultsPersisterService {
                 .getFormattedMessage();
             LOGGER.warn(() -> new ParameterizedMessage("[{}] {}", jobId, msg));
             msgHandler.accept(msg);
-            // RetryableAction randomizes in the intervalu [currentMax/2 ; currentMax].
+            // RetryableAction randomizes in the interval [currentMax/2 ; currentMax].
             // Its good to have a random window along the exponentially increasing curve
             // so that not all bulk requests rest for the same amount of time
             return currentMax;

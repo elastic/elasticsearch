@@ -10,6 +10,7 @@ import joptsimple.OptionSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -18,7 +19,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -446,7 +446,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final UserException userException = expectThrows(UserException.class, () -> command.possiblySignDescriptor(terminal, options,
                 descriptor, env));
         assertThat(userException.getMessage(), containsString("Unable to create metadata document"));
-        assertThat(terminal.getErrorOutput(), containsString("Error parsing Private Key from"));
+        assertThat(terminal.getErrorOutput(), containsString("cannot load PEM private key from ["));
     }
 
     public void testSigningMetadataWithPem() throws Exception {
@@ -735,8 +735,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         try {
             Certificate[] certificates = CertParsingUtils.
                     readCertificates(Collections.singletonList(getDataPath("saml.crt").toString()), newEnvironment());
-            PrivateKey key = PemUtils.readPrivateKey(getDataPath("saml.key"),
-                    ""::toCharArray);
+            PrivateKey key = PemUtils.readPrivateKey(getDataPath("saml.key"), ""::toCharArray);
             Credential verificationCredential = new BasicX509Credential((java.security.cert.X509Certificate) certificates[0], key);
             SAMLSignatureProfileValidator profileValidator = new SAMLSignatureProfileValidator();
             profileValidator.validate(signature);

@@ -274,8 +274,12 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             + reason;
         assert (message == null && failure != null) == false : "provide a message if a failure exception is provided";
         assert (delayed
-            && (reason != Reason.NODE_LEFT
-                && reason != Reason.NODE_RESTARTING)) == false : "shard can only be delayed if it is unassigned due to a node leaving";
+            && reason != Reason.NODE_LEFT
+            && reason != Reason.NODE_RESTARTING) == false : "shard can only be delayed if it is unassigned due to a node leaving";
+        assert (lastAllocatedNodeId != null
+            && reason != Reason.NODE_LEFT
+            && reason != Reason.NODE_RESTARTING) == false
+            : "last allocated node ID should only be set if the shard is unassigned due to a node leaving";
     }
 
     public UnassignedInfo(StreamInput in) throws IOException {

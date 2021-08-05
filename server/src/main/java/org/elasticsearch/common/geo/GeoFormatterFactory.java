@@ -9,62 +9,71 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Output formatters for geo fields. Adds support for vector tiles.
+ * Output formatters for geo fields support extensions such as vector tiles.
+ *
+ * This class is an extensible version of a static GeometryFormatterFactory
  */
-public class GeoFormatterFactory {
+public class GeoFormatterFactory<T> {
 
-    @FunctionalInterface
-    public interface VectorTileEngine<T>  {
+    /**
+     * Defines an extension point for geometry formatter
+     * @param <T>
+     */
+    public interface FormatterFactory<T> {
         /**
-         * Returns a formatter for a specific tile.
+         * Format name
          */
-        Function<List<T>, List<Object>> getFormatter(int z, int x, int y, int extent);
+        String getName();
+
+        /**
+         * Generates a formatter builder that parses the formatter configuration and generates a formatter
+         */
+        Function<String, Function<List<T>, List<Object>>> getFormatterBuilder();
     }
 
-    private static final String MVT = "mvt";
+    private final Map<String, Function<String, Function<List<T>, List<Object>>>> factories;
+
+    /**
+     * Creates an extensible geo formatter. The extension points can be added as a list of factories
+     */
+    public GeoFormatterFactory(List<FormatterFactory<T>> factories) {
+        Map<String, Function<String, Function<List<T>, List<Object>>>> factoriesBuilder = new HashMap<>();
+        for (FormatterFactory<T> factory : factories) {
+            if(factoriesBuilder.put(factory.getName(), factory.getFormatterBuilder()) != null) {
+                throw new IllegalArgumentException("More then one formatter factory with the name [" + factory.getName() +
+                    "] was configured");
+            }
+
+        }
+        this.factories = Collections.unmodifiableMap(factoriesBuilder);
+    }
 
     /**
      * Returns a formatter by name
+     *
+     * The format can contain an optional parameters in parentheses such as "mvt(1/2/3)". Parameterless formats are getting resolved
+     * using standard GeometryFormatterFactory and formats with parameters are getting resolved using factories specified during
+     * construction.
      */
-    public static <T> Function<List<T>, List<Object>> getFormatter(String format, Function<T, Geometry> toGeometry,
-                                                                          VectorTileEngine<T> mvt) {
+    public Function<List<T>, List<Object>> getFormatter(String format, Function<T, Geometry> toGeometry) {
         final int start = format.indexOf('(');
         if (start == -1)  {
             return GeometryFormatterFactory.getFormatter(format, toGeometry);
         }
         final String formatName = format.substring(0, start);
-        if (MVT.equals(formatName) == false) {
+        Function<String, Function<List<T>, List<Object>>> factory = factories.get(formatName);
+        if (factory == null) {
             throw new IllegalArgumentException("Invalid format: " + formatName);
         }
         final String param = format.substring(start + 1, format.length() - 1);
-        // we expect either z/x/y or z/x/y@extent
-        final String[] parts = param.split("@", 3);
-        if (parts.length > 2) {
-            throw new IllegalArgumentException(
-                "Invalid mvt formatter parameter [" + param + "]. Must have the form \"zoom/x/y\" or \"zoom/x/y@extent\"."
-            );
-        }
-        final int extent = parts.length == 2 ? Integer.parseInt(parts[1]) : 4096;
-        final String[] tileBits = parts[0].split("/", 4);
-        if (tileBits.length != 3) {
-            throw new IllegalArgumentException(
-                "Invalid tile string [" + parts[0] + "]. Must be three integers in a form \"zoom/x/y\"."
-            );
-        }
-        final int z = GeoTileUtils.checkPrecisionRange(Integer.parseInt(tileBits[0]));
-        final int tiles = 1 << z;
-        final int x = Integer.parseInt(tileBits[1]);
-        final int y = Integer.parseInt(tileBits[2]);
-        if (x < 0 || y < 0 || x >= tiles || y >= tiles) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "Zoom/X/Y combination is not valid: %d/%d/%d", z, x, y));
-        }
-        return mvt.getFormatter(z, x, y, extent);
+        return factory.apply(param);
     }
 }

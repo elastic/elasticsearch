@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
@@ -192,6 +195,26 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         });
     }
 
+    // Used by the reset action directly
+    public void removeAllModelAllocations(ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("delete all model allocations", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return removeAllAllocations(currentState);
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        });
+    }
+
     private static ClusterState update(ClusterState currentState, TrainedModelAllocationMetadata.Builder modelAllocations) {
         if (modelAllocations.isChanged()) {
             return ClusterState.builder(currentState)
@@ -205,9 +228,16 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
     }
 
     ClusterState createModelAllocation(ClusterState currentState, StartTrainedModelDeploymentAction.TaskParams params) {
+        if (MlMetadata.getMlMetadata(currentState).isResetMode()) {
+            throw new ElasticsearchStatusException(
+                "cannot create new allocation for model [{}] while feature reset is in progress.",
+                RestStatus.CONFLICT,
+                params.getModelId()
+            );
+        }
         TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
         if (builder.hasModel(params.getModelId())) {
-            throw new ResourceAlreadyExistsException("allocation for model with id [" + params.getModelId() + "] already exist");
+            throw new ResourceAlreadyExistsException("allocation for model with id [{}] already exist", params.getModelId());
         }
 
         Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
@@ -286,6 +316,19 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             throw new ResourceNotFoundException("allocation for model with id [{}] not found", modelId);
         }
         return update(currentState, builder.removeAllocation(modelId));
+    }
+
+    static ClusterState removeAllAllocations(ClusterState currentState) {
+        if (TrainedModelAllocationMetadata.fromState(currentState).modelAllocations().isEmpty()) {
+            return currentState;
+        };
+        return ClusterState.builder(currentState)
+            .metadata(
+                Metadata.builder(currentState.metadata())
+                    .putCustom(TrainedModelAllocationMetadata.NAME, TrainedModelAllocationMetadata.Builder.empty().build())
+                    .build()
+            )
+            .build();
     }
 
     ClusterState addRemoveAllocationNodes(ClusterState currentState) {

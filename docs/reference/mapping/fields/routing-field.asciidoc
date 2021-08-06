@@ -4,7 +4,7 @@
 By default, {es} uses a hash of the <<mapping-id-field,document `_id`>> to
 assign new documents to a primary shard. This default is designed to spread an
 index's data evenly across multiple shards. However, it also means a search on
-the index must hit each shard.
+the index must hit each shard or one of its replicas.
 
 Custom routing lets you add data to a specific shard. You can later limit
 searches to this shard to drastically improve search speeds.
@@ -12,10 +12,9 @@ searches to this shard to drastically improve search speeds.
 [[use-custom-routing]]
 ==== Use custom routing
 
-To use custom routing, specify a `routing` string when you add a document. {es}
-uses a hash of this string to route documents to a primary shard. Documents with
-the same routing value are routed to the same shard. The routing value is stored
-in the document's `_routing` metadata field.
+To use custom routing, specify a `routing` string when you add a document.
+Documents with the same `routing` value are assigned to the same shard. The
+document's routing value is stored in the `_routing` metadata field.
 
 Data streams don't support custom routing.
 
@@ -29,8 +28,7 @@ PUT my-index-000001/_doc/1?refresh&routing=user1
 // TESTSETUP
 
 You can later specify these same `routing` values in a search request. If
-specified, the request will only search shards associated with the routing
-values.
+specified, the request will only search shards for the routing values.
 
 For example, the following request only searches shards for the `user1` and
 `user2` routing values. For more search routing options, see

@@ -115,7 +115,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             }
 
             if (allocationDelay != null && SingleNodeShutdownMetadata.Type.RESTART.equals(type) == false) {
-                arve.addValidationError(ALLOCATION_DELAY_FIELD + "is only allowed for RESTART-type shutdown requests");
+                arve.addValidationError(ALLOCATION_DELAY_FIELD + " is only allowed for RESTART-type shutdown requests");
             }
 
             if (arve.validationErrors().isEmpty() == false) {

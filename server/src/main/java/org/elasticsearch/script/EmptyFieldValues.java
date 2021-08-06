@@ -19,6 +19,7 @@ public class EmptyFieldValues {
     public static final FieldValues.Doubles DOUBLE = new Doubles();
     public static final FieldValues.Longs LONG = new Longs();
     public static final FieldValues.BigIntegers BIGINTEGER = new BigIntegers();
+    public static final FieldValues.Strings STRING = new Strings();
     public static final FieldValues.Objects OBJECT = new Objects();
 
     protected static void badIndex(int index) {
@@ -59,23 +60,6 @@ public class EmptyFieldValues {
         }
     }
 
-    private static class Objects implements FieldValues.Objects {
-        @Override
-        public boolean isEmpty() {
-            return true;
-        }
-
-        @Override
-        public Object getObject(int index) {
-            throw new IllegalStateException("Cannot read index [" + index + "] for empty field");
-        }
-
-        @Override
-        public List<Object> getObjects() {
-            return Collections.emptyList();
-        }
-    }
-
     private static class BigIntegers implements FieldValues.BigIntegers {
         @Override
         public boolean isEmpty() {
@@ -89,6 +73,40 @@ public class EmptyFieldValues {
 
         @Override
         public List<BigInteger> getBigIntegers() {
+            return Collections.emptyList();
+        }
+    }
+
+    private static class Strings implements FieldValues.Strings {
+        @Override
+        public boolean isEmpty() {
+            return true;
+        }
+
+        @Override
+        public String getString(int index) {
+            throw new IllegalStateException("Cannot read index [" + index + "] for empty field");
+        }
+
+        @Override
+        public List<String> getStrings() {
+            return Collections.emptyList();
+        }
+    }
+
+    private static class Objects implements FieldValues.Objects {
+        @Override
+        public boolean isEmpty() {
+            return true;
+        }
+
+        @Override
+        public Object getObject(int index) {
+            throw new IllegalStateException("Cannot read index [" + index + "] for empty field");
+        }
+
+        @Override
+        public List<Object> getObjects() {
             return Collections.emptyList();
         }
     }

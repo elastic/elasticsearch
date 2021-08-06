@@ -37,4 +37,9 @@ public interface FieldValues {
         BigInteger getBigInteger(int index);
         List<BigInteger> getBigIntegers();
     }
+
+    interface Strings extends FieldValues {
+        String getString (int index);
+        List<String> getStrings();
+    }
 }

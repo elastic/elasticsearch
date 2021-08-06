@@ -577,18 +577,28 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         }
     }
 
-    public static class Strings extends BinaryScriptDocValues<String> {
+    public static class Strings extends BinaryScriptDocValues<String> implements FieldValues.Strings {
         public Strings(SortedBinaryDocValues in) {
             super(in);
         }
 
         @Override
         public final String get(int index) {
+            return getString(index);
+        }
+
+        @Override
+        public String getString(int index) {
             if (count == 0) {
                 throw new IllegalStateException("A document doesn't have a value for a field! " +
                     "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
             return bytesToString(values[index].get());
+        }
+
+        @Override
+        public List<String> getStrings() {
+            return this;
         }
 
         /**

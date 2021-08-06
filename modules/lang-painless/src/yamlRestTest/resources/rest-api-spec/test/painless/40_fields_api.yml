@@ -57,7 +57,7 @@ setup:
                _script:
                  type: string
                  script:
-                   source: "field('sval.keyword').asObjectField().getValue('g')"
+                   source: "field('sval.keyword').asStringField().getValue('g')"
      - match: { hits.total: 3 }
      - match: { hits.hits.0._id: d3 }
      - match: { hits.hits.1._id: d1 }

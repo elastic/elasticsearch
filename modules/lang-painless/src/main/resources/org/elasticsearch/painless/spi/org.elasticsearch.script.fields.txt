@@ -23,6 +23,9 @@ class org.elasticsearch.script.Field {
   org.elasticsearch.script.BigIntegerField asBigIntegerField()
   BigInteger asBigInteger(BigInteger)
 
+  org.elasticsearch.script.StringField asStringField()
+  String asString(String)
+
   org.elasticsearch.script.ObjectField asObjectField()
   Object asObject(Object)
 }
@@ -37,6 +40,10 @@ class org.elasticsearch.script.DoubleField {
 
 class org.elasticsearch.script.BigIntegerField {
   BigInteger getValue(BigInteger)
+}
+
+class org.elasticsearch.script.StringField {
+  String getValue(String)
 }
 
 class org.elasticsearch.script.ObjectField {

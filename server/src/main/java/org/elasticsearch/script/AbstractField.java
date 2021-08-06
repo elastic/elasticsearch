@@ -94,6 +94,20 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     }
 
     @Override
+    public StringField asStringField() {
+        if (values instanceof FieldValues.Strings == false) {
+            throw new IllegalStateException("This Field cannot be converted to a StringField due to the underlying data");
+        }
+
+        return new StringField(name, (FieldValues.Strings) values);
+    }
+
+    @Override
+    public String asString(String defaultValue) {
+        return asStringField().getValue(defaultValue);
+    }
+
+    @Override
     public ObjectField asObjectField() {
         if (values instanceof FieldValues.Objects == false) {
             throw new IllegalStateException("This Field cannot be converted to a ObjectField due to the underlying data");

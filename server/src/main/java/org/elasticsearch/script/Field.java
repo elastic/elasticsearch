@@ -50,6 +50,10 @@ public interface Field<T> {
     BigIntegerField asBigIntegerField();
     BigInteger asBigInteger(BigInteger defaultValue);
 
+    /** Treat the current {@code Field} as if it held {@code Strings}s, throws {@code IllegalStateException} if impossible */
+    StringField asStringField();
+    String asString(String defaultValue);
+
     /**
      * Treat the current Field as if it held {@code Object}.  This is a way to break out of the Fields API and
      * allow the caller to do their own casting if necessary.

@@ -68,6 +68,16 @@ public class EmptyField implements Field<Number> {
     }
 
     @Override
+    public StringField asStringField() {
+        return new StringField(name, EmptyFieldValues.STRING);
+    }
+
+    @Override
+    public String asString(String defaultValue) {
+        return defaultValue;
+    }
+
+    @Override
     public ObjectField asObjectField() {
         return new ObjectField(name, EmptyFieldValues.OBJECT);
     }

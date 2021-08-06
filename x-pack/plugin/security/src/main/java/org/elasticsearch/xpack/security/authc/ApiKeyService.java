@@ -901,7 +901,7 @@ public class ApiKeyService {
         }
         if (filterOutExpiredKeys) {
             final BoolQueryBuilder expiredQuery = QueryBuilders.boolQuery();
-            expiredQuery.should(QueryBuilders.rangeQuery("expiration_time").lte(Instant.now().toEpochMilli()));
+            expiredQuery.should(QueryBuilders.rangeQuery("expiration_time").gt(Instant.now().toEpochMilli()));
             expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
             boolQuery.filter(expiredQuery);
         }

@@ -18,7 +18,7 @@ import java.util.stream.Stream;
 
 public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier {
     /** A leaf lookup for the bound segment this proxy will operate on. */
-    protected LeafSearchLookup leafLookup;
+    protected final LeafSearchLookup leafLookup;
 
     // provide access to the leaf context reader for expressions
     protected final LeafReaderContext leafReaderContext;
@@ -37,12 +37,13 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
         Map<String, ScriptDocValues<?>> doc = leafLookup.doc();
 
         if (doc.containsKey(fieldName) == false) {
-            return new EmptyField<Number>(fieldName);
+            return new EmptyField(fieldName);
         }
         return new DocValuesField<>(fieldName, doc.get(fieldName));
     }
 
 
+    // Currently unimplemented
     @Override
     public Stream<Field<?>> fields(String fieldGlob) {
         return Stream.empty();
@@ -63,11 +64,13 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
         return leafLookup.doc();
     }
 
+    // Implemented for backwards compatibility for random score scripts which need a seed
     @Override
     public int getDocBase() {
         return docBase;
     }
 
+    // Implemented for compatibility with expressions
     @Override
     public LeafReaderContext getLeafReaderContext() {
         return leafReaderContext;

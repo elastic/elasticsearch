@@ -1,8 +1,8 @@
 setup:
 
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/64361"
+      version: " - 7.14.99"
+      reason: "unsigned long script fields api was added in 7.15.0"
 
   - do:
       indices.create:
@@ -25,27 +25,9 @@ setup:
           { "index": {"_id" : "3"} }
           { "ul": 9223372036854775808 }
           { "index": {"_id" : "4"} }
-          { "ul": 18446744073709551614 }
+          { "ul": 18446744073709551613 }
           { "index": {"_id" : "5"} }
           { "ul": 18446744073709551615 }
-
----
-"Scripted fields values return BigInteger or Long":
-  - do:
-      search:
-        index: test1
-        body:
-          sort: [ { ul: desc } ]
-          script_fields:
-            scripted_ul:
-              script:
-                source: "doc['ul'].value"
-
-  - match: { hits.hits.0.fields.scripted_ul.0: 18446744073709551615 }
-  - match: { hits.hits.1.fields.scripted_ul.0: 18446744073709551614 }
-  - match: { hits.hits.2.fields.scripted_ul.0: 9223372036854775808 }
-  - match: { hits.hits.3.fields.scripted_ul.0: 9223372036854775807 }
-  - match: { hits.hits.4.fields.scripted_ul.0: 0 }
 
 ---
 "Scripted sort values":
@@ -58,7 +40,7 @@ setup:
               order: desc
               type: number
               script:
-                source: "doc['ul'].value"
+                source: "field('ul').asBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
 
   - match: { hits.hits.0.sort: [1.8446744073709552E19] }
   - match: { hits.hits.1.sort: [1.8446744073709552E19] }
@@ -77,7 +59,7 @@ setup:
               filter:
                script:
                  script:
-                   source: "doc['ul'].value.doubleValue() > 10E18"
+                   source: "field('ul').asBigIntegerField().getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue() > 10E18"
           sort: [ { ul: asc } ]
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "4" }
@@ -93,7 +75,7 @@ setup:
               filter:
                 script:
                   script:
-                    source: "doc['ul'].size() > 0"
+                    source: "field('ul').isEmpty() == false"
   - match: { hits.total.value: 5 }
 
 ---
@@ -106,6 +88,6 @@ setup:
             script_score:
               query: {match_all: {}}
               script:
-                source: "doc['ul'].value"
+                source: "field('ul').asBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
 
   - match: { hits.total.value: 5 }

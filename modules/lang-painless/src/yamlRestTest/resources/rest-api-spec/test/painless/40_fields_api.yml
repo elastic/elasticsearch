@@ -43,7 +43,7 @@ setup:
                _script:
                  type: number
                  script:
-                   source: "field('dval').getValue(3)"
+                   source: "field('dval').asDoubleField().getValue(3)"
      - match: { hits.total: 3 }
      - match: { hits.hits.0._id: d2 }
      - match: { hits.hits.1._id: d3 }
@@ -57,7 +57,7 @@ setup:
                _script:
                  type: string
                  script:
-                   source: "field('sval.keyword').getValue('g')"
+                   source: "field('sval.keyword').asObjectField().getValue('g')"
      - match: { hits.total: 3 }
      - match: { hits.hits.0._id: d3 }
      - match: { hits.hits.1._id: d1 }
@@ -101,7 +101,7 @@ setup:
               script_score:
                 query: {match_all: {} }
                 script:
-                  source: "field('dval').getValue(3)"
+                  source: "field('dval').asDoubleField().getValue(3)"
     - match: { hits.total: 3 }
     - match: { hits.hits.0._id: d1 }
     - match: { hits.hits.1._id: d3 }
@@ -144,7 +144,7 @@ setup:
               bool:
                 filter:
                   script:
-                    script: "field('dval').getValue(6) > 6"
+                    script: "field('dval').asDoubleField().getValue(6) > 6"
     - match: { hits.total: 1 }
     - match: { hits.hits.0._id: d1 }
     - do:
@@ -155,6 +155,6 @@ setup:
               bool:
                 filter:
                   script:
-                    script: "field('sval.keyword').getValue('b') == 'a'"
+                    script: "field('sval.keyword').asObjectField().getValue('b') == 'a'"
     - match: { hits.total: 1 }
     - match: { hits.hits.0._id: d3 }

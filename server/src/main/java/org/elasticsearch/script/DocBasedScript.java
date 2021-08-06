@@ -23,7 +23,7 @@ public abstract class DocBasedScript {
 
     public Field<?> field(String fieldName) {
         if (docReader == null) {
-            return new EmptyField<>(fieldName);
+            return new EmptyField(fieldName);
         }
         return docReader.field(fieldName);
     }
@@ -44,6 +44,7 @@ public abstract class DocBasedScript {
         }
     }
 
+    /** Old-style doc access for contexts that map some doc contents in params */
     public Map<String, Object> docAsMap() {
         if (docReader == null) {
             return Collections.emptyMap();

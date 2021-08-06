@@ -13,7 +13,34 @@ class org.elasticsearch.script.Field {
   String getName()
   boolean isEmpty()
   List getValues()
-  def getValue(def)
+
+  org.elasticsearch.script.LongField asLongField()
+  long asLong(long)
+
+  org.elasticsearch.script.DoubleField asDoubleField()
+  double asDouble(double)
+
+  org.elasticsearch.script.BigIntegerField asBigIntegerField()
+  BigInteger asBigInteger(BigInteger)
+
+  org.elasticsearch.script.ObjectField asObjectField()
+  Object asObject(Object)
+}
+
+class org.elasticsearch.script.LongField {
+  long getValue(long)
+}
+
+class org.elasticsearch.script.DoubleField {
+  double getValue(double)
+}
+
+class org.elasticsearch.script.BigIntegerField {
+  BigInteger getValue(BigInteger)
+}
+
+class org.elasticsearch.script.ObjectField {
+  Object getValue(Object)
 }
 
 class org.elasticsearch.script.DocBasedScript {

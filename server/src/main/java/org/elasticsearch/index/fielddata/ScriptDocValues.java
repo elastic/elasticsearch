@@ -17,14 +17,17 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.script.FieldValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.AbstractList;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.function.UnaryOperator;
 
 /**
@@ -35,7 +38,7 @@ import java.util.function.UnaryOperator;
  * return as a single {@link ScriptDocValues} instance can be reused to return
  * values form multiple documents.
  */
-public abstract class ScriptDocValues<T> extends AbstractList<T> {
+public abstract class ScriptDocValues<T> extends AbstractList<T> implements FieldValues.Objects {
 
     /**
      * Set the current doc ID.
@@ -68,7 +71,17 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         throw new UnsupportedOperationException("doc values are unmodifiable");
     }
 
-    public static final class Longs extends ScriptDocValues<Long> {
+    @Override
+    public List<Object> getObjects() {
+        return new ArrayList<>(this);
+    }
+
+    @Override
+    public Object getObject(int index) {
+        return get(index);
+    }
+
+    public static final class Longs extends ScriptDocValues<Long> implements FieldValues.Longs {
         private final SortedNumericDocValues in;
         private long[] values = new long[0];
         private int count;
@@ -102,16 +115,26 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public long getValue() {
-            return get(0);
+            return getLong(0);
         }
 
         @Override
-        public Long get(int index) {
+        public long getLong(int index) {
             if (count == 0) {
                 throw new IllegalStateException("A document doesn't have a value for a field! " +
                     "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
             return values[index];
+        }
+
+        @Override
+        public Long get(int index) {
+            return getLong(index);
+        }
+
+        @Override
+        public List<Long> getLongs() {
+            return this;
         }
 
         @Override
@@ -152,8 +175,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
             if (index >= count) {
                 throw new IndexOutOfBoundsException(
-                        "attempted to fetch the [" + index + "] date when there are only ["
-                                + count + "] dates.");
+                    "attempted to fetch the [" + index + "] date when there are only ["
+                        + count + "] dates.");
             }
             return dates[index];
         }
@@ -194,7 +217,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class Doubles extends ScriptDocValues<Double> {
+    public static final class Doubles extends ScriptDocValues<Double> implements FieldValues.Doubles {
 
         private final SortedNumericDoubleValues in;
         private double[] values = new double[0];
@@ -230,16 +253,26 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public double getValue() {
-            return get(0);
+            return getDouble(0);
         }
 
         @Override
         public Double get(int index) {
+            return getDouble(index);
+        }
+
+        @Override
+        public double getDouble(int index) {
             if (count == 0) {
                 throw new IllegalStateException("A document doesn't have a value for a field! " +
                     "Use doc[<field>].size()==0 to check if a document is missing a field!");
             }
             return values[index];
+        }
+
+        @Override
+        public List<Double> getDoubles() {
+            return this;
         }
 
         @Override

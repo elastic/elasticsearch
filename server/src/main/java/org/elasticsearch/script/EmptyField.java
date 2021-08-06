@@ -8,10 +8,14 @@
 
 package org.elasticsearch.script;
 
+import java.math.BigInteger;
 import java.util.Collections;
 import java.util.List;
 
-public class EmptyField<T> implements Field<Object> {
+/**
+ * An empty field is empty no matter the type, handles all the user-type coercion here.
+ */
+public class EmptyField implements Field<Number> {
     protected final String name;
 
     public EmptyField(String name) {
@@ -29,12 +33,47 @@ public class EmptyField<T> implements Field<Object> {
     }
 
     @Override
-    public Object getValue(Object defaultValue) {
+    public List<Number> getValues() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public LongField asLongField() {
+        return new LongField(name, EmptyFieldValues.LONG);
+    }
+
+    @Override
+    public long asLong(long defaultValue) {
         return defaultValue;
     }
 
     @Override
-    public List<Object> getValues() {
-        return Collections.emptyList();
+    public DoubleField asDoubleField() {
+        return new DoubleField(name, EmptyFieldValues.DOUBLE);
+    }
+
+    @Override
+    public double asDouble(double defaultValue) {
+        return defaultValue;
+    }
+
+    @Override
+    public BigIntegerField asBigIntegerField() {
+        return new BigIntegerField(name, EmptyFieldValues.BIGINTEGER);
+    }
+
+    @Override
+    public BigInteger asBigInteger(BigInteger defaultValue) {
+        return defaultValue;
+    }
+
+    @Override
+    public ObjectField asObjectField() {
+        return new ObjectField(name, EmptyFieldValues.OBJECT);
+    }
+
+    @Override
+    public Object asObject(Object defaultValue) {
+        return defaultValue;
     }
 }

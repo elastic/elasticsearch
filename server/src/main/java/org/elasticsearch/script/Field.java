@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script;
 
+import java.math.BigInteger;
 import java.util.List;
 
 /**
@@ -22,14 +23,37 @@ import java.util.List;
  * @param <T>
  */
 public interface Field<T> {
+    /** The field name */
     String getName();
 
     /** Does the field have any values? An unmapped field may have values from source */
     boolean isEmpty();
 
-    /** Get all values of a multivalued field.  If {@code isEmpty()} this returns an empty list */
+    /** Get all values of a multivalued field.  If {@code isEmpty()} this returns an empty list. */
     List<T> getValues();
 
-    /** Get the first value of a field, if {@code isEmpty()} return defaultValue instead */
-    T getValue(T defaultValue);
+    /* This is left to the duck-typed implementing classes */
+    // T getValue(T defaultValue);
+
+    /** Treat the current {@code Field} as if it held primitive {@code long}s, throws {@code IllegalStateException} if impossible */
+    LongField asLongField();
+    long asLong(long defaultValue);
+
+    /** Treat the current {@code Field} as if it held primitive {@code double}s, {@code throws IllegalStateException} if impossible */
+    DoubleField asDoubleField();
+    double asDouble(double defaultValue);
+
+    /**
+     * Treat the current {@code Field} as if it held {@code BigInteger}, throws {@code IllegalStateException} if underlying type does not
+     * naturally contain {@code BigInteger}s.  If underlying values fit in a signed {@code long}, {@code asLongField} should be used.
+     **/
+    BigIntegerField asBigIntegerField();
+    BigInteger asBigInteger(BigInteger defaultValue);
+
+    /**
+     * Treat the current Field as if it held {@code Object}.  This is a way to break out of the Fields API and
+     * allow the caller to do their own casting if necessary.
+     */
+    ObjectField asObjectField();
+    Object asObject(Object defaultValue);
 }

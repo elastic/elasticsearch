@@ -12,35 +12,26 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.util.List;
 
-public class DocValuesField<T> implements Field<T> {
-    protected final String name;
+/**
+ * Fields API accessor for DocValues, users must currently call their own casting methods using
+ * {@code as<T>Field}.  This is the initial entry point to that casting system.  Could be replaced
+ * with field type inspection via {@code SearchLookup} in the future.
+ */
+public class DocValuesField<T> extends AbstractField<T, ScriptDocValues<T>> {
     protected final ScriptDocValues<T> scriptDocValues;
 
     public DocValuesField(String name, ScriptDocValues<T> scriptDocValues) {
-        this.name = name;
+        super(name, scriptDocValues);
         this.scriptDocValues = scriptDocValues;
     }
 
     @Override
-    public T getValue(T defaultValue) {
-        if (scriptDocValues.isEmpty()) {
-            return defaultValue;
-        }
-        return scriptDocValues.get(0);
-    }
-
-    @Override
-    public String getName() {
-        return name;
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return scriptDocValues.isEmpty();
-    }
-
-    @Override
     public List<T> getValues() {
+        return scriptDocValues;
+    }
+
+    @Override
+    protected List<T> getFieldValues() {
         return scriptDocValues;
     }
 }

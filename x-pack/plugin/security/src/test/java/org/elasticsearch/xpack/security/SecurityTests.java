@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
@@ -115,6 +116,7 @@ public class SecurityTests extends ESTestCase {
 
     private Collection<Object> createComponentsUtil(Settings settings, SecurityExtension... extensions) throws Exception {
         Environment env = TestEnvironment.newEnvironment(settings);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
         SSLService sslService = new SSLService(env);
         security = new Security(settings, null, Arrays.asList(extensions)) {
@@ -142,7 +144,7 @@ public class SecurityTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class),
-            xContentRegistry(), env, TestIndexNameExpressionResolver.newInstance(threadContext));
+            xContentRegistry(), env, nodeMetadata, TestIndexNameExpressionResolver.newInstance(threadContext));
     }
 
     private Collection<Object> createComponentsWithSecurityNotExplicitlyEnabled(Settings testSettings, SecurityExtension... extensions)
@@ -497,6 +499,35 @@ public class SecurityTests extends ESTestCase {
         Security.validateForFips(settings);
         // no exception thrown
     }
+
+    public void testFailureUpgradeFrom7xWithImplicitSecuritySettings() {
+        final IllegalStateException ise = expectThrows(IllegalStateException.class, () -> {
+            Security.possiblyValidateImplicitSecurityBehaviorOnUpdate(Settings.EMPTY,
+                new NodeMetadata(randomAlphaOfLength(8), Version.V_7_15_0));
+        });
+        assertThat(ise.getMessage(), containsString("to enable security, or explicitly disable security by"));
+    }
+
+    public void testUpgradeFrom7xWithExplicitSecuritySettings() {
+        final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), randomBoolean()).build();
+        Security.possiblyValidateImplicitSecurityBehaviorOnUpdate(settings,
+            new NodeMetadata(randomAlphaOfLength(8), Version.V_7_15_0));
+        // no exception thrown
+    }
+
+    public void testUpgradeFrom8xWithImplicitSecuritySettings() {
+        Security.possiblyValidateImplicitSecurityBehaviorOnUpdate(Settings.EMPTY,
+                new NodeMetadata(randomAlphaOfLength(8), Version.V_8_0_0));
+       // no exception thrown
+    }
+
+    public void testUpgradeFrom8xWithExplicitSecuritySettings() {
+        final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), randomBoolean()).build();
+        Security.possiblyValidateImplicitSecurityBehaviorOnUpdate(settings,
+            new NodeMetadata(randomAlphaOfLength(8), Version.V_8_0_0));
+        // no exception thrown
+    }
+
 
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {
         Settings settings = Settings.builder().

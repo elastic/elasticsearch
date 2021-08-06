@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.ExecutorNames;
@@ -387,10 +388,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled) {
-            runStartupChecks(settings);
-            // we load them all here otherwise we can't access secure settings since they are closed once the checks are
-            // fetched
-
             Automatons.updateConfiguration(settings);
         } else {
             this.bootstrapChecks.set(Collections.emptyList());
@@ -399,7 +396,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     }
 
-    private static void runStartupChecks(Settings settings) {
+    private static void runStartupChecks(Settings settings, NodeMetadata nodeMetadata) {
+        possiblyValidateImplicitSecurityBehaviorOnUpdate(settings, nodeMetadata);
         validateRealmSettings(settings);
         if (XPackSettings.FIPS_MODE_ENABLED.get(settings)) {
             validateForFips(settings);
@@ -417,12 +415,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               NodeEnvironment nodeMetadata, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         try {
             return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
-                environment, expressionResolver);
+                environment, nodeMetadata.loadLastKnownMetadata(), expressionResolver);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
@@ -431,12 +429,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
     Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                         ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                        NamedXContentRegistry xContentRegistry, Environment environment,
+                                        NamedXContentRegistry xContentRegistry, Environment environment, NodeMetadata nodeMetadata,
                                         IndexNameExpressionResolver expressionResolver) throws Exception {
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
         }
-
+        runStartupChecks(settings, nodeMetadata);
         scriptServiceReference.set(scriptService);
 
         // We need to construct the checks here while the secure settings are still available.
@@ -1053,6 +1051,20 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             }
             throw new IllegalArgumentException(sb.toString());
         }
+    }
+
+    static void possiblyValidateImplicitSecurityBehaviorOnUpdate(Settings settings, NodeMetadata nodeMetadata) {
+         if (null != nodeMetadata) {
+             final Version lastVersion = nodeMetadata.nodeVersion();
+             if (lastVersion.before(Version.V_8_0_0)) {
+                 if (XPackSettings.SECURITY_ENABLED.exists(settings) == false) {
+                     throw new IllegalStateException("The default value for [" + XPackSettings.SECURITY_ENABLED + "] has changed." +
+                         "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "."
+                         + Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by "
+                         + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml");
+                 }
+             }
+         }
     }
 
     @Override

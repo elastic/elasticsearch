@@ -396,7 +396,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     }
 
-    private static void runStartupChecks(Settings settings, NodeMetadata nodeMetadata) {
+    private void runStartupChecks(Settings settings, NodeMetadata nodeMetadata) {
         possiblyValidateImplicitSecurityBehaviorOnUpdate(settings, nodeMetadata);
         validateRealmSettings(settings);
         if (XPackSettings.FIPS_MODE_ENABLED.get(settings)) {
@@ -1053,16 +1053,17 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
     }
 
-    static void possiblyValidateImplicitSecurityBehaviorOnUpdate(Settings settings, NodeMetadata nodeMetadata) {
+    void possiblyValidateImplicitSecurityBehaviorOnUpdate(Settings settings, NodeMetadata nodeMetadata) {
          if (null != nodeMetadata) {
              final Version lastVersion = nodeMetadata.nodeVersion();
-             if (lastVersion.before(Version.V_8_0_0)) {
-                 if (XPackSettings.SECURITY_ENABLED.exists(settings) == false) {
-                     throw new IllegalStateException("The default value for [" + XPackSettings.SECURITY_ENABLED + "] has changed." +
+             final License.OperationMode license = getLicenseState().getOperationMode();
+             if (lastVersion.before(Version.V_8_0_0) && XPackSettings.SECURITY_ENABLED.exists(settings) == false
+                 && (license.equals(License.OperationMode.BASIC) || license.equals(License.OperationMode.TRIAL))) {
+                     throw new IllegalStateException("The default value for [" + XPackSettings.SECURITY_ENABLED.getKey() + "] has changed."+
                          "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "."
                          + Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by "
                          + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml");
-                 }
+
              }
          }
     }

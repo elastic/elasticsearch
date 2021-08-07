@@ -60,8 +60,8 @@ public final class QueryApiKeyRequest extends ActionRequest {
     public QueryApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        this.from = in.readInt();
-        this.size = in.readInt();
+        this.from = in.readOptionalVInt();
+        this.size = in.readOptionalVInt();
         if (in.readBoolean()) {
             this.fieldSortBuilders = in.readList(FieldSortBuilder::new);
         } else {
@@ -114,8 +114,8 @@ public final class QueryApiKeyRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalNamedWriteable(queryBuilder);
-        out.writeInt(from);
-        out.writeInt(size);
+        out.writeOptionalVInt(from);
+        out.writeOptionalVInt(size);
         if (fieldSortBuilders == null) {
             out.writeBoolean(false);
         } else {

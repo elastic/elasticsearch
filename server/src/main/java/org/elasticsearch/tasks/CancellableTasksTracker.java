@@ -23,15 +23,12 @@ public class CancellableTasksTracker<T> {
 
     private final IntFunction<T[]> arrayConstructor;
 
-    public CancellableTasksTracker(Class<T> clazz, IntFunction<T[]> arrayConstructor) {
-        assert clazz.isArray() == false;
+    public CancellableTasksTracker(IntFunction<T[]> arrayConstructor) {
         this.arrayConstructor = arrayConstructor;
     }
 
     private final Map<Long, T> byTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-
-    // If the parent task has just one child (the common case) then we just store the value, otherwise we hold them in an array.
-    private final Map<TaskId, Object> byParentTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<TaskId, T[]> byParentTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     /**
      * Add an item for the given task. Should only be called once for each task.
@@ -41,21 +38,13 @@ public class CancellableTasksTracker<T> {
         if (task.getParentTaskId().isSet()) {
             byParentTaskId.compute(task.getParentTaskId(), (ignored, oldValue) -> {
                 if (oldValue == null) {
-                    return item;
-                } else if (oldValue.getClass().isArray()) {
-                    //noinspection unchecked
-                    final T[] oldArray = (T[])oldValue;
-                    final int oldLength = oldArray.length;
-                    assert oldLength > 1;
-                    final T[] newArray = Arrays.copyOf(oldArray, oldLength + 1);
-                    newArray[oldLength] = item;
-                    return newArray;
+                    final T[] value = arrayConstructor.apply(1);
+                    value[0] = item;
+                    return value;
                 } else {
-                    final T[] newArray = arrayConstructor.apply(2);
-                    //noinspection unchecked
-                    newArray[0] = (T)oldValue;
-                    newArray[1] = item;
-                    return newArray;
+                    final T[] newValue = Arrays.copyOf(oldValue, oldValue.length + 1);
+                    newValue[oldValue.length] = item;
+                    return newValue;
                 }
             });
         }
@@ -80,30 +69,24 @@ public class CancellableTasksTracker<T> {
         final T oldItem = byTaskId.remove(taskId);
         if (oldItem != null && task.getParentTaskId().isSet()) {
             byParentTaskId.compute(task.getParentTaskId(), (ignored, oldValue) -> {
-
-                if (oldValue == null || oldValue == oldItem) {
+                if (oldValue == null) {
                     return null;
                 }
-
-                if (oldValue.getClass().isArray()) {
-                    //noinspection unchecked
-                    final T[] oldArray = (T[]) oldValue;
-                    final int oldLength = oldArray.length;
-                    assert oldLength > 1;
-                    for (int i = 0; i < oldLength; i++) {
-                        if (oldArray[i] == oldItem) {
-                            if (oldLength == 2) {
-                                return oldArray[1 - i];
-                            } else {
-                                final T[] newValue = arrayConstructor.apply(oldLength - 1);
-                                System.arraycopy(oldArray, 0, newValue, 0, i);
-                                System.arraycopy(oldArray, i + 1, newValue, i, oldLength - i - 1);
-                                return newValue;
-                            }
-                        }
+                if (oldValue.length == 1) {
+                    if (oldValue[0] == oldItem) {
+                        return null;
+                    } else {
+                        return oldValue;
                     }
                 }
-
+                for (int i = 0; i < oldValue.length; i++) {
+                    if (oldValue[i] == oldItem) {
+                        final T[] newValue = arrayConstructor.apply(oldValue.length - 1);
+                        System.arraycopy(oldValue, 0, newValue, 0, i);
+                        System.arraycopy(oldValue, i + 1, newValue, i, oldValue.length - i - 1);
+                        return newValue;
+                    }
+                }
                 return oldValue;
             });
         }
@@ -124,16 +107,10 @@ public class CancellableTasksTracker<T> {
      * started before this method was called have not completed.
      */
     public Stream<T> getByParent(TaskId parentTaskId) {
-        final Object byParent = byParentTaskId.get(parentTaskId);
+        final T[] byParent = byParentTaskId.get(parentTaskId);
         if (byParent == null) {
             return Stream.empty();
         }
-        if (byParent.getClass().isArray()) {
-            //noinspection unchecked
-            return Arrays.stream((T[])byParent);
-        } else {
-            //noinspection unchecked
-            return Stream.of((T)byParent);
-        }
+        return Arrays.stream(byParent);
     }
 }

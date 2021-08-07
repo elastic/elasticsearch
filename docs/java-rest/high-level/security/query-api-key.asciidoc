@@ -1,0 +1,78 @@
+--
+:api: query-api-key
+:request: QueryApiKeyRequest
+:response: QueryApiKeyResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Query API Key information API
+
+API Key(s) information can be queried and retrieved in a <<paginate-search-results,paginated>>
+fashion using this API.
+
+[id="{upid}-{api}-request"]
+==== Query API Key Request
+The +{request}+ supports query and retrieving API key information using
+<<query-dsl,Query DSL>> with pagination. It supports only a subset of
+available query types, including:
+
+. <<query-dsl-bool-query>>
+
+. <<query-dsl-term-query>>
+
+. <<query-dsl-terms-query>>
+
+. <<query-dsl-ids-query>>
+
+. <<query-dsl-prefix-query>>
+
+. <<query-dsl-wildcard-query>>
+
+. <<query-dsl-range-query>>
+
+===== Query for all API keys owned by the user
+The default query is <<query-dsl-match-all-query>>.
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[query-api-key-default-request]
+--------------------------------------------------
+
+===== Query API keys with Query DSL
+The following query selects API keys owned by the user and also satisfy following criteria:
+* The API key name must begin with the word `key`
+* The API key name must *not* be `key-20000`
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[query-api-key-query-request]
+--------------------------------------------------
+
+===== Retrieve API keys with explicitly configured sort and paging
+The following request sort the API keys by their names in descending order.
+It also retrieves the API keys from index 1 (zero-based) and in a page size of 100.
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[query-api-key-from-size-sort-request]
+--------------------------------------------------
+
+===== Deep pagination can be achieved with search after
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[query-api-key-search-after-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Query API Key information API Response
+
+The returned +{response}+ contains the information regarding the API keys that were
+requested.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[query-api-key-from-size-sort-response]
+--------------------------------------------------
+<1> Total number of API keys matched by the query
+<2> Number of API keys returned in this response
+<3> The list of API keys
+<4> If sorting is requested, each API key in the response contains its sort values.

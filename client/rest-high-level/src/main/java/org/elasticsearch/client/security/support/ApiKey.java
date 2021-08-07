@@ -12,9 +12,12 @@ import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -34,9 +37,16 @@ public final class ApiKey {
     private final String username;
     private final String realm;
     private final Map<String, Object> metadata;
+    @Nullable
+    private final Object[] sortValues;
 
     public ApiKey(String name, String id, Instant creation, Instant expiration, boolean invalidated, String username, String realm,
                   Map<String, Object> metadata) {
+        this(name, id, creation, expiration, invalidated, username, realm, metadata, null);
+    }
+
+    public ApiKey(String name, String id, Instant creation, Instant expiration, boolean invalidated, String username, String realm,
+                  Map<String, Object> metadata, @Nullable Object[] sortValues) {
         this.name = name;
         this.id = id;
         // As we do not yet support the nanosecond precision when we serialize to JSON,
@@ -48,6 +58,7 @@ public final class ApiKey {
         this.username = username;
         this.realm = realm;
         this.metadata = metadata;
+        this.sortValues = sortValues;
     }
 
     public String getId() {
@@ -98,9 +109,13 @@ public final class ApiKey {
         return metadata;
     }
 
+    public Object[] getSortValues() {
+        return sortValues;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata);
+        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata, Arrays.hashCode(sortValues));
     }
 
     @Override
@@ -122,14 +137,22 @@ public final class ApiKey {
                 && Objects.equals(invalidated, other.invalidated)
                 && Objects.equals(username, other.username)
                 && Objects.equals(realm, other.realm)
-                && Objects.equals(metadata, other.metadata);
+                && Objects.equals(metadata, other.metadata)
+                && Arrays.equals(sortValues, other.sortValues);
     }
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", args -> {
+        final Object[] sortValues;
+        if (args[8] == null) {
+            sortValues = null;
+        } else {
+            final List<Object> arg8 = (List<Object>) args[8];
+            sortValues = arg8.isEmpty() ? null : arg8.toArray();
+        }
         return new ApiKey((String) args[0], (String) args[1], Instant.ofEpochMilli((Long) args[2]),
                 (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]), (Boolean) args[4], (String) args[5], (String) args[6],
-                (Map<String, Object>) args[7]);
+                (Map<String, Object>) args[7], sortValues);
     });
     static {
         PARSER.declareField(optionalConstructorArg(), (p, c) -> p.textOrNull(), new ParseField("name"),
@@ -141,6 +164,7 @@ public final class ApiKey {
         PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareString(constructorArg(), new ParseField("realm"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.objectText(), new ParseField("_sort"));
     }
 
     public static ApiKey fromXContent(XContentParser parser) throws IOException {
@@ -150,6 +174,6 @@ public final class ApiKey {
     @Override
     public String toString() {
         return "ApiKey [name=" + name + ", id=" + id + ", creation=" + creation + ", expiration=" + expiration + ", invalidated="
-                + invalidated + ", username=" + username + ", realm=" + realm + "]";
+                + invalidated + ", username=" + username + ", realm=" + realm + ", _sort=" + Arrays.toString(sortValues) + "]";
     }
 }

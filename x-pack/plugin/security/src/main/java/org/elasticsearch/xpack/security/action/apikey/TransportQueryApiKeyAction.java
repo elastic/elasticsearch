@@ -54,10 +54,10 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
             .fetchSource(true)
             .trackTotalHits(true);
 
-        if (request.getFrom() != -1) {
+        if (request.getFrom() != null) {
             searchSourceBuilder.from(request.getFrom());
         }
-        if (request.getSize() != -1) {
+        if (request.getSize() != null) {
             searchSourceBuilder.size(request.getSize());
         }
 

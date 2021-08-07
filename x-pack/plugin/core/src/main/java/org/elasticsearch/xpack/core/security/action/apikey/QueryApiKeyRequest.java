@@ -19,12 +19,16 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public final class QueryApiKeyRequest extends ActionRequest {
 
     @Nullable
     private final QueryBuilder queryBuilder;
-    private final int from;
-    private final int size;
+    @Nullable
+    private final Integer from;
+    @Nullable
+    private final Integer size;
     @Nullable
     private final List<FieldSortBuilder> fieldSortBuilders;
     @Nullable
@@ -36,7 +40,21 @@ public final class QueryApiKeyRequest extends ActionRequest {
     }
 
     public QueryApiKeyRequest(QueryBuilder queryBuilder) {
-        this(queryBuilder, -1, -1, null, null);
+        this(queryBuilder, null, null, null, null);
+    }
+
+    public QueryApiKeyRequest(
+        @Nullable QueryBuilder queryBuilder,
+        @Nullable Integer from,
+        @Nullable Integer size,
+        @Nullable List<FieldSortBuilder> fieldSortBuilders,
+        @Nullable SearchAfterBuilder searchAfterBuilder
+    ) {
+        this.queryBuilder = queryBuilder;
+        this.from = from;
+        this.size = size;
+        this.fieldSortBuilders = fieldSortBuilders;
+        this.searchAfterBuilder = searchAfterBuilder;
     }
 
     public QueryApiKeyRequest(StreamInput in) throws IOException {
@@ -52,29 +70,15 @@ public final class QueryApiKeyRequest extends ActionRequest {
         this.searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
     }
 
-    public QueryApiKeyRequest(
-        @Nullable QueryBuilder queryBuilder,
-        @Nullable Integer from,
-        @Nullable Integer size,
-        @Nullable List<FieldSortBuilder> fieldSortBuilders,
-        @Nullable SearchAfterBuilder searchAfterBuilder
-    ) {
-        this.queryBuilder = queryBuilder;
-        this.from = from == null ? -1 : from;
-        this.size = size == null ? -1 : size;
-        this.fieldSortBuilders = fieldSortBuilders;
-        this.searchAfterBuilder = searchAfterBuilder;
-    }
-
     public QueryBuilder getQueryBuilder() {
         return queryBuilder;
     }
 
-    public int getFrom() {
+    public Integer getFrom() {
         return from;
     }
 
-    public int getSize() {
+    public Integer getSize() {
         return size;
     }
 
@@ -96,7 +100,14 @@ public final class QueryApiKeyRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (from != null && from < 0) {
+            validationException = addValidationError("[from] parameter cannot be negative but was [" + from + "]", validationException);
+        }
+        if (size != null && size < 0) {
+            validationException = addValidationError("[size] parameter cannot be negative but was [" + size + "]", validationException);
+        }
+        return validationException;
     }
 
     @Override

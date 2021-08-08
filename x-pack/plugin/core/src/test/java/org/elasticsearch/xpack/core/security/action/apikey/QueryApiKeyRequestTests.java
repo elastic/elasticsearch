@@ -26,6 +26,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -81,5 +82,19 @@ public class QueryApiKeyRequestTests extends ESTestCase {
                 assertThat(deserialized.getSearchAfterBuilder(), equalTo(request3.getSearchAfterBuilder()));
             }
         }
+    }
+
+    public void testValidate() {
+        final QueryApiKeyRequest request1 =
+            new QueryApiKeyRequest(null, randomIntBetween(0, Integer.MAX_VALUE), randomIntBetween(0, Integer.MAX_VALUE), null, null);
+        assertThat(request1.validate(), nullValue());
+
+        final QueryApiKeyRequest request2 =
+            new QueryApiKeyRequest(null, randomIntBetween(Integer.MIN_VALUE, -1), randomIntBetween(0, Integer.MAX_VALUE), null, null);
+        assertThat(request2.validate().getMessage(), containsString("[from] parameter cannot be negative"));
+
+        final QueryApiKeyRequest request3 =
+            new QueryApiKeyRequest(null, randomIntBetween(0, Integer.MAX_VALUE), randomIntBetween(Integer.MIN_VALUE, -1), null, null);
+        assertThat(request3.validate().getMessage(), containsString("[size] parameter cannot be negative"));
     }
 }

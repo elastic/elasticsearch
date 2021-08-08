@@ -2,7 +2,7 @@
 === `_routing` field
 
 A document is routed to a particular shard in an index using the following
-formulae:
+formulas:
     
     routing_factor = num_routing_shards / num_primary_shards
     shard_num = hash(_routing) % ( num_routing_shards / routing_factor )

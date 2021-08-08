@@ -49,6 +49,10 @@ class ShardSnapshot {
         return shardSnapshotInfo.getIndexId();
     }
 
+    long getStartedAt() {
+        return shardSnapshotInfo.getStartedAt();
+    }
+
     ShardSnapshotInfo getShardSnapshotInfo() {
         return shardSnapshotInfo;
     }

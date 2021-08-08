@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -66,6 +67,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     private static final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
 
     private String shardHistoryUUID;
+    private final AtomicLong clock = new AtomicLong();
 
     @Before
     public void setUpHistoryUUID() {
@@ -387,16 +389,16 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                                                        boolean snapshotRecoveriesEnabled,
                                                        Version version) throws Exception {
         SnapshotsRecoveryPlannerService recoveryPlannerService =
-            new SnapshotsRecoveryPlannerService(shardSnapshotsService, snapshotRecoveriesEnabled, null);
+            new SnapshotsRecoveryPlannerService(shardSnapshotsService, null);
 
         PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
         recoveryPlannerService.computeRecoveryPlan(shardId,
-            shardIdentifier,
             sourceMetadataSnapshot,
             targetMetadataSnapshot,
             startingSeqNo,
             translogOps,
             version,
+            snapshotRecoveriesEnabled,
             planFuture
         );
         final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();
@@ -553,7 +555,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         Snapshot snapshot = new Snapshot(repoName, new SnapshotId("snap", UUIDs.randomBase64UUID(random())));
         IndexId indexId = randomIndexId();
         ShardSnapshotInfo shardSnapshotInfo =
-            new ShardSnapshotInfo(indexId, shardId, snapshot, randomAlphaOfLength(10), shardIdentifier);
+            new ShardSnapshotInfo(indexId, shardId, snapshot, randomAlphaOfLength(10), shardIdentifier, clock.incrementAndGet());
 
         return new ShardSnapshot(shardSnapshotInfo, snapshotFiles);
     }

@@ -60,7 +60,6 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
-import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transports;
@@ -455,10 +454,8 @@ public class RecoverySourceHandler {
         try {
             StopWatch stopWatch = new StopWatch().start();
             final Store.MetadataSnapshot recoverySourceMetadata;
-            final String shardStateIdentifier;
             try {
                 recoverySourceMetadata = store.getMetadata(snapshot);
-                shardStateIdentifier = SnapshotShardsService.getShardStateId(shard, snapshot);
             } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 shard.failShard("recovery", ex);
                 throw ex;
@@ -474,12 +471,12 @@ public class RecoverySourceHandler {
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
                 recoveryPlannerService.computeRecoveryPlan(shard.shardId(),
-                    shardStateIdentifier,
                     recoverySourceMetadata,
                     request.metadataSnapshot(),
                     startingSeqNo,
                     translogOps.getAsInt(),
                     getRequest().targetNode().getVersion(),
+                    false,
                     ActionListener.wrap(plan ->
                         recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
                 );

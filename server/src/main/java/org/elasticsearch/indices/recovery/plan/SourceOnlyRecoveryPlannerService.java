@@ -22,12 +22,12 @@ public class SourceOnlyRecoveryPlannerService implements RecoveryPlannerService 
     public static final RecoveryPlannerService INSTANCE = new SourceOnlyRecoveryPlannerService();
     @Override
     public void computeRecoveryPlan(ShardId shardId,
-                                    String shardIdentifier,
                                     Store.MetadataSnapshot sourceMetadata,
                                     Store.MetadataSnapshot targetMetadata,
                                     long startingSeqNo,
                                     int translogOps,
                                     Version targetVersion,
+                                    boolean useSnapshots,
                                     ActionListener<ShardRecoveryPlan> listener) {
         ActionListener.completeWith(listener, () -> {
             Store.RecoveryDiff recoveryDiff = sourceMetadata.recoveryDiff(targetMetadata);

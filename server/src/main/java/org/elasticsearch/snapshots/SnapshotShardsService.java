@@ -388,7 +388,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
      * @return shard state id or {@code null} if none can be used
      */
     @Nullable
-    public static String getShardStateId(IndexShard indexShard, IndexCommit snapshotIndexCommit) throws IOException {
+    private static String getShardStateId(IndexShard indexShard, IndexCommit snapshotIndexCommit) throws IOException {
         final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
         final SequenceNumbers.CommitInfo seqNumInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userCommitData.entrySet());
         final long maxSeqNo = seqNumInfo.maxSeqNo;

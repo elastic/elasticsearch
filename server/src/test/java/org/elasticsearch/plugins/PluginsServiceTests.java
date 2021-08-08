@@ -517,7 +517,7 @@ public class PluginsServiceTests extends ESTestCase {
     	IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls));
 
-    	assertEquals("failed to load plugin dummy due to io error, caused when checking for Jar Hell", e.getMessage());
+    	assertEquals("failed to load plugin dummy while checking for jar hell", e.getMessage());
     }
 
     public void testJarHellDuplicateClassWithDep() throws Exception {

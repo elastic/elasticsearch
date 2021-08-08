@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.net.URISyntaxException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -568,12 +567,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Set<URL> union = new HashSet<>(classpath);
             union.addAll(bundle.urls);
             JarHell.checkJarHell(union, logger::debug);
-        } catch (final IOException ioe) {
-            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to io error, caused when checking for Jar Hell", ioe);
-        } catch (final URISyntaxException urie) {
-            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to malformed uri, caused when checking for Jar Hell", urie);
+        } catch (final IllegalStateException ise) {
+            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", ise);
         } catch (final Exception e) {
-            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", e);
+            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " while checking for jar hell", e);
         }
     }
 

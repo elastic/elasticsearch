@@ -126,12 +126,6 @@ public final class MlTasks {
         return tasks == null ? null : tasks.getTask(snapshotUpgradeTaskId(jobId, snapshotId));
     }
 
-    @Nullable
-    public static PersistentTasksCustomMetadata.PersistentTask<?> getTrainedModelDeploymentTask(
-            String modelId, @Nullable PersistentTasksCustomMetadata tasks) {
-        return tasks == null ? null : tasks.getTask(trainedModelDeploymentTaskId(modelId));
-    }
-
     /**
      * Note that the return value of this method does NOT take node relocations into account.
      * Use {@link #getJobStateModifiedForReassignments} to return a value adjusted to the most

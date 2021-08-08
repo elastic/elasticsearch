@@ -10,9 +10,9 @@ formulas:
 `num_routing_shards` is the value of the
 <<index-number-of-routing-shards,`index.number_of_routing_shards`>> index
 setting. `num_primary_shards` is the value of the
-<<index-number-of-shards,`index.number_of_shards`>> index setting. The default
-value used for `_routing` is the document's <<mapping-id-field,`_id`>>.
+<<index-number-of-shards,`index.number_of_shards`>> index setting.\
 
+The default `_routing` value is the document's <<mapping-id-field,`_id`>>.
 Custom routing patterns can be implemented by specifying a custom `routing`
 value per document. For instance:
 

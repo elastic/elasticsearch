@@ -8,7 +8,6 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -141,8 +140,8 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         assertThat(shardSnapshotData, is(empty()));
     }
 
-    public void testFetchFromSingleRepository() throws Exception {
-        String indexName = "test";
+    public void testOnlyFetchesSnapshotFromEnabledRepositories() throws Exception {
+        final String indexName = "test";
         createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
         ShardId shardId = getShardIdForIndex(indexName);
 
@@ -151,27 +150,39 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         }
 
         String snapshotName = "snap";
-        final int numberOfRepos = randomIntBetween(1, 4);
-        List<String> repositories = new ArrayList<>(numberOfRepos);
-        for (int i = 0; i < numberOfRepos; i++) {
+
+        int numberOfNonEnabledRepos = randomIntBetween(1, 3);
+        List<String> nonEnabledRepos = new ArrayList<>();
+        for (int i = 0; i < numberOfNonEnabledRepos; i++) {
+            String repositoryName = "non-enabled-repo-" + i;
+            Path repoPath = randomRepoPath();
+            createRepository(repositoryName, "fs", repoPath, false);
+            createSnapshot(repositoryName, snapshotName, indexName);
+            nonEnabledRepos.add(repositoryName);
+        }
+
+        int numberOfRecoveryEnabledRepositories = randomIntBetween(0, 4);
+        List<String> recoveryEnabledRepos = new ArrayList<>();
+        for (int i = 0; i < numberOfRecoveryEnabledRepositories; i++) {
             String repositoryName = "repo-" + i;
-            createRepository(repositoryName, "fs", randomRepoPath());
-            repositories.add(repositoryName);
+            createRepository(repositoryName, "fs", randomRepoPath(), true);
+            recoveryEnabledRepos.add(repositoryName);
             createSnapshot(repositoryName, snapshotName, indexName);
         }
 
-        String repositoryToFetch = randomFrom(repositories);
-        ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
+        List<ShardSnapshot> shardSnapshotDataForShard = getShardSnapshotShard(shardId);
 
-        PlainActionFuture<List<ShardSnapshot>> future = PlainActionFuture.newFuture();
-        shardSnapshotsService.fetchAvailableSnapshots(repositoryToFetch, shardId, future);
-        List<ShardSnapshot> shardSnapshots = future.get();
+        assertThat(shardSnapshotDataForShard.size(), is(equalTo(numberOfRecoveryEnabledRepositories)));
+        for (ShardSnapshot shardSnapshotData : shardSnapshotDataForShard) {
+            assertThat(recoveryEnabledRepos.contains(shardSnapshotData.getRepository()), is(equalTo(true)));
+            assertThat(shardSnapshotData.getMetadataSnapshot().size(), is(greaterThan(0)));
 
-        assertThat(shardSnapshots.size(), equalTo(1));
-        ShardSnapshot shardSnapshot = shardSnapshots.get(0);
-        assertThat(shardSnapshot.getRepository(), equalTo(repositoryToFetch));
-        assertThat(shardSnapshot.getShardSnapshotInfo().getShardId(), equalTo(shardId));
-        assertThat(shardSnapshot.getMetadataSnapshot().size(), greaterThan(0));
+            ShardSnapshotInfo shardSnapshotInfo = shardSnapshotData.getShardSnapshotInfo();
+            assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
+            assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));
+            assertThat(recoveryEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(true)));
+            assertThat(nonEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(false)));
+        }
     }
 
     public void testFailingReposAreTreatedAsNonExistingShardSnapshots() throws Exception {
@@ -190,7 +201,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfFailingRepos; i++) {
             String repositoryName = "failing-repo-" + i;
             Path repoPath = randomRepoPath();
-            createRepository(repositoryName, FailingRepoPlugin.TYPE, repoPath);
+            createRepository(repositoryName, FailingRepoPlugin.TYPE, repoPath, true);
             createSnapshot(repositoryName, snapshotName, indexName);
             failingRepos.add(Tuple.tuple(repositoryName, repoPath));
         }
@@ -199,7 +210,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         List<String> workingRepos = new ArrayList<>();
         for (int i = 0; i < numberOfWorkingRepositories; i++) {
             String repositoryName = "repo-" + i;
-            createRepository(repositoryName, "fs", randomRepoPath());
+            createRepository(repositoryName, "fs", randomRepoPath(), true);
             workingRepos.add(repositoryName);
             createSnapshot(repositoryName, snapshotName, indexName);
         }
@@ -215,7 +226,8 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             assertAcked(client().admin().cluster().preparePutRepository(failingRepo.v1())
                 .setType(FailingRepoPlugin.TYPE)
                 .setVerify(false)
-                .setSettings(Settings.builder().put(repoFailureType, true).put("location", randomRepoPath())));
+                .setSettings(Settings.builder().put(repoFailureType, true).put("location", randomRepoPath()))
+            );
         }
 
         List<ShardSnapshot> shardSnapshotDataForShard = getShardSnapshotShard(shardId);
@@ -231,27 +243,10 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         }
     }
 
-    public void testFetchFromNonExistingRepositoryReturnsAnError() {
-        String indexName = "test";
-        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
-        ShardId shardId = getShardIdForIndex(indexName);
-
-        String repositoryToFetch = "unknown";
-        ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
-
-        PlainActionFuture<List<ShardSnapshot>> future = PlainActionFuture.newFuture();
-        shardSnapshotsService.fetchAvailableSnapshots(repositoryToFetch, shardId, future);
-        expectThrows(Exception.class, future::actionGet);
-    }
-
     public void testInputValidations() {
         ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
         expectThrows(IllegalArgumentException.class, () ->
-            shardSnapshotsService.fetchAvailableSnapshots(randomFrom("", null), null, null));
-        expectThrows(IllegalArgumentException.class, () ->
-            shardSnapshotsService.fetchAvailableSnapshots("repo", null, null));
-        expectThrows(IllegalArgumentException.class, () ->
-            shardSnapshotsService.fetchAvailableSnapshotsInAllRepositories(null, null));
+            shardSnapshotsService.fetchLatestSnapshotsForShard(null, null));
     }
 
     public void testFetchingInformationFromAnIncompatibleMasterNodeReturnsAnEmptyList() {
@@ -265,13 +260,21 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
 
         String snapshotName = "snap";
         String repositoryName = "repo";
-        createRepository(repositoryName, "fs", randomRepoPath());
+        createRepository(repositoryName, "fs", randomRepoPath(), true);
         createSnapshot(repositoryName, snapshotName, indexName);
 
-        ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService(Version.V_7_14_0);
+        RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
+        ThreadPool threadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
+        ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client(), repositoriesService, threadPool, clusterService) {
+            @Override
+            protected boolean masterSupportsFetchingLatestSnapshots() {
+                return false;
+            }
+        };
 
         PlainActionFuture<List<ShardSnapshot>> latestSnapshots = PlainActionFuture.newFuture();
-        shardSnapshotsService.fetchAvailableSnapshotsInAllRepositories(shardId, latestSnapshots);
+        shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, latestSnapshots);
         assertThat(latestSnapshots.actionGet(), is(empty()));
     }
 
@@ -279,18 +282,15 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
 
         PlainActionFuture<List<ShardSnapshot>> future = PlainActionFuture.newFuture();
-        shardSnapshotsService.fetchAvailableSnapshotsInAllRepositories(shardId, future);
+        shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, future);
         return future.get();
     }
 
     private ShardSnapshotsService getShardSnapshotsService() {
-        return getShardSnapshotsService(Version.CURRENT);
-    }
-
-    private ShardSnapshotsService getShardSnapshotsService(Version masterVersion) {
-        RepositoriesService repositoriesService = internalCluster().getDataNodeInstance(RepositoriesService.class);
-        ThreadPool threadPool = internalCluster().getDataNodeInstance(ThreadPool.class);
-        return new ShardSnapshotsService(client(), repositoriesService, threadPool, () -> masterVersion);
+        RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
+        ThreadPool threadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
+        ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        return new ShardSnapshotsService(client(), repositoriesService, threadPool, clusterService);
     }
 
     private ShardId getShardIdForIndex(String indexName) {
@@ -298,11 +298,15 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         return state.routingTable().index(indexName).shard(0).shardId();
     }
 
-    private void createRepository(String repositoryName, String type, Path location) {
+    private void createRepository(String repositoryName, String type, Path location, boolean recoveryEnabledRepo) {
         assertAcked(client().admin().cluster().preparePutRepository(repositoryName)
             .setType(type)
             .setVerify(false)
-            .setSettings(Settings.builder().put("location", location)));
+            .setSettings(Settings.builder()
+                .put("location", location)
+                .put(RecoverySettings.REPOSITORY_SNAPSHOT_BASED_RECOVERY_SETTING.getKey(), recoveryEnabledRepo)
+            )
+        );
     }
 
     private void createSnapshot(String repoName, String snapshotName, String index) {

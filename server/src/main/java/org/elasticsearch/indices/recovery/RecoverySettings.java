@@ -138,12 +138,9 @@ public class RecoverySettings {
     public static final Setting<Boolean> INDICES_RECOVERY_USE_SNAPSHOTS_SETTING =
         Setting.boolSetting("indices.recovery.use_snapshots", false, Property.Dynamic, Property.NodeScope);
 
-    /**
-     * repository to use during peer recovery to recover files from a snapshot instead of sending them from
-     * the primary
-     */
-    public static final Setting<String> INDICES_RECOVERY_REPOSITORY_SETTING =
-        Setting.simpleString("indices.recovery.repository", Property.Dynamic, Property.NodeScope);
+    // TODO: Find a better name, and is this the right place for this setting?
+    public static final Setting<Boolean> REPOSITORY_SNAPSHOT_BASED_RECOVERY_SETTING =
+        Setting.boolSetting("snapshot_based_recoveries_enabled", false);
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
 
@@ -182,7 +179,6 @@ public class RecoverySettings {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
         }
         this.useSnapshotsDuringRecovery = INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.get(settings);
-        this.repository = INDICES_RECOVERY_REPOSITORY_SETTING.get(settings);
 
         logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
 
@@ -197,7 +193,6 @@ public class RecoverySettings {
             this::setInternalActionLongTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING, this::setUseSnapshotsDuringRecovery);
-        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_REPOSITORY_SETTING, this::setRepository);
     }
 
     public RateLimiter rateLimiter() {
@@ -290,13 +285,5 @@ public class RecoverySettings {
 
     private void setUseSnapshotsDuringRecovery(boolean useSnapshotsDuringRecovery) {
         this.useSnapshotsDuringRecovery = useSnapshotsDuringRecovery;
-    }
-
-    public String getRepository() {
-        return repository;
-    }
-
-    private void setRepository(String repository) {
-        this.repository = repository;
     }
 }

@@ -11,17 +11,19 @@ package org.elasticsearch.indices.recovery.plan;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -32,7 +34,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
 
@@ -42,42 +44,39 @@ public class ShardSnapshotsService {
     private final Client client;
     private final RepositoriesService repositoriesService;
     private final ThreadPool threadPool;
-    private final Supplier<Version> masterNodeVersionSupplier;
+    private final ClusterService clusterService;
 
     public ShardSnapshotsService(Client client,
                                  RepositoriesService repositoriesService,
                                  ThreadPool threadPool,
-                                 Supplier<Version> masterNodeVersionSupplier) {
+                                 ClusterService clusterService) {
         this.client = client;
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
-        this.masterNodeVersionSupplier = masterNodeVersionSupplier;
+        this.clusterService = clusterService;
     }
 
-    public void fetchAvailableSnapshotsInAllRepositories(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
         if (shardId == null) {
             throw new IllegalArgumentException("SharId was null but a value was expected");
         }
-        final GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);
-        sendRequest(request, listener);
-    }
 
-    public void fetchAvailableSnapshots(String repository, ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-        if (Strings.isNullOrEmpty(repository)) {
-            throw new IllegalArgumentException("A repository should be specified");
-        }
-        if (shardId == null) {
-            throw new IllegalArgumentException("SharId was null but a value was expected");
-        }
-        GetShardSnapshotRequest request =
-            GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, Collections.singletonList(repository));
-        sendRequest(request, listener);
-    }
+        final RepositoriesMetadata currentReposMetadata = clusterService.state()
+            .metadata()
+            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
-    private void sendRequest(GetShardSnapshotRequest request, ActionListener<List<ShardSnapshot>> listener) {
-        if (masterNodeVersionSupplier.get().onOrAfter(SNAPSHOT_RECOVERIES_SUPPORTED_VERSION) == false) {
+        List<String> repositories = currentReposMetadata.repositories()
+            .stream()
+            .filter(repositoryMetadata -> RecoverySettings.REPOSITORY_SNAPSHOT_BASED_RECOVERY_SETTING.get(repositoryMetadata.settings()))
+            .map(RepositoryMetadata::name)
+            .collect(Collectors.toList());
+
+        if (repositories.isEmpty() || masterSupportsFetchingLatestSnapshots() == false) {
             listener.onResponse(Collections.emptyList());
+            return;
         }
+
+        GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, repositories);
 
         client.execute(GetShardSnapshotAction.INSTANCE,
             request,
@@ -117,5 +116,9 @@ public class ShardSnapshotsService {
             logger.warn(new ParameterizedMessage("Unable to fetch shard snapshot files for {}", shardSnapshotInfo), e);
             return Collections.emptyList();
         }
+    }
+
+    protected boolean masterSupportsFetchingLatestSnapshots() {
+        return clusterService.state().nodes().getMasterNode().getVersion().onOrAfter(SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
     }
 }

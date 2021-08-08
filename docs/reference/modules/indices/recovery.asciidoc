@@ -88,8 +88,3 @@ Setting this option to `true` reduces your operating costs if your cluster runs
 in an environment where the node-to-node data transfer costs are higher than
 the costs of recovering data from a snapshot. It also reduces the amount of
 work that the primary must do during a recovery.
-
-`indices.recovery.repository`::
-(<<cluster-update-settings,Dynamic>>, Expert) The name of the repository to use
-when `indices.recovery.use_snapshots` is enabled. Defaults to `null` which
-means to search all registered repositories for a suitable snapshot.

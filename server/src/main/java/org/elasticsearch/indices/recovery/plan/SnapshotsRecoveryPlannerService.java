@@ -13,8 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -34,12 +32,9 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
     private final Logger logger = LogManager.getLogger(SnapshotsRecoveryPlannerService.class);
 
     private final ShardSnapshotsService shardSnapshotsService;
-    private final String repository;
 
-    public SnapshotsRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService,
-                                           @Nullable String repository) {
+    public SnapshotsRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
         this.shardSnapshotsService = shardSnapshotsService;
-        this.repository = repository;
     }
 
     public void computeRecoveryPlan(ShardId shardId,
@@ -128,11 +123,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
             }
         };
 
-        if (Strings.isNullOrEmpty(repository) == false) {
-            shardSnapshotsService.fetchAvailableSnapshots(repository, shardId, listenerIgnoringErrors);
-        } else {
-            shardSnapshotsService.fetchAvailableSnapshotsInAllRepositories(shardId, listenerIgnoringErrors);
-        }
+        shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, listenerIgnoringErrors);
     }
 
     private Store.MetadataSnapshot toMetadataSnapshot(List<StoreFileMetadata> files) {

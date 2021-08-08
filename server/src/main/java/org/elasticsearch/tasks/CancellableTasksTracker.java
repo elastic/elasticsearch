@@ -21,10 +21,11 @@ import java.util.stream.Stream;
  */
 public class CancellableTasksTracker<T> {
 
-    private final IntFunction<T[]> arrayConstructor;
+    private final T[] empty;
 
-    public CancellableTasksTracker(IntFunction<T[]> arrayConstructor) {
-        this.arrayConstructor = arrayConstructor;
+    public CancellableTasksTracker(T[] empty) {
+        assert empty.length == 0;
+        this.empty = empty;
     }
 
     private final Map<Long, T> byTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -38,14 +39,11 @@ public class CancellableTasksTracker<T> {
         if (task.getParentTaskId().isSet()) {
             byParentTaskId.compute(task.getParentTaskId(), (ignored, oldValue) -> {
                 if (oldValue == null) {
-                    final T[] value = arrayConstructor.apply(1);
-                    value[0] = item;
-                    return value;
-                } else {
-                    final T[] newValue = Arrays.copyOf(oldValue, oldValue.length + 1);
-                    newValue[oldValue.length] = item;
-                    return newValue;
+                    oldValue = empty;
                 }
+                final T[] newValue = Arrays.copyOf(oldValue, oldValue.length + 1);
+                newValue[oldValue.length] = item;
+                return newValue;
             });
         }
         final T oldItem = byTaskId.put(taskId, item);
@@ -79,10 +77,12 @@ public class CancellableTasksTracker<T> {
                         return oldValue;
                     }
                 }
-                for (int i = 0; i < oldValue.length; i++) {
+                if (oldValue[0] == oldItem) {
+                    return Arrays.copyOfRange(oldValue, 1, oldValue.length);
+                }
+                for (int i = 1; i < oldValue.length; i++) {
                     if (oldValue[i] == oldItem) {
-                        final T[] newValue = arrayConstructor.apply(oldValue.length - 1);
-                        System.arraycopy(oldValue, 0, newValue, 0, i);
+                        final T[] newValue = Arrays.copyOf(oldValue, oldValue.length - 1);
                         System.arraycopy(oldValue, i + 1, newValue, i, oldValue.length - i - 1);
                         return newValue;
                     }

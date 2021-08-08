@@ -47,8 +47,8 @@ NOTE: The number of shards are limited to `1024` per index. This limitation is a
 `index.number_of_routing_shards`::
 +
 ====
-Integer value used to assign documents to a primary shard. Must be a multiple of
-`index.number_of_shards`. See <<mapping-routing-field>>.
+Integer value used with <<index-number-of-shards,`index.number_of_shards`>> to
+assign documents to a primary shard. See <<mapping-routing-field>>.
 
 {es} also uses this value when <<indices-split-index,splitting>> an index.
 For example, a 5 shard index with `number_of_routing_shards` set to `30` (`5 x

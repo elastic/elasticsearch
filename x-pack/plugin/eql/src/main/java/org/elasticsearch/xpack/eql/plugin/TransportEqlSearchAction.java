@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.ql.expression.Order;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -140,12 +139,12 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             String clusterAlias = clusterAliases.iterator().next();
             String[] remoteIndices = new String[request.indices().length];
             for (int i = 0; i < request.indices().length; i++) {
-                remoteIndices[i] = request.indices()[i].substring(clusterAlias.length() + /*`:`*/1);
+                remoteIndices[i] = request.indices()[i].substring(clusterAlias.length() + 1); // strip cluster plus `:` delimiter
             }
             transportService.sendRequest(transportService.getRemoteClusterService().getConnection(clusterAlias),
                 EqlSearchAction.INSTANCE.name(), request.indices(remoteIndices), TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(wrap(r -> listener.onResponse(qualifyHits(r, clusterAlias)),
-                    e -> listener.onFailure(qualifyException(e, request.indices(), clusterAlias))),
+                    e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))),
                     EqlSearchAction.INSTANCE.getResponseReader()));
         } else {
             ParserParams params = new ParserParams(zoneId)
@@ -199,33 +198,22 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     // fixes the _index values by prefixing them with the source cluster alias' name
     private static EqlSearchResponse qualifyHits(EqlSearchResponse r, String clusterAlias) {
         EqlSearchResponse.Hits hits = r.hits();
-        List<EqlSearchResponse.Sequence> sequences = qualifySequences(hits.sequences(), clusterAlias);
-        List<EqlSearchResponse.Event> events = sequences != null ? null : qualifyEvents(hits.events(), clusterAlias, true);
-        return new EqlSearchResponse(new EqlSearchResponse.Hits(events, sequences, hits.totalHits()), r.took(), r.isTimeout());
-    }
-
-    private static List<EqlSearchResponse.Sequence> qualifySequences(List<EqlSearchResponse.Sequence> sequences, String clusterAlias) {
-        List<EqlSearchResponse.Sequence> qualifiedSequences = null;
-        if (sequences != null && sequences.isEmpty() == false) {
-            qualifiedSequences = new ArrayList<>(sequences.size());
-            for (EqlSearchResponse.Sequence s : sequences) {
-                qualifiedSequences.add(new EqlSearchResponse.Sequence(s.joinKeys(), qualifyEvents(s.events(), clusterAlias, false)));
+        if (hits.sequences() != null) {
+            for (EqlSearchResponse.Sequence s : hits.sequences()) {
+                qualifyEvents(s.events(), clusterAlias);
             }
+        } else {
+            qualifyEvents(hits.events(), clusterAlias);
         }
-        return qualifiedSequences;
+        return r;
     }
 
-    private static List<EqlSearchResponse.Event> qualifyEvents(List<EqlSearchResponse.Event> events, String clusterAlias,
-                                                               boolean emptyListIfNoEvents) {
-        List<EqlSearchResponse.Event> qualifiedEvents = null;
-        if (events != null && events.isEmpty() == false) {
-            qualifiedEvents = new ArrayList<>(events.size());
+    private static void qualifyEvents(List<EqlSearchResponse.Event> events, String clusterAlias) {
+        if (events != null) {
             for (EqlSearchResponse.Event e : events) {
-                qualifiedEvents.add(new EqlSearchResponse.Event(buildRemoteIndexName(clusterAlias, e.index()), e.id(), e.source(),
-                    e.fetchFields()));
+                e.index(buildRemoteIndexName(clusterAlias, e.index()));
             }
         }
-        return qualifiedEvents == null && emptyListIfNoEvents ? new ArrayList<>() : qualifiedEvents;
     }
 
     private static Exception qualifyException(Exception e, String[] indices, String clusterAlias) {
@@ -235,16 +223,11 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             if (infe.getIndex() != null) {
                 String qualifiedIndex;
                 String exceptionIndexName = infe.getIndex().getName();
-                final String UNKNOWN_INDEX_PREFIX = "Unknown index [";
-                if (exceptionIndexName.startsWith(UNKNOWN_INDEX_PREFIX)) {
-                    int offsetOfClosingBraket = exceptionIndexName.indexOf(']', UNKNOWN_INDEX_PREFIX.length());
-                    String infeIndices = exceptionIndexName.substring(UNKNOWN_INDEX_PREFIX.length(), offsetOfClosingBraket);
-                    String[] notFoundIndices;
-                    // see RestEqlSearchAction#prepareRequest() or GH#63529 for an explanation of "*,-*" replacement
-                    notFoundIndices = infeIndices.equals("*,-*") ? indices : infeIndices.split(",");
+                String[] notFoundIndices = notFoundIndices(exceptionIndexName, indices);
+                if (notFoundIndices != null) {
                     StringJoiner sj = new StringJoiner(",");
-                    for (int i = 0; i < notFoundIndices.length; i ++) {
-                        sj.add(buildRemoteIndexName(clusterAlias, notFoundIndices[i]));
+                    for (String notFoundIndex : notFoundIndices) {
+                        sj.add(buildRemoteIndexName(clusterAlias, notFoundIndex));
                     }
                     qualifiedIndex = sj.toString();
                 } else {
@@ -258,6 +241,18 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             }
         }
         return finalException;
+    }
+
+    private static String[] notFoundIndices(String exceptionIndexName, String[] indices) {
+        final String[] EXCEPTION_PREFIXES = new String[] {"Unknown index [", "["};
+        for (String prefix : EXCEPTION_PREFIXES) {
+            if (exceptionIndexName.startsWith(prefix) && exceptionIndexName.endsWith("]")) {
+                String indexList = exceptionIndexName.substring(prefix.length(), exceptionIndexName.length() - 1);
+                // see RestEqlSearchAction#prepareRequest() or GH#63529 for an explanation of "*,-*" replacement
+                return indexList.equals("*,-*") ? indices : indexList.split(",[ ]?");
+            }
+        }
+        return null;
     }
 
     static String username(SecurityContext securityContext) {

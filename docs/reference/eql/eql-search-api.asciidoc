@@ -93,8 +93,9 @@ Defaults to `true`.
 (Optional, Boolean) If `true`, network round-trips between the local and the
 remote cluster are minimized when running cross-cluster search (CCS) requests.
 +
-This option is currently only effective if the request does not include both
-local and remote indices and only when one remote cluster is targeted.
+This option is effective for requests that target data fully contained in one
+remote cluster; when data is spread across multiple clusters, the setting is
+ignored.
 +
 Defaults to `true`.
 

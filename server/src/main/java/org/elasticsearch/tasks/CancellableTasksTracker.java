@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
 /**

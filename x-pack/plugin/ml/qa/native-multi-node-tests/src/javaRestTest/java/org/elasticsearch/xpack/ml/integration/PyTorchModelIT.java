@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 import org.junit.Before;
@@ -63,39 +64,6 @@ public class PyTorchModelIT extends ESRestTestCase {
         UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
     private final ExecutorService executorService = Executors.newFixedThreadPool(5);
 
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
-    }
-
-    @Before
-    public void setLogging() throws IOException {
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("" +
-            "{" +
-            "\"transient\" : {\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\"\n" +
-            "    }" +
-            "}");
-        client().performRequest(loggingSettings);
-    }
-
-    @After
-    public void unsetLogging() throws IOException {
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("" +
-            "{" +
-            "\"transient\" : {\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null\n" +
-            "    }" +
-            "}");
-        client().performRequest(loggingSettings);
-        executorService.shutdown();
-    }
-
     private static final String MODEL_INDEX = "model_store";
     private static final String VOCAB_INDEX = "vocab_store";
     static final String BASE_64_ENCODED_MODEL =
@@ -126,7 +94,41 @@ public class PyTorchModelIT extends ESRestTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
-    public void testEvaluate() throws Exception {
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
+    }
+
+    @Before
+    public void setLogging() throws IOException {
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("" +
+            "{" +
+            "\"transient\" : {\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\"\n" +
+            "    }" +
+            "}");
+        client().performRequest(loggingSettings);
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("" +
+            "{" +
+            "\"transient\" : {\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null\n" +
+            "    }" +
+            "}");
+        client().performRequest(loggingSettings);
+        
+        new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
+        waitForPendingTasks(adminClient());
+    }
+
+    public void testEvaluate() throws IOException, InterruptedException {
         String modelId = "test_evaluate";
         createModelStoreIndex();
         putVocabulary(List.of("these", "are", "my", "words"));

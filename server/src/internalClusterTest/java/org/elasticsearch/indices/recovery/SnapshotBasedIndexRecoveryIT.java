@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -59,6 +60,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -73,6 +75,13 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase {
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+            .build();
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
@@ -490,7 +499,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         BulkResponse bulkResponse = bulkRequestBuilder.get();
         assertThat(bulkResponse.hasFailures(), is(equalTo(false)));
 
-        // Ensure that the safe commit contains the latest segments
+        // Ensure that the safe commit == latest commit
         assertBusy(() -> {
             ShardStats stats = client().admin().indices().prepareStats(indexName).clear().get()
                 .asMap().entrySet().stream().filter(e -> e.getKey().shardId().getId() == 0)
@@ -499,8 +508,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             assertThat(stats.getSeqNoStats(), is(notNullValue()));
 
             assertThat(Strings.toString(stats.getSeqNoStats()),
-                stats.getSeqNoStats().getGlobalCheckpoint(), equalTo(stats.getSeqNoStats().getGlobalCheckpoint()));
-        });
+                stats.getSeqNoStats().getMaxSeqNo(), equalTo(stats.getSeqNoStats().getGlobalCheckpoint()));
+        }, 60, TimeUnit.SECONDS);
 
         FlushResponse flushResponse = client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
         assertThat(flushResponse.getFailedShards(), is(equalTo(0)));

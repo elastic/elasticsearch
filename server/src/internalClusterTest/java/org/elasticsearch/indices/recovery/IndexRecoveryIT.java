@@ -116,6 +116,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -1822,6 +1823,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     private void createSnapshotThatCanBeUsedDuringRecovery(String indexName) throws Exception {
+        // Ensure that the safe commit == latest commit
         assertBusy(() -> {
             ShardStats stats = client().admin().indices().prepareStats(indexName).clear().get()
                 .asMap().entrySet().stream().filter(e -> e.getKey().shardId().getId() == 0)
@@ -1830,8 +1832,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             assertThat(stats.getSeqNoStats(), is(notNullValue()));
 
             assertThat(Strings.toString(stats.getSeqNoStats()),
-                stats.getSeqNoStats().getGlobalCheckpoint(), equalTo(stats.getSeqNoStats().getGlobalCheckpoint()));
-        });
+                stats.getSeqNoStats().getMaxSeqNo(), equalTo(stats.getSeqNoStats().getGlobalCheckpoint()));
+        }, 60, TimeUnit.SECONDS);
 
         ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(indexName).setFlush(true).get();
         assertThat(forceMergeResponse.getTotalShards(), equalTo(forceMergeResponse.getSuccessfulShards()));

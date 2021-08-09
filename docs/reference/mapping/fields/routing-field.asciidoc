@@ -123,9 +123,10 @@ This is done by providing the index level setting <<routing-partition-size,`inde
 As the partition size increases, the more evenly distributed the data will become at the
 expense of having to search more shards per request.
 
-When this setting is present, the formula for calculating the shard becomes:
+When this setting is present, the formulas for calculating the shard becomes:
 
     routing_value = hash(_routing) + hash(_id) % routing_partition_size
+    routing_factor = num_routing_shards / num_primary_shards
     shard_num = (routing_value % num_routing_shards) / routing_factor
 
 That is, the `_routing` field is used to calculate a set of shards within the index and then the

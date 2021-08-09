@@ -29,7 +29,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         return builder.build();
     }
 
-    public void testQueryWithExpiredKeys() {
+    public void testQueryWithExpiredKeys() throws InterruptedException {
         final String id1 = client().execute(CreateApiKeyAction.INSTANCE,
                 new CreateApiKeyRequest("expired-shortly", null, TimeValue.timeValueMillis(1), null))
             .actionGet()
@@ -38,6 +38,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
                 new CreateApiKeyRequest("long-lived", null, TimeValue.timeValueDays(1), null))
             .actionGet()
             .getId();
+        Thread.sleep(10); // just to be 100% sure that the 1st key is expired when we search for it
 
         final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(id1, id2));
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();

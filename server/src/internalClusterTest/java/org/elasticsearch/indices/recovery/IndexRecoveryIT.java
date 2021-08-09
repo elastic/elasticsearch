@@ -776,7 +776,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String recoveryActionToBlock = randomFrom(recoveryActions);
         logger.info("--> will temporarily interrupt recovery action between blue & red on [{}]", recoveryActionToBlock);
 
-        if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RECOVER_SNAPSHOT_FILE) || randomBoolean()) {
+        if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RECOVER_SNAPSHOT_FILE)) {
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
         }
 
@@ -955,7 +955,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> will {} between blue & red on [{}]", dropRequests ? "drop requests" : "break connection", recoveryActionToBlock);
 
         // Generate a snapshot to recover from it if the action that we're blocking is sending the request  snapshot files
-        if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RECOVER_SNAPSHOT_FILE) || randomBoolean()) {
+        if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RECOVER_SNAPSHOT_FILE)) {
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
         }
 

@@ -536,29 +536,21 @@ public class QueryFolderTests extends ESTestCase {
         }
     }
 
-    public void testFoldRedundantOrderBy() {
-        PhysicalPlan p = plan("SELECT * FROM (SELECT * FROM test ORDER BY int LIMIT 10) ORDER BY int");
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec ee = (EsQueryExec) p;
-        assertEquals(10, ee.queryContainer().limit());
-        assertEquals(1, ee.queryContainer().sort().size());
-        AttributeSort as = (AttributeSort) ee.queryContainer().sort().values().toArray()[0];
-        assertEquals("test.int", as.attribute().qualifiedName());
-    }
-
     public void testFoldShadowedOrderBy() {
         PhysicalPlan p = plan(
             "SELECT * FROM (SELECT * FROM test ORDER BY int ASC, keyword NULLS LAST) ORDER BY keyword NULLS FIRST, int DESC"
         );
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
-        assertEquals(2, ee.queryContainer().sort().size());
 
-        AttributeSort as1 = (AttributeSort) ee.queryContainer().sort().values().toArray()[0];
+        Sort[] sort = ee.queryContainer().sort().values().toArray(new Sort[0]);
+        assertEquals(2, sort.length);
+
+        AttributeSort as1 = (AttributeSort) sort[0];
         assertEquals("test.keyword", as1.attribute().qualifiedName());
         assertEquals(Sort.Missing.FIRST, as1.missing());
 
-        AttributeSort as2 = (AttributeSort) ee.queryContainer().sort().values().toArray()[1];
+        AttributeSort as2 = (AttributeSort) sort[1];
         assertEquals("test.int", as2.attribute().qualifiedName());
         assertEquals(Sort.Direction.DESC, as2.direction());
     }

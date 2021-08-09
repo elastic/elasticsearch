@@ -306,9 +306,12 @@ public class QueryContainer {
         return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
-    public QueryContainer addSort(String expressionId, Sort sortable) {
-        Map<String, Sort> newSort = new LinkedHashMap<>(this.sort);
+    public QueryContainer prependSort(String expressionId, Sort sortable) {
+        Map<String, Sort> newSort = new LinkedHashMap<>(this.sort.size() + 1);
         newSort.put(expressionId, sortable);
+        for (Map.Entry<String, Sort> entry : this.sort.entrySet()) {
+            newSort.putIfAbsent(entry.getKey(), entry.getValue());
+        }
         return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, newSort, limit, trackHits, includeFrozen,
                 minPageSize);
     }

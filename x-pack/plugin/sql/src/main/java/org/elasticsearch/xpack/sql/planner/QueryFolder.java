@@ -701,11 +701,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) plan.child();
                 QueryContainer qContainer = exec.queryContainer();
 
-                if (qContainer.sort().isEmpty() == false) {
-                    throw new SqlIllegalArgumentException("QueryContainer already defines sort order");
-                }
+                // Reverse traversal together with the upwards fold direction ensures that sort clauses are added in reverse order of
+                // precedence. E.g. for the plan `OrderBy[a desc,b](OrderBy[a asc,c](EsExec[...]))`, `prependSort` is called with the
+                // following sequence of arguments: `c`, `a asc`, `b`, `a desc`. The resulting sort order is `a desc,b,c`.
+                for (int i = plan.order().size() - 1; i >= 0; i--) {
+                    Order order = plan.order().get(i);
 
-                for (Order order : plan.order()) {
                     Direction direction = Direction.from(order.direction());
                     Missing missing = Missing.from(order.nullsPosition());
 
@@ -726,26 +727,26 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                     // field
                     if (orderExpression instanceof FieldAttribute) {
-                        qContainer = qContainer.addSort(lookup,
+                        qContainer = qContainer.prependSort(lookup,
                                 new AttributeSort((FieldAttribute) orderExpression, direction, missing));
                     }
                     // scalar functions typically require script ordering
                     else if (orderExpression instanceof ScalarFunction) {
                         ScalarFunction sf = (ScalarFunction) orderExpression;
                         // nope, use scripted sorting
-                        qContainer = qContainer.addSort(lookup, new ScriptSort(sf.asScript(), direction, missing));
+                        qContainer = qContainer.prependSort(lookup, new ScriptSort(sf.asScript(), direction, missing));
                     }
                     // histogram
                     else if (orderExpression instanceof Histogram) {
-                        qContainer = qContainer.addSort(lookup, new GroupingFunctionSort(direction, missing));
+                        qContainer = qContainer.prependSort(lookup, new GroupingFunctionSort(direction, missing));
                     }
                     // score
                     else if (orderExpression instanceof Score) {
-                        qContainer = qContainer.addSort(lookup, new ScoreSort(direction, missing));
+                        qContainer = qContainer.prependSort(lookup, new ScoreSort(direction, missing));
                     }
                     // agg function
                     else if (orderExpression instanceof AggregateFunction) {
-                        qContainer = qContainer.addSort(lookup,
+                        qContainer = qContainer.prependSort(lookup,
                                 new AggregateSort((AggregateFunction) orderExpression, direction, missing));
                     }
                     // unknown

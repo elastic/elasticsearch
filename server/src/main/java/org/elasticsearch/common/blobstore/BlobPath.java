@@ -35,7 +35,8 @@ public class BlobPath {
     }
 
     public BlobPath add(String path) {
-        return new BlobPath(CollectionUtils.appendToCopy(this.paths, path.endsWith("/") ? path.substring(0, path.length() - 1) : path));
+        return new BlobPath(
+            CollectionUtils.appendToCopy(this.paths, path.endsWith(SEPARATOR) ? path.substring(0, path.length() - 1) : path));
     }
 
     public String buildAsString() {

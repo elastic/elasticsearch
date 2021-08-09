@@ -16,7 +16,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-//TODO expose this context to the painless execute API
+/**
+ * A script that emits a map of multiple values, that can then be accessed
+ * by child runtime fields.
+ */
 public abstract class CompositeFieldScript extends AbstractFieldScript {
     public static final ScriptContext<CompositeFieldScript.Factory> CONTEXT = newContext("composite_field", Factory.class);
 
@@ -49,6 +52,13 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
         List<Object> values = fieldValues.get(field);
         fieldValues.clear();    // don't hold on to values unnecessarily
         return values;
+    }
+
+    public final Map<String, List<Object>> runForDoc(int doc) {
+        setDocument(doc);
+        fieldValues.clear();
+        execute();
+        return fieldValues;
     }
 
     protected final void emit(String field, Object value) {

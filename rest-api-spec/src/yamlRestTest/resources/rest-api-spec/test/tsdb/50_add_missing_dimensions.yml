@@ -55,7 +55,7 @@
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
-"add dimensions with dynamic_template over index":
+"add dimensions to no dims with dynamic_template over index":
   - skip:
       version: " - 7.99.99"
       reason: introduced in 8.0.0 to be backported to 7.15.0
@@ -67,33 +67,25 @@
             settings:
               index:
                 mode: time_series
-            dynamic_templates:
-              keywords:
-                match_mapping_type: string
-                mapping:
-                  type: keyword
-                  dimension: true
             mappings:
+              dynamic_templates:
+                - keywords:
+                    match_mapping_type: string
+                    mapping:
+                      type: keyword
+                      dimension: true
               properties:
                 "@timestamp":
                   type: date
 
   - do:
-      catch: "/Error building time series id: There aren't any mapped dimensions/"
       index:
         index: test
         refresh: true
         body:
           "@timestamp": "2021-04-28T18:35:24.467Z"
           metricset: cat
-
-  - do:
-      index:
-        index: test
-        refresh: true
-        body:
-          "@timestamp": "2021-04-28T18:35:24.467Z"
-          metricset: cat
+  - match: {result: created}
 
   - do:
       search:
@@ -102,13 +94,12 @@
           fields:
             - field: _tsid
             - field: "@timestamp"
-
   - match: {hits.total.value: 1}
   - match: {hits.hits.0.fields._tsid: [{metricset: cat}]}
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
-"add dimensions with dynamic_template over bulk":
+"add dimensions to no dims with dynamic_template over bulk":
   - skip:
       version: " - 7.99.99"
       reason: introduced in 8.0.0 to be backported to 7.15.0
@@ -120,32 +111,25 @@
             settings:
               index:
                 mode: time_series
-            dynamic_templates:
-              keywords:
-                match_mapping_type: string
-                mapping:
-                  type: keyword
-                  dimension: true
             mappings:
+              dynamic_templates:
+                - keywords:
+                    match_mapping_type: string
+                    mapping:
+                      type: keyword
+                      dimension: true
               properties:
                 "@timestamp":
                   type: date
 
   - do:
-      catch: "/Error building time series id: There aren't any mapped dimensions/"
-      index:
+      bulk:
         index: test
         refresh: true
         body:
-          "@timestamp": "2021-04-28T18:35:24.467Z"
-          metricset: cat
-
-  - do:
-      bulk:
-        index: test
-        body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:35:24.467Z", "metricset": "cat"}'
+  - is_false: errors
 
   - do:
       search:
@@ -154,7 +138,101 @@
           fields:
             - field: _tsid
             - field: "@timestamp"
-
   - match: {hits.total.value: 1}
   - match: {hits.hits.0.fields._tsid: [{metricset: cat}]}
+  - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
+
+---
+"add dimensions to some dims with dynamic_template over index":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+            mappings:
+              dynamic_templates:
+                - keywords:
+                    match_mapping_type: string
+                    mapping:
+                      type: keyword
+                      dimension: true
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true
+
+  - do:
+      index:
+        index: test
+        refresh: true
+        body:
+          "@timestamp": "2021-04-28T18:35:24.467Z"
+          metricset: cat
+          other_dim: cat
+  - match: {result: created}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: _tsid
+            - field: "@timestamp"
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields._tsid: [{metricset: cat, other_dim: cat}]}
+  - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
+
+---
+"add dimensions to some dims with dynamic_template over bulk":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+            mappings:
+              dynamic_templates:
+                - keywords:
+                    match_mapping_type: string
+                    mapping:
+                      type: keyword
+                      dimension: true
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "metricset": "cat", "other_dim": "cat"}'
+  - is_false: errors
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: _tsid
+            - field: "@timestamp"
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields._tsid: [{metricset: cat, other_dim: cat}]}
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}

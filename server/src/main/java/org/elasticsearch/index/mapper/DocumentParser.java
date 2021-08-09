@@ -267,7 +267,11 @@ public final class DocumentParser {
             root = mappingLookup.getMapping().getRoot().copyAndReset();
         }
         root.addRuntimeFields(dynamicRuntimeFields);
-        return mappingLookup.getMapping().mappingUpdate(root);
+        Mapping mapping = mappingLookup.getMapping().mappingUpdate(root);
+        if (mapping.getTimeSeriesIdGenerator() != mappingLookup.getMapping().getTimeSeriesIdGenerator()) {
+            throw new IllegalStateException("added a dimension with a dynamic mapping");
+        }
+        return mapping;
     }
 
     private static RootObjectMapper createDynamicUpdate(MappingLookup mappingLookup,

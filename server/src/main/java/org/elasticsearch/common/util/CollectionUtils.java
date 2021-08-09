@@ -358,4 +358,11 @@ public class CollectionUtils {
 
         return result;
     }
+
+    public static <E> List<E> concatLists(List<E> listA, List<E> listB) {
+        List<E> concatList = new ArrayList<>(listA.size() + listB.size());
+        concatList.addAll(listA);
+        concatList.addAll(listB);
+        return concatList;
+    }
 }

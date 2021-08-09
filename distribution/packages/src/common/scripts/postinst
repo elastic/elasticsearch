@@ -14,6 +14,7 @@ if [ -f "@path.env@" ]; then
 fi
 
 export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
+export ES_HOME=/usr/share/elasticsearh
 
 IS_UPGRADE=false
 
@@ -56,7 +57,10 @@ fi
 
 if [ "x$IS_UPGRADE" != "xtrue" ]; then
     # This runs on installation and since we do not set a password for the keystore by default, we can assume it's not password protected
-    /usr/share/elasticsearch/bin/elasticsearch-autoconfig-security --explicitly-acknowledge-execution <<< ""
+   ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
+   ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
+   ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+   /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""
     if [ -f "${ES_PATH_CONF}"/elasticsearch.keystore ]; then
         INITIAL_PASSWORD=$(tr -dc 'A-Za-z0-9~!@#$%^&*-_=+?' </dev/urandom | head -c 14)
         echo "$INITIAL_PASSWORD" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -x 'bootstrap.password'

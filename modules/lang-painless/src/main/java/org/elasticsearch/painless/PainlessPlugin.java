@@ -104,7 +104,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         // Functions used for scoring docs
         List<Whitelist> scoreFn = new ArrayList<>();
         Whitelist scoreFnWhitelist = WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.score.txt");
-        Whitelist scoreFieldWhitelist = WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.score.txt");
+        Whitelist scoreFieldWhitelist =
+            WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.score.txt");
         scoreFn.add(scoreFnWhitelist);
         scoreFn.add(scoreFieldWhitelist);
         map.put(ScoreScript.CONTEXT, scoreFn);
@@ -122,17 +123,20 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         }
 
         List<Whitelist> numSort = new ArrayList<>();
-        Whitelist numSortField = WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.numbersort.txt");
+        Whitelist numSortField =
+            WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.numbersort.txt");
         numSort.add(numSortField);
         map.put(NumberSortScript.CONTEXT, numSort);
 
         List<Whitelist> strSort = new ArrayList<>();
-        Whitelist strSortField = WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.stringsort.txt");
+        Whitelist strSortField =
+            WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.stringsort.txt");
         strSort.add(strSortField);
         map.put(StringSortScript.CONTEXT, strSort);
 
         List<Whitelist> filter = new ArrayList<>();
-        Whitelist filterWhitelist = WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.filter.txt");
+        Whitelist filterWhitelist =
+            WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.filter.txt");
         filter.add(filterWhitelist);
         map.put(FilterScript.CONTEXT, filter);
 

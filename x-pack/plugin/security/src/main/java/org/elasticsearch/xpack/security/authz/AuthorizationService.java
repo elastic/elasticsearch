@@ -761,8 +761,8 @@ public class AuthorizationService {
     }
 
     static class LoadAuthorizedIndiciesTimeChecker {
-        private static final int WARN_THRESHOLD_MS = 100;
-        private static final int INFO_THRESHOLD_MS = 25;
+        private static final int WARN_THRESHOLD_MS = 200;
+        private static final int INFO_THRESHOLD_MS = 50;
         private static final int DEBUG_THRESHOLD_MS = 10;
 
         private final long startNanos;

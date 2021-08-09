@@ -1954,7 +1954,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             SearchAction.NAME
         );
         final AuthorizationService.LoadAuthorizedIndiciesTimeChecker checker = new AuthorizationService.LoadAuthorizedIndiciesTimeChecker(
-            now - TimeUnit.MILLISECONDS.toNanos(110),
+            now - TimeUnit.MILLISECONDS.toNanos(210),
             requestInfo
         );
         final Logger serviceLogger = LogManager.getLogger(AuthorizationService.class);
@@ -1971,7 +1971,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                     Pattern.quote("Resolving [0] indices for action [" + SearchAction.NAME + "] and user [slow-user] took [")
                         + "\\d{3}"
                         + Pattern.quote(
-                            "ms] which is greater than the threshold of 100ms;" +
+                            "ms] which is greater than the threshold of 200ms;" +
                                 " The index privileges for this user may be too complex for this cluster."
                         )
                 )

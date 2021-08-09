@@ -245,6 +245,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting that defines if the repository should be used to recover index files during peer recoveries.
+     */
+    public static final Setting<Boolean> USE_FOR_PEER_RECOVERY_SETTING = Setting.boolSetting("use_for_peer_recovery", false);
+
     protected final boolean supportURLRepo;
 
     private final boolean compress;

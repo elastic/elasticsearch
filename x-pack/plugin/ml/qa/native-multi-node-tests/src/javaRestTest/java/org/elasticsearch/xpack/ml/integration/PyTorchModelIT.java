@@ -168,17 +168,21 @@ public class PyTorchModelIT extends ESRestTestCase {
         putModelDefinition(modelA);
         refreshModelStoreAndVocabIndex();
         createTrainedModel(modelA);
-        startDeployment(modelA);
+        Response startDeploymentResponse = startDeployment(modelA);
+        logger.info("Started deployment:" + EntityUtils.toString(startDeploymentResponse.getEntity()));
         infer("once", modelA);
         infer("twice", modelA);
         Response response = getDeploymentStats(modelA);
         List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
+        logger.info("live stats response: " + stats);
         assertThat(stats, hasSize(1));
         assertThat(stats.get(0).get("model_id"), equalTo(modelA));
         assertThat(stats.get(0).get("model_size"), equalTo("1.5kb"));
         List<Map<String, Object>> nodes = (List<Map<String, Object>>)stats.get(0).get("nodes");
-        assertThat(nodes, hasSize(1));
-        assertThat(nodes.get(0).get("inference_count"), equalTo(2));
+        // 2 of the 3 nodes in the cluster are ML nodes
+        assertThat(nodes, hasSize(2));
+        int inferenceCount = sumInferenceCountOnNodes(nodes);
+        assertThat(inferenceCount, equalTo(2));
     }
 
     @SuppressWarnings("unchecked")
@@ -193,16 +197,16 @@ public class PyTorchModelIT extends ESRestTestCase {
         createModelStoreIndex();
 
         String modelFoo = "foo";
-        putTaskConfig(modelFoo, List.of("once", "twice"));
+        putVocabulary(List.of("once", "twice"));
         putModelDefinition(modelFoo);
         createTrainedModel(modelFoo);
 
         String modelBar = "bar";
-        putTaskConfig(modelBar, List.of("once", "twice"));
+        putVocabulary(List.of("once", "twice"));
         putModelDefinition(modelBar);
         createTrainedModel(modelBar);
 
-        refreshModelStoreIndex();
+        refreshModelStoreAndVocabIndex();
 
         startDeployment(modelFoo);
         startDeployment(modelBar);
@@ -215,10 +219,13 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(stats, hasSize(2));
             assertThat(stats.get(0).get("model_id"), equalTo(modelBar));
             assertThat(stats.get(1).get("model_id"), equalTo(modelFoo));
-            List<Map<String, Object>> nodes1 = (List<Map<String, Object>>)stats.get(0).get("nodes");
-            assertThat(nodes1.get(0).get("inference_count"), equalTo(1));
-            List<Map<String, Object>> nodes2 = (List<Map<String, Object>>)stats.get(0).get("nodes");
-            assertThat(nodes2.get(0).get("inference_count"), equalTo(1));
+            List<Map<String, Object>> barNodes = (List<Map<String, Object>>)stats.get(0).get("nodes");
+            // 2 of the 3 nodes in the cluster are ML nodes
+            assertThat(barNodes, hasSize(2));
+            assertThat(sumInferenceCountOnNodes(barNodes), equalTo(1));
+            List<Map<String, Object>> fooNodes = (List<Map<String, Object>>)stats.get(0).get("nodes");
+            assertThat(fooNodes, hasSize(2));
+            assertThat(sumInferenceCountOnNodes(fooNodes), equalTo(1));
         }
         {
             Response response = getDeploymentStats("f*");
@@ -244,6 +251,14 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(EntityUtils.toString(e.getResponse().getEntity()),
                 containsString("No known trained model with deployment with id [c*]"));
         }
+    }
+
+    private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
+        int inferenceCount = 0;
+        for (var node : nodes) {
+            inferenceCount += (Integer) node.get("inference_count");
+        }
+        return inferenceCount;
     }
 
     private void putModelDefinition(String modelId) throws IOException {
@@ -323,9 +338,9 @@ public class PyTorchModelIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    private void startDeployment(String modelId) throws IOException {
+    private Response startDeployment(String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s");
-        client().performRequest(request);
+        return client().performRequest(request);
     }
 
     private void stopDeployment(String modelId) throws IOException {

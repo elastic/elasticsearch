@@ -130,13 +130,15 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     this.inferenceCount = inferenceCount;
                     this.avgInferenceTime = avgInferenceTime;
                     this.lastAccess = lastAccess;
+                    // if lastAccess time is null there have been no inferences
+                    assert this.lastAccess != null || inferenceCount == 0;
                 }
 
                 public NodeStats(StreamInput in) throws IOException {
                     this.node = in.readOptionalWriteable(DiscoveryNode::new);
                     this.inferenceCount = in.readLong();
                     this.avgInferenceTime = in.readDouble();
-                    this.lastAccess = in.readInstant();
+                    this.lastAccess = in.readOptionalInstant();
                 }
 
                 @Override
@@ -147,7 +149,9 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     builder.endObject();
                     builder.field("inference_count", inferenceCount);
                     builder.field("average_inference_time_ms", avgInferenceTime);
-                    builder.timeField("last_access", "last_access_string", lastAccess.toEpochMilli());
+                    if (lastAccess != null) {
+                        builder.timeField("last_access", "last_access_string", lastAccess.toEpochMilli());
+                    }
                     builder.endObject();
                     return builder;
                 }
@@ -157,7 +161,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     out.writeOptionalWriteable(node);
                     out.writeLong(inferenceCount);
                     out.writeDouble(avgInferenceTime);
-                    out.writeInstant(lastAccess);
+                    out.writeOptionalInstant(lastAccess);
                 }
 
                 @Override

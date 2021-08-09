@@ -5,31 +5,31 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml;
+package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
-import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.deployment.ModelStats;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -42,6 +42,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
     GetDeploymentStatsAction.Request, GetDeploymentStatsAction.Response, GetDeploymentStatsAction.Response.AllocationStats> {
 
     private final DeploymentManager deploymentManager;
+    private static final Logger logger = LogManager.getLogger(TransportGetDeploymentStatsAction.class);
 
     @Inject
     public TransportGetDeploymentStatsAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
@@ -81,23 +82,21 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
     protected void doExecute(Task task, GetDeploymentStatsAction.Request request,
                              ActionListener<GetDeploymentStatsAction.Response> listener) {
 
-        ClusterState clusterState = clusterService.state();
-        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-
-
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> deploymentTasks = MlTasks.trainedModelDeploymentTasks(tasks);
-
         String[] tokenizedRequestIds = Strings.tokenizeToStringArray(request.getDeploymentId(), ",");
         ExpandedIdsMatcher.SimpleIdsMatcher idsMatcher =
             new ExpandedIdsMatcher.SimpleIdsMatcher(tokenizedRequestIds);
+
+        TrainedModelAllocationMetadata allocation = TrainedModelAllocationMetadata.fromState(clusterService.state());
         List<String> matchedDeploymentIds = new ArrayList<>();
         Set<String> taskNodes = new HashSet<>();
 
-        for (var deployedTask : deploymentTasks) {
-            String deploymentTaskId = MlTasks.trainedModelDeploymentId(deployedTask.getId());
-            if (idsMatcher.idMatches(deploymentTaskId)) {
-                matchedDeploymentIds.add(deploymentTaskId);
-                taskNodes.add(deployedTask.getExecutorNode());
+        for (var routingEntry : allocation.modelAllocations().entrySet()) {
+            if (idsMatcher.idMatches(routingEntry.getKey())) {
+                matchedDeploymentIds.add(routingEntry.getKey());
+
+                taskNodes.addAll(Arrays.asList(routingEntry.getValue().getStartedNodes()));  // TODO: limited to started nodes
+                logger.warn("Routing table " + Strings.toString(routingEntry.getValue()));
+                logger.warn("getting stats on nodes: " + taskNodes);
             }
         }
 

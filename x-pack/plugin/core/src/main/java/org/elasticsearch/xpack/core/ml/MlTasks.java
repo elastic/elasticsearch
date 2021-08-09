@@ -398,20 +398,6 @@ public final class MlTasks {
         return tasks.findTasks(DATAFEED_TASK_NAME, task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes));
     }
 
-    /**
-     * Get all the trained model deployment tasks
-     * @param tasks Persistent tasks metadata
-     * @return The list of deployment tasks
-     */
-    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>>
-    trainedModelDeploymentTasks(@Nullable PersistentTasksCustomMetadata tasks) {
-        if (tasks == null) {
-            return Collections.emptyList();
-        }
-
-        return tasks.findTasks(TRAINED_MODEL_DEPLOYMENT_TASK_NAME, task -> true);
-    }
-
     public static MemoryTrackedTaskState getMemoryTrackedTaskState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         String taskName = task.getTaskName();
         switch (taskName) {

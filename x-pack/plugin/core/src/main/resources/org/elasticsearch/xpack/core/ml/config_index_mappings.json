@@ -354,6 +354,9 @@
           "check_window" : {
             "type" : "keyword"
           },
+          "check_frequency" : {
+            "type" : "keyword"
+          },
           "enabled" : {
             "type" : "boolean"
           }

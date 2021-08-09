@@ -459,14 +459,10 @@ This check runs only on real-time {dfeeds}.
 end::delayed-data-check-config[]
 
 tag::delayed-data-check-config-check-frequency[]
-The how often should the {dfeed} search for late data.
-It must be smaller than the delayed data `check_window`.
-Additionally, if {dfeed} frequency is set, `check_frequency` must
+Specifieds how often the {dfeed} searches for late data.
+If {dfeed} frequency is set, `check_frequency` must
 be larger than `frequency`.
-Delayed data checks cannot occur more often than the configured `frequency`.
-But, setting `check_frequency` higher will increase the time between delayed
-data checks.
-
++
 It defaults to `15m` or the configured {dfeed} `frequency`, which ever is largest.
 end::delayed-data-check-config-check-frequency[]
 

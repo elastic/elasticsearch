@@ -122,10 +122,14 @@ public class TransportClusterAllocationExplainAction
     public static ShardRouting findShardToExplain(ClusterAllocationExplainRequest request, RoutingAllocation allocation) {
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {
-            // If we can use any shard, just pick the first unassigned one (if there are any)
-            RoutingNodes.UnassignedShards.UnassignedIterator ui = allocation.routingNodes().unassigned().iterator();
-            if (ui.hasNext()) {
-                foundShard = ui.next();
+            // If we can use any shard, return the first unassigned primary (if there is one) or the first unassigned replica (if not)
+            for (ShardRouting unassigned : allocation.routingNodes().unassigned()) {
+                if (foundShard == null || unassigned.primary()) {
+                    foundShard = unassigned;
+                }
+                if (foundShard.primary()) {
+                    break;
+                }
             }
             if (foundShard == null) {
                 throw new IllegalArgumentException("No shard was specified in the request which means the response should explain a " +

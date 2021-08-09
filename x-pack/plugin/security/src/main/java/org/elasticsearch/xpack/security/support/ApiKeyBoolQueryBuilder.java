@@ -33,7 +33,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
     // Field names allowed at the index level
     private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES =
-        Set.of("doc_type", "name", "api_key_invalidated", "creation_time", "expiration_time");
+        Set.of("_id", "doc_type", "name", "api_key_invalidated", "creation_time", "expiration_time");
 
     private ApiKeyBoolQueryBuilder() {}
 

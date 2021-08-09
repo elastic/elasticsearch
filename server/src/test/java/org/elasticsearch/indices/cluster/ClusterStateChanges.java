@@ -103,6 +103,7 @@ import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
+import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedFunction;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
@@ -350,10 +351,5 @@ public class ClusterStateChanges {
         runnable.run();
         assertThat(result[0], notNullValue());
         return result[0];
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T, R, E extends Exception> CheckedFunction<T, R, E> anyCheckedFunction() {
-        return any(CheckedFunction.class);
     }
 }

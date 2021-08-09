@@ -15,10 +15,13 @@ Accepts a single value or an array of values.
 [options="header"]
 |======
 | Name      | Required  | Default  | Description
-| `field`  | yes       | -        | The field to be appended to. Supports <<template-snippets,template snippets>>.
-| `value`  | yes       | -        | The value to be appended. Supports <<template-snippets,template snippets>>.
+| `field`   | yes       | -        | The field to be appended to. Supports <<template-snippets,template snippets>>.
+| `value`   | yes       | -        | The value to be appended. Supports <<template-snippets,template snippets>>.
 | `allow_duplicates` | no | true  | If `false`, the processor does not append
 values already present in the field.
+| `media_type` | no | `application/json` | The media type for encoding `value`. Applies only when `value` is a
+<<accessing-template-fields,template snippet>>. Must be one of `application/json`, `text/plain`, or
+`application/x-www-form-urlencoded`.
 include::common-options.asciidoc[]
 |======
 

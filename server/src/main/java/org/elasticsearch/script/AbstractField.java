@@ -61,8 +61,8 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     }
 
     @Override
-    public long asLong(long defaultValue) {
-        return asLongField().getValue(defaultValue);
+    public long getLong(long defaultValue) {
+        return asLongField().getLong(defaultValue);
     }
 
     @Override
@@ -75,8 +75,8 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     }
 
     @Override
-    public double asDouble(double defaultValue) {
-        return asDoubleField().getValue(defaultValue);
+    public double getDouble(double defaultValue) {
+        return asDoubleField().getDouble(defaultValue);
     }
 
     @Override
@@ -89,8 +89,8 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     }
 
     @Override
-    public BigInteger asBigInteger(BigInteger defaultValue) {
-        return asBigIntegerField().getValue(defaultValue);
+    public BigInteger getBigInteger(BigInteger defaultValue) {
+        return asBigIntegerField().getBigInteger(defaultValue);
     }
 
     @Override
@@ -103,8 +103,8 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     }
 
     @Override
-    public String asString(String defaultValue) {
-        return asStringField().getValue(defaultValue);
+    public String getString(String defaultValue) {
+        return asStringField().getString(defaultValue);
     }
 
     @Override
@@ -117,7 +117,7 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     }
 
     @Override
-    public Object asDef(Object defaultValue) {
+    public Object getDef(Object defaultValue) {
         return asDefField().getValue(defaultValue);
     }
 }

@@ -32,32 +32,34 @@ public interface Field<T> {
     /** Get all values of a multivalued field.  If {@code isEmpty()} this returns an empty list. */
     List<T> getValues();
 
-    /* This is left to the duck-typed implementing classes */
-    // T getValue(T defaultValue);
+    /** Get first value, if it exists, or return {@code defaultValue}.  Returns def type, use the {@code get<Type>}
+     * to avoid boxing
+     */
+    Object getValue(Object defaultValue);
 
     /** Treat the current {@code Field} as if it held primitive {@code long}s, throws {@code IllegalStateException} if impossible */
     LongField asLongField();
-    long asLong(long defaultValue);
+    long getLong(long defaultValue);
 
     /** Treat the current {@code Field} as if it held primitive {@code double}s, {@code throws IllegalStateException} if impossible */
     DoubleField asDoubleField();
-    double asDouble(double defaultValue);
+    double getDouble(double defaultValue);
 
     /**
      * Treat the current {@code Field} as if it held {@code BigInteger}, throws {@code IllegalStateException} if underlying type does not
      * naturally contain {@code BigInteger}s.  If underlying values fit in a signed {@code long}, {@code asLongField} should be used.
      **/
     BigIntegerField asBigIntegerField();
-    BigInteger asBigInteger(BigInteger defaultValue);
+    BigInteger getBigInteger(BigInteger defaultValue);
 
     /** Treat the current {@code Field} as if it held {@code Strings}s, throws {@code IllegalStateException} if impossible */
     StringField asStringField();
-    String asString(String defaultValue);
+    String getString(String defaultValue);
 
     /**
      * Treat the current Field as if it held {@code Object}.  This is a way to break out of the Fields API and
      * allow the caller to do their own casting if necessary.
      */
     DefField asDefField();
-    Object asDef(Object defaultValue);
+    Object getDef(Object defaultValue);
 }

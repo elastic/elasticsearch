@@ -38,12 +38,17 @@ public class EmptyField implements Field<Number> {
     }
 
     @Override
+    public Object getValue(Object defaultValue) {
+        return defaultValue;
+    }
+
+    @Override
     public LongField asLongField() {
         return new LongField(name, EmptyFieldValues.LONG);
     }
 
     @Override
-    public long asLong(long defaultValue) {
+    public long getLong(long defaultValue) {
         return defaultValue;
     }
 
@@ -53,7 +58,7 @@ public class EmptyField implements Field<Number> {
     }
 
     @Override
-    public double asDouble(double defaultValue) {
+    public double getDouble(double defaultValue) {
         return defaultValue;
     }
 
@@ -63,7 +68,7 @@ public class EmptyField implements Field<Number> {
     }
 
     @Override
-    public BigInteger asBigInteger(BigInteger defaultValue) {
+    public BigInteger getBigInteger(BigInteger defaultValue) {
         return defaultValue;
     }
 
@@ -73,7 +78,7 @@ public class EmptyField implements Field<Number> {
     }
 
     @Override
-    public String asString(String defaultValue) {
+    public String getString(String defaultValue) {
         return defaultValue;
     }
 
@@ -83,7 +88,7 @@ public class EmptyField implements Field<Number> {
     }
 
     @Override
-    public Object asDef(Object defaultValue) {
+    public Object getDef(Object defaultValue) {
         return defaultValue;
     }
 }

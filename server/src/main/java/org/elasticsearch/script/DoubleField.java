@@ -19,7 +19,16 @@ public class DoubleField extends AbstractField<Double, FieldValues.Doubles> {
         super(name, values);
     }
 
-    public double getValue(double defaultValue) {
+    @Override
+    public Object getValue(Object defaultValue) {
+        if (isEmpty()) {
+            return defaultValue;
+        }
+        return values.getDouble(0);
+    }
+
+    @Override
+    public double getDouble(double defaultValue) {
         if (isEmpty()) {
             return defaultValue;
         }
@@ -34,10 +43,5 @@ public class DoubleField extends AbstractField<Double, FieldValues.Doubles> {
     @Override
     public DoubleField asDoubleField() {
         return this;
-    }
-
-    @Override
-    public double asDouble(double defaultValue) {
-        return getValue(defaultValue);
     }
 }

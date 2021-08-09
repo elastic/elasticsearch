@@ -19,8 +19,17 @@ public class BigIntegerField extends AbstractField<BigInteger, FieldValues.BigIn
         super(name, values);
     }
 
-    public BigInteger getValue(BigInteger defaultValue) {
-        if (values.isEmpty()) {
+    @Override
+    public Object getValue(Object defaultValue) {
+        if (isEmpty()) {
+            return defaultValue;
+        }
+        return values.getBigInteger(0);
+    }
+
+    @Override
+    public BigInteger getBigInteger(BigInteger defaultValue) {
+        if (isEmpty()) {
             return defaultValue;
         }
         return values.getBigInteger(0);
@@ -34,10 +43,5 @@ public class BigIntegerField extends AbstractField<BigInteger, FieldValues.BigIn
     @Override
     public BigIntegerField asBigIntegerField() {
         return this;
-    }
-
-    @Override
-    public BigInteger asBigInteger(BigInteger defaultValue) {
-        return getValue(defaultValue);
     }
 }

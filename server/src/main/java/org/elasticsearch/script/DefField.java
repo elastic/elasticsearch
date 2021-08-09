@@ -18,11 +18,17 @@ public class DefField extends AbstractField<Object, FieldValues.Objects> {
         super(name, values);
     }
 
+    @Override
     public Object getValue(Object defaultValue) {
         if (isEmpty()) {
             return defaultValue;
         }
         return values.getObject(0);
+    }
+
+    @Override
+    public Object getDef(Object defaultValue) {
+        return getValue(defaultValue);
     }
 
     @Override
@@ -33,10 +39,5 @@ public class DefField extends AbstractField<Object, FieldValues.Objects> {
     @Override
     public DefField asDefField() {
         return this;
-    }
-
-    @Override
-    public Object asDef(Object defaultValue) {
-        return getValue(defaultValue);
     }
 }

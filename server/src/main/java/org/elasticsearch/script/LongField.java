@@ -19,7 +19,16 @@ public class LongField extends AbstractField<Long, FieldValues.Longs> {
         super(name, values);
     }
 
-    public long getValue(long defaultValue) {
+    @Override
+    public Object getValue(Object defaultValue) {
+        if (isEmpty()) {
+            return defaultValue;
+        }
+        return values.getLong(0);
+    }
+
+    @Override
+    public long getLong(long defaultValue) {
         if (isEmpty()) {
             return defaultValue;
         }
@@ -34,10 +43,5 @@ public class LongField extends AbstractField<Long, FieldValues.Longs> {
     @Override
     public LongField asLongField() {
         return this;
-    }
-
-    @Override
-    public long asLong(long defaultValue) {
-        return getValue(defaultValue);
     }
 }

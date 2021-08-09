@@ -40,7 +40,39 @@ setup:
               order: desc
               type: number
               script:
-                source: "field('ul').asBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+                source: "field('ul').getBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+
+  - match: { hits.hits.0.sort: [1.8446744073709552E19] }
+  - match: { hits.hits.1.sort: [1.8446744073709552E19] }
+  - match: { hits.hits.2.sort: [9.223372036854776E18] }
+  - match: { hits.hits.3.sort: [9.223372036854776E18] }
+  - match: { hits.hits.4.sort: [0.0] }
+  - do:
+      search:
+        index: test1
+        body:
+          sort:
+            _script:
+              order: desc
+              type: number
+              script:
+                source: "field('ul').getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+
+  - match: { hits.hits.0.sort: [1.8446744073709552E19] }
+  - match: { hits.hits.1.sort: [1.8446744073709552E19] }
+  - match: { hits.hits.2.sort: [9.223372036854776E18] }
+  - match: { hits.hits.3.sort: [9.223372036854776E18] }
+  - match: { hits.hits.4.sort: [0.0] }
+  - do:
+      search:
+        index: test1
+        body:
+          sort:
+            _script:
+              order: desc
+              type: number
+              script:
+                source: "field('ul').asBigIntegerField().getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
 
   - match: { hits.hits.0.sort: [1.8446744073709552E19] }
   - match: { hits.hits.1.sort: [1.8446744073709552E19] }
@@ -60,6 +92,34 @@ setup:
                script:
                  script:
                    source: "field('ul').asBigIntegerField().getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue() > 10E18"
+          sort: [ { ul: asc } ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "5" }
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            bool:
+              filter:
+               script:
+                 script:
+                   source: "field('ul').getBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue() > 10E18"
+          sort: [ { ul: asc } ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "5" }
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            bool:
+              filter:
+               script:
+                 script:
+                   source: "field('ul').getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue() > 10E18"
           sort: [ { ul: asc } ]
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "4" }
@@ -88,6 +148,28 @@ setup:
             script_score:
               query: {match_all: {}}
               script:
-                source: "field('ul').asBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+                source: "field('ul').getBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+
+  - match: { hits.total.value: 5 }
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: "field('ul').asBigIntegerField().getBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+
+  - match: { hits.total.value: 5 }
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: "field('ul').getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
 
   - match: { hits.total.value: 5 }

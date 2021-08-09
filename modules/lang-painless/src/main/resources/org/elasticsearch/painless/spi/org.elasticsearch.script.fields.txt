@@ -13,37 +13,38 @@ class org.elasticsearch.script.Field {
   String getName()
   boolean isEmpty()
   List getValues()
+  def getValue(def)
 
   org.elasticsearch.script.LongField asLongField()
-  long asLong(long)
+  long getLong(long)
 
   org.elasticsearch.script.DoubleField asDoubleField()
-  double asDouble(double)
+  double getDouble(double)
 
   org.elasticsearch.script.BigIntegerField asBigIntegerField()
-  BigInteger asBigInteger(BigInteger)
+  BigInteger getBigInteger(BigInteger)
 
   org.elasticsearch.script.StringField asStringField()
-  String asString(String)
+  String getString(String)
 
   org.elasticsearch.script.DefField asDefField()
-  def asDef(def)
+  def getDef(def)
 }
 
 class org.elasticsearch.script.LongField {
-  long getValue(long)
+  long getLong(long)
 }
 
 class org.elasticsearch.script.DoubleField {
-  double getValue(double)
+  double getDouble(double)
 }
 
 class org.elasticsearch.script.BigIntegerField {
-  BigInteger getValue(BigInteger)
+  BigInteger getBigInteger(BigInteger)
 }
 
 class org.elasticsearch.script.StringField {
-  String getValue(String)
+  String getString(String)
 }
 
 class org.elasticsearch.script.DefField {

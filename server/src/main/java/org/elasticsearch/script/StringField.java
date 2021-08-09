@@ -15,8 +15,17 @@ public class StringField extends AbstractField<String, FieldValues.Strings> {
         super(name, values);
     }
 
-    public String getValue(String defaultValue) {
-        if (values.isEmpty()) {
+    @Override
+    public Object getValue(Object defaultValue) {
+        if (isEmpty()) {
+            return defaultValue;
+        }
+        return values.getString(0);
+    }
+
+    @Override
+    public String getString(String defaultValue) {
+        if (isEmpty()) {
             return defaultValue;
         }
         return values.getString(0);
@@ -30,10 +39,5 @@ public class StringField extends AbstractField<String, FieldValues.Strings> {
     @Override
     public StringField asStringField() {
         return this;
-    }
-
-    @Override
-    public String asString(String defaultValue) {
-        return getValue(defaultValue);
     }
 }

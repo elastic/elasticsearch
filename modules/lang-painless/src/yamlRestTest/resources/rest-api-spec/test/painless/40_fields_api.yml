@@ -55,9 +55,93 @@ setup:
            body:
              sort:
                _script:
+                 type: number
+                 script:
+                   source: "field('dval').asDoubleField().getDouble(3)"
+     - match: { hits.total: 3 }
+     - match: { hits.hits.0._id: d2 }
+     - match: { hits.hits.1._id: d3 }
+     - match: { hits.hits.2._id: d1 }
+     - do:
+         search:
+           rest_total_hits_as_int: true
+           index: test
+           body:
+             sort:
+               _script:
+                 type: number
+                 script:
+                   source: "field('dval').getDouble(3)"
+     - match: { hits.total: 3 }
+     - match: { hits.hits.0._id: d2 }
+     - match: { hits.hits.1._id: d3 }
+     - match: { hits.hits.2._id: d1 }
+     - do:
+         search:
+           rest_total_hits_as_int: true
+           index: test
+           body:
+             sort:
+               _script:
+                 type: number
+                 script:
+                   source: "field('dval').getValue(3)"
+     - match: { hits.total: 3 }
+     - match: { hits.hits.0._id: d2 }
+     - match: { hits.hits.1._id: d3 }
+     - match: { hits.hits.2._id: d1 }
+     - do:
+         search:
+           rest_total_hits_as_int: true
+           index: test
+           body:
+             sort:
+               _script:
                  type: string
                  script:
                    source: "field('sval.keyword').asStringField().getValue('g')"
+     - match: { hits.total: 3 }
+     - match: { hits.hits.0._id: d3 }
+     - match: { hits.hits.1._id: d1 }
+     - match: { hits.hits.2._id: d2 }
+     - do:
+         search:
+           rest_total_hits_as_int: true
+           index: test
+           body:
+             sort:
+               _script:
+                 type: string
+                 script:
+                   source: "field('sval.keyword').asStringField().getString('g')"
+     - match: { hits.total: 3 }
+     - match: { hits.hits.0._id: d3 }
+     - match: { hits.hits.1._id: d1 }
+     - match: { hits.hits.2._id: d2 }
+     - do:
+         search:
+           rest_total_hits_as_int: true
+           index: test
+           body:
+             sort:
+               _script:
+                 type: string
+                 script:
+                   source: "field('sval.keyword').getString('g')"
+     - match: { hits.total: 3 }
+     - match: { hits.hits.0._id: d3 }
+     - match: { hits.hits.1._id: d1 }
+     - match: { hits.hits.2._id: d2 }
+     - do:
+         search:
+           rest_total_hits_as_int: true
+           index: test
+           body:
+             sort:
+               _script:
+                 type: string
+                 script:
+                   source: "field('sval.keyword').getValue('g')"
      - match: { hits.total: 3 }
      - match: { hits.hits.0._id: d3 }
      - match: { hits.hits.1._id: d1 }
@@ -102,6 +186,48 @@ setup:
                 query: {match_all: {} }
                 script:
                   source: "field('dval').asDoubleField().getValue(3)"
+    - match: { hits.total: 3 }
+    - match: { hits.hits.0._id: d1 }
+    - match: { hits.hits.1._id: d3 }
+    - match: { hits.hits.2._id: d2 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              script_score:
+                query: {match_all: {} }
+                script:
+                  source: "field('dval').asDoubleField().getDouble(3)"
+    - match: { hits.total: 3 }
+    - match: { hits.hits.0._id: d1 }
+    - match: { hits.hits.1._id: d3 }
+    - match: { hits.hits.2._id: d2 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              script_score:
+                query: {match_all: {} }
+                script:
+                  source: "field('dval').getDouble(3)"
+    - match: { hits.total: 3 }
+    - match: { hits.hits.0._id: d1 }
+    - match: { hits.hits.1._id: d3 }
+    - match: { hits.hits.2._id: d2 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              script_score:
+                query: {match_all: {} }
+                script:
+                  source: "field('dval').getValue(3)"
     - match: { hits.total: 3 }
     - match: { hits.hits.0._id: d1 }
     - match: { hits.hits.1._id: d3 }
@@ -155,6 +281,62 @@ setup:
               bool:
                 filter:
                   script:
+                    script: "field('dval').getDouble(6) > 6"
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._id: d1 }
+    - match: { hits.hits.0._id: d1 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query:
+              bool:
+                filter:
+                  script:
+                    script: "field('dval').getValue(6) > 6"
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._id: d1 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query:
+              bool:
+                filter:
+                  script:
                     script: "field('sval.keyword').asDefField().getValue('b') == 'a'"
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._id: d3 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query:
+              bool:
+                filter:
+                  script:
+                    script: "field('sval.keyword').getDef('b') == 'a'"
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._id: d3 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query:
+              bool:
+                filter:
+                  script:
+                    script: "field('sval.keyword').getValue('b') == 'a'"
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._id: d3 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query:
+              bool:
+                filter:
+                  script:
+                    script: "field('sval.keyword').getString('b') == 'a'"
     - match: { hits.total: 1 }
     - match: { hits.hits.0._id: d3 }

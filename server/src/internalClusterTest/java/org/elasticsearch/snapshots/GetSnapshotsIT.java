@@ -204,6 +204,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 assertEquals(allSnapshotNames.size(), getSnapshotsResponse.totalCount());
                 assertEquals(allSnapshotNames.size() - (j + i + 1), getSnapshotsResponse.remaining());
                 assertEquals(subsetSorted, allSorted.subList(j + 1, j + i + 1));
+                assertEquals(getSnapshotsResponseNumeric.totalCount(), getSnapshotsResponse.totalCount());
+                assertEquals(getSnapshotsResponseNumeric.remaining(), getSnapshotsResponse.remaining());
             }
         }
     }

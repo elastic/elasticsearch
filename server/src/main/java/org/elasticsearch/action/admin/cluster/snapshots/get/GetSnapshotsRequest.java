@@ -140,6 +140,10 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             order.writeTo(out);
             if (out.getVersion().onOrAfter(NUMERIC_PAGINATION_VERSION)) {
                 out.writeVInt(offset);
+            } else if (offset != 0) {
+                throw new IllegalArgumentException(
+                    "can't use numeric offset in get snapshots request with node version [" + out.getVersion() + "]"
+                );
             }
         } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC) {
             throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");

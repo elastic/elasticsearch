@@ -197,6 +197,8 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                 assertEquals(subsetSorted, allSorted.subList(j + 1, j + i + 1));
                 assertEquals(allSnapshotNames.size(), getSnapshotsResponse.totalCount());
                 assertEquals(allSnapshotNames.size() - (j + i + 1), getSnapshotsResponse.remaining());
+                assertEquals(getSnapshotsResponseNumeric.totalCount(), getSnapshotsResponse.totalCount());
+                assertEquals(getSnapshotsResponseNumeric.remaining(), getSnapshotsResponse.remaining());
             }
         }
     }

@@ -136,8 +136,8 @@ Offset identifier to start pagination from as returned by the `next` field in th
 
 `offset`::
 (Optional, integer)
-Numeric offset to start pagination from. Using a non-zero value for this parameter is mutually exclusive with using the `after` parameter.
-Defaults to `0`.
+Numeric offset to start pagination from based on the snapshots matching this request. Using a non-zero value for this parameter is mutually
+exclusive with using the `after` parameter. Defaults to `0`.
 
 NOTE: The `after` parameter and `next` field allow for iterating through snapshots with some consistency guarantees regarding concurrent
 creation or deletion of snapshots. It is guaranteed that  any snapshot that exists at the beginning of the iteration and not concurrently

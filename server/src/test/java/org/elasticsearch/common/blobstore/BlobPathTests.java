@@ -27,4 +27,14 @@ public class BlobPathTests extends ESTestCase {
         path = path.add("d/");
         assertThat(path.buildAsString(), is("a/b/c/d/"));
     }
+
+    public void testPathsWithTrailingSlash() {
+        final BlobPath withTrailingSlash = BlobPath.EMPTY.add("foo/bar/");
+        final BlobPath withOutTrailingSlash = BlobPath.EMPTY.add("foo").add("bar");
+        assertThat(withTrailingSlash.buildAsString(), is(withOutTrailingSlash.buildAsString()));
+        final BlobPath subFolderFromWithTrailingSlash = withTrailingSlash.add("indices");
+        final BlobPath subFolderFromWithoutTrailingSlash = withOutTrailingSlash.add("indices");
+        assertThat(subFolderFromWithoutTrailingSlash.buildAsString(), is("foo/bar/indices/"));
+        assertThat(subFolderFromWithTrailingSlash.buildAsString(), is("foo/bar/indices/"));
+    }
 }

@@ -35,12 +35,12 @@ public class BlobPath {
     }
 
     public BlobPath add(String path) {
-        return new BlobPath(CollectionUtils.appendToCopy(this.paths, path));
+        return new BlobPath(CollectionUtils.appendToCopy(this.paths, path.endsWith("/") ? path.substring(0, path.length() - 1) : path));
     }
 
     public String buildAsString() {
         String p = String.join(SEPARATOR, paths);
-        if (p.isEmpty() || p.endsWith(SEPARATOR)) {
+        if (p.isEmpty()) {
             return p;
         }
         return p + SEPARATOR;

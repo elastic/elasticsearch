@@ -5,7 +5,7 @@ A document is routed to a particular shard in an index using the following
 formulas:
     
     routing_factor = num_routing_shards / num_primary_shards
-    shard_num = hash(_routing) % ( num_routing_shards / routing_factor )
+    shard_num = (hash(_routing) % num_routing_shards) / routing_factor
 
 `num_routing_shards` is the value of the
 <<index-number-of-routing-shards,`index.number_of_routing_shards`>> index
@@ -125,7 +125,8 @@ expense of having to search more shards per request.
 
 When this setting is present, the formula for calculating the shard becomes:
 
-    shard_num = (hash(_routing) + hash(_id) % routing_partition_size) % ( num_routing_shards / routing_factor )
+    routing_value = hash(_routing) + hash(_id) % routing_partition_size
+    shard_num = (routing_value %  num_routing_shards) / routing_factor
 
 That is, the `_routing` field is used to calculate a set of shards within the index and then the
 `_id` is used to pick a shard within that set.

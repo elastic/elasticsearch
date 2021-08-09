@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.security.tool;
 
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
@@ -30,6 +33,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
@@ -37,6 +42,7 @@ import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
@@ -188,5 +194,58 @@ public class CommandLineHttpClient {
             return String.valueOf(((Map) error).get("type"));
         }
         return error.toString();
+    }
+
+    // If cluster is not up yet (connection refused or cluster still Red), we will retry @retries number of times
+    public void checkClusterHealthWithRetriesWaitingForCluster(String username, SecureString password, int retries) throws Exception {
+        final URL clusterHealthUrl = createURL(new URL(getDefaultURL()), "_cluster/health", "?pretty");
+        HttpResponse response = null;
+        try {
+            response = execute("GET", clusterHealthUrl, username, password, () -> null, CommandLineHttpClient::responseBuilder);
+        } catch (Exception e) {
+            if (retries > 0) {
+                Thread.sleep(1000);
+                retries -= 1;
+                checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
+            } else {
+                throw new UserException(ExitCodes.UNAVAILABLE, "Failed to determine the health of the cluster. ", e);
+            }
+        }
+        final int responseStatus = Objects.requireNonNull(response).getHttpStatus();
+        if (responseStatus != HttpURLConnection.HTTP_OK) {
+            throw new UserException(
+                ExitCodes.DATA_ERROR,
+                "Failed to determine the health of the cluster. Unexpected http status [" + responseStatus + "]"
+            );
+        } else {
+            final String clusterStatus = Objects.toString(response.getResponseBody().get("status"), "");
+            if (clusterStatus.isEmpty()) {
+                throw new UserException(
+                    ExitCodes.DATA_ERROR,
+                    "Failed to determine the health of the cluster. Cluster health API did not return a status value."
+                );
+            } else if ("red".equalsIgnoreCase(clusterStatus)) {
+                if (retries > 0) {
+                    Thread.sleep(1000);
+                    retries -= 1;
+                    checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
+                } else {
+                    throw new UserException(ExitCodes.UNAVAILABLE,
+                        "Failed to determine the health of the cluster. Cluster health is currently RED.");
+                }
+            }
+            // else it is yellow or green so we can continue
+        }
+    }
+
+    public static HttpResponse.HttpResponseBuilder responseBuilder(InputStream is) throws IOException {
+        final HttpResponse.HttpResponseBuilder httpResponseBuilder = new HttpResponse.HttpResponseBuilder();
+        final String responseBody = Streams.readFully(is).utf8ToString();
+        httpResponseBuilder.withResponseBody(responseBody);
+        return httpResponseBuilder;
+    }
+
+    public static URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
+        return new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
     }
 }

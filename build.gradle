@@ -85,7 +85,7 @@ tasks.register("updateCIBwcVersions") {
 }
 
 //TODO port buildMetaData to use provider api
-String buildMetadataValue = providers.environmentVariable('BUILD_METADATA').forUseAtConfigurationTime().orElse("").get()
+String buildMetadataValue = providers.environmentVariable('BUILD_METADATA').orElse("").forUseAtConfigurationTime().get()
 Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectEntries {
   def (String key, String value) = it.split('=')
   return [key, value]
@@ -145,9 +145,9 @@ tasks.register("verifyVersions") {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = false
+boolean bwc_tests_enabled = true
 // place a PR link here when committing bwc changes:
-String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/74226"
+String bwc_tests_disabled_issue = ""
 /*
  * FIPS 140-2 behavior was fixed in 7.11.0. Before that there is no way to run elasticsearch in a
  * JVM that is properly configured to be in fips mode with BCFIPS. For now we need to disable
@@ -196,8 +196,8 @@ allprojects {
   // injecting groovy property variables into all projects
   project.ext {
     // for ide hacks...
-    isEclipse = System.getProperty("eclipse.launcher") != null ||   // Detects gradle launched from Eclipse's IDE
-            System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
+    isEclipse = providers.systemProperty("eclipse.launcher").forUseAtConfigurationTime().isPresent() ||   // Detects gradle launched from Eclipse's IDE
+            providers.systemProperty("eclipse.application").forUseAtConfigurationTime().isPresent() ||    // Detects gradle launched from the Eclipse compiler server
             gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
             gradle.startParameter.taskNames.contains('cleanEclipse')
 

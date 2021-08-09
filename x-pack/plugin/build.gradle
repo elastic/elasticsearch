@@ -99,6 +99,9 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceKeyInDo("license.post_start_trial", "xpack-license.post_start_trial")
   task.addAllowedWarningRegex(".*_xpack/license.* is deprecated.*")
 
+  task.replaceKeyInDo("migration.deprecations", "xpack-migration.deprecations")
+  task.addAllowedWarningRegex(".*_xpack/migration.* is deprecated.*")
+
   task.replaceKeyInDo("rollup.delete_job", "xpack-rollup.delete_job")
   task.replaceKeyInDo("rollup.get_jobs", "xpack-rollup.get_jobs")
   task.replaceKeyInDo("rollup.get_rollup_caps", "xpack-rollup.get_rollup_caps")
@@ -107,6 +110,9 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceKeyInDo("rollup.start_job", "xpack-rollup.start_job")
   task.replaceKeyInDo("rollup.stop_job", "xpack-rollup.stop_job")
   task.addAllowedWarningRegex(".*_xpack/rollup.* is deprecated.*")
+
+  task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates", "Test get SSL certificates")
+  task.addAllowedWarningRegexForTest(".*_xpack/ssl.* is deprecated.*", "Test get SSL certificates")
 })
 def v7compatibilityNotSupportedTests = {
   return [
@@ -143,6 +149,7 @@ def v7compatibilityNotSupportedTests = {
     'rollup/put_job/Test basic put_job',
     //https://github.com/elastic/elasticsearch/pull/41502
     'rollup/start_job/Test start job twice',
+    'service_accounts/10_basic/Test service account tokens', // https://github.com/elastic/elasticsearch/pull/75200
 
     // a type field was added to cat.ml_trained_models #73660, this is a backwards compatible change.
     // still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)

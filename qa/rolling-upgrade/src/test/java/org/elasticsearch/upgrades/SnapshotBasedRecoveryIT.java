@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -53,7 +53,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                     true,
                     Settings.builder()
                         .put("location", "./snapshot_based_recovery")
-                        .put(RecoverySettings.REPOSITORY_SNAPSHOT_BASED_RECOVERY_SETTING.getKey(), true)
+                        .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true)
                         .build()
                 );
 

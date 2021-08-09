@@ -86,6 +86,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.tasks.Task;
@@ -1847,7 +1848,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 .setType("fs")
                 .setSettings(Settings.builder()
                     .put("location", randomRepoPath())
-                    .put(RecoverySettings.REPOSITORY_SNAPSHOT_BASED_RECOVERY_SETTING.getKey(), true)
+                    .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true)
                     .put("compress", false)
                 ).get()
         );

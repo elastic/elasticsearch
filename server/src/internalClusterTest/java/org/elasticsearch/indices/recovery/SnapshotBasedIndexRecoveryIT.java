@@ -41,6 +41,7 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -603,7 +604,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
     private void createRepo(String repoName, String type) {
         final Settings.Builder settings = Settings.builder()
-            .put(RecoverySettings.REPOSITORY_SNAPSHOT_BASED_RECOVERY_SETTING.getKey(), true)
+            .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true)
             .put("location", randomRepoPath());
         createRepository(logger, repoName, type, settings, true);
     }

@@ -16,7 +16,7 @@ repositories {
     forRepository {
       ivy {
         name "ml-cpp"
-        url System.getProperty('build.ml_cpp.repo', 'https://prelert-artifacts.s3.amazonaws.com')
+        url providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').forUseAtConfigurationTime().get()
         metadataSources {
           // no repository metadata, look directly for the artifact
           artifact()

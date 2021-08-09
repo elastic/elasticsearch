@@ -188,7 +188,7 @@ public class Docker {
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to exit", e);
             }
-        } while (attempt++ < 5);
+        } while (attempt++ < 8);
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
@@ -513,6 +513,18 @@ public class Docker {
         withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
     }
 
+    public static void waitForElasticsearch(Installation installation, String username, String password) {
+        try {
+            waitForElasticsearch("green", null, installation, username, password);
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
+        }
+    }
+
     /**
      * Runs the provided closure, and captures logging information if an exception is thrown.
      * @param r the closure to run
@@ -541,7 +553,7 @@ public class Docker {
      * @return the parsed response
      */
     public static JsonNode getJson(String path) throws Exception {
-        path = Objects.requireNonNull(path).trim();
+        path = Objects.requireNonNull(path, "path can not be null").trim();
         if (path.isEmpty()) {
             throw new IllegalArgumentException("path must be supplied");
         }
@@ -549,6 +561,21 @@ public class Docker {
             throw new IllegalArgumentException("path must start with /");
         }
         final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path));
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        return mapper.readTree(pluginsResponse);
+    }
+
+    public static JsonNode getJson(String path, String user, String password) throws Exception {
+        path = Objects.requireNonNull(path, "path can not be null").trim();
+        if (path.isEmpty()) {
+            throw new IllegalArgumentException("path must be supplied");
+        }
+        if (path.startsWith("/") == false) {
+            throw new IllegalArgumentException("path must start with /");
+        }
+        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path), user, password, null);
 
         ObjectMapper mapper = new ObjectMapper();
 

@@ -20,7 +20,7 @@ Accepts a single value or an array of values.
 | `allow_duplicates` | no | true  | If `false`, the processor does not append
 values already present in the field.
 | `media_type` | no | `application/json` | The media type for encoding `value`. Applies only when `value` is a
-<<accessing-template-fields,template snippet>>. Must be one of `application/json`, `text/plain`, or
+<<template-snippets,template snippet>>. Must be one of `application/json`, `text/plain`, or
 `application/x-www-form-urlencoded`.
 include::common-options.asciidoc[]
 |======

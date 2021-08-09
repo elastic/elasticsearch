@@ -108,7 +108,7 @@ public class BindingsTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
-        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.painless.test"));
 
         InstanceBindingTestClass instanceBindingTestClass = new InstanceBindingTestClass(1);

@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -106,7 +105,8 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
             if (plan instanceof Limit) {
                 // Limit from TOP clauses must be the parent of the OrderBy clause
-                plan = plan.replaceChildrenSameSize(Collections.singletonList(new OrderBy(source, ((Limit) plan).child(), order)));
+                Limit limit = (Limit) plan;
+                plan = limit.replaceChild(new OrderBy(source, limit.child(), order));
             } else {
                 plan = new OrderBy(source, plan, order);
             }

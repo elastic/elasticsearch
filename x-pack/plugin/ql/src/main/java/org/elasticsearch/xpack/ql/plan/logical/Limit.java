@@ -27,7 +27,7 @@ public class Limit extends UnaryPlan {
     }
 
     @Override
-    protected Limit replaceChild(LogicalPlan newChild) {
+    public Limit replaceChild(LogicalPlan newChild) {
         return new Limit(source(), limit, newChild);
     }
 

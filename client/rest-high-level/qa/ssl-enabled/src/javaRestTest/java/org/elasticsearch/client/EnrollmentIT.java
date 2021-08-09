@@ -64,7 +64,7 @@ public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
         assertThat(nodeEnrollmentResponse, notNullValue());
         assertThat(nodeEnrollmentResponse.getHttpCaKey(), endsWith("K2S3vidA="));
         assertThat(nodeEnrollmentResponse.getHttpCaCert(), endsWith("LfkRjirc="));
-        assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("1I-r8vOQ=="));
+        assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("1I+r8vOQ=="));
         assertThat(nodeEnrollmentResponse.getTransportCert(), endsWith("OpTdtgJo="));
         List<String> nodesAddresses = nodeEnrollmentResponse.getNodesAddresses();
         assertThat(nodesAddresses.size(), equalTo(2));
@@ -75,7 +75,7 @@ public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
             execute(highLevelClient().security()::enrollKibana, highLevelClient().security()::enrollKibanaAsync, RequestOptions.DEFAULT);
         assertThat(kibanaResponse, notNullValue());
         assertThat(kibanaResponse.getHttpCa()
-            , endsWith("brcNC5xq6YE7C4_06nH7F6le4kE4Uo6c9fpkl4ehOxQxndNLn462tFF-8VBA8IftJ1PPWzqGxLsCTzM6p6w8sa-XhgNYglLfkRjirc="));
+            , endsWith("brcNC5xq6YE7C4/06nH7F6le4kE4Uo6c9fpkl4ehOxQxndNLn462tFF+8VBA8IftJ1PPWzqGxLsCTzM6p6w8sa+XhgNYglLfkRjirc="));
         assertNotNull(kibanaResponse.getPassword());
         assertThat(kibanaResponse.getPassword().toString().length(), equalTo(14));
     }

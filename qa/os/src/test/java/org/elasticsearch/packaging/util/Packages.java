@@ -95,6 +95,9 @@ public class Packages {
         if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_13_0)) {
             ServerUtils.disableGeoIpDownloader(installation);
         }
+        // https://github.com/elastic/elasticsearch/issues/75940
+        // TODO Figure out how to run all packaging tests with security enabled which is now the default behavior
+        ServerUtils.possiblyDisableSecurityFeatures(installation);
         return installation;
     }
 

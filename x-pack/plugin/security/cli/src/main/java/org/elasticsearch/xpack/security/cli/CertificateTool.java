@@ -26,6 +26,7 @@ import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -42,7 +43,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
@@ -1052,8 +1052,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
      * @param terminal the terminal to use for user interaction
      * @return the {@link PrivateKey} that was read from the file
      */
-    private static PrivateKey readPrivateKey(Path path, char[] password, Terminal terminal)
-        throws Exception {
+    private static PrivateKey readPrivateKey(Path path, char[] password, Terminal terminal) throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
             return PemUtils.readPrivateKey(path, () -> {

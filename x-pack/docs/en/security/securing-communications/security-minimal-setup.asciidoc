@@ -9,7 +9,7 @@ passwords for built-in users. You can add more users later, but using the
 built-in users simplifies the process of enabling security for your
 cluster.
 
-include::../configuring-stack-security.asciidoc[tag=minimal-security-note]
+include::../security-manual-configuration.asciidoc[tag=minimal-security-note]
 
 ==== Prerequisites
 

@@ -153,8 +153,6 @@ selectOrderByOrderByOrderByLimit
 SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) ORDER BY emp_no DESC LIMIT 5;
 selectOrderByOrderByOrderByLimitLimit
 SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) ORDER BY emp_no DESC LIMIT 12) LIMIT 6;
-selectOrderByLimitSameOrderBy
-SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no LIMIT 10)) ORDER BY emp_no LIMIT 5;
 selectGroupByOrderByLimit
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages) ORDER BY max DESC LIMIT 3;
 selectGroupByOrderByLimitNulls
@@ -167,21 +165,3 @@ selectGroupByWithAliasedSubQuery
 SELECT max, languages FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) AS subquery;
 selectConstantFromSubQuery
 SELECT * FROM (SELECT * FROM (SELECT 1));
-
-//
-// SELECT with multiple ORDER BY
-//
-selectTwoDistinctOrderBy
-SELECT * FROM (SELECT * FROM test_emp ORDER BY gender NULLS FIRST) ORDER BY languages NULLS FIRST;
-selectThreeDistinctOrderBy
-SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY salary) ORDER BY languages NULLS FIRST) ORDER BY gender NULLS FIRST;
-selectTwoDistinctOrderByWithDuplicate1
-SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY salary) ORDER BY languages NULLS FIRST) ORDER BY salary;
-selectTwoDistinctOrderByWithDuplicate2
-SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY salary) ORDER BY salary) ORDER BY languages NULLS FIRST;
-selectTwoOrderByWithDistinctOrder
-SELECT * FROM (SELECT * FROM test_emp ORDER BY gender ASC NULLS FIRST) ORDER BY gender DESC NULLS LAST;
-selectTwoOrderByWithShadowedOrder
-SELECT * FROM (SELECT * FROM test_emp ORDER BY salary, gender ASC, languages NULLS LAST) ORDER BY languages NULLS FIRST, gender DESC NULLS LAST;
-selectTwoOrderByWithWhere
-SELECT * FROM (SELECT * FROM test_emp ORDER BY gender NULLS FIRST) WHERE salary > 10000 ORDER BY languages NULLS FIRST;

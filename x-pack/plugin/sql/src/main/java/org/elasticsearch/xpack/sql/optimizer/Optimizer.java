@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
@@ -94,7 +93,6 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -167,9 +165,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PushDownAndCombineFilters()
         );
 
-        Batch pushDownOrderBy = new Batch("Push Down Order By",
-            new PushDownAndCombineOrderBy());
-
         Batch aggregate = new Batch("Aggregation Rewrite",
                 new ReplaceMinMaxWithTopHits(),
                 new ReplaceAggsWithMatrixStats(),
@@ -194,7 +189,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 CleanAliases.INSTANCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(substitutions, refs, operators, pushDownOrderBy, aggregate, local, label);
+        return Arrays.asList(substitutions, refs, operators, aggregate, local, label);
     }
 
     static class RewritePivot extends OptimizerRule<Pivot> {
@@ -1258,58 +1253,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return e.foldable();
         }
 
-    }
-
-    static class PushDownAndCombineOrderBy extends OptimizerRule<OrderBy> {
-
-        @Override
-        protected LogicalPlan rule(OrderBy plan) {
-            if (plan.child() instanceof OrderBy) {
-                OrderBy child = (OrderBy) plan.child();
-                List<Order> combinedOrder = combineOrders(plan.order(), child.order());
-
-                return new OrderBy(child.source(), child.child(), combinedOrder);
-
-            } else if (plan.child() instanceof Filter || plan.child() instanceof Project) {
-                UnaryPlan child = (UnaryPlan) plan.child();
-                Holder<Boolean> hasAggregate = new Holder<>(false);
-                if (child instanceof Filter) {
-                    child.forEachExpressionDown(e -> hasAggregate.set(hasAggregate.get() || Functions.isAggregate(e)));
-                }
-
-                if (hasAggregate.get() == false) {
-                    return child.replaceChildrenSameSize(
-                        Collections.singletonList(plan.replaceChildrenSameSize(Collections.singletonList(child.child())))
-                    );
-                }
-
-            } else if (plan.child() instanceof Limit) {
-                // OrderBy can be pushed through a Limit if the Limit's child is also an OrderBy and the two sort orders are equal
-                Limit child = (Limit) plan.child();
-                if (child.child() instanceof OrderBy) {
-                    OrderBy innerOrderBy = (OrderBy) child.child();
-                    List<Order> combinedOrder = combineOrders(plan.order(), innerOrderBy.order());
-
-                    if (combinedOrder.equals(innerOrderBy.order())) {
-                        return child.replaceChildrenSameSize(Collections.singletonList(innerOrderBy));
-                    }
-                }
-            }
-
-            return plan;
-        }
-
-        private List<Order> combineOrders(List<Order> parentOrders, List<Order> childOrders) {
-            List<Order> combined = parentOrders;
-
-            for (Order childOrder : childOrders) {
-                if(combined.stream().noneMatch(parentOrder -> childOrder.child().equals(parentOrder.child()))){
-                    combined.add(childOrder);
-                }
-            }
-
-            return combined;
-        }
     }
 
     abstract static class OptimizerBasicRule extends Rule<LogicalPlan, LogicalPlan> {

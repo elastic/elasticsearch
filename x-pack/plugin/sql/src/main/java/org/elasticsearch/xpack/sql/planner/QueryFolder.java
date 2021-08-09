@@ -701,10 +701,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) plan.child();
                 QueryContainer qContainer = exec.queryContainer();
 
-                if (qContainer.sort().isEmpty() == false) {
-                    throw new SqlIllegalArgumentException("QueryContainer already defines sort order");
-                }
-
                 for (Order order : plan.order()) {
                     Direction direction = Direction.from(order.direction());
                     Missing missing = Missing.from(order.nullsPosition());

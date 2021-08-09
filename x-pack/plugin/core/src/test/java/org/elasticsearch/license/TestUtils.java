@@ -364,7 +364,7 @@ public class TestUtils {
         public final List<Long> expirationDateUpdates = new ArrayList<>();
 
         public AssertingLicenseState() {
-            super(Settings.EMPTY, () -> 0);
+            super(() -> 0);
         }
 
         @Override
@@ -386,7 +386,7 @@ public class TestUtils {
         }
 
         public UpdatableLicenseState(Settings settings) {
-            super(settings, () -> 0);
+            super(() -> 0);
         }
 
         @Override
@@ -396,7 +396,7 @@ public class TestUtils {
     }
 
     public static XPackLicenseState newTestLicenseState() {
-        return new XPackLicenseState(Settings.EMPTY, () -> 0);
+        return new XPackLicenseState(() -> 0);
     }
 
     public static void putLicense(Metadata.Builder builder, License license) {

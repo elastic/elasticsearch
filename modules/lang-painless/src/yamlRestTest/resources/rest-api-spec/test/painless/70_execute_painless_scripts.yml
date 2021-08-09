@@ -388,7 +388,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('ip').getValue(null));"
+            source: "emit(field('ip').getValue('0.0.0.0'));"
           context: "ip_field"
           context_setup:
             document:
@@ -402,7 +402,9 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit('2001:0db8:0000:0000:0000:8a2e:0370:7333'); emit(field('ip').getValue(null)); emit('2001:db8::8a2e:370:7334')"
+            source: "emit('2001:0db8:0000:0000:0000:8a2e:0370:7333');
+                     emit(field('ip').getValue('0.0.0.0'));
+                     emit('2001:db8::8a2e:370:7334')"
           context: "ip_field"
           context_setup:
             document:
@@ -509,7 +511,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('keyword').getValue(null));"
+            source: "emit(field('keyword').getValue(''));"
           context: "keyword_field"
           context_setup:
             document:
@@ -523,7 +525,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('keyword').getValue(null)); emit(field('keyword').getValue(null) + '_test');"
+            source: "emit(field('keyword').getValue('')); emit(field('keyword').getValue('') + '_test');"
           context: "keyword_field"
           context_setup:
             document:

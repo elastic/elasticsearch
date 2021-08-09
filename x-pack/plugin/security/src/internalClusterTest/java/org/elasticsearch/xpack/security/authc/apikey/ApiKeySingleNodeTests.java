@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 
+import java.time.Instant;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
@@ -40,9 +42,13 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             .getId();
         Thread.sleep(10); // just to be 100% sure that the 1st key is expired when we search for it
 
-        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(id1, id2));
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.idsQuery().addIds(id1, id2))
+                .filter(QueryBuilders.rangeQuery("expiration").from(Instant.now().toEpochMilli())));
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
         assertThat(queryApiKeyResponse.getApiKeyInfos().length, equalTo(1));
         assertThat(queryApiKeyResponse.getApiKeyInfos()[0].getId(), equalTo(id2));
+        assertThat(queryApiKeyResponse.getApiKeyInfos()[0].getName(), equalTo("long-lived"));
     }
 }

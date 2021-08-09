@@ -72,7 +72,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     @Nullable
     private final String next;
 
-    private final int totalCount;
+    private final int total;
 
     private final int remaining;
 
@@ -80,13 +80,13 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         List<SnapshotInfo> snapshots,
         Map<String, ElasticsearchException> failures,
         @Nullable String next,
-        final int totalCount,
+        final int total,
         final int remaining
     ) {
         this.snapshots = List.copyOf(snapshots);
         this.failures = failures == null ? Map.of() : Map.copyOf(failures);
         this.next = next;
-        this.totalCount = totalCount;
+        this.total = total;
         this.remaining = remaining;
     }
 
@@ -101,10 +101,10 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             this.next = null;
         }
         if (in.getVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
-            this.totalCount = in.readVInt();
+            this.total = in.readVInt();
             this.remaining = in.readVInt();
         } else {
-            this.totalCount = UNKNOWN_COUNT;
+            this.total = UNKNOWN_COUNT;
             this.remaining = UNKNOWN_COUNT;
         }
     }
@@ -138,7 +138,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     }
 
     public int totalCount() {
-        return totalCount;
+        return total;
     }
 
     public int remaining() {
@@ -158,7 +158,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             }
         }
         if (out.getVersion().onOrAfter(GetSnapshotsRequest.NUMERIC_PAGINATION_VERSION)) {
-            out.writeVInt(totalCount);
+            out.writeVInt(total);
             out.writeVInt(remaining);
         }
     }
@@ -186,8 +186,8 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         if (next != null) {
             builder.field("next", next);
         }
-        if (totalCount >= 0) {
-            builder.field("total", totalCount);
+        if (total >= 0) {
+            builder.field("total", total);
         }
         if (remaining >= 0) {
             builder.field("remaining", remaining);

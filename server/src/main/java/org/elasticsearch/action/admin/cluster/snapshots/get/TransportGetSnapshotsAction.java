@@ -156,21 +156,17 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 final SnapshotsInRepo snInfos = sortSnapshots(allSnapshots, sortBy, after, size, order);
                 final List<SnapshotInfo> snapshotInfos = snInfos.snapshotInfos;
-                final int remaining;
-                final boolean hasMore = snInfos.hasMore || responses.stream().anyMatch(r -> r.v2() != null && r.v2().hasMore);
-                if (hasMore) {
-                    remaining = snInfos.remaining + responses.stream()
-                        .map(Tuple::v2)
-                        .filter(Objects::nonNull)
-                        .mapToInt(s -> s.remaining)
-                        .sum();
-                } else {
-                    remaining = 0;
-                }
+                final int remaining = snInfos.remaining + responses.stream()
+                    .map(Tuple::v2)
+                    .filter(Objects::nonNull)
+                    .mapToInt(s -> s.remaining)
+                    .sum();
                 return new GetSnapshotsResponse(
                     snapshotInfos,
                     failures,
-                    hasMore ? GetSnapshotsRequest.After.from(snapshotInfos.get(snapshotInfos.size() - 1), sortBy).asQueryParam() : null,
+                    remaining > 0
+                        ? GetSnapshotsRequest.After.from(snapshotInfos.get(snapshotInfos.size() - 1), sortBy).asQueryParam()
+                        : null,
                     responses.stream().map(Tuple::v2).filter(Objects::nonNull).mapToInt(s -> s.totalCount).sum(),
                     remaining
                 );
@@ -565,9 +561,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         } else {
             snapshots = allSnapshots;
         }
-        boolean hasMore = size != GetSnapshotsRequest.NO_LIMIT && size < snapshots.size();
-        final List<SnapshotInfo> resultSet = hasMore ? snapshots.subList(0, size) : snapshots;
-        return new SnapshotsInRepo(resultSet, hasMore, snapshotInfos.size(), allSnapshots.size() - resultSet.size());
+        final List<SnapshotInfo> resultSet = size != GetSnapshotsRequest.NO_LIMIT && size < snapshots.size()
+            ? snapshots.subList(0, size)
+            : snapshots;
+        return new SnapshotsInRepo(resultSet, snapshotInfos.size(), allSnapshots.size() - resultSet.size());
     }
 
     private static Predicate<SnapshotInfo> filterByLongOffset(
@@ -597,16 +594,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private static final class SnapshotsInRepo {
 
-        private final boolean hasMore;
-
         private final List<SnapshotInfo> snapshotInfos;
 
         private final int totalCount;
 
         private final int remaining;
 
-        SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, boolean hasMore, int totalCount, int remaining) {
-            this.hasMore = hasMore;
+        SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {
             this.snapshotInfos = snapshotInfos;
             this.totalCount = totalCount;
             this.remaining = remaining;

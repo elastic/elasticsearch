@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -27,32 +30,64 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Query that runs an Automaton across all binary doc values.
- * Expensive to run so normally used in conjunction with more selective query clauses.
+ * Query that runs an Automaton across all binary doc values (but only for docs that also 
+ * match a provided approximation query which is key to getting good performance).
  */
-public class AutomatonQueryOnBinaryDv extends Query {
+public class BinaryDvConfirmedAutomatonQuery extends Query {
 
     private final String field;
     private final String matchPattern;
     private final ByteRunAutomaton bytesMatcher;
+    private final Query approxQuery;
 
-    public AutomatonQueryOnBinaryDv(String field, String matchPattern, Automaton automaton) {
+    public BinaryDvConfirmedAutomatonQuery(Query approximation, String field, String matchPattern, Automaton automaton) {
+        this.approxQuery = approximation;
         this.field = field;
         this.matchPattern = matchPattern;
         bytesMatcher = new ByteRunAutomaton(automaton);
     }
+    
+    private BinaryDvConfirmedAutomatonQuery(Query approximation, String field, String matchPattern, ByteRunAutomaton bytesMatcher) {
+        this.approxQuery = approximation;
+        this.field = field;
+        this.matchPattern = matchPattern;
+        this.bytesMatcher = bytesMatcher;
+    }    
+    
+    @Override
+    public Query rewrite(IndexReader reader) throws IOException {
+        Query approxRewrite = approxQuery.rewrite(reader);
+        if (approxQuery != approxRewrite ) {
+            return new BinaryDvConfirmedAutomatonQuery(approxRewrite, field, matchPattern, bytesMatcher);
+        }
+        return this;
+    }    
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        final Weight approxWeight = approxQuery.createWeight(searcher, scoreMode, boost);
+        
         return new ConstantScoreWeight(this, boost) {
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 ByteArrayDataInput badi = new ByteArrayDataInput();
                 final BinaryDocValues values = DocValues.getBinary(context.reader(), field);
-                TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
+                Scorer approxScorer = approxWeight.scorer(context);
+                if (approxScorer == null) {
+                    // No matches to be had
+                    return null;
+                }
+                DocIdSetIterator approxDisi = approxScorer.iterator();
+                TwoPhaseIterator twoPhase = new TwoPhaseIterator(approxDisi) {
                     @Override
                     public boolean matches() throws IOException {
+                        if (values.advanceExact(approxDisi.docID()) == false)
+                        {
+                            // Bug if we have an indexed value (i.e an approxQuery) but no doc value.
+                            assert approxQuery instanceof MatchAllDocsQuery;
+                            return false;
+                        }
                         BytesRef arrayOfValues = values.binaryValue();
                         badi.reset(arrayOfValues.bytes);
                         badi.setPosition(arrayOfValues.offset);
@@ -93,14 +128,19 @@ public class AutomatonQueryOnBinaryDv extends Query {
         if (sameClassAs(obj) == false) {
             return false;
         }
-        AutomatonQueryOnBinaryDv other = (AutomatonQueryOnBinaryDv) obj;
+        BinaryDvConfirmedAutomatonQuery other = (BinaryDvConfirmedAutomatonQuery) obj;
         return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern)
-            && Objects.equals(bytesMatcher, other.bytesMatcher);
+            && Objects.equals(bytesMatcher, other.bytesMatcher) 
+            && Objects.equals(approxQuery, other.approxQuery);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, matchPattern, bytesMatcher);
+        return Objects.hash(classHash(), field, matchPattern, bytesMatcher, approxQuery);
+    }
+    
+    Query getApproximationQuery() {
+        return approxQuery;
     }
 
 }

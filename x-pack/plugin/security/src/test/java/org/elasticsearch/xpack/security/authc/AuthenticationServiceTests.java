@@ -217,7 +217,6 @@ public class AuthenticationServiceTests extends ESTestCase {
             .build();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
@@ -271,7 +270,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
-        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, licenseState, securityIndex, clusterService,
+        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex, clusterService,
                                           mock(CacheInvalidatorRegistry.class), threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
             clusterService);
@@ -303,11 +302,10 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         Authenticator authenticator = service.createAuthenticator("_action", transportRequest, true, future);
-        authenticator.extractToken((result) -> {
-            assertThat(result, notNullValue());
-            assertThat(result, is(token));
-            verifyZeroInteractions(auditTrail);
-        });
+        AuthenticationToken result = authenticator.extractToken();
+        assertThat(result, notNullValue());
+        assertThat(result, is(token));
+        verifyZeroInteractions(auditTrail);
     }
 
     public void testTokenMissing() throws Exception {
@@ -332,15 +330,14 @@ public class AuthenticationServiceTests extends ESTestCase {
             }
             PlainActionFuture<Authentication> future = new PlainActionFuture<>();
             Authenticator authenticator = service.createAuthenticator("_action", transportRequest, true, future);
-            authenticator.extractToken((token) -> {
-                assertThat(token, nullValue());
-                if (requestIdAlreadyPresent) {
-                    assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
-                } else {
-                    reqId.set(expectAuditRequestId(threadContext));
-                }
-                authenticator.handleNullToken();
-            });
+            AuthenticationToken token = authenticator.extractToken();
+            assertThat(token, nullValue());
+            if (requestIdAlreadyPresent) {
+                assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
+            } else {
+                reqId.set(expectAuditRequestId(threadContext));
+            }
+            authenticator.handleNullToken();
 
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
             assertThat(e.getMessage(), containsString("missing authentication credentials"));
@@ -660,10 +657,9 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Authenticator authenticator = service.createAuthenticator(restRequest, true, mock(ActionListener.class));
-        authenticator.extractToken((token) -> {
-            expectAuditRequestId(threadContext);
-            assertThat(token, nullValue());
-        });
+        AuthenticationToken token = authenticator.extractToken();
+        expectAuditRequestId(threadContext);
+        assertThat(token, nullValue());
     }
 
     public void testAuthenticationInContextAndHeader() throws Exception {

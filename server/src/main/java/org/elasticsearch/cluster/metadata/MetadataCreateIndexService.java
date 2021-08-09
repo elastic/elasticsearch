@@ -577,7 +577,7 @@ public class MetadataCreateIndexService {
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(template, componentTemplates, null), currentState.metadata(),
+                MetadataIndexTemplateService.resolveAliases(template, componentTemplates), currentState.metadata(),
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
@@ -819,7 +819,9 @@ public class MetadataCreateIndexService {
             // in this case we either have no index to recover from or
             // we have a source index with 1 shard and without an explicit split factor
             // or one that is valid in that case we can split into whatever and auto-generate a new factor.
-            if (IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettings)) {
+            // (Don't use IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(indexSettings) here, otherwise
+            // we get the default value when `null` has been provided as value)
+            if (indexSettings.get(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey()) != null) {
                 routingNumShards = IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(indexSettings);
             } else {
                 routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);

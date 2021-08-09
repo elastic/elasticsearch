@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformServices;
@@ -66,6 +67,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
@@ -196,7 +198,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         @Override
         protected void doSaveState(IndexerState state, TransformIndexerPosition position, Runnable next) {
             assert state == IndexerState.STARTED || state == IndexerState.INDEXING || state == IndexerState.STOPPED;
-            next.run();
+            super.doSaveState(state, position, next);
         }
 
         @Override
@@ -269,6 +271,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         @Override
         void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
             fieldMappingsListener.onResponse(Collections.emptyMap());
+        }
+
+        @Override
+        void persistState(TransformState state, ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
     }
 
@@ -415,7 +422,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
 
         IterationResult<TransformIndexerPosition> newPosition = indexer.doProcess(searchResponse);
-        assertThat(newPosition.getToIndex(), is(empty()));
+        assertThat(newPosition.getToIndex().collect(Collectors.toList()), is(empty()));
         assertThat(newPosition.getPosition(), is(nullValue()));
         assertThat(newPosition.isDone(), is(true));
     }

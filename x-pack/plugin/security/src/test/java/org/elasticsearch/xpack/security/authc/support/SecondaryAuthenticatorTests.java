@@ -126,8 +126,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         securityContext = new SecurityContext(settings, threadContext);
 
         tokenService = new TokenService(settings, clock, client, licenseState, securityContext, securityIndex, tokensIndex, clusterService);
-        final ApiKeyService apiKeyService = new ApiKeyService(settings, clock, client, licenseState,
-                                                              securityIndex, clusterService,
+        final ApiKeyService apiKeyService = new ApiKeyService(settings, clock, client, securityIndex, clusterService,
                                                               mock(CacheInvalidatorRegistry.class),threadPool);
         final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
         doAnswer(invocationOnMock -> {

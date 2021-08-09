@@ -156,6 +156,7 @@ import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
@@ -1798,7 +1799,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
-                peerRecoverySourceService = new PeerRecoverySourceService(transportService, indicesService, recoverySettings);
+                peerRecoverySourceService = new PeerRecoverySourceService(
+                    transportService,
+                    indicesService,
+                    recoverySettings,
+                    SourceOnlyRecoveryPlannerService.INSTANCE
+                );
+
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,

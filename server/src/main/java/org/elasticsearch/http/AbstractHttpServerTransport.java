@@ -246,10 +246,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         try {
             CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
+            assert httpChannels.isEmpty() : "all channels should have been closed but saw [" + httpChannels + "]";
         } catch (Exception e) {
             logger.warn("unexpected exception while closing http channels", e);
         }
-        httpChannels.clear();
 
         stopInternal();
     }
@@ -330,6 +330,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
         boolean addedOnThisCall = httpChannels.add(httpChannel);
+        httpChannel.addCloseListener(ActionListener.wrap(() -> httpChannels.remove(httpChannel)));
         assert addedOnThisCall : "Channel should only be added to http channel set once";
         totalChannelsAccepted.incrementAndGet();
         addClientStats(httpChannel);
@@ -344,7 +345,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 httpChannelStats.put(HttpStats.ClientStats.getChannelKey(httpChannel), clientStats);
                 httpChannel.addCloseListener(ActionListener.wrap(() -> {
                     try {
-                        httpChannels.remove(httpChannel);
                         HttpStats.ClientStats disconnectedClientStats =
                             httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
                         if (disconnectedClientStats != null) {

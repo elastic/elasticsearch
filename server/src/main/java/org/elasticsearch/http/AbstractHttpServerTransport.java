@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -49,6 +50,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -82,6 +85,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private volatile BoundTransportAddress boundAddress;
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
     private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final AtomicInteger openChannels = new AtomicInteger(0);
+    private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Map<Integer, HttpStats.ClientStats> httpChannelStats = new ConcurrentHashMap<>();
 
@@ -243,11 +248,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
         }
-
         try {
-            CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
-            assert httpChannels.isEmpty() : "all channels should have been closed but saw [" + httpChannels + "]";
+            final List<HttpChannel> channelsToClose = new ArrayList<>(httpChannels);
+            if (channelsToClose.isEmpty() == false) {
+                CloseableChannel.closeChannels(channelsToClose, true);
+                allClientsClosedListener.get(10L, TimeUnit.SECONDS);
+            }
         } catch (Exception e) {
+            assert e instanceof TimeoutException == false : e;
             logger.warn("unexpected exception while closing http channels", e);
         }
 
@@ -330,8 +338,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
         boolean addedOnThisCall = httpChannels.add(httpChannel);
-        httpChannel.addCloseListener(ActionListener.wrap(() -> httpChannels.remove(httpChannel)));
         assert addedOnThisCall : "Channel should only be added to http channel set once";
+        openChannels.incrementAndGet();
+        httpChannel.addCloseListener(ActionListener.wrap(() -> {
+            httpChannels.remove(httpChannel);
+            if (openChannels.decrementAndGet() == 0 && lifecycle.started() == false) {
+                allClientsClosedListener.onResponse(null);
+            }
+        }));
         totalChannelsAccepted.incrementAndGet();
         addClientStats(httpChannel);
         logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
@@ -351,6 +365,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                             disconnectedClientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
                         }
                     } catch (Exception e) {
+                        assert false : e;
                         // the listener code above should never throw
                         logger.trace("error removing HTTP channel listener", e);
                     }

@@ -117,8 +117,8 @@ public class CancellableTasksTracker<T> {
 
     // assertion for tests, not an invariant but should eventually be true
     boolean assertConsistent() {
-        // mustn't leak anything
-        assert byTaskId.isEmpty() == byParentTaskId.isEmpty();
+        // mustn't leak any items tracked by parent
+        assert byTaskId.isEmpty() == false || byParentTaskId.isEmpty();
 
         // every by-parent value must be tracked by task too; the converse isn't true since we don't track values without a parent
         final Set<T> byTaskValues = new HashSet<>(byTaskId.values());

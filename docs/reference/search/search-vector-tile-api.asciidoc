@@ -1,0 +1,755 @@
+[[search-vector-tile-api]]
+=== Search vector tile API
+++++
+<titleabbrev>Search vector tile</titleabbrev>
+++++
+
+experimental::[]
+
+Searches a vector tile for geospatial values. Returns results as a binary
+https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile].
+
+////
+[source,console]
+----
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "my-geo-field": {
+        "type": "geo_point"
+      }
+    }
+  }
+}
+
+PUT my-index/_doc/0?refresh
+{
+  "my-geo-field": "37.3864953,-122.0863176"
+}
+----
+////
+
+[source,console]
+----
+GET my-index/_mvt/my-geo-field/15/5271/12710
+----
+// TEST[continued]
+
+[[search-vector-tile-api-request]]
+==== {api-request-title}
+
+`GET <target>/_mvt/<field>/<zoom>/<x>/<y>`
+
+`POST <target>/_mvt/<field>/<zoom>/<x>/<y>`
+
+[[search-vector-tile-api-prereqs]]
+==== {api-prereq-title}
+
+* Before using this API, you should be familiar with the
+https://github.com/mapbox/vector-tile-spec[Mapbox vector tile specification].
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
+
+[[search-vector-tile-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Required, string) Comma-separated list of data streams, indices, or aliases to
+search. Supports wildcards (`*`). To search all data streams and indices, omit
+this parameter or use `*` or `_all`.
+
+`<field>`::
+(Required, string) Field containing geospatial values to return. Must be a
+<<geo-point,`geo_point`>> or <<geo-shape,`geo_shape`>> field. The field must
+have <<doc-values,doc values>> enabled. Cannot be a nested field.
++
+NOTE: Vector tiles do not natively support geometry collections. For
+`geometrycollection` values in a `geo_shape` field, the API returns a `hits`
+layer feature for each element of the collection. This behavior may change may
+change in a future release.
+
+`<zoom>`::
+(Required, integer) Zoom level for the vector tile to search. Accepts `0`-`29`.
+
+`<x>`::
+(Required, integer) X coordinate for the vector tile to search.
+
+`<y>`::
+(Required, integer) Y coordinate for the vector tile to search.
+
+[[search-vector-tile-api-desc]]
+==== {api-description-title}
+
+Internally, {es} translates a search vector tile API request into a
+<<search-search,search>> containing:
+
+* A <<query-dsl-geo-bounding-box-query,`geo_bounding_box`>> query on the
+`<field>`. The query uses the `<zoom>/<x>/<y>` tile as a bounding box.
+
+* A <<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>>
+aggregation on the `<field>`. The aggregation uses the `<zoom>/<x>/<y>` tile as
+a bounding box.
+
+* Optionally, a
+<<search-aggregations-metrics-geobounds-aggregation,`geo_bounds`>> aggregation
+on the `<field>`. The search only includes this aggregation if the
+`exact_bounds` parameter is `true`.
+
+For example, {es} may translate a search vector tile API request with an
+`exact_bounds` argument of `true` into the following search:
+
+[source,console]
+----
+GET my-index/_search
+{
+  "size": 10000,
+  "query": {
+    "geo_bounding_box": {
+      "my-geo-field": {
+        "top_left": {
+          "lat": -40.979898069620134,
+          "lon": -45
+        },
+        "bottom_right": {
+          "lat": -66.51326044311186,
+          "lon": 0
+        }
+      }
+    }
+  },
+  "aggregations": {
+    "grid": {
+      "geotile_grid": {
+        "field": "my-geo-field",
+        "precision": 11,
+        "size": 65536,
+        "bounds": {
+          "top_left": {
+            "lat": -40.979898069620134,
+            "lon": -45
+          },
+          "bottom_right": {
+            "lat": -66.51326044311186,
+            "lon": 0
+          }
+        }
+      }
+    },
+    "bounds": {
+      "geo_bounds": {
+        "field": "my-geo-field",
+        "wrap_longitude": false
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+The API returns results as a binary
+https://github.com/mapbox/vector-tile-spec[Mapbox vector tile]. Mapbox vector
+tiles are encoded as https://github.com/protocolbuffers/protobuf[Google
+Protobufs (PBF)]. By default, the tile contains three layers:
+
+* A `hits` layer containing a feature for each `<field>` value matching the
+`geo_bounding_box` query.
+
+*  An `aggs` layer containing a feature for each cell of the `geotile_grid`. You
+can use these cells as tiles for lower zoom levels. The layer only contains
+features for cells with matching data.
+
+* A `meta` layer containing:
+** A feature containing a bounding box. By default, this is the bounding box of
+the tile.
+** Value ranges for any sub-aggregations on the `geotile_grid`.
+** Metadata for the search.
+
+The API only returns features that can display at its zoom level. For example,
+if a polygon feature has no area at its zoom level, the API omits it.
+
+The API returns errors as UTF-8 encoded JSON.
+
+[[search-vector-tile-api-query-params]]
+==== {api-query-parms-title}
+
+IMPORTANT: You can specify several options for this API as either a query
+parameter or request body parameter. If you specify both parameters, the query
+parameter takes precedence.
+
+// tag::exact-bounds[]
+`exact_bounds`::
+(Optional, Boolean)
+If `false`, the `meta` layer's feature is the bounding box of the tile. Defaults
+to `false`.
++
+If `true`, the `meta` layer's feature is a bounding box resulting from a
+<<search-aggregations-metrics-geobounds-aggregation,`geo_bounds`>> aggregation.
+The aggregation runs on `<field>` values that intersect the `<zoom>/<x>/<y>`
+tile with `wrap_longitude` set to `false`. The resulting bounding box may be
+larger than the vector tile.
+// end::exact-bounds[]
+
+// tag::extent-param[]
+`extent`::
+(Optional, integer) Size, in pixels, of a side of the tile. Vector tiles are
+square with equal sides. Defaults to `4096`.
+// end::extent-param[]
+
+// tag::grid-precision[]
+`grid_precision`::
+(Optional, integer) Additional zoom levels available through the `aggs` layer.
+For example, if `<zoom>` is `7` and `grid_precision` is `8`, you can zoom in up to
+level 15. Accepts `0`-`8`. Defaults to `8`. If `0`, results don't include the
+`aggs` layer.
++
+This value determines the grid size of the `geotile_grid` as follows:
++
+`(2^grid_precision) x (2^grid_precision)`
++
+For example, a value of `8` divides the tile into a grid of 256 x 256 cells. The
+`aggs` layer only contains features for cells with matching data.
+// end::grid-precision[]
+
+// tag::grid-type[]
+`grid_type`::
+(Optional, string) Determines the geometry type for features in the `aggs`
+layer. In the `aggs` layer, each feature represents a `geotile_grid` cell.
+Accepts:
+
+`grid` (Default):::
+Each feature is a `Polygon` of the cell's bounding box.
+
+`point`:::
+Each feature is a `Point` that's the centroid of the cell.
+// end::grid-type[]
+
+// tag::size[]
+`size`::
+(Optional, integer) Maximum number of features to return in the `hits` layer.
+Accepts `0`-`10000`. Defaults to `10000`. If `0`, results don't include the
+`hits` layer.
+// end::size[]
+
+[role="child_attributes"]
+[[search-vector-tile-api-request-body]]
+==== {api-request-body-title}
+
+`aggs`::
+(Optional, <<search-aggregations,aggregation object>>)
+<<run-sub-aggs,Sub-aggregations>> for the `geotile_grid`. Supports the following
+aggregation types:
++
+* <<search-aggregations-metrics-avg-aggregation,`avg`>>
+* <<search-aggregations-metrics-cardinality-aggregation,`cardinality`>>
+* <<search-aggregations-metrics-max-aggregation,`max`>>
+* <<search-aggregations-metrics-min-aggregation,`min`>>
+* <<search-aggregations-metrics-sum-aggregation,`sum`>>
+
+include::search-vector-tile-api.asciidoc[tag=exact-bounds]
+
+include::search-vector-tile-api.asciidoc[tag=extent-param]
+
+`fields`::
+(Optional, array of strings and objects) Fields to return in the `hits` layer.
+Supports wildcards (`*`).
++
+This parameter does not support fields with <<array,array values>>. Fields with
+array values may return inconsistent results.
++
+You can specify fields in the array as a string or object.
++
+.Properties of `fields` objects
+[%collapsible%open]
+====
+include::search.asciidoc[tag=fields-api-props]
+====
+
+include::search-vector-tile-api.asciidoc[tag=grid-precision]
+
+include::search-vector-tile-api.asciidoc[tag=grid-type]
+
+`query`::
+(Optional, object) <<query-dsl,Query DSL>> used to filter documents for the
+search.
+
+include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
+
+include::search-vector-tile-api.asciidoc[tag=size]
+
+`sort`::
+(Optional, array of <<sort-search-results,sort objects>>) Sorts features in the
+`hits` layer.
++
+By default, the API calculates a bounding box for each feature. It sorts
+features based on this box's diagonal length, from longest to shortest.
+
+[role="child_attributes"]
+[[search-vector-tile-api-response]]
+==== Response
+
+Returned vector tiles contain the following data:
+
+`hits`::
+(object) Layer containing results for the `geo_bounding_box` query.
++
+.Properties of `hits`
+[%collapsible%open]
+====
+// tag::extent[]
+`extent`::
+(integer) Size, in pixels, of a side of the tile. Vector tiles are square with
+equal sides.
+// end::extent[]
+
+// tag::version[]
+`version`::
+(integer) Major version number of the
+https://github.com/mapbox/vector-tile-spec[Mapbox vector tile specification].
+// end::version[]
+
+`features`::
+(array of objects) Array of features. Contains a feature for each `<field>`
+value that matches the `geo_bounding_box` query.
++
+.Properties of `features` objects
+[%collapsible%open]
+=====
+// tag::geometry[]
+`geometry`::
+(object) Geometry for the feature.
++
+.Properties of `geometry`
+[%collapsible%open]
+======
+`type`::
+(string) Geometry type for the feature. Valid values are:
+
+* `UNKNOWN`
+* `POINT`
+* `LINESTRING`
+* `POLYGON`
+
+`coordinates`::
+(array of integers or array of arrays) Tile coordinates for the feature.
+======
+// end::geometry[]
+
+`properties`::
+(object) Properties for the feature.
++
+.Properties of `properties`
+[%collapsible%open]
+======
+`_id`::
+(string) Document `_id` for the feature's document.
+
+`<field>`::
+Field value. Only returned for fields in the `fields` parameter.
+======
+// tag::feature-id[]
+`id`::
+(integer) Unique ID for the feature within the layer.
+// end::feature-id[]
+
+// tag::feature-type[]
+`type`::
+(integer) Identifier for the feature's geometry type. Values are:
++
+* `1` (`POINT`)
+* `2` (`LINESTRING`)
+* `3` (`POLYGON`)
+// end::feature-type[]
+=====
+====
+
+`aggs`::
+(object) Layer containing results for the `geotile_grid` aggregation and its
+sub-aggregations.
++
+.Properties of `aggs`
+[%collapsible%open]
+====
+include::search-vector-tile-api.asciidoc[tag=extent]
+
+include::search-vector-tile-api.asciidoc[tag=version]
+
+`features`::
+(array of objects) Array of features. Contains a feature for each cell of the
+`geotile_grid`.
++
+.Properties of `features` objects
+[%collapsible%open]
+=====
+include::search-vector-tile-api.asciidoc[tag=geometry]
+
+`properties`::
+(object) Properties for the feature.
++
+.Properties of `properties`
+[%collapsible%open]
+======
+`_count`::
+(string) Count of the cell's documents.
+
+`<sub-aggregation>.value`::
+Sub-aggregation results for the cell. Only returned for sub-aggregations in the
+`aggs` parameter.
+======
+include::search-vector-tile-api.asciidoc[tag=feature-id]
+
+include::search-vector-tile-api.asciidoc[tag=feature-type]
+=====
+====
+
+`meta`::
+(object) Layer containing metadata for the request.
++
+.Properties of `meta`
+[%collapsible%open]
+====
+include::search-vector-tile-api.asciidoc[tag=extent]
+
+include::search-vector-tile-api.asciidoc[tag=version]
+
+`features`::
+(array of objects) Contains a feature for a bounding box.
++
+.Properties of `features` objects
+[%collapsible%open]
+=====
+include::search-vector-tile-api.asciidoc[tag=geometry]
+
+`properties`::
+(object) Properties for the feature.
++
+.Properties of `properties`
+[%collapsible%open]
+======
+`_shards.failed`::
+(integer) Number of shards that failed to execute the search. See the search
+API's <<search-api-shards,`shards`>> response property.
+
+`_shards.skipped`::
+(integer) Number of shards that skipped the search. See the search
+API's <<search-api-shards,`shards`>> response property.
+
+`_shards.successful`::
+(integer)  Number of shards that executed the search successfully. See the
+search API's <<search-api-shards,`shards`>> response property.
+
+`_shards.total`::
+(integer) Total number of shards that required querying, including unallocated
+shards. See the search API's <<search-api-shards,`shards`>> response property.
+
+`aggregations._count.avg`::
+(float) Average `_count` value for features in the `aggs` layer.
+
+`aggregations._count.count`::
+(integer) Number of unique `_count` values for features in the `aggs` layer.
+
+`aggregations._count.max`::
+(float) Largest `_count` value for features in the `aggs` layer.
+
+`aggregations._count.min`::
+(float) Smallest `_count` value for features in the `aggs` layer.
+
+`aggregations._count.sum`::
+(float) Sum of `_count` values for features in the `aggs` layer.
+
+`aggregations.<sub-aggregation>.avg`::
+(float) Average value for the sub-aggregation's results.
+
+`aggregations.<agg_name>.count`::
+(integer) Number of unique values from the sub-aggregation's results.
+
+`aggregations.<agg_name>.max`::
+(float) Largest value from the sub-aggregation's results.
+
+`aggregations.<agg_name>.min`::
+(float) Smallest value from the sub-aggregation's results.
+
+`aggregations.<agg_name>.sum`::
+(float) Sum of values for the sub-aggregation's results.
+
+`hits.max_score`::
+(float) Highest document `_score` for the search's hits.
+
+`hits.total.relation`::
+(string) Indicates whether `hits.total.value` is accurate or a lower bound.
+Possible values are:
+
+`eq`::: Accurate
+
+`gte`::: Lower bound
+
+`hits.total.value`::
+(integer) Total number of hits for the search.
+
+`timed_out`::
+(Boolean) If `true`, the search timed out before completion. Results may be
+partial or empty.
+
+`took`::
+(integer) Milliseconds it took {es} to run the search. See the search API's
+<<search-api-took,`took`>> response property.
+======
+include::search-vector-tile-api.asciidoc[tag=feature-id]
+
+include::search-vector-tile-api.asciidoc[tag=feature-type]
+=====
+====
+
+[[search-vector-tile-api-api-example]]
+==== {api-examples-title}
+
+The following requests create the `museum` index and add several geospatial
+`location` values.
+
+[source,console]
+----
+PUT museums
+{
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_point"
+      },
+      "name": {
+        "type": "keyword"
+      },
+      "price": {
+        "type": "long"
+      },
+      "included": {
+        "type": "boolean"
+      }
+    }
+  }
+}
+
+POST museums/_bulk?refresh
+{ "index": { "_id": "1" } }
+{ "location": "52.374081,4.912350", "name": "NEMO Science Museum",  "price": 1750, "included": true }
+{ "index": { "_id": "2" } }
+{ "location": "52.369219,4.901618", "name": "Museum Het Rembrandthuis", "price": 1500, "included": false }
+{ "index": { "_id": "3" } }
+{ "location": "52.371667,4.914722", "name": "Nederlands Scheepvaartmuseum", "price":1650, "included": true }
+{ "index": { "_id": "4" } }
+{ "location": "52.371667,4.914722", "name": "Amsterdam Centre for Architecture", "price":0, "included": true }
+----
+
+The following request searches the index for `location` values that intersect
+the `13/4207/2692` vector tile.
+
+[source,console]
+----
+GET museums/_mvt/location/13/4207/2692
+{
+  "grid_precision": 2,
+  "fields": [
+    "name",
+    "price"
+  ],
+  "query": {
+    "term": {
+      "included": true
+    }
+  },
+  "aggs": {
+    "min_price": {
+      "min": {
+        "field": "price"
+      }
+    },
+    "max_price": {
+      "max": {
+        "field": "price"
+      }
+    },
+    "avg_price": {
+      "avg": {
+        "field": "price"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+The API returns results as a binary vector tile. When decoded into JSON, the
+tile contains the following data:
+
+[source,js]
+----
+{
+  "hits": {
+    "extent": 4096,
+    "version": 2,
+    "features": [
+      {
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            3208,
+            3864
+          ]
+        },
+        "properties": {
+          "_id": "1",
+          "name": "NEMO Science Museum",
+          "price": 1750
+        },
+        "id": 0,
+        "type": 1
+      },
+      {
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            3429,
+            3496
+          ]
+        },
+        "properties": {
+          "_id": "3",
+          "name": "Nederlands Scheepvaartmuseum",
+          "price": 1650
+        },
+        "id": 0,
+        "type": 1
+      },
+      {
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            3429,
+            3496
+          ]
+        },
+        "properties": {
+          "_id": "4",
+          "name": "Amsterdam Centre for Architecture",
+          "price": 0
+        },
+        "id": 0,
+        "type": 1
+      }
+    ]
+  },
+  "aggs": {
+    "extent": 4096,
+    "version": 2,
+    "features": [
+      {
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                3072,
+                3072
+              ],
+              [
+                4096,
+                3072
+              ],
+              [
+                4096,
+                4096
+              ],
+              [
+                3072,
+                4096
+              ],
+              [
+                3072,
+                3072
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "_count": 3,
+          "max_price.value": 1750.0,
+          "min_price.value": 0.0,
+          "avg_price.value": 1133.3333333333333
+        },
+        "id": 0,
+        "type": 3
+      }
+    ]
+  },
+  "meta": {
+    "extent": 4096,
+    "version": 2,
+    "features": [
+      {
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                0,
+                0
+              ],
+              [
+                4096,
+                0
+              ],
+              [
+                4096,
+                4096
+              ],
+              [
+                0,
+                4096
+              ],
+              [
+                0,
+                0
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "_shards.failed": 0,
+          "_shards.skipped": 0,
+          "_shards.successful": 1,
+          "_shards.total": 1,
+          "aggregations._count.avg": 3.0,
+          "aggregations._count.count": 1,
+          "aggregations._count.max": 3.0,
+          "aggregations._count.min": 3.0,
+          "aggregations._count.sum": 3.0,
+          "aggregations.avg_price.avg": 1133.3333333333333,
+          "aggregations.avg_price.count": 1,
+          "aggregations.avg_price.max": 1133.3333333333333,
+          "aggregations.avg_price.min": 1133.3333333333333,
+          "aggregations.avg_price.sum": 1133.3333333333333,
+          "aggregations.max_price.avg": 1750.0,
+          "aggregations.max_price.count": 1,
+          "aggregations.max_price.max": 1750.0,
+          "aggregations.max_price.min": 1750.0,
+          "aggregations.max_price.sum": 1750.0,
+          "aggregations.min_price.avg": 0.0,
+          "aggregations.min_price.count": 1,
+          "aggregations.min_price.max": 0.0,
+          "aggregations.min_price.min": 0.0,
+          "aggregations.min_price.sum": 0.0,
+          "hits.max_score": 0.0,
+          "hits.total.relation": "eq",
+          "hits.total.value": 3,
+          "timed_out": false,
+          "took": 2
+        },
+        "id": 0,
+        "type": 3
+      }
+    ]
+  }
+}
+----
+// NOTCONSOLE

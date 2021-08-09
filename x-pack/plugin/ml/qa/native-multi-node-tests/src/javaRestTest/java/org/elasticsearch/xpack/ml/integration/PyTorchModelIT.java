@@ -83,7 +83,7 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private static final String MODEL_INDEX = "model_store";
     private static final String MODEL_ID ="simple_model_to_evaluate";
-    private static final String BASE_64_ENCODED_MODEL =
+    static final String BASE_64_ENCODED_MODEL =
         "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWlpaWlpaWlpaWoACY19fdG9yY2hfXwp" +
             "TdXBlclNpbXBsZQpxACmBfShYCAAAAHRyYWluaW5ncQGIdWJxAi5QSwcIXOpBBDQAAAA0AAAAUEsDBBQACAgIAAAAAAAAAAAAAAAAAA" +
             "AAAAAdAEEAc2ltcGxlbW9kZWwvY29kZS9fX3RvcmNoX18ucHlGQj0AWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaW" +
@@ -106,7 +106,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             "EsBAgAAAAAICAAAAAAAANGeZ1UCAAAAAgAAABMAAAAAAAAAAAAAAAAAFAQAAHNpbXBsZW1vZGVsL3ZlcnNpb25QSwYGLAAAAAAAAAAe" +
             "Ay0AAAAAAAAAAAAFAAAAAAAAAAUAAAAAAAAAagEAAAAAAACSBAAAAAAAAFBLBgcAAAAA/AUAAAAAAAABAAAAUEsFBgAAAAAFAAUAagE" +
             "AAJIEAAAAAA==";
-    private static final int RAW_MODEL_SIZE; // size of the model before base64 encoding
+    static final int RAW_MODEL_SIZE; // size of the model before base64 encoding
     static {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }

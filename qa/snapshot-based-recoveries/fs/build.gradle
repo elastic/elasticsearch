@@ -26,6 +26,8 @@ tasks.withType(Test).configureEach {
 }
 
 testClusters.all {
+  testDistribution = 'DEFAULT'
   numberOfNodes = 3
   setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.security.enabled', 'false'
 }

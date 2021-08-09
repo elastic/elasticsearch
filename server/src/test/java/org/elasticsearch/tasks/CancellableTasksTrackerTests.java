@@ -61,6 +61,8 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                 tracker.put(task, item);
                 state.incrementAndGet();
 
+                Thread.yield();
+
                 state.incrementAndGet();
                 final String removed = tracker.remove(task);
                 state.incrementAndGet();

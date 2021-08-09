@@ -126,7 +126,6 @@ expense of having to search more shards per request.
 When this setting is present, the formulas for calculating the shard becomes:
 
     routing_value = hash(_routing) + hash(_id) % routing_partition_size
-    routing_factor = num_routing_shards / num_primary_shards
     shard_num = (routing_value % num_routing_shards) / routing_factor
 
 That is, the `_routing` field is used to calculate a set of shards within the index and then the

@@ -106,9 +106,6 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (randomBoolean()) {
             update.setResultsRetentionDays(randomNonNegativeLong());
         }
-        if (randomBoolean()) {
-            update.setSystemAnnotationsRetentionDays(randomNonNegativeLong());
-        }
         if (randomBoolean() && jobSupportsCategorizationFilters(job)) {
             update.setCategorizationFilters(Arrays.asList(generateRandomStringArray(10, 10, false)));
         }
@@ -259,7 +256,6 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setAnalysisLimits(analysisLimits);
         updateBuilder.setBackgroundPersistInterval(TimeValue.timeValueHours(randomIntBetween(1, 24)));
         updateBuilder.setResultsRetentionDays(randomNonNegativeLong());
-        updateBuilder.setSystemAnnotationsRetentionDays(randomNonNegativeLong());
         // The createRandom() method tests the complex interactions between these next two, so this test can always update both
         long newModelSnapshotRetentionDays = randomNonNegativeLong();
         updateBuilder.setModelSnapshotRetentionDays(newModelSnapshotRetentionDays);
@@ -298,7 +294,6 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertEquals(update.getBackgroundPersistInterval(), updatedJob.getBackgroundPersistInterval());
         assertEquals(update.getModelSnapshotRetentionDays(), updatedJob.getModelSnapshotRetentionDays());
         assertEquals(update.getResultsRetentionDays(), updatedJob.getResultsRetentionDays());
-        assertEquals(update.getSystemAnnotationsRetentionDays(), updatedJob.getSystemAnnotationsRetentionDays());
         assertEquals(update.getCategorizationFilters(), updatedJob.getAnalysisConfig().getCategorizationFilters());
         assertEquals(update.getPerPartitionCategorizationConfig().isEnabled(),
             updatedJob.getAnalysisConfig().getPerPartitionCategorizationConfig().isEnabled());

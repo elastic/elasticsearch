@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -55,6 +56,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     private final EnableAssignmentDecider enableDecider;
     private final ThreadPool threadPool;
     private final PeriodicRechecker periodicRechecker;
+    private final AtomicBoolean reassigningTasks = new AtomicBoolean(false);
 
     public PersistentTasksClusterService(Settings settings, PersistentTasksExecutorRegistry registry, ClusterService clusterService,
                                          ThreadPool threadPool) {
@@ -354,6 +356,9 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * Submit a cluster state update to reassign any persistent tasks that need reassigning
      */
     private void reassignPersistentTasks() {
+        if (this.reassigningTasks.compareAndSet(false, true) == false) {
+            return;
+        }
         clusterService.submitStateUpdateTask("reassign persistent tasks", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -362,6 +367,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
             @Override
             public void onFailure(String source, Exception e) {
+                reassigningTasks.set(false);
                 logger.warn("failed to reassign persistent tasks", e);
                 if (e instanceof NotMasterException == false) {
                     // There must be a task that's worth rechecking because there was one
@@ -373,6 +379,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                reassigningTasks.set(false);
                 if (isAnyTaskUnassigned(newState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {
                     periodicRechecker.rescheduleIfNecessary();
                 }

@@ -530,6 +530,19 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         Property.OperatorDynamic,
         Property.NodeScope);
 
+    /**
+     * This is the global setting for how often datafeeds should check for delayed data.
+     *
+     * This is usually only modified by tests that require all datafeeds to check for delayed data more quickly
+     */
+    public static final Setting<TimeValue> DELAYED_DATA_CHECK_FREQ = Setting.timeSetting(
+            "xpack.ml.delayed_data_check_freq",
+            TimeValue.timeValueMinutes(15),
+            TimeValue.timeValueSeconds(1),
+            Property.Dynamic,
+            Setting.Property.NodeScope
+        );
+
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
@@ -584,7 +597,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
                 USE_AUTO_MACHINE_MEMORY_PERCENT,
-                MAX_ML_NODE_SIZE));
+                MAX_ML_NODE_SIZE,
+                DELAYED_DATA_CHECK_FREQ));
     }
 
     public Settings additionalSettings() {
@@ -766,8 +780,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             jobDataCountsPersister, anomalyDetectionAnnotationPersister, autodetectProcessFactory,
             normalizerFactory, nativeStorageProvider, indexNameExpressionResolver);
         this.autodetectProcessManager.set(autodetectProcessManager);
-        DatafeedJobBuilder datafeedJobBuilder =
-            new DatafeedJobBuilder(
+        DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(
                 client,
                 xContentRegistry,
                 anomalyDetectionAuditor,
@@ -775,7 +788,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 System::currentTimeMillis,
                 jobResultsPersister,
                 settings,
-                clusterService.getNodeName());
+                clusterService
+        );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(jobConfigProvider, datafeedConfigProvider,
             jobResultsProvider);
         DatafeedRunner datafeedRunner = new DatafeedRunner(threadPool, client, clusterService, datafeedJobBuilder,

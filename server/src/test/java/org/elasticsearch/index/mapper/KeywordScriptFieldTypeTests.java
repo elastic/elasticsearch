@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -124,8 +125,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), ctx) {
+                    public ScoreScript newInstance(DocReader docReader) {
+                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Strings bytes = (ScriptDocValues.Strings) getDoc().get("test");
@@ -133,7 +134,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                             }
                         };
                     }
-                }, 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
     }

@@ -30,6 +30,7 @@ import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -66,6 +67,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -248,6 +250,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting that defines if the repository should be used to recover index files during peer recoveries.
+     */
+    public static final Setting<Boolean> USE_FOR_PEER_RECOVERY_SETTING = Setting.boolSetting("use_for_peer_recovery", false);
+
     protected final boolean supportURLRepo;
 
     private final boolean compress;
@@ -426,6 +433,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn("cannot close blob store", t);
             }
         }
+    }
+
+    // listeners to invoke when a restore completes and there are no more restores running
+    @Nullable
+    private List<ActionListener<Void>> emptyListeners;
+
+    // Set of shard ids that this repository is currently restoring
+    private final Set<ShardId> ongoingRestores = new HashSet<>();
+
+    @Override
+    public void awaitIdle() {
+        assert lifecycle.stoppedOrClosed();
+        final PlainActionFuture<Void> future;
+        synchronized (ongoingRestores) {
+            if (ongoingRestores.isEmpty()) {
+                return;
+            }
+            future = new PlainActionFuture<>();
+            if (emptyListeners == null) {
+                emptyListeners = new ArrayList<>();
+            }
+            emptyListeners.add(future);
+        }
+        FutureUtils.get(future);
     }
 
     @Override
@@ -1005,12 +1036,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
 
         for (IndexId indexId : indices) {
-            final Set<SnapshotId> survivingSnapshots = oldRepositoryData.getSnapshots(indexId)
-                .stream()
+            final Set<SnapshotId> snapshotsWithIndex = org.elasticsearch.core.Set.copyOf(oldRepositoryData.getSnapshots(indexId));
+            final Set<SnapshotId> survivingSnapshots = snapshotsWithIndex.stream()
                 .filter(id -> snapshotIds.contains(id) == false)
                 .collect(Collectors.toSet());
             final StepListener<Collection<Integer>> shardCountListener = new StepListener<>();
             final Collection<String> indexMetaGenerations = snapshotIds.stream()
+                .filter(snapshotsWithIndex::contains)
                 .map(id -> oldRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
                 .collect(Collectors.toSet());
             final ActionListener<Integer> allShardCountsListener = new GroupedActionListener<>(
@@ -2907,7 +2939,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         final BlobContainer container = shardContainer(indexId, snapshotShardId);
-        executor.execute(ActionRunnable.wrap(restoreListener, l -> {
+        synchronized (ongoingRestores) {
+            if (store.isClosing()) {
+                restoreListener.onFailure(new AlreadyClosedException("store is closing"));
+                return;
+            }
+            if (lifecycle.started() == false) {
+                restoreListener.onFailure(new AlreadyClosedException("repository [" + metadata.name() + "] closed"));
+                return;
+            }
+            final boolean added = ongoingRestores.add(shardId);
+            assert added : "add restore for [" + shardId + "] that already has an existing restore";
+        }
+        executor.execute(ActionRunnable.wrap(ActionListener.runAfter(restoreListener, () -> {
+            final List<ActionListener<Void>> onEmptyListeners;
+            synchronized (ongoingRestores) {
+                if (ongoingRestores.remove(shardId) && ongoingRestores.isEmpty() && emptyListeners != null) {
+                    onEmptyListeners = emptyListeners;
+                    emptyListeners = null;
+                } else {
+                    return;
+                }
+            }
+            ActionListener.onResponse(onEmptyListeners, null);
+        }), l -> {
             final BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
             final SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles(), null);
             new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState) {
@@ -3012,6 +3067,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     assert store.refCount() > 0;
                     if (store.isClosing()) {
                         throw new AlreadyClosedException("store is closing");
+                    }
+                    if (lifecycle.started() == false) {
+                        throw new AlreadyClosedException("repository [" + metadata.name() + "] closed");
                     }
                 }
 

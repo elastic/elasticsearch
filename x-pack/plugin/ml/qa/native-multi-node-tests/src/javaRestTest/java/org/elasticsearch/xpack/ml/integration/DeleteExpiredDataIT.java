@@ -361,8 +361,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job =
             new Job.Builder(jobId)
-                .setResultsRetentionDays(2L)
-                .setSystemAnnotationsRetentionDays(1L)
+                .setResultsRetentionDays(1L)
                 .setAnalysisConfig(
                     new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder().setFunction("count").build()))
                         .setBucketSpan(TimeValue.timeValueHours(1)))

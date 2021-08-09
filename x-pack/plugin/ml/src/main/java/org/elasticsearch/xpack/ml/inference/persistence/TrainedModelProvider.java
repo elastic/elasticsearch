@@ -375,11 +375,23 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest.request(), bulkResponseActionListener);
     }
 
-    public void getTrainedModelForInference(final String modelId, final ActionListener<InferenceDefinition> listener) {
+    /**
+     * Get the model definition for inference.
+     *
+     * The caller should ensure the requested model has an InferenceDefinition,
+     *
+     * @param modelId The model tp get
+     * @param unsafe when true, the compressed bytes size is not checked and the circuit breaker is solely responsible for
+     *               preventing OOMs
+     * @param listener The listener
+     */
+    public void getTrainedModelForInference(final String modelId, boolean unsafe, final ActionListener<InferenceDefinition> listener) {
         // TODO Change this when we get more than just langIdent stored
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
             try {
-                TrainedModelConfig config = loadModelFromResource(modelId, false).build().ensureParsedDefinition(xContentRegistry);
+                TrainedModelConfig config = loadModelFromResource(modelId, false)
+                    .build()
+                    .ensureParsedDefinitionUnsafe(xContentRegistry);
                 assert config.getModelDefinition().getTrainedModel() instanceof LangIdentNeuralNetwork;
                 listener.onResponse(
                     InferenceDefinition.builder()
@@ -422,10 +434,9 @@ public class TrainedModelProvider {
                     this::parseModelDefinitionDocLenientlyFromSource);
                 try {
                     String compressedString = getDefinitionFromDocs(docs, modelId);
-                    InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
-                        compressedString,
-                        InferenceDefinition::fromXContent,
-                        xContentRegistry);
+                    InferenceDefinition inferenceDefinition = unsafe ?
+                    InferenceToXContentCompressor.inflateUnsafe(compressedString, InferenceDefinition::fromXContent, xContentRegistry) :
+                    InferenceToXContentCompressor.inflate(compressedString, InferenceDefinition::fromXContent, xContentRegistry);
                     listener.onResponse(inferenceDefinition);
                 } catch (ElasticsearchException elasticsearchException) {
                     listener.onFailure(elasticsearchException);

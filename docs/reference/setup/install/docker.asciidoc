@@ -351,16 +351,17 @@ periods in environment variable names, then you can use an alternative
 style by converting the setting name as follows.
 
 . Change the setting name to uppercase
-. Prefix it with `ES_`
+. Prefix it with `ES_SETTING_`
 . Escape any underscores (`_`) by duplicating them
 . Convert all periods (`.`) to underscores (`_`)
 
 For example, `-e bootstrap.memory_lock=true` becomes
-`-e ES_BOOTSTRAP_MEMORY__LOCK=true`.
+`-e ES_SETTING_BOOTSTRAP_MEMORY__LOCK=true`.
 
-To use the contents of a file to set an environment variable, suffix the environment
-variable name with `_FILE`. This is useful for passing secrets such as passwords to {es}
-without specifying them directly.
+You can use the contents of a file to set the value of the
+`ELASTIC_PASSWORD` or `KEYSTORE_PASSWORD` environment variables, by
+suffixing the environment variable name with `_FILE`. This is useful for
+passing secrets such as passwords to {es} without specifying them directly.
 
 For example, to set the {es} bootstrap password from a file, you can bind mount the
 file and set the `ELASTIC_PASSWORD_FILE` environment variable to the mount location.
@@ -371,7 +372,7 @@ If you mount the password file to `/run/secrets/bootstrapPassword.txt`, specify:
 -e ELASTIC_PASSWORD_FILE=/run/secrets/bootstrapPassword.txt
 --------------------------------------------
 
-You can also override the default command for the image to pass {es} configuration
+You can override the default command for the image to pass {es} configuration
 parameters as command line options. For example:
 
 [source,sh]

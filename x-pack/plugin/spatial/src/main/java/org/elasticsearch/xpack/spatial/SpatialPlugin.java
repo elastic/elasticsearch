@@ -10,8 +10,10 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.geo.GeoPlugin;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseUtils;
@@ -54,6 +56,7 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValue
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -77,7 +80,7 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, ActionPlug
     }
 
     // register the vector tile factory from a different module
-    private final SetOnce<VectorTileExtension> vectorTileExtension = new SetOnce<>();
+    private final SetOnce<GeoFormatterFactory<Geometry>> geoFormatterFactory = new SetOnce<>();
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -90,7 +93,7 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, ActionPlug
         mappers.put(ShapeFieldMapper.CONTENT_TYPE, ShapeFieldMapper.PARSER);
         mappers.put(PointFieldMapper.CONTENT_TYPE, PointFieldMapper.PARSER);
         mappers.put(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE,
-            new GeoShapeWithDocValuesFieldMapper.TypeParser(vectorTileExtension.get()));
+            new GeoShapeWithDocValuesFieldMapper.TypeParser(geoFormatterFactory.get()));
         return Collections.unmodifiableMap(mappers);
     }
 
@@ -215,6 +218,9 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, ActionPlug
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         // we only expect one vector tile extension that comes from the vector tile module.
-        loader.loadExtensions(VectorTileExtension.class).forEach(vectorTileExtension::set);
+        List<GeoFormatterFactory.FormatterFactory<Geometry>> formatterFactories = new ArrayList<>();
+        loader.loadExtensions(GeometryFormatterExtension.class).stream().map(GeometryFormatterExtension::getGeometryFormatterFactories)
+            .forEach(formatterFactories::addAll);
+        geoFormatterFactory.set(new GeoFormatterFactory<>(formatterFactories));
     }
 }

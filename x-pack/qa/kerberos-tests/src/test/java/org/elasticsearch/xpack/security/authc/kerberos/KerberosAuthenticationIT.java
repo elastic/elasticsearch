@@ -99,7 +99,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
         assumeFalse("This test fails often on Java 17 early access. See: https://github.com/elastic/elasticsearch/issues/72120",
-            "17-ea".equals(System.getProperty("java.version")));
+            "17".equals(System.getProperty("java.version")));
         testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_KEYTAB_KEY);
         final String keytabPath = System.getProperty(TEST_USER_WITH_KEYTAB_PATH_KEY);
@@ -111,7 +111,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
         assumeFalse("This test fails often on Java 17 early access. See: https://github.com/elastic/elasticsearch/issues/72120",
-            "17-ea".equals(System.getProperty("java.version")));
+            "17".equals(System.getProperty("java.version")));
         testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
@@ -123,7 +123,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
         assumeFalse("This test fails often on Java 17 early access. See: https://github.com/elastic/elasticsearch/issues/72120",
-            "17-ea".equals(System.getProperty("java.version")));
+            "17".equals(System.getProperty("java.version")));
         testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);

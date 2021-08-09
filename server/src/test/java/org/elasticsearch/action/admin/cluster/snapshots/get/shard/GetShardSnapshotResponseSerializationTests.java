@@ -79,7 +79,7 @@ public class GetShardSnapshotResponseSerializationTests extends ESTestCase {
         String shardStateIdentifier = randomBoolean() ? randomString(30) : null;
         return Tuple.tuple(
             repositoryName,
-            new ShardSnapshotInfo(indexId, shardId, snapshot, indexMetadataIdentifier, shardStateIdentifier)
+            new ShardSnapshotInfo(indexId, shardId, snapshot, indexMetadataIdentifier, shardStateIdentifier, randomLongBetween(0, 2048))
         );
     }
 

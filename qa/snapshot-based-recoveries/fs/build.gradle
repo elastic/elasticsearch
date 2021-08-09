@@ -28,5 +28,4 @@ tasks.withType(Test).configureEach {
 testClusters.all {
   numberOfNodes = 3
   setting 'path.repo', repoDir.absolutePath
-  setting 'indices.recovery.use_snapshots', 'true'
 }

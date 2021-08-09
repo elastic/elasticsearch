@@ -159,11 +159,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
     private volatile boolean useSnapshotsDuringRecovery;
-<<<<<<< HEAD
-=======
-    private volatile String repository;
     private volatile int maxConcurrentSnapshotFileDownloads;
->>>>>>> c943e1e93b7 (Add logic to recover files from snapshot)
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 

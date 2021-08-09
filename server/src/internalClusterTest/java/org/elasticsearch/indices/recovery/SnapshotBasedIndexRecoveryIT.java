@@ -74,14 +74,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase {
     @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), true)
-            .build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
             TestRepositoryPlugin.class,

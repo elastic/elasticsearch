@@ -9,6 +9,8 @@
 package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongMap;
+
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
@@ -389,7 +391,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
-        this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
+        //this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
+        this.isDataStreamIndex = true;
     }
 
     public ThreadPool getThreadPool() {
@@ -2893,6 +2896,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
+        logger.log(Level.INFO, "*** dataStreamIndex[" + isDataStreamIndex + "]");
         return new EngineConfig(
                 shardId,
                 threadPool,

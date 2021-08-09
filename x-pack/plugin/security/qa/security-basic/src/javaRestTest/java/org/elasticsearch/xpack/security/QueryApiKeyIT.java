@@ -389,9 +389,15 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             XContentTestUtils.convertToXContent(roleDescriptors == null ? Map.of() : roleDescriptors, XContentType.JSON).utf8ToString();
         final String metadataString =
             XContentTestUtils.convertToXContent(metadata == null ? Map.of() : metadata, XContentType.JSON).utf8ToString();
-        request.setJsonEntity("{\"name\":\"" + name
-            + "\", \"role_descriptors\":" + roleDescriptorsString
-            + ", \"metadata\":" + metadataString + "}");
+        if (randomBoolean()) {
+            request.setJsonEntity("{\"name\":\"" + name
+                + "\", \"role_descriptors\":" + roleDescriptorsString
+                + ", \"metadata\":" + metadataString + "}");
+        } else {
+            request.setJsonEntity("{\"name\":\"" + name
+                + "\", \"expiration\": \"10d\", \"role_descriptors\":" + roleDescriptorsString
+                + ", \"metadata\":" + metadataString + "}");
+        }
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
         final Response response = client().performRequest(request);
         assertOK(response);

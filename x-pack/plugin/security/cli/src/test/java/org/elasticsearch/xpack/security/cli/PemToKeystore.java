@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.security.cli;
 
 import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;

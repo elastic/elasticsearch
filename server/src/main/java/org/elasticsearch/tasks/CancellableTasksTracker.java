@@ -31,7 +31,7 @@ public class CancellableTasksTracker<T> {
     private final Map<TaskId, T[]> byParentTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     /**
-     * Add an item for the given task. Should only be called once for each task.
+     * Add an item for the given task. Should only be called once for each task, and {@code item} must be unique per task too.
      */
     public void put(Task task, T item) {
         final long taskId = task.getId();

@@ -11,7 +11,9 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
@@ -111,5 +113,22 @@ public class CancellableTasksTracker<T> {
             return Stream.empty();
         }
         return Arrays.stream(byParent);
+    }
+
+    // assertion for tests, not an invariant but should eventually be true
+    boolean assertConsistent() {
+        // mustn't leak anything
+        assert byTaskId.isEmpty() == byParentTaskId.isEmpty();
+
+        // every by-parent value must be tracked by task too; the converse isn't true since we don't track values without a parent
+        final Set<T> byTaskValues = new HashSet<>(byTaskId.values());
+        for (T[] byParent : byParentTaskId.values()) {
+            assert byParent.length > 0;
+            for (T t : byParent) {
+                assert byTaskValues.contains(t);
+            }
+        }
+
+        return true;
     }
 }

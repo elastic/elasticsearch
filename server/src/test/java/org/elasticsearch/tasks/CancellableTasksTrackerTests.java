@@ -172,5 +172,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
         for (TestTask task : tasks) {
             task.join();
         }
+
+        tracker.assertConsistent();
     }
 }

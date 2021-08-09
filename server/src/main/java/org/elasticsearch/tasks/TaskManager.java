@@ -409,6 +409,11 @@ public class TaskManager implements ClusterStateApplier {
         return Collections.unmodifiableSet(bannedParents.keySet());
     }
 
+    // for testing
+    public boolean assertCancellableTaskConsistency() {
+        return cancellableTasks.assertConsistent();
+    }
+
     private class Ban {
         final String reason;
         final Set<ChannelPendingTaskTracker> channels;

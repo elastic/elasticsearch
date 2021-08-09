@@ -1,5 +1,5 @@
 ---
-"add dimensions after creation":
+"add dimensions with put_mapping":
   - skip:
       version: " - 7.99.99"
       reason: introduced in 8.0.0 to be backported to 7.15.0
@@ -11,6 +11,71 @@
             settings:
               index:
                 mode: time_series
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      catch: "/Error building time series id: There aren't any mapped dimensions/"
+      index:
+        index: test
+        refresh: true
+        body:
+          "@timestamp": "2021-04-28T18:35:24.467Z"
+          metricset: cat
+
+  - do:
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            metricset:
+              type: keyword
+              dimension: true
+
+  - do:
+      index:
+        index: test
+        refresh: true
+        body:
+          "@timestamp": "2021-04-28T18:35:24.467Z"
+          metricset: cat
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: _tsid
+            - field: "@timestamp"
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields._tsid: [{metricset: cat}]}
+  - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
+
+
+
+
+---
+"add dimensions with dynamic_template":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+            dynaimc_template:
+              keywords:
+                match_mapping_type: string
+                mapping:
+                  type: keyword
+                  dimension: true
             mappings:
               properties:
                 "@timestamp":

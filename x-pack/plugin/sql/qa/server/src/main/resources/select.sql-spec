@@ -153,14 +153,10 @@ selectOrderByOrderByOrderByLimit
 SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) ORDER BY emp_no DESC LIMIT 5;
 selectOrderByOrderByOrderByLimitLimit
 SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) ORDER BY emp_no DESC LIMIT 12) LIMIT 6;
-selectOrderByLimitSameOrderBy
-SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp LIMIT 10) ORDER BY emp_no) ORDER BY emp_no LIMIT 5;
 selectGroupByOrderByLimit
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages) ORDER BY max DESC LIMIT 3;
 selectGroupByOrderByLimitNulls
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages) ORDER BY max DESC NULLS FIRST LIMIT 3;
-selectGroupByLimitOrderByLimit
-SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp WHERE languages IS NOT NULL GROUP BY languages LIMIT 5) ORDER BY max DESC LIMIT 3;
 selectGroupByOrderByOrderByLimit
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC) ORDER BY max DESC NULLS FIRST LIMIT 4;
 selectGroupByOrderByOrderByLimitNulls

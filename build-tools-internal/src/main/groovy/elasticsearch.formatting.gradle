@@ -235,7 +235,7 @@ subprojects {
           // The `paddedCell()` option is disabled for normal operation so that any
           // misbehaviour is detected, and not just suppressed. You can enabled the
           // option from the command line by running Gradle with `-Dspotless.paddedcell`.
-          if (System.getProperty('spotless.paddedcell') != null) {
+          if (providers.systemProperty('spotless.paddedcell').forUseAtConfigurationTime().isPresent()) {
             paddedCell()
           }
         }

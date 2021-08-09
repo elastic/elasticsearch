@@ -106,7 +106,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter) {
         Builder builder = new Builder(name);
         builder.format.setValue(dateTimeFormatter.pattern());
-        return builder.createRuntimeField(null, DateFieldScript.PARSE_FROM_SOURCE);
+        return builder.createRuntimeField(DateFieldScript.PARSE_FROM_SOURCE);
     }
 
     private final DateFormatter dateTimeFormatter;

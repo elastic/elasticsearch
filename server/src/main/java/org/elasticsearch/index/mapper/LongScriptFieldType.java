@@ -59,7 +59,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     }
 
     public static RuntimeField sourceOnly(String name) {
-        return new Builder(name).createRuntimeField(null, LongFieldScript.PARSE_FROM_SOURCE);
+        return new Builder(name).createRuntimeField(LongFieldScript.PARSE_FROM_SOURCE);
     }
 
     public LongScriptFieldType(

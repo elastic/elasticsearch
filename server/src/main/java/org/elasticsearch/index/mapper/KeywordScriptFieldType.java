@@ -68,7 +68,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     public static RuntimeField sourceOnly(String name) {
-        return new Builder(name).createRuntimeField(null, StringFieldScript.PARSE_FROM_SOURCE);
+        return new Builder(name).createRuntimeField(StringFieldScript.PARSE_FROM_SOURCE);
     }
 
     public KeywordScriptFieldType(

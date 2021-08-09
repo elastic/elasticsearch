@@ -46,7 +46,9 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
         //TODO for now we re-run the script every time a leaf field is accessed, but we could cache the values?
         fieldValues.clear();
         execute();
-        return fieldValues.get(field);
+        List<Object> values = fieldValues.get(field);
+        fieldValues.clear();    // don't hold on to values unnecessarily
+        return values;
     }
 
     protected final void emit(String field, Object value) {

@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collection;
@@ -215,5 +217,13 @@ public interface RuntimeField extends ToXContentFragment {
 
     static <T> Function<FieldMapper, T> initializerNotSupported() {
         return mapper -> { throw new UnsupportedOperationException(); };
+    }
+
+    static Script parseScript(String name, MappingParserContext parserContext, Object scriptObject) {
+        Script script = Script.parse(scriptObject);
+        if (script.getType() == ScriptType.STORED) {
+            throw new IllegalArgumentException("stored scripts are not supported for runtime field [" + name + "]");
+        }
+        return script;
     }
 }

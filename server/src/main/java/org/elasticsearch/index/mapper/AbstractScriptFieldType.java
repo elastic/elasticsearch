@@ -21,7 +21,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.time.ZoneId;
@@ -200,7 +199,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             "script",
             true,
             () -> null,
-            Builder::parseScript,
+            RuntimeField::parseScript,
             RuntimeField.initializerNotSupported()
         ).setSerializerCheck((id, ic, v) -> ic);
 
@@ -214,16 +213,12 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         @Override
-        protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
+        protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
             if (script.get() == null) {
-                return new LeafRuntimeField(
-                    name,
-                    createFieldType(name, getParseFromSourceFactory(), getScript(), meta()),
-                    getParameters()
-                );
+                return createRuntimeField(getParseFromSourceFactory());
             }
             Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
-            return new LeafRuntimeField(name, createFieldType(name, factory, getScript(), meta()), getParameters());
+            return createRuntimeField(factory);
         }
 
         @Override
@@ -242,9 +237,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             );
         }
 
-        final RuntimeField createRuntimeField(String parent, Factory scriptFactory) {
-            String fullName = parent == null ? name : parent + "." + name;
-            AbstractScriptFieldType<?> fieldType = createFieldType(fullName, scriptFactory, getScript(), meta());
+        final RuntimeField createRuntimeField(Factory scriptFactory) {
+            AbstractScriptFieldType<?> fieldType = createFieldType(name, scriptFactory, getScript(), meta());
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
@@ -262,14 +256,6 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
                 return DEFAULT_SCRIPT;
             }
             return script.get();
-        }
-
-        static Script parseScript(String name, MappingParserContext parserContext, Object scriptObject) {
-            Script script = Script.parse(scriptObject);
-            if (script.getType() == ScriptType.STORED) {
-                throw new IllegalArgumentException("stored scripts are not supported for runtime field [" + name + "]");
-            }
-            return script;
         }
     }
 }

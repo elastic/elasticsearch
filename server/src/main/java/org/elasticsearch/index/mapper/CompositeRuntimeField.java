@@ -36,7 +36,7 @@ public class CompositeRuntimeField implements RuntimeField {
                 "script",
                 false,
                 () -> null,
-                AbstractScriptFieldType.Builder::parseScript,
+                RuntimeField::parseScript,
                 RuntimeField.initializerNotSupported()
             ).setValidator(s -> {
                 if (s == null) {

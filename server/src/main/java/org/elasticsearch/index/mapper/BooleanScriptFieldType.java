@@ -61,7 +61,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     public static RuntimeField sourceOnly(String name) {
-        return new Builder(name).createRuntimeField(null, BooleanFieldScript.PARSE_FROM_SOURCE);
+        return new Builder(name).createRuntimeField(BooleanFieldScript.PARSE_FROM_SOURCE);
     }
 
     BooleanScriptFieldType(

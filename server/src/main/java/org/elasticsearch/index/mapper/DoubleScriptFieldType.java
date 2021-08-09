@@ -62,7 +62,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     }
 
     public static RuntimeField sourceOnly(String name) {
-        return new Builder(name).createRuntimeField(null, DoubleFieldScript.PARSE_FROM_SOURCE);
+        return new Builder(name).createRuntimeField(DoubleFieldScript.PARSE_FROM_SOURCE);
     }
 
     DoubleScriptFieldType(

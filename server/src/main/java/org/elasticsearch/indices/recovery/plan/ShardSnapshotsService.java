@@ -23,8 +23,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
@@ -57,9 +57,7 @@ public class ShardSnapshotsService {
     }
 
     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
-        if (shardId == null) {
-            throw new IllegalArgumentException("SharId was null but a value was expected");
-        }
+        assert shardId != null : "SharId was null but a value was expected";
 
         final RepositoriesMetadata currentReposMetadata = clusterService.state()
             .metadata()
@@ -67,17 +65,20 @@ public class ShardSnapshotsService {
 
         List<String> repositories = currentReposMetadata.repositories()
             .stream()
-            .filter(repositoryMetadata -> RecoverySettings.REPOSITORY_SNAPSHOT_BASED_RECOVERY_SETTING.get(repositoryMetadata.settings()))
+            .filter(repositoryMetadata -> BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.get(repositoryMetadata.settings()))
             .map(RepositoryMetadata::name)
             .collect(Collectors.toList());
 
         if (repositories.isEmpty() || masterSupportsFetchingLatestSnapshots() == false) {
+            logger.debug("Unable to use snapshots during peer recovery use_for_peer_recovery_repositories=[{}]," +
+                " masterSupportsFetchingLatestSnapshots=[{}]", repositories, masterSupportsFetchingLatestSnapshots());
             listener.onResponse(Collections.emptyList());
             return;
         }
 
-        GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, repositories);
+        logger.debug("Searching for peer recovery compatible snapshots in [{}]", repositories);
 
+        GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, repositories);
         client.execute(GetShardSnapshotAction.INSTANCE,
             request,
             new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener.map(this::fetchSnapshotFiles), false)
@@ -105,7 +106,13 @@ public class ShardSnapshotsService {
     private List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFileList(ShardSnapshotInfo shardSnapshotInfo) {
         try {
             final Snapshot snapshot = shardSnapshotInfo.getSnapshot();
-            BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repositoriesService.repository(snapshot.getRepository());
+
+            final Repository repository = repositoriesService.repository(snapshot.getRepository());
+            if (repository instanceof BlobStoreRepository == false) {
+                return Collections.emptyList();
+            }
+
+            BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
             BlobContainer blobContainer = blobStoreRepository.shardContainer(shardSnapshotInfo.getIndexId(),
                 shardSnapshotInfo.getShardId().getId());
             BlobStoreIndexShardSnapshot blobStoreIndexShardSnapshot =
@@ -119,6 +126,6 @@ public class ShardSnapshotsService {
     }
 
     protected boolean masterSupportsFetchingLatestSnapshots() {
-        return clusterService.state().nodes().getMasterNode().getVersion().onOrAfter(SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
+        return clusterService.state().nodes().getMinNodeVersion().onOrAfter(SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
     }
 }

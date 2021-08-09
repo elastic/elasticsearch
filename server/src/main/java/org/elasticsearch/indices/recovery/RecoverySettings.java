@@ -136,11 +136,7 @@ public class RecoverySettings {
      * defaults to `false`
      */
     public static final Setting<Boolean> INDICES_RECOVERY_USE_SNAPSHOTS_SETTING =
-        Setting.boolSetting("indices.recovery.use_snapshots", false, Property.Dynamic, Property.NodeScope);
-
-    // TODO: Find a better name, and is this the right place for this setting?
-    public static final Setting<Boolean> REPOSITORY_SNAPSHOT_BASED_RECOVERY_SETTING =
-        Setting.boolSetting("snapshot_based_recoveries_enabled", false);
+        Setting.boolSetting("indices.recovery.use_snapshots", true, Property.Dynamic, Property.NodeScope);
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
 
@@ -155,7 +151,6 @@ public class RecoverySettings {
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
     private volatile boolean useSnapshotsDuringRecovery;
-    private volatile String repository;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 

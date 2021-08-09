@@ -32,6 +32,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -243,12 +244,6 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         }
     }
 
-    public void testInputValidations() {
-        ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
-        expectThrows(IllegalArgumentException.class, () ->
-            shardSnapshotsService.fetchLatestSnapshotsForShard(null, null));
-    }
-
     public void testFetchingInformationFromAnIncompatibleMasterNodeReturnsAnEmptyList() {
         String indexName = "test";
         createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
@@ -304,7 +299,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             .setVerify(false)
             .setSettings(Settings.builder()
                 .put("location", location)
-                .put(RecoverySettings.REPOSITORY_SNAPSHOT_BASED_RECOVERY_SETTING.getKey(), recoveryEnabledRepo)
+                .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), recoveryEnabledRepo)
             )
         );
     }

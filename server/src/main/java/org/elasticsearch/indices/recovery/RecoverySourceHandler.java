@@ -503,6 +503,8 @@ public class RecoverySourceHandler {
                                            Store store,
                                            StopWatch stopWatch,
                                            ActionListener<SendFileResult> listener) {
+        cancellableThreads.checkForCancel();
+
         final List<String> filesToRecoverNames = shardRecoveryPlan.getFilesToRecoverNames();
         final List<Long> filesToRecoverSizes = shardRecoveryPlan.getFilesToRecoverSizes();
         final List<String> phase1ExistingFileNames = shardRecoveryPlan.getFilesPresentInTargetNames();

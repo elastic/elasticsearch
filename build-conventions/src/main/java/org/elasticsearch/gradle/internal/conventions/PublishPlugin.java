@@ -68,13 +68,13 @@ public class PublishPlugin implements Plugin<Project> {
     private void configurePublications(Project project) {
         var publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
         var publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
-        project.afterEvaluate(project1 -> {
-            if (project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
-                configureWithShadowPlugin(project1, publication);
-            } else if (project1.getPlugins().hasPlugin(JavaPlugin.class)) {
-                publication.from(project.getComponents().getByName("java"));
-            }
-        });
+//        project.afterEvaluate(project1 -> {
+//            if (project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
+//                configureWithShadowPlugin(project1, publication);
+//            } else if (project1.getPlugins().hasPlugin(JavaPlugin.class)) {
+//                publication.from(project.getComponents().getByName("java"));
+//            }
+//        });
         var projectLicenses = (MapProperty<String, String>) project.getExtensions().getExtraProperties().get("projectLicenses");
         publication.getPom().withXml(xml -> {
             var node = xml.asNode();
@@ -111,7 +111,7 @@ public class PublishPlugin implements Plugin<Project> {
         var archivesBaseName = providerFactory.provider(() -> getArchivesBaseName(extensions));
         var projectVersion = providerFactory.provider(() -> project.getVersion());
         var generateMavenPoms = project.getTasks().withType(GenerateMavenPom.class);
-        generateMavenPoms.all(
+        generateMavenPoms.configureEach(
             pomTask -> pomTask.setDestination(
                 (Callable<String>) () -> String.format(
                     "%s/distributions/%s-%s.pom",

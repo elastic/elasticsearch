@@ -10,7 +10,10 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -113,6 +116,33 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         request = new ClusterAllocationExplainRequest();
         shard = findShardToExplain(request, routingAllocation(clusterState));
         assertEquals(clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0), shard);
+
+        // prefer unassigned primary to replica
+        clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[]{"idx1", "idx2"}, 1, 1);
+        final String redIndex = randomBoolean() ? "idx1" : "idx2";
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
+        for (final IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            final IndexRoutingTable.Builder indexBuilder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
+            for (final IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                final IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(indexShardRoutingTable.shardId());
+                for (final ShardRouting shardRouting : indexShardRoutingTable) {
+                    if (shardRouting.primary() == false || indexRoutingTable.getIndex().getName().equals(redIndex)) {
+                        // move all replicas and one primary to unassigned
+                        shardBuilder.addShard(shardRouting.moveToUnassigned(new UnassignedInfo(
+                            UnassignedInfo.Reason.ALLOCATION_FAILED,
+                            "test")));
+                    } else {
+                        shardBuilder.addShard(shardRouting);
+                    }
+                }
+                indexBuilder.addIndexShard(shardBuilder.build());
+            }
+            routingTableBuilder.add(indexBuilder);
+        }
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
+        request = new ClusterAllocationExplainRequest();
+        shard = findShardToExplain(request, routingAllocation(clusterState));
+        assertEquals(clusterState.getRoutingTable().index(redIndex).shard(0).primaryShard(), shard);
 
         // no unassigned shard to explain
         final ClusterState allStartedClusterState = ClusterStateCreationUtils.state("idx", randomBoolean(),

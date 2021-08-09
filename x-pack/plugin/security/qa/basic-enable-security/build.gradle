@@ -1,11 +1,14 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
-import org.elasticsearch.gradle.internal.test.rest.JavaRestTestPlugin
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
-
-//randomise between implicitly and explicitly disabled security
-boolean implicitlyDisabledSecurity = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
@@ -13,10 +16,8 @@ dependencies {
 }
 
 tasks.named("javaRestTest").configure {
-  description = "Run tests against a cluster that doesn't have security"
-  if (!implicitlyDisabledSecurity) {
-    systemProperty 'tests.has_security', 'false'
-  }
+  description = "Run tests against a cluster that has security disabled"
+  systemProperty 'tests.has_security', 'false'
 }
 
 if (BuildParams.inFipsJvm){
@@ -30,9 +31,7 @@ testClusters {
     numberOfNodes = 2
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'basic'
-    if (!implicitlyDisabledSecurity) {
-      setting 'xpack.security.enabled', 'false'
-    }
+    setting 'xpack.security.enabled', 'false'
   }
 }
 

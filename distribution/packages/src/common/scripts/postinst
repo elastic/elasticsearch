@@ -56,19 +56,29 @@ if command -v systemctl > /dev/null; then
 fi
 
 if [ "x$IS_UPGRADE" != "xtrue" ]; then
-    # This runs on installation and since we do not set a password for the keystore by default, we can assume it's not password protected
-   ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
-   ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
-   ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-   /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""
-    if [ -f "${ES_PATH_CONF}"/elasticsearch.keystore ]; then
-        INITIAL_PASSWORD=$(tr -dc 'A-Za-z0-9~!@#$%^&*-_=+?' </dev/urandom | head -c 14)
-        echo "$INITIAL_PASSWORD" | /usr/share/elasticsearch/bin/elasticsearch-keystore add -x 'bootstrap.password'
+    # Should we call system.exit() in ConfigInitialNode so that we only proceed if there was no error?
+    ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
+    ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
+    ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+    /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""
+
+    INITIAL_PASSWORD=$(ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.GenerateElasticPasswordHash \
+    ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
+    ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+    /usr/share/elasticsearch/bin/elasticsearch-cli)
+    if [ -z "${INITIAL_PASSWORD}" ]; then
         echo "##########                 Security autoconfiguration information                ############"
         echo "#                                                                                           #"
         echo "# The password of the elastic superuser will be set to: ${INITIAL_PASSWORD}                      #"
+        echo "# upon starting elasticsearch for the first time                                            #"
         echo "#                                                                                           #"
         echo "#                                                                                           #"
+        echo "#############################################################################################"
+    else
+        echo "##########                 Security autoconfiguration information                ############"
+        echo "#                                                                                           #"
+        echo "# Failed to auto-configure the password for the elastic user upon installation              #"
+        echo "# You can use elasticsearch-reset-elastic-password to set a password for the elastic user   #"
         echo "#                                                                                           #"
         echo "#############################################################################################"
     fi
@@ -79,6 +89,7 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
         echo "### You can start elasticsearch service by executing"
         echo " sudo systemctl start elasticsearch.service"
     fi
+
 elif [ "$RESTART_ON_UPGRADE" = "true" ]; then
 
     echo -n "Restarting elasticsearch service..."

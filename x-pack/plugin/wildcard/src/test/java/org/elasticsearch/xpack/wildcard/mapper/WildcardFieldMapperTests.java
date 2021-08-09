@@ -19,7 +19,6 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -522,8 +521,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String matchAllButVerifyTests[]= { "..", "(a)?","(a|b){0,3}", "((foo)?|(foo|bar)?)", "@&~(abc.+)", "aaa.+&.+bbb"};
         for (String regex : matchAllButVerifyTests) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
+            BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery)wildcardFieldQuery;
             assertTrue(regex +" was not a pure verify query " +formatQuery(wildcardFieldQuery),
-                wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv);
+                q.getApproximationQuery() instanceof MatchAllDocsQuery);
         }
 
 
@@ -575,7 +575,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             String expectedAccelerationQueryString = test[1].replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             testExpectedAccelerationQuery(pattern, wildcardFieldQuery, expectedAccelerationQueryString);
-            assertTrue(unwrapAnyConstantScore(wildcardFieldQuery) instanceof BooleanQuery);
+            assertTrue(unwrapAnyConstantScore(wildcardFieldQuery) instanceof BinaryDvConfirmedAutomatonQuery);
         }
 
         // TODO All these expressions have no acceleration at all and could be improved
@@ -583,9 +583,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         for (String pattern : slowPatterns) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             wildcardFieldQuery = unwrapAnyConstantScore(wildcardFieldQuery);
+            BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;
             assertTrue(
                 pattern + " was not as slow as we assumed " + formatQuery(wildcardFieldQuery),
-                wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv
+                q.getApproximationQuery() instanceof MatchAllDocsQuery
             );
         }
 
@@ -599,14 +600,17 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             new Term("field", pattern),
             Integer.MAX_VALUE
         );
-        AutomatonQueryOnBinaryDv csQ = new AutomatonQueryOnBinaryDv("field", pattern, caseSensitiveAutomaton);
-        AutomatonQueryOnBinaryDv ciQ = new AutomatonQueryOnBinaryDv("field", pattern, caseInSensitiveAutomaton);
+        BinaryDvConfirmedAutomatonQuery csQ = new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+            "field", pattern, caseSensitiveAutomaton);
+        BinaryDvConfirmedAutomatonQuery ciQ = new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+            "field", pattern, caseInSensitiveAutomaton);
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
         Automaton caseSensitiveAutomaton2 = WildcardQuery.toAutomaton(new Term("field", pattern));
-        AutomatonQueryOnBinaryDv csQ2 = new AutomatonQueryOnBinaryDv("field", pattern, caseSensitiveAutomaton2);
+        BinaryDvConfirmedAutomatonQuery csQ2 = new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+            "field", pattern, caseSensitiveAutomaton2);
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
     }
@@ -778,19 +782,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     void testExpectedAccelerationQuery(String regex, Query combinedQuery, Query expectedAccelerationQuery) throws ParseException {
-        BooleanQuery cq = (BooleanQuery) unwrapAnyConstantScore(combinedQuery);
-        assert cq.clauses().size() == 2;
-        Query approximationQuery = null;
-        boolean verifyQueryFound = false;
-        for (BooleanClause booleanClause : cq.clauses()) {
-            Query q = booleanClause.getQuery();
-            if (q instanceof AutomatonQueryOnBinaryDv) {
-                verifyQueryFound = true;
-            } else {
-                approximationQuery = q;
-            }
-        }
-        assert verifyQueryFound;
+        BinaryDvConfirmedAutomatonQuery cq = (BinaryDvConfirmedAutomatonQuery) unwrapAnyConstantScore(combinedQuery);
+        Query approximationQuery = cq.getApproximationQuery();
 
         String message = "regex: "+ regex +"\nactual query: " + formatQuery(approximationQuery) +
             "\nexpected query: " + formatQuery(expectedAccelerationQuery) + "\n";

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.painless.spi;
 
-import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;

@@ -23,6 +23,8 @@ import static java.util.Map.entry;
 
 public class Maps {
 
+    private Maps() {}
+    
     /**
      * Adds an entry to an immutable map by copying the underlying map and adding the new entry. This method expects there is not already a
      * mapping for the specified key in the map.

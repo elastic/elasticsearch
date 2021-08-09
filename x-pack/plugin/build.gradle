@@ -99,6 +99,9 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceKeyInDo("license.post_start_trial", "xpack-license.post_start_trial")
   task.addAllowedWarningRegex(".*_xpack/license.* is deprecated.*")
 
+  task.replaceKeyInDo("migration.deprecations", "xpack-migration.deprecations")
+  task.addAllowedWarningRegex(".*_xpack/migration.* is deprecated.*")
+
   task.replaceKeyInDo("rollup.delete_job", "xpack-rollup.delete_job")
   task.replaceKeyInDo("rollup.get_jobs", "xpack-rollup.get_jobs")
   task.replaceKeyInDo("rollup.get_rollup_caps", "xpack-rollup.get_rollup_caps")

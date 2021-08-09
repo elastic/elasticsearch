@@ -191,7 +191,9 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             for (int i = 1; i < allSnapshotNames.size() - j; i++) {
                 final GetSnapshotsResponse getSnapshotsResponse =
                     sortedWithLimit(repoName, sort, GetSnapshotsRequest.After.from(after, sort).asQueryParam(), i, order);
+                final GetSnapshotsResponse getSnapshotsResponseNumeric = sortedWithLimit(repoName, sort, j + 1, i, order);
                 final List<SnapshotInfo> subsetSorted = getSnapshotsResponse.getSnapshots();
+                assertEquals(subsetSorted, getSnapshotsResponseNumeric.getSnapshots());
                 assertEquals(subsetSorted, allSorted.subList(j + 1, j + i + 1));
                 assertEquals(allSnapshotNames.size(), getSnapshotsResponse.totalCount());
                 assertEquals(allSnapshotNames.size() - (j + i + 1), getSnapshotsResponse.remaining());
@@ -232,10 +234,10 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     }
 
     private static GetSnapshotsResponse sortedWithLimit(String repoName,
-                                                                     GetSnapshotsRequest.SortBy sortBy,
-                                                                     String after,
-                                                                     int size,
-                                                                     SortOrder order) throws IOException {
+                                                        GetSnapshotsRequest.SortBy sortBy,
+                                                        String after,
+                                                        int size,
+                                                        SortOrder order) throws IOException {
         final Request request = baseGetSnapshotsRequest(repoName);
         request.addParameter("sort", sortBy.toString());
         if (size != GetSnapshotsRequest.NO_LIMIT || randomBoolean()) {
@@ -244,6 +246,24 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         if (after != null) {
             request.addParameter("after", after);
         }
+        if (order == SortOrder.DESC || randomBoolean()) {
+            request.addParameter("order", order.toString());
+        }
+        final Response response = getRestClient().performRequest(request);
+        return readSnapshotInfos(response);
+    }
+
+    private static GetSnapshotsResponse sortedWithLimit(String repoName,
+                                                        GetSnapshotsRequest.SortBy sortBy,
+                                                        int offset,
+                                                        int size,
+                                                        SortOrder order) throws IOException {
+        final Request request = baseGetSnapshotsRequest(repoName);
+        request.addParameter("sort", sortBy.toString());
+        if (size != GetSnapshotsRequest.NO_LIMIT || randomBoolean()) {
+            request.addParameter("size", String.valueOf(size));
+        }
+        request.addParameter("offset", String.valueOf(offset));
         if (order == SortOrder.DESC || randomBoolean()) {
             request.addParameter("order", order.toString());
         }

@@ -197,7 +197,9 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     i,
                     order
                 );
+                final GetSnapshotsResponse getSnapshotsResponseNumeric = sortedWithLimit(repoName, sort, j + 1, i, order);
                 final List<SnapshotInfo> subsetSorted = getSnapshotsResponse.getSnapshots();
+                assertEquals(subsetSorted, getSnapshotsResponseNumeric.getSnapshots());
                 assertEquals(subsetSorted, allSorted.subList(j + 1, j + i + 1));
                 assertEquals(allSnapshotNames.size(), getSnapshotsResponse.totalCount());
                 assertEquals(allSnapshotNames.size() - (j + i + 1), getSnapshotsResponse.remaining());
@@ -230,12 +232,17 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         int size,
         SortOrder order
     ) {
-        final GetSnapshotsResponse response = baseGetSnapshotsRequest(repoName).setAfter(after)
-            .setSort(sortBy)
-            .setSize(size)
-            .setOrder(order)
-            .get();
-        return response;
+        return baseGetSnapshotsRequest(repoName).setAfter(after).setSort(sortBy).setSize(size).setOrder(order).get();
+    }
+
+    private static GetSnapshotsResponse sortedWithLimit(
+        String repoName,
+        GetSnapshotsRequest.SortBy sortBy,
+        int offset,
+        int size,
+        SortOrder order
+    ) {
+        return baseGetSnapshotsRequest(repoName).setOffset(offset).setSort(sortBy).setSize(size).setOrder(order).get();
     }
 
     private static GetSnapshotsRequestBuilder baseGetSnapshotsRequest(String repoName) {

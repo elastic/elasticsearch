@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.security.enrollment.tool;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
+import joptsimple.OptionSpec;
+
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
@@ -22,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.enrollment.EnrollmentToken;
@@ -46,12 +47,10 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
     private final CheckedFunction<Environment, EnrollmentTokenGenerator, Exception> createEnrollmentTokenFunction;
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
+    private final  OptionSpec<String> keyStorePassword;
     final SecureRandom secureRandom = new SecureRandom();
 
     // Package-private for testing
-    SecureString bootstrapPassword;
-    SecureString credentialsPassword;
-
     CommandLineHttpClient getClient(Environment env) {
         return clientFunction.apply(env);
     }
@@ -78,6 +77,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         this.keyStoreFunction = keyStoreFunction;
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
         parser.allowsUnrecognizedOptions();
+        keyStorePassword = parser.accepts("keystore-password", "keystore password").withRequiredArg();
     }
 
     public static void main(String[] args) throws Exception {
@@ -86,36 +86,31 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        if (options.nonOptionArguments().contains("--explicitly-acknowledge-execution") == false) {
-            throw new UserException(ExitCodes.CONFIG, null);
+        if (!options.has(keyStorePassword)) {
+            throw new UserException(ExitCodes.USAGE, null);
         }
-        if (env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey()) && false ==
-            XPackSettings.ENROLLMENT_ENABLED.get(env.settings())) {
-            throw new UserException(ExitCodes.NOOP, null);
-        }
+        final SecureString keystorePassword = new SecureString(keyStorePassword.values(options).get(0));
         SecureString password;
         final CommandLineHttpClient client = getClient(env);
         final EnrollmentTokenGenerator enrollmentTokenGenerator = getEnrollmentTokenGenerator(env);
         keyStoreWrapper = getKeyStoreWrapper(env);
-        ReadBootstrapPassword(env, terminal);
+        final SecureString bootstrapPassword = readBootstrapPassword(env, keystorePassword);
         try {
-            client.checkClusterHealthWithRetriesWaitingForCluster(elasticUser, credentialsPassword, 5);
+            client.checkClusterHealthWithRetriesWaitingForCluster(elasticUser, bootstrapPassword, 5);
         } catch (Exception e) {
             throw new UserException(ExitCodes.UNAVAILABLE, null);
         }
-        if (Strings.isNullOrEmpty(bootstrapPassword.toString())) {
-            password = changeElasticUserPassword(client);
-        } else {
+        if (ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.exists(env.settings())) {
             password = bootstrapPassword;
+        } else {
+            password = setElasticUserPassword(client, bootstrapPassword);
+            terminal.println("'elastic' user password: " + password);
         }
         final EnrollmentToken kibanaToken;
         try {
             kibanaToken = enrollmentTokenGenerator.createKibanaEnrollmentToken(elasticUser, password);
         } catch (Exception e) {
             throw new UserException(ExitCodes.UNAVAILABLE, null);
-        }
-        if (Strings.isNullOrEmpty(bootstrapPassword.toString())) {
-            terminal.println("'elastic' user password: " + password);
         }
         terminal.println("CA fingerprint: " + kibanaToken.getFingerprint());
         terminal.println("Kibana enrollment token: " + kibanaToken.encode());
@@ -135,20 +130,14 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         if (keyStoreWrapper != null) {
             keyStoreWrapper.close();
         }
-        if (bootstrapPassword != null) {
-            bootstrapPassword.close();
-        }
-        if (credentialsPassword != null) {
-            credentialsPassword.close();
-        }
     }
 
-    protected SecureString changeElasticUserPassword(CommandLineHttpClient client) throws Exception {
+    protected SecureString setElasticUserPassword(CommandLineHttpClient client, SecureString bootstrapPassword) throws Exception {
         final URL passwordChangeUrl = changeElasticUserPasswordUrl(client);
         final HttpResponse response;
         SecureString password = new SecureString(generatePassword(20));
         try {
-            response = client.execute("POST", passwordChangeUrl, elasticUser, credentialsPassword,
+            response = client.execute("POST", passwordChangeUrl, elasticUser, bootstrapPassword,
                 () -> {
                     XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
                     xContentBuilder.startObject().field("password", password).endObject();
@@ -163,20 +152,16 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         return password;
     }
 
-    void ReadBootstrapPassword (Environment env, Terminal terminal) throws Exception {
-        decryptKeyStore(keyStoreWrapper, terminal);
+    SecureString readBootstrapPassword(Environment env, SecureString keystorePassword) throws Exception {
+        keyStoreWrapper.decrypt(keystorePassword.getChars());
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(env.settings(), true);
         if (settingsBuilder.getSecureSettings() == null) {
             settingsBuilder.setSecureSettings(keyStoreWrapper);
         }
         final Settings settings = settingsBuilder.build();
-        bootstrapPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(settings);
-        credentialsPassword = Strings.isNullOrEmpty(bootstrapPassword.toString()) ? KeyStoreWrapper.SEED_SETTING.get(settings) :
-            bootstrapPassword;
-
-        final Environment newEnv = new Environment(settings, env.configFile());
-        Environment.assertEquivalent(newEnv, env);
+        SecureString bootstrapPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(settings);
+        return bootstrapPassword;
     }
 
     URL checkClusterHealthUrl(CommandLineHttpClient client) throws MalformedURLException, URISyntaxException {

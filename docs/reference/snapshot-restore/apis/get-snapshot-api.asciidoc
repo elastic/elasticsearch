@@ -283,6 +283,15 @@ The snapshot `state` can be one of the following values:
 If the request contained a size limit and there might be more results, a `next` field will be added to the response and can be used as the
 `after` query parameter to fetch additional results.
 
+`total`::
+(integer)
+The total number of snapshots that match the request when ignoring size limit or `after` query parameter.
+
+`remaining`::
+(integer)
+The number of remaining snapshots that were not returned due to size limits and that can be fetched by additional requests using the `next`
+field value.
+
 [[get-snapshot-api-example]]
 ==== {api-examples-title}
 
@@ -322,7 +331,9 @@ The API returns the following response:
         "successful": 0
       }
     }
-  ]
+  ],
+  "total": 1,
+  "remaining": 0
 }
 ----
 // TESTRESPONSE[s/"uuid": "vdRctLCxSketdKb54xw67g"/"uuid": $body.snapshots.0.uuid/]
@@ -392,10 +403,12 @@ The API returns the following response:
         "total": 0,
         "failed": 0,
         "successful": 0
-      }
+      },
     }
   ],
-  "next": "c25hcHNob3RfMixteV9yZXBvc2l0b3J5LHNuYXBzaG90XzI="
+  "next": "c25hcHNob3RfMixteV9yZXBvc2l0b3J5LHNuYXBzaG90XzI=",
+  "total": 3,
+  "remaining": 1
 }
 ----
 // TESTRESPONSE[s/"uuid": "dKb54xw67gvdRctLCxSket"/"uuid": $body.snapshots.0.uuid/]
@@ -449,7 +462,9 @@ The API returns the following response:
         "successful": 0
       }
     }
-  ]
+  ],
+  "total": 3,
+  "remaining": 0
 }
 ----
 // TESTRESPONSE[s/"uuid": "dRctdKb54xw67gvLCxSket"/"uuid": $body.snapshots.0.uuid/]

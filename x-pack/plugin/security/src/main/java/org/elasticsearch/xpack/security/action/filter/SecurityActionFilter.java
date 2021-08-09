@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.action.filter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -30,7 +29,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -44,7 +42,6 @@ import java.util.function.Predicate;
 public class SecurityActionFilter implements ActionFilter {
 
     private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = HealthAndStatsPrivilege.INSTANCE.predicate();
-    private static final Predicate<String> SECURITY_ACTION_MATCHER = Automatons.predicate("cluster:admin/xpack/security*");
     private static final Logger logger = LogManager.getLogger(SecurityActionFilter.class);
 
     private final AuthenticationService authcService;
@@ -87,38 +84,25 @@ public class SecurityActionFilter implements ActionFilter {
             throw LicenseUtils.newComplianceException(XPackField.SECURITY);
         }
 
-        if (licenseState.isSecurityEnabled()) {
-            final ActionListener<Response> contextPreservingListener =
-                    ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
-            final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
-            try {
-                if (useSystemUser) {
-                    securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
-                        applyInternal(task, chain, action, request, contextPreservingListener);
-                    }, Version.CURRENT);
-                } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext)) {
-                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, (original) -> {
-                        applyInternal(task, chain, action, request, contextPreservingListener);
-                    });
-                } else {
-                    try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
-                        applyInternal(task, chain, action, request, contextPreservingListener);
-                    }
-                }
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        } else if (SECURITY_ACTION_MATCHER.test(action)) {
-            if (licenseState.isSecurityEnabled() == false) {
-                listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a [" +
-                        licenseState.getOperationMode().description() + "] license. " +
-                        "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
-                        "and restart the node."));
+        final ActionListener<Response> contextPreservingListener =
+                ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+        final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
+        try {
+            if (useSystemUser) {
+                securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
+                    applyInternal(task, chain, action, request, contextPreservingListener);
+                }, Version.CURRENT);
+            } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext)) {
+                AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, (original) -> {
+                    applyInternal(task, chain, action, request, contextPreservingListener);
+                });
             } else {
-                listener.onFailure(LicenseUtils.newComplianceException(XPackField.SECURITY));
+                try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
+                    applyInternal(task, chain, action, request, contextPreservingListener);
+                }
             }
-        } else {
-            chain.proceed(task, action, request, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -161,8 +145,6 @@ public class SecurityActionFilter implements ActionFilter {
                                             response);
                                     l.onResponse(response);
                                 }))));
-                    } else if (licenseState.isSecurityEnabled() == false) {
-                        listener.onResponse(null);
                     } else {
                         listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
                     }

@@ -155,6 +155,6 @@ setup:
               bool:
                 filter:
                   script:
-                    script: "field('sval.keyword').asObjectField().getValue('b') == 'a'"
+                    script: "field('sval.keyword').asDefField().getValue('b') == 'a'"
     - match: { hits.total: 1 }
     - match: { hits.hits.0._id: d3 }

@@ -78,12 +78,12 @@ public class EmptyField implements Field<Number> {
     }
 
     @Override
-    public ObjectField asObjectField() {
-        return new ObjectField(name, EmptyFieldValues.OBJECT);
+    public DefField asDefField() {
+        return new DefField(name, EmptyFieldValues.OBJECT);
     }
 
     @Override
-    public Object asObject(Object defaultValue) {
+    public Object asDef(Object defaultValue) {
         return defaultValue;
     }
 }

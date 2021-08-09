@@ -26,8 +26,8 @@ class org.elasticsearch.script.Field {
   org.elasticsearch.script.StringField asStringField()
   String asString(String)
 
-  org.elasticsearch.script.ObjectField asObjectField()
-  Object asObject(Object)
+  org.elasticsearch.script.DefField asDefField()
+  def asDef(def)
 }
 
 class org.elasticsearch.script.LongField {
@@ -46,8 +46,8 @@ class org.elasticsearch.script.StringField {
   String getValue(String)
 }
 
-class org.elasticsearch.script.ObjectField {
-  Object getValue(Object)
+class org.elasticsearch.script.DefField {
+  def getValue(def)
 }
 
 class org.elasticsearch.script.DocBasedScript {

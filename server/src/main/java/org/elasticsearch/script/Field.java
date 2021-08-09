@@ -58,6 +58,6 @@ public interface Field<T> {
      * Treat the current Field as if it held {@code Object}.  This is a way to break out of the Fields API and
      * allow the caller to do their own casting if necessary.
      */
-    ObjectField asObjectField();
-    Object asObject(Object defaultValue);
+    DefField asDefField();
+    Object asDef(Object defaultValue);
 }

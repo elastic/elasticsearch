@@ -13,8 +13,8 @@ import java.util.List;
 /**
  * Fields API for a Objects that don't yet have specialized {@code getValue}s implemented yet.
  */
-public class ObjectField extends AbstractField<Object, FieldValues.Objects> {
-    public ObjectField(String name, FieldValues.Objects values) {
+public class DefField extends AbstractField<Object, FieldValues.Objects> {
+    public DefField(String name, FieldValues.Objects values) {
         super(name, values);
     }
 
@@ -31,12 +31,12 @@ public class ObjectField extends AbstractField<Object, FieldValues.Objects> {
     }
 
     @Override
-    public ObjectField asObjectField() {
+    public DefField asDefField() {
         return this;
     }
 
     @Override
-    public Object asObject(Object defaultValue) {
+    public Object asDef(Object defaultValue) {
         return getValue(defaultValue);
     }
 }

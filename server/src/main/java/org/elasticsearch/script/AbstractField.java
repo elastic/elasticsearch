@@ -108,16 +108,16 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     }
 
     @Override
-    public ObjectField asObjectField() {
+    public DefField asDefField() {
         if (values instanceof FieldValues.Objects == false) {
             throw new IllegalStateException("This Field cannot be converted to a ObjectField due to the underlying data");
         }
 
-        return new ObjectField(name, (FieldValues.Objects) values);
+        return new DefField(name, (FieldValues.Objects) values);
     }
 
     @Override
-    public Object asObject(Object defaultValue) {
-        return asObjectField().getValue(defaultValue);
+    public Object asDef(Object defaultValue) {
+        return asDefField().getValue(defaultValue);
     }
 }

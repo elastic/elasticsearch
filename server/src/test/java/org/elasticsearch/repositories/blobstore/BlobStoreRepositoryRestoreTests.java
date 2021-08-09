@@ -38,6 +38,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.Snapshot;
@@ -164,7 +165,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             // snapshot the shard
             final Repository repository = createRepository();
             final Snapshot snapshot = new Snapshot(repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "_uuid"));
-            final String shardGen = snapshotShard(shard, snapshot, repository);
+            final ShardGeneration shardGen = snapshotShard(shard, snapshot, repository);
             assertNotNull(shardGen);
             final Snapshot snapshotWithSameName = new Snapshot(
                 repository.getMetadata().name(),

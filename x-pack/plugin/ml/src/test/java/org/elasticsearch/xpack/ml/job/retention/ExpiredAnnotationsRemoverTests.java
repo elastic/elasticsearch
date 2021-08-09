@@ -88,8 +88,8 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
 
         List<Job> jobs = Arrays.asList(
             JobTests.buildJobBuilder("none").build(),
-            JobTests.buildJobBuilder("annotations-1").setSystemAnnotationsRetentionDays(10L).build(),
-            JobTests.buildJobBuilder("annotations-2").setSystemAnnotationsRetentionDays(20L).build());
+            JobTests.buildJobBuilder("annotations-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("annotations-2").setResultsRetentionDays(20L).build());
 
         createExpiredAnnotationsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
@@ -106,8 +106,8 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         givenBucket(new Bucket("id_not_important", new Date(), 60));
 
         List<Job> jobs = Arrays.asList(
-            JobTests.buildJobBuilder("annotations-1").setSystemAnnotationsRetentionDays(10L).build(),
-            JobTests.buildJobBuilder("annotations-2").setSystemAnnotationsRetentionDays(20L).build()
+            JobTests.buildJobBuilder("annotations-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("annotations-2").setResultsRetentionDays(20L).build()
         );
 
         final int timeoutAfter = randomIntBetween(0, 1);
@@ -125,8 +125,8 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
 
         List<Job> jobs = Arrays.asList(
             JobTests.buildJobBuilder("none").build(),
-            JobTests.buildJobBuilder("annotations-1").setSystemAnnotationsRetentionDays(10L).build(),
-            JobTests.buildJobBuilder("annotations-2").setSystemAnnotationsRetentionDays(20L).build());
+            JobTests.buildJobBuilder("annotations-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("annotations-2").setResultsRetentionDays(20L).build());
         createExpiredAnnotationsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(1));
@@ -141,7 +141,7 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         Date latest = new Date();
 
         givenBucket(new Bucket(jobId, latest, 60));
-        List<Job> jobs = Collections.singletonList(JobTests.buildJobBuilder(jobId).setSystemAnnotationsRetentionDays(1L).build());
+        List<Job> jobs = Collections.singletonList(JobTests.buildJobBuilder(jobId).setResultsRetentionDays(1L).build());
 
         ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
         createExpiredAnnotationsRemover(jobs.iterator()).calcCutoffEpochMs(jobId, 1L, cutoffListener);

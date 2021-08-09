@@ -151,7 +151,7 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
             return modelRoutingEntries.containsKey(modelId);
         }
 
-        Builder addNewAllocation(StartTrainedModelDeploymentAction.TaskParams taskParams) {
+        public Builder addNewAllocation(StartTrainedModelDeploymentAction.TaskParams taskParams) {
             if (modelRoutingEntries.containsKey(taskParams.getModelId())) {
                 return this;
             }
@@ -160,7 +160,7 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
             return this;
         }
 
-        Builder updateAllocation(String modelId, String nodeId, RoutingStateAndReason state) {
+        public Builder updateAllocation(String modelId, String nodeId, RoutingStateAndReason state) {
             TrainedModelAllocation.Builder allocation = modelRoutingEntries.get(modelId);
             if (allocation == null) {
                 return this;
@@ -169,7 +169,7 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
             return this;
         }
 
-        Builder addNode(String modelId, String nodeId) {
+        public Builder addNode(String modelId, String nodeId) {
             TrainedModelAllocation.Builder allocation = modelRoutingEntries.get(modelId);
             if (allocation == null) {
                 throw new ResourceNotFoundException(
@@ -182,7 +182,7 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
             return this;
         }
 
-        Builder addFailedNode(String modelId, String nodeId, String reason) {
+        public Builder addFailedNode(String modelId, String nodeId, String reason) {
             TrainedModelAllocation.Builder allocation = modelRoutingEntries.get(modelId);
             if (allocation == null) {
                 throw new ResourceNotFoundException(

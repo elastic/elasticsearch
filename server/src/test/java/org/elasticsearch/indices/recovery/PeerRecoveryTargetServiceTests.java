@@ -427,11 +427,13 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 }
 
                 if (randomBoolean()) {
+                    byte[] fileDataCopy = new byte[fileData.length];
+                    System.arraycopy(fileData, 0, fileDataCopy, 0, fileData.length);
                     // Corrupt the file
-                    for (int i = 0; i < randomIntBetween(1, fileData.length); i++) {
-                        fileData[i] = randomByte();
+                    for (int i = 0; i < randomIntBetween(1, fileDataCopy.length); i++) {
+                        fileDataCopy[i] = randomByte();
                     }
-                    return new ByteArrayInputStream(fileData);
+                    return new ByteArrayInputStream(fileDataCopy);
                 } else {
                     // Return random data
                     return new ByteArrayInputStream(randomByteArrayOfLength(randomIntBetween(1, fileData.length)));

@@ -11,6 +11,7 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -98,7 +99,7 @@ public class CancellableTasksTracker<T> {
      * Return a collection of all the tracked items. May be large. In the presence of concurrent calls to {@link #put} and {@link #remove}
      * it behaves similarly to {@link ConcurrentHashMap#values()}.
      */
-    public Iterable<T> values() {
+    public Collection<T> values() {
         return byTaskId.values();
     }
 

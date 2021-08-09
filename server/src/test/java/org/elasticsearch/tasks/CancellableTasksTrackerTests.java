@@ -11,6 +11,7 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
@@ -18,7 +19,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
@@ -80,7 +80,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                     final int stateBefore = state.get();
                     final String getResult = tracker.get(task.getId());
                     final Set<String> getByParentResult = tracker.getByParent(task.getParentTaskId()).collect(Collectors.toSet());
-                    final Set<String> values = StreamSupport.stream(tracker.values().spliterator(), false).collect(Collectors.toSet());
+                    final Set<String> values = new HashSet<>(tracker.values());
                     final int stateAfter = state.get();
 
                     assertThat(stateBefore, lessThanOrEqualTo(stateAfter));

@@ -11,8 +11,16 @@ restResources {
   }
 }
 
-def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),
-                          password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
+def clusterCredentials = [
+        username: providers.systemProperty('tests.rest.cluster.username')
+                .orElse('test_admin')
+                .forUseAtConfigurationTime()
+                .get(),
+        password: providers.systemProperty('tests.rest.cluster.password')
+                .orElse('x-pack-test-password')
+                .forUseAtConfigurationTime()
+                .get()
+]
 
 tasks.withType(Test).configureEach {
   systemProperty 'tests.rest.cluster.username', clusterCredentials.username

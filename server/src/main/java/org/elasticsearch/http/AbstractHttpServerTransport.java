@@ -50,7 +50,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -252,13 +251,20 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             final List<HttpChannel> channelsToClose = new ArrayList<>(httpChannels);
             if (channelsToClose.isEmpty() == false) {
                 CloseableChannel.closeChannels(channelsToClose, true);
-                allClientsClosedListener.get(10L, TimeUnit.SECONDS);
+            } else {
+                assert openChannels.get() == 0 : "open channels counter must be at 0 but was [" + openChannels.get() + "]";
+                allClientsClosedListener.onResponse(null);
             }
         } catch (Exception e) {
-            assert e instanceof TimeoutException == false : e;
             logger.warn("unexpected exception while closing http channels", e);
         }
 
+        try {
+            allClientsClosedListener.get();
+        } catch (Exception e) {
+            assert false : e;
+            logger.warn("unexpected exception while waiting for http channels to close", e);
+        }
         stopInternal();
     }
 

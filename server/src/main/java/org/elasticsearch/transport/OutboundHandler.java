@@ -68,14 +68,8 @@ final class OutboundHandler {
      */
     void sendRequest(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                      final TransportRequest request, final TransportRequestOptions options, final Version channelVersion,
-                     final boolean compressRequest, final boolean isHandshake) throws IOException, TransportException {
+                     final Compression.Scheme compressionScheme, final boolean isHandshake) throws IOException, TransportException {
         Version version = Version.min(this.version, channelVersion);
-        final Compression.Scheme compressionScheme;
-        if (compressRequest) {
-            compressionScheme = configuredCompressionScheme;
-        } else {
-            compressionScheme = null;
-        }
         OutboundMessage.Request message =
             new OutboundMessage.Request(threadPool.getThreadContext(), request, version, action, requestId, isHandshake, compressionScheme);
         if (request.tryIncRef() == false) {
@@ -99,14 +93,9 @@ final class OutboundHandler {
      * @see #sendErrorResponse(Version, TcpChannel, long, String, Exception) for sending error responses
      */
     void sendResponse(final Version nodeVersion, final TcpChannel channel, final long requestId, final String action,
-                      final TransportResponse response, final boolean compressResponse, final boolean isHandshake) throws IOException {
+                      final TransportResponse response, Compression.Scheme compressionScheme, final boolean isHandshake)
+        throws IOException {
         Version version = Version.min(this.version, nodeVersion);
-        final Compression.Scheme compressionScheme;
-        if (compressResponse) {
-            compressionScheme = configuredCompressionScheme;
-        } else {
-            compressionScheme = null;
-        }
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), response, version,
             requestId, isHandshake, compressionScheme);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));

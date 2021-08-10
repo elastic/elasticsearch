@@ -63,6 +63,12 @@ public class InboundAggregator implements Releasable {
         }
     }
 
+    public void updateCompressionScheme(Compression.Scheme compressionScheme) {
+        ensureOpen();
+        assert isAggregating();
+        currentHeader.setCompressionScheme(compressionScheme);
+    }
+
     public void aggregate(ReleasableBytesReference content) {
         ensureOpen();
         assert isAggregating();

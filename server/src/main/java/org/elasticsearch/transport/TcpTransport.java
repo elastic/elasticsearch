@@ -141,7 +141,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
-                TransportRequestOptions.EMPTY, v, false, true));
+                TransportRequestOptions.EMPTY, v, null, true));
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, handshaker, keepAlive,
             requestHandlers, responseHandlers);
@@ -185,6 +185,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final DiscoveryNode node;
         private final Version version;
         private final Compression.Enabled compress;
+        private final Compression.Scheme compressionScheme;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
         NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
@@ -199,6 +200,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
             version = handshakeVersion;
             compress = connectionProfile.getCompressionEnabled();
+            compressionScheme = connectionProfile.getCompressionScheme();
         }
 
         @Override
@@ -250,7 +252,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 (compress == Compression.Enabled.INDEXING_DATA
                     && request instanceof RawIndexingDataTransportRequest
                     && ((RawIndexingDataTransportRequest) request).isRawIndexingData());
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), shouldCompress, false);
+            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compressionScheme, false);
         }
 
         @Override

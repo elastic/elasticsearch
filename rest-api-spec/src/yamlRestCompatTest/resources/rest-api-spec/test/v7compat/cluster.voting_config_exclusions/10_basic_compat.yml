@@ -16,5 +16,5 @@ setup:
       cluster.post_voting_config_exclusions_with_node_name_part:
         node_name: someNodeName
       warnings_regex:
-        - "heh, actually this isn't evaluated at all because of elastic/elasticsearch#76316"
+        - ".* /_cluster/voting_config_exclusions/\\{node_name\\} has been removed. .*"
       catch: /\[node_name\] has been removed, you must set \[node_names\] or \[node_ids\]/

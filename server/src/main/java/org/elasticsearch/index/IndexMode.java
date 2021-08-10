@@ -12,10 +12,15 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toSet;
 
 /**
  * The "mode" of the index.
@@ -53,6 +58,11 @@ public enum IndexMode {
                         + "]"
                 );
             }
+            for (Setting<?> unsupported : TIME_SERIES_UNSUPPORTED) {
+                if (false == Objects.equals(unsupported.getDefault(Settings.EMPTY), settings.get(unsupported))) {
+                    throw new IllegalArgumentException("Can't set [" + unsupported.getKey() + "] in time series mode");
+                }
+            }
         }
 
         @Override
@@ -73,10 +83,18 @@ public enum IndexMode {
                     );
             }
         }
-
     };
 
-    static final List<Setting<?>> VALIDATE_WITH_SETTINGS = List.of(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING);
+    private static final List<Setting<?>> TIME_SERIES_UNSUPPORTED = List.of(
+        IndexSortConfig.INDEX_SORT_FIELD_SETTING,
+        IndexSortConfig.INDEX_SORT_ORDER_SETTING,
+        IndexSortConfig.INDEX_SORT_MODE_SETTING,
+        IndexSortConfig.INDEX_SORT_MISSING_SETTING
+    );
+
+    static final List<Setting<?>> VALIDATE_WITH_SETTINGS = List.copyOf(
+        Stream.concat(Stream.of(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING), TIME_SERIES_UNSUPPORTED.stream()).collect(toSet())
+    );
 
     abstract void validateWithOtherSettings(Map<Setting<?>, Object> settings);
 

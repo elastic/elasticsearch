@@ -1,7 +1,7 @@
 Contributing to elasticsearch
 =============================
 
-Elasticsearch is a free and open project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
+Elasticsearch is a free and open project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
 
 If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
 make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
@@ -38,14 +38,14 @@ Contributing code and documentation changes
 -------------------------------------------
 
 If you would like to contribute a new feature or a bug fix to Elasticsearch,
-please discuss your idea first on the Github issue. If there is no Github issue
+please discuss your idea first on the GitHub issue. If there is no GitHub issue
 for your idea, please open one. It may be that somebody is already working on
 it, or that there are particular complexities that you should know about before
 starting the implementation. There are often a number of ways to fix a problem
 and it is important to find the right approach before spending time on a PR
 that cannot be merged.
 
-We add the `help wanted` label to existing Github issues for which community
+We add the `help wanted` label to existing GitHub issues for which community
 contributions are particularly welcome, and we use the `good first issue` label
 to mark issues that we think will be suitable for new contributors.
 
@@ -145,7 +145,6 @@ But to be honest its typically easier to wait until the console stops scrolling
 and then run `curl` in another window like this:
 
     curl -u elastic:password localhost:9200
-
 
 
 ### Importing the project into IntelliJ IDEA
@@ -427,26 +426,25 @@ We require license headers on all Java files. With the exception of the
 top-level `x-pack` directory, all contributed code should have the following
 license header unless instructed otherwise:
 
-        /*
-         * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-         * or more contributor license agreements. Licensed under the Elastic License
-         * 2.0 and the Server Side Public License, v 1; you may not use this file except
-         * in compliance with, at your election, the Elastic License 2.0 or the Server
-         * Side Public License, v 1.
-         */
+    /*
+     * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+     * or more contributor license agreements. Licensed under the Elastic License
+     * 2.0 and the Server Side Public License, v 1; you may not use this file except
+     * in compliance with, at your election, the Elastic License 2.0 or the Server
+     * Side Public License, v 1.
+     */
 
 The top-level `x-pack` directory contains code covered by the [Elastic
 license](licenses/ELASTIC-LICENSE-2.0.txt). Community contributions to this code are
 welcome, and should have the following license header unless instructed
 otherwise:
 
-        /*
-         * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-         * or more contributor license agreements. Licensed under the Elastic License
-         * 2.0; you may not use this file except in compliance with the Elastic License
-         * 2.0.
-         */
-
+    /*
+     * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+     * or more contributor license agreements. Licensed under the Elastic License
+     * 2.0; you may not use this file except in compliance with the Elastic License
+     * 2.0.
+     */
 
 It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit
@@ -456,52 +454,63 @@ checks if contributed code does not have the appropriate license headers.
 > be automatically configured to add the correct license header to new source
 > files based on the source location.
 
+### Type-checking, generics and casting
+
+You should try to write code that does not require suppressing any warnings from
+the compiler, e.g. suppressing type-checking, raw generics, and so on. However,
+this isn't always possible or practical. In such cases, you should use the
+`@SuppressWarnings` annotations to silence the compiler warning, trying to keep
+the scope of the suppression as small as possible. Where a piece of code
+requires a lot of suppressions, it may be better to apply a single suppression
+at a higher level e.g. at the method or even class level. Use your judgement.
+
+There are also cases where the compiler simply refuses to accept an assignment
+or cast of any kind, because it lacks the information to know that the types are
+OK. In such cases, you can use
+the [`Types.forciblyCast`](libs/core/src/main/java/org/elasticsearch/core/Types.java)
+utility method. As the name suggests, you can coerce any type to any other type,
+so please use it as a last resort.
+
 ### Creating A Distribution
 
 Run all build commands from within the root directory:
 
-```sh
-cd elasticsearch/
-```
+    cd elasticsearch/
 
 To build a darwin-tar distribution, run this command:
 
-```sh
-./gradlew -p distribution/archives/darwin-tar assemble
-```
+    ./gradlew -p distribution/archives/darwin-tar assemble
 
 You will find the distribution under:
-`./distribution/archives/darwin-tar/build/distributions/`
+
+    ./distribution/archives/darwin-tar/build/distributions/
 
 To create all build artifacts (e.g., plugins and Javadocs) as well as
 distributions in all formats, run this command:
 
-```sh
-./gradlew assemble
-```
+    ./gradlew assemble
 
-> **NOTE:** Running the task above will fail if you don't have a available
+> **NOTE:** Running the task above will fail if you don't have an available
 > Docker installation.
 
 The package distributions (Debian and RPM) can be found under:
-`./distribution/packages/(deb|rpm|oss-deb|oss-rpm)/build/distributions/`
+
+    ./distribution/packages/(deb|rpm|oss-deb|oss-rpm)/build/distributions/
 
 The archive distributions (tar and zip) can be found under:
-`./distribution/archives/(darwin-tar|linux-tar|windows-zip|oss-darwin-tar|oss-linux-tar|oss-windows-zip)/build/distributions/`
+
+    ./distribution/archives/(darwin-tar|linux-tar|windows-zip|oss-darwin-tar|oss-linux-tar|oss-windows-zip)/build/distributions/
 
 ### Running The Full Test Suite
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 
-```sh
-./gradlew check
-```
+    ./gradlew check
 
 If your changes affect only the documentation, run:
 
-```sh
-./gradlew -p docs check
-```
+    ./gradlew -p docs check
+
 For more information about testing code examples in the documentation, see
 https://github.com/elastic/elasticsearch/blob/master/docs/README.asciidoc
 

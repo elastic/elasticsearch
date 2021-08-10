@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,7 +52,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
     private static final Logger logger = LogManager.getLogger(TransportPutTransformAction.class);
 
-    private final XPackLicenseState licenseState;
+    private final Settings settings;
     private final Client client;
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
@@ -67,7 +66,6 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
         TransformServices transformServices,
         Client client,
         IngestService ingestService
@@ -80,7 +78,6 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             actionFilters,
             indexNameExpressionResolver,
             clusterService,
-            licenseState,
             transformServices,
             client,
             ingestService
@@ -95,7 +92,6 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
         TransformServices transformServices,
         Client client,
         IngestService ingestService
@@ -110,7 +106,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
-        this.licenseState = licenseState;
+        this.settings = settings;
         this.client = client;
         this.transformConfigManager = transformServices.getConfigManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -158,7 +154,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (licenseState.isSecurityEnabled() && request.isDeferValidation() == false) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings) && request.isDeferValidation() == false) {
             TransformPrivilegeChecker.checkPrivileges(
                 "create", securityContext, indexNameExpressionResolver, clusterState, client, config, true, checkPrivilegesListener);
         } else { // No security enabled, just move on

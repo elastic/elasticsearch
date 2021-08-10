@@ -308,7 +308,7 @@ ospackage {
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
       project.file(project.property('signing.secretKeyRingFile')) :
-      new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
+      new File(new File(project.providers.systemProperty('user.home').orElse('.gnupg').forUseAtConfigurationTime().get()), 'secring.gpg')
   }
 
   // version found on oldest supported distro, centos-6

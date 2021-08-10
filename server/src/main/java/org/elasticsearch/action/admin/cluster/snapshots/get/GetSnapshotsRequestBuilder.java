@@ -116,6 +116,11 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
+    public GetSnapshotsRequestBuilder setOffset(int offset) {
+        request.offset(offset);
+        return this;
+    }
+
     public GetSnapshotsRequestBuilder setOrder(SortOrder order) {
         request.order(order);
         return this;

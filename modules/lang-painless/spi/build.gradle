@@ -14,7 +14,5 @@ archivesBaseName = 'elasticsearch-scripting-painless-spi'
 
 dependencies {
   api project(":server")
+  testImplementation project(":test:framework")
 }
-
-// no tests...yet?
-tasks.named("test").configure { enabled = false }

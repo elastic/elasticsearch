@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -30,6 +31,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -82,6 +85,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private volatile BoundTransportAddress boundAddress;
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
     private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
+    private final RefCounted refCounted = new AbstractRefCounted("abstract-http-server-transport") {
+        @Override
+        protected void closeInternal() {
+            allClientsClosedListener.onResponse(null);
+        }
+    };
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Map<Integer, HttpStats.ClientStats> httpChannelStats = new ConcurrentHashMap<>();
 
@@ -243,14 +253,19 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
         }
-
         try {
+            refCounted.decRef();
             CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
         } catch (Exception e) {
             logger.warn("unexpected exception while closing http channels", e);
         }
-        httpChannels.clear();
 
+        try {
+            allClientsClosedListener.get();
+        } catch (Exception e) {
+            assert false : e;
+            logger.warn("unexpected exception while waiting for http channels to close", e);
+        }
         stopInternal();
     }
 
@@ -331,6 +346,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
+        refCounted.incRef();
+        httpChannel.addCloseListener(ActionListener.wrap(() -> {
+            httpChannels.remove(httpChannel);
+            refCounted.decRef();
+        }));
         totalChannelsAccepted.incrementAndGet();
         addClientStats(httpChannel);
         logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
@@ -344,13 +364,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 httpChannelStats.put(HttpStats.ClientStats.getChannelKey(httpChannel), clientStats);
                 httpChannel.addCloseListener(ActionListener.wrap(() -> {
                     try {
-                        httpChannels.remove(httpChannel);
                         HttpStats.ClientStats disconnectedClientStats =
                             httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
                         if (disconnectedClientStats != null) {
                             disconnectedClientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
                         }
                     } catch (Exception e) {
+                        assert false : e;
                         // the listener code above should never throw
                         logger.trace("error removing HTTP channel listener", e);
                     }

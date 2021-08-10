@@ -1,6 +1,6 @@
 # whitelist for annotation tests
 
-class org.elasticsearch.painless.AnnotationTestObject @no_import {
+class org.elasticsearch.painless.spi.AnnotationTestObject @no_import {
   void deprecatedMethod() @deprecated[message="use another method"]
   void annotatedTestMethod() @test_annotation[one="one",two="two",three="three"]
   void annotatedMultipleMethod() @test_annotation[one="one",two="two",three="three"] @deprecated[message="test"]

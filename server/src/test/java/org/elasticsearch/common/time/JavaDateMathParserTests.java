@@ -40,7 +40,7 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     public void testEpochTimezone() {
-        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis").withZone(ZoneId.of("America/New_York"));
         ZonedDateTime oneAm = ZonedDateTime.of(2020, 7, 11, 1, 0, 0, 0, ZoneOffset.UTC);
         assertEquals(1594429200000L, oneAm.toInstant().toEpochMilli());
         Instant actual = epochMillis.toDateMathParser()
@@ -50,17 +50,11 @@ public class JavaDateMathParserTests extends ESTestCase {
                 false,
                 ZoneId.of("America/New_York")
             );
-
-        /*
-        expected:<2020-07-11T01:00:00Z> but was:<2020-07-11T05:00:00Z>
-        Expected :2020-07-11T01:00:00Z
-        Actual   :2020-07-11T05:00:00Z
-         */
         assertEquals(oneAm.toInstant(), actual);
     }
 
     public void testEpochTimezoneDst() {
-        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis").withZone(ZoneId.of("America/New_York"));
         ZonedDateTime sixAm = ZonedDateTime.of(2020, 11, 1, 6, 0, 0, 0, ZoneOffset.UTC);
         assertEquals(1604210400000L, sixAm.toInstant().toEpochMilli());
         Instant actual = epochMillis.toDateMathParser()

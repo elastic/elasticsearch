@@ -173,17 +173,21 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
 
         Optional<ShardSnapshot> latestShardSnapshot = getLatestShardSnapshot(shardId);
 
-        assertThat(latestShardSnapshot.isPresent(), is(equalTo(true)));
+        if (numberOfRecoveryEnabledRepositories == 0) {
+            assertThat(latestShardSnapshot.isPresent(), is(equalTo(false)));
+        } else {
+            assertThat(latestShardSnapshot.isPresent(), is(equalTo(true)));
 
-        ShardSnapshot shardSnapshotData = latestShardSnapshot.get();
-        ShardSnapshotInfo shardSnapshotInfo = shardSnapshotData.getShardSnapshotInfo();
-        assertThat(recoveryEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(true)));
-        assertThat(nonEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(false)));
+            ShardSnapshot shardSnapshotData = latestShardSnapshot.get();
+            ShardSnapshotInfo shardSnapshotInfo = shardSnapshotData.getShardSnapshotInfo();
+            assertThat(recoveryEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(true)));
+            assertThat(nonEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(false)));
 
-        assertThat(shardSnapshotData.getMetadataSnapshot().size(), is(greaterThan(0)));
+            assertThat(shardSnapshotData.getMetadataSnapshot().size(), is(greaterThan(0)));
 
-        assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
-        assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));
+            assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
+            assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));
+        }
     }
 
     public void testFailingReposAreTreatedAsNonExistingShardSnapshots() throws Exception {

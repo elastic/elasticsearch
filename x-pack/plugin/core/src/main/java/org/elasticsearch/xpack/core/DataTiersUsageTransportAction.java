@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.store.StoreStats;
@@ -30,17 +32,19 @@ import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -63,72 +67,138 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             .setIndices(CommonStatsFlags.ALL)
             .execute(ActionListener.wrap(nodesStatsResponse -> {
                 final RoutingNodes routingNodes = state.getRoutingNodes();
+                final ImmutableOpenMap<String, IndexMetadata> indices = state.getMetadata().getIndices();
 
-                // First separate the nodes into separate tiers, note that nodes *may* be duplicated
-                Map<String, List<NodeStats>> tierSpecificNodeStats = separateTiers(nodesStatsResponse);
+                // Determine which tiers each index would prefer to be within
+                Map<String, String> indicesToTiers = tierIndices(indices);
 
-                // Generate tier specific stats for the nodes
-                Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = tierSpecificNodeStats.entrySet()
-                    .stream().collect(Collectors.toMap(Map.Entry::getKey, ns -> calculateStats(ns.getValue(), routingNodes)));
+                // Generate tier specific stats for the nodes and indices
+                Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = calculateStats(nodesStatsResponse.getNodes(),
+                    indicesToTiers, routingNodes);
 
                 listener.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(tierSpecificStats)));
             }, listener::onFailure));
     }
 
     // Visible for testing
-    static Map<String, List<NodeStats>> separateTiers(NodesStatsResponse nodesStatsResponse) {
-        Map<String, List<NodeStats>> responses = new HashMap<>();
-        DataTier.ALL_DATA_TIERS.forEach(tier ->
-            responses.put(tier, nodesStatsResponse.getNodes().stream()
-                .filter(stats -> stats.getNode().getRoles().stream()
-                    .map(DiscoveryNodeRole::roleName)
-                    .anyMatch(rn -> rn.equals(tier)))
-                .collect(Collectors.toList())));
-        return responses;
+    // Takes a registry of indices and returns a mapping of index name to which tier it most prefers. Always 1 to 1, some may filter out.
+    static Map<String, String> tierIndices(ImmutableOpenMap<String, IndexMetadata> indices) {
+        Map<String, String> indexByTier = new HashMap<>();
+        indices.forEach(entry -> {
+            String tierPref = entry.value.getSettings().get(DataTierAllocationDecider.INDEX_ROUTING_PREFER);
+            if (Strings.hasText(tierPref)) {
+                String[] tiers = tierPref.split(",");
+                if (tiers.length > 0) {
+                    indexByTier.put(entry.key, tiers[0]);
+                }
+            }
+        });
+        return indexByTier;
     }
 
-    private DataTiersFeatureSetUsage.TierSpecificStats calculateStats(List<NodeStats> nodesStats, RoutingNodes routingNodes) {
+    /**
+     * Accumulator to hold intermediate data tier stats before final calculation.
+     */
+    private static class TierStatsAccumulator {
         int nodeCount = 0;
-        int indexCount = 0;
+        Set<String> indexNames = new HashSet<>();
         int totalShardCount = 0;
         long totalByteCount = 0;
         long docCount = 0;
         final AtomicInteger primaryShardCount = new AtomicInteger(0);
         final AtomicLong primaryByteCount = new AtomicLong(0);
         final TDigestState valueSketch = new TDigestState(1000);
+    }
+
+    // Visible for testing
+    static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> calculateStats(List<NodeStats> nodesStats,
+                                                                                   Map<String, String> indexByTier,
+                                                                                   RoutingNodes routingNodes) {
+        Map<String, TierStatsAccumulator> statsAccumulators = new HashMap<>();
         for (NodeStats nodeStats : nodesStats) {
-            nodeCount++;
-            totalByteCount += nodeStats.getIndices().getStore().getSizeInBytes();
-            docCount += nodeStats.getIndices().getDocs().getCount();
-            String nodeId = nodeStats.getNode().getId();
-            final RoutingNode node = routingNodes.node(nodeId);
-            if (node != null) {
-                totalShardCount += node.shardsWithState(ShardRoutingState.STARTED).size();
-                Set<Index> indicesOnNode = node.shardsWithState(ShardRoutingState.STARTED).stream()
-                    .map(ShardRouting::index)
-                    .collect(Collectors.toSet());
-                indexCount += indicesOnNode.size();
-                indicesOnNode.forEach(index -> {
-                    final List<IndexShardStats> allShardStats = nodeStats.getIndices().getShardStats(index);
-                    if (allShardStats != null) {
-                        allShardStats.stream()
-                            .filter(shardStats -> shardStats.getPrimary().getStore() != null)
-                            .forEach(shardStats -> {
-                                StoreStats primaryStoreStats = shardStats.getPrimary().getStore();
-                                // If storeStats is null, it means this is not a replica
-                                primaryShardCount.incrementAndGet();
-                                long primarySize = primaryStoreStats.getSizeInBytes();
-                                primaryByteCount.addAndGet(primarySize);
-                                valueSketch.add(primarySize);
-                            });
+            aggregateDataTierNodeCounts(nodeStats, statsAccumulators);
+            aggregateDataTierIndexStats(nodeStats, routingNodes, indexByTier, statsAccumulators);
+        }
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> results = new HashMap<>();
+        for (Map.Entry<String, TierStatsAccumulator> entry : statsAccumulators.entrySet()) {
+            results.put(entry.getKey(), calculateFinalTierStats(entry.getValue()));
+        }
+        return results;
+    }
+
+    /**
+     * Determine which data tiers this node belongs to (if any), and increment the node counts for those tiers.
+     */
+    private static void aggregateDataTierNodeCounts(NodeStats nodeStats, Map<String, TierStatsAccumulator> tiersStats) {
+        nodeStats.getNode().getRoles().stream()
+            .map(DiscoveryNodeRole::roleName)
+            .filter(DataTier.ALL_DATA_TIERS::contains)
+            .forEach(tier -> tiersStats.computeIfAbsent(tier, k -> new TierStatsAccumulator()).nodeCount++);
+    }
+
+    /**
+     * Locate which indices are hosted on the node specified by the NodeStats, then group and aggregate the available index stats by tier.
+     */
+    private static void aggregateDataTierIndexStats(NodeStats nodeStats, RoutingNodes routingNodes, Map<String, String> indexByTier,
+                                             Map<String, TierStatsAccumulator> accumulators) {
+        final RoutingNode node = routingNodes.node(nodeStats.getNode().getId());
+        if (node != null) {
+            StreamSupport.stream(node.spliterator(), false)
+                .map(ShardRouting::index)
+                .distinct()
+                .forEach(index -> classifyIndexAndCollectStats(index, nodeStats, indexByTier, node, accumulators));
+        }
+    }
+
+    /**
+     * Determine which tier an index belongs in, then accumulate its stats into that tier's stats.
+     */
+    private static void classifyIndexAndCollectStats(Index index, NodeStats nodeStats, Map<String, String> indexByTier,
+                                              RoutingNode node, Map<String, TierStatsAccumulator> accumulators) {
+        // Look up which tier this index belongs to (its most preferred)
+        String indexTier = indexByTier.get(index.getName());
+        if (indexTier != null) {
+            final TierStatsAccumulator accumulator = accumulators.computeIfAbsent(indexTier, k -> new TierStatsAccumulator());
+            accumulator.indexNames.add(index.getName());
+            aggregateDataTierShardStats(nodeStats, index, node, accumulator);
+        }
+    }
+
+    /**
+     * Collect shard-level data tier stats from shard stats contained in the node stats response.
+     */
+    private static void aggregateDataTierShardStats(NodeStats nodeStats, Index index, RoutingNode node, TierStatsAccumulator accumulator) {
+        // Shard based stats
+        final List<IndexShardStats> allShardStats = nodeStats.getIndices().getShardStats(index);
+        if (allShardStats != null) {
+            for (IndexShardStats shardStat : allShardStats) {
+                accumulator.totalByteCount += shardStat.getTotal().getStore().getSizeInBytes();
+                accumulator.docCount += shardStat.getTotal().getDocs().getCount();
+
+                // Accumulate stats about started shards
+                if (node.getByShardId(shardStat.getShardId()).state() == ShardRoutingState.STARTED) {
+                    accumulator.totalShardCount += 1;
+
+                    // Accumulate stats about started primary shards
+                    StoreStats primaryStoreStats = shardStat.getPrimary().getStore();
+                    if (primaryStoreStats != null) {
+                        // if primaryStoreStats is null, it means there is no primary on the node in question
+                        accumulator.primaryShardCount.incrementAndGet();
+                        long primarySize = primaryStoreStats.getSizeInBytes();
+                        accumulator.primaryByteCount.addAndGet(primarySize);
+                        accumulator.valueSketch.add(primarySize);
                     }
-                });
+                }
             }
         }
-        long primaryShardSizeMedian = (long) valueSketch.quantile(0.5);
-        long primaryShardSizeMAD = computeMedianAbsoluteDeviation(valueSketch);
-        return new DataTiersFeatureSetUsage.TierSpecificStats(nodeCount, indexCount, totalShardCount, primaryShardCount.get(), docCount,
-            totalByteCount, primaryByteCount.get(), primaryShardSizeMedian, primaryShardSizeMAD);
+    }
+
+    private static DataTiersFeatureSetUsage.TierSpecificStats calculateFinalTierStats(TierStatsAccumulator accumulator) {
+        long primaryShardSizeMedian = (long) accumulator.valueSketch.quantile(0.5);
+        long primaryShardSizeMAD = computeMedianAbsoluteDeviation(accumulator.valueSketch);
+        return new DataTiersFeatureSetUsage.TierSpecificStats(accumulator.nodeCount, accumulator.indexNames.size(),
+            accumulator.totalShardCount, accumulator.primaryShardCount.get(), accumulator.docCount,
+            accumulator.totalByteCount, accumulator.primaryByteCount.get(), primaryShardSizeMedian, primaryShardSizeMAD);
     }
 
     // Visible for testing

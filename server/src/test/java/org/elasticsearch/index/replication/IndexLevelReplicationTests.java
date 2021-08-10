@@ -42,7 +42,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
@@ -117,7 +116,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> future = shards.asyncRecoverReplica(replica,
-                (indexShard, node) -> new RecoveryTarget(indexShard, node, new SnapshotFilesProvider(null), recoveryListener) {
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, null, recoveryListener) {
                     @Override
                     public void cleanFiles(int totalTranslogOps, long globalCheckpoint,
                                            Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener) {
@@ -194,7 +193,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> fut = shards.asyncRecoverReplica(replica,
-                (shard, node) -> new RecoveryTarget(shard, node, new SnapshotFilesProvider(null), recoveryListener) {
+                (shard, node) -> new RecoveryTarget(shard, node, null, recoveryListener) {
                     @Override
                     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                         try {

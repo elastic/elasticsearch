@@ -256,7 +256,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         IndexShard replicaShard = newShard(primaryShard.shardId(), false);
         updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetadata());
         recoverReplica(replicaShard, primaryShard,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, new SnapshotFilesProvider(null), recoveryListener) {
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, recoveryListener) {
             @Override
             public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                 super.prepareForTranslogOperations(totalTranslogOps, listener);
@@ -366,10 +366,9 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             group.indexDocs(randomIntBetween(1, 10));
             allowShardFailures();
             IndexShard replica = group.addReplica();
-            SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(null);
             expectThrows(Exception.class, () -> group.recoverReplica(replica,
                 (shard, sourceNode) -> {
-                    return new RecoveryTarget(shard, sourceNode, snapshotFilesProvider, new PeerRecoveryTargetService.RecoveryListener() {
+                    return new RecoveryTarget(shard, sourceNode, null, new PeerRecoveryTargetService.RecoveryListener() {
                         @Override
                         public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
                             throw new AssertionError("recovery must fail");

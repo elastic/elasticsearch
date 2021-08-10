@@ -21,15 +21,14 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Objects;
 import java.util.function.Consumer;
-
-import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.VIRTUAL_DATA_BLOB_PREFIX;
 
 public class SnapshotFilesProvider {
     private final RepositoriesService repositoriesService;
 
     public SnapshotFilesProvider(RepositoriesService repositoriesService) {
-        this.repositoriesService = repositoriesService;
+        this.repositoriesService = Objects.requireNonNull(repositoriesService);
     }
 
     public InputStream getInputStreamForSnapshotFile(String repositoryName,
@@ -40,7 +39,7 @@ public class SnapshotFilesProvider {
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
         StoreFileMetadata storeFileMetadata = fileInfo.metadata();
         final InputStream inputStream;
-        if (fileInfo.name().startsWith(VIRTUAL_DATA_BLOB_PREFIX)) {
+        if (storeFileMetadata.hashEqualsContents()) {
             BytesRef content = storeFileMetadata.hash();
             inputStream = new ByteArrayInputStream(content.bytes, content.offset, content.length);
         } else {

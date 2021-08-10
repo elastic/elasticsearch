@@ -665,9 +665,8 @@ public class RecoverySourceHandler {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(
-                            new ParameterizedMessage("Unable to recover snapshot file {}", snapshotFileToRecover), e
-                        );
+                        logger.warn(new ParameterizedMessage("failed to recover file [{}] from snapshot, " +
+                            "will recover from primary instead", snapshotFileToRecover.metadata()), e);
                         onRequestCompletion(snapshotFileToRecover.metadata(), e);
                     }
                 };

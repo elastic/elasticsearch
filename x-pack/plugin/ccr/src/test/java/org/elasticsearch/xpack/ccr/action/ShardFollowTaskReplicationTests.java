@@ -49,7 +49,6 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -373,7 +372,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     // We need to recover the replica async to release the main thread for the following task to fill missing
                     // operations between the local checkpoint and max_seq_no which the recovering replica is waiting for.
                     recoveryFuture = group.asyncRecoverReplica(newReplica,
-                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new SnapshotFilesProvider(null), recoveryListener) {});
+                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, null, recoveryListener) {});
                 }
             }
             if (recoveryFuture != null) {

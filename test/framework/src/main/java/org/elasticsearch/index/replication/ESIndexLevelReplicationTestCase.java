@@ -73,7 +73,6 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -396,7 +395,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public void recoverReplica(IndexShard replica) throws IOException {
             recoverReplica(replica,
-                (r, sourceNode) -> new RecoveryTarget(r, sourceNode, new SnapshotFilesProvider(null), recoveryListener));
+                (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, recoveryListener));
         }
 
         public void recoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier)

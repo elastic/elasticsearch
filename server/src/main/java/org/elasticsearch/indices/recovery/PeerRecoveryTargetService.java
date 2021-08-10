@@ -110,7 +110,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         transportService.registerRequestHandler(Actions.FILES_INFO, ThreadPool.Names.GENERIC, RecoveryFilesInfoRequest::new,
             new FilesInfoRequestHandler());
-        transportService.registerRequestHandler(Actions.RECOVER_SNAPSHOT_FILE, ThreadPool.Names.GENERIC, RecoverySnapshotFileRequest::new,
+        transportService.registerRequestHandler(Actions.RECOVER_SNAPSHOT_FILE, ThreadPool.Names.SNAPSHOT, RecoverySnapshotFileRequest::new,
             new RecoverSnapshotFileTransportRequestHandler());
         transportService.registerRequestHandler(Actions.FILE_CHUNK, ThreadPool.Names.GENERIC, RecoveryFileChunkRequest::new,
             new FileChunkTransportRequestHandler());

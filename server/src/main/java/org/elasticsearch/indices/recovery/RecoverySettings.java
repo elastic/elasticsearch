@@ -142,6 +142,7 @@ public class RecoverySettings {
         Setting.intSetting("indices.recovery.max_concurrent_snapshot_file_downloads",
             5,
             1,
+            20,
             Property.Dynamic,
             Property.NodeScope
         );

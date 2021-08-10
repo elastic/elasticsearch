@@ -45,6 +45,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesService;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -67,6 +68,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     private static final ByteSizeValue SNAPSHOT_FILE_PART_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
@@ -349,7 +351,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         BlobStoreIndexShardSnapshot.FileInfo fileInfo =
             new BlobStoreIndexShardSnapshot.FileInfo("name", storeFileMetadata, SNAPSHOT_FILE_PART_SIZE);
 
-        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(null) {
+        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(mock(RepositoriesService.class)) {
             @Override
             public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
                                                              IndexId requestedIndexId,
@@ -415,7 +417,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         StoreFileMetadata storeFileMetadata = storeFileMetadataAndData.v1();
         byte[] fileData = storeFileMetadataAndData.v2();
 
-        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(null) {
+        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(mock(RepositoriesService.class)) {
             @Override
             public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
                                                              IndexId requestedIndexId,
@@ -491,7 +493,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         StoreFileMetadata storeFileMetadata = storeFileMetadataAndData.v1();
         byte[] fileData = storeFileMetadataAndData.v2();
 
-        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(null) {
+        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(mock(RepositoriesService.class)) {
             @Override
             public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
                                                              IndexId requestedIndexId,

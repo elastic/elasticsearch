@@ -66,7 +66,6 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
@@ -583,7 +582,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     /** recovers a replica from the given primary **/
     protected void recoverReplica(IndexShard replica, IndexShard primary, boolean startReplica) throws IOException {
         recoverReplica(replica, primary,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, new SnapshotFilesProvider(null), recoveryListener),
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, recoveryListener),
             true, startReplica);
     }
 

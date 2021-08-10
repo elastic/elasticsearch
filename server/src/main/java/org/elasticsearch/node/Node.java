@@ -692,7 +692,7 @@ public class Node implements Closeable {
                         );
                         final RecoveryPlannerService recoveryPlannerService = new SnapshotsRecoveryPlannerService(shardSnapshotsService);
                         final SnapshotFilesProvider snapshotFilesProvider =
-                            new SnapshotFilesProvider(repositoryService, () -> recoverySettings.getChunkSize());
+                            new SnapshotFilesProvider(repositoryService);
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(transportService,
                             indicesService, recoverySettings, recoveryPlannerService));
                         b.bind(PeerRecoveryTargetService.class).toInstance(new PeerRecoveryTargetService(threadPool,

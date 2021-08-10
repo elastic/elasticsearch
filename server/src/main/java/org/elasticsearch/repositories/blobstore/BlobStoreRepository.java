@@ -3450,6 +3450,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return true;
     }
 
+    public int getReadBufferSizeInBytes() {
+        return bufferSize;
+    }
+
     /**
      * The result of removing a snapshot from a shard folder in the repository.
      */

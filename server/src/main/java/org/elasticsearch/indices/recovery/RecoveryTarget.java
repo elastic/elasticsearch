@@ -23,7 +23,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
@@ -513,7 +512,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         try (InputStream inputStream =
                  snapshotFilesProvider.getInputStreamForSnapshotFile(repository, indexId, shardId, fileInfo, this::registerThrottleTime)) {
             StoreFileMetadata metadata = fileInfo.metadata();
-            ByteSizeValue readSnapshotFileBufferSize = snapshotFilesProvider.getReadSnapshotFileBufferSize();
+            int readSnapshotFileBufferSize = snapshotFilesProvider.getReadSnapshotFileBufferSizeForRepo(repository);
             multiFileWriter.writeFile(metadata, readSnapshotFileBufferSize, inputStream);
             listener.onResponse(null);
         } catch (Exception e) {

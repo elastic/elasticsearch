@@ -126,8 +126,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -1819,11 +1817,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     SourceOnlyRecoveryPlannerService.INSTANCE
                 );
 
-                final Supplier<ByteSizeValue> readSnapshotFileBufferSizeSupplier = () -> new ByteSizeValue(128, ByteSizeUnit.KB);
-                final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(
-                    repositoriesService,
-                    readSnapshotFileBufferSizeSupplier
-                );
+                final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,

@@ -16,7 +16,6 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
@@ -72,7 +71,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
     }
 
-    public void writeFile(StoreFileMetadata fileMetadata, ByteSizeValue readSnapshotFileBufferSize,  InputStream stream) throws Exception {
+    public void writeFile(StoreFileMetadata fileMetadata, long readSnapshotFileBufferSize,  InputStream stream) throws Exception {
         ensureOpen.run();
         assert Transports.assertNotTransportThread("multi_file_writer");
 
@@ -85,7 +84,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
         incRef();
         try(IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, fileMetadata, IOContext.DEFAULT)) {
-            int bufferSize = Math.toIntExact(Math.min(readSnapshotFileBufferSize.getBytes(), fileMetadata.length()));
+            int bufferSize = Math.toIntExact(Math.min(readSnapshotFileBufferSize, fileMetadata.length()));
             byte[] buffer = new byte[bufferSize];
             int length;
             long bytesWritten = 0;

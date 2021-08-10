@@ -10,7 +10,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
@@ -24,15 +23,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public class SnapshotFilesProvider {
     private final RepositoriesService repositoriesService;
-    private final Supplier<ByteSizeValue> readSnapshotFileBufferSizeSupplier;
 
-    public SnapshotFilesProvider(RepositoriesService repositoriesService, Supplier<ByteSizeValue> readSnapshotFileBufferSizeSupplier) {
+    public SnapshotFilesProvider(RepositoriesService repositoriesService) {
         this.repositoriesService = Objects.requireNonNull(repositoriesService);
-        this.readSnapshotFileBufferSizeSupplier = Objects.requireNonNull(readSnapshotFileBufferSizeSupplier);
     }
 
     public InputStream getInputStreamForSnapshotFile(String repositoryName,
@@ -58,7 +54,8 @@ public class SnapshotFilesProvider {
         return blobStoreRepository.maybeRateLimitRestores(inputStream, rateLimiterListener::accept);
     }
 
-    public ByteSizeValue getReadSnapshotFileBufferSize() {
-        return readSnapshotFileBufferSizeSupplier.get();
+    public int getReadSnapshotFileBufferSizeForRepo(String repository) {
+        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repositoriesService.repository(repository);
+        return blobStoreRepository.getReadBufferSizeInBytes();
     }
 }

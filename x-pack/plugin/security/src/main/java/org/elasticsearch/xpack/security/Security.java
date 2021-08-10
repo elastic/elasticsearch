@@ -32,6 +32,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -131,6 +132,7 @@ import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
@@ -335,6 +337,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.XPackSettings.ELASTIC_PASSWORD_HASH;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
@@ -375,6 +378,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
+    private final SetOnce<SecureString> elasticPasswordHash = new SetOnce<>();
+    private final SetOnce<NativeUsersStore> nativeUsersStore = new SetOnce<>();
 
     public Security(Settings settings, final Path configPath) {
         this(settings, configPath, Collections.emptyList());
@@ -387,9 +392,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled) {
             runStartupChecks(settings);
-            // we load them all here otherwise we can't access secure settings since they are closed once the checks are
-            // fetched
-
             Automatons.updateConfiguration(settings);
         } else {
             this.bootstrapChecks.set(Collections.emptyList());
@@ -411,6 +413,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
     protected SSLService getSslService() { return XPackPlugin.getSharedSslService(); }
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
+    protected SecureString getElasticPasswordHash() { return this.elasticPasswordHash.get(); }
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
@@ -439,8 +442,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         scriptServiceReference.set(scriptService);
 
-        // We need to construct the checks here while the secure settings are still available.
-        // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
         final List<BootstrapCheck> checks = new ArrayList<>();
         checks.addAll(Arrays.asList(
             new ApiKeySSLBootstrapCheck(),
@@ -465,6 +466,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         securityIndex.set(SecurityIndexManager.buildSecurityIndexManager(client, clusterService, SECURITY_MAIN_INDEX_DESCRIPTOR));
 
+        // Store this because when the listener we register will be called, secure settings will be closed
+        if (ELASTIC_PASSWORD_HASH.exists(settings)) {
+            elasticPasswordHash.set(ELASTIC_PASSWORD_HASH.get(settings));
+            securityIndex.get().addStateListener(this::possiblySetElasticPassword);
+        }
+
         final TokenService tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
@@ -480,6 +487,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
+        this.nativeUsersStore.set(nativeUsersStore);
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
@@ -506,7 +514,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         components.add(reservedRealm);
 
         securityIndex.get().addStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
-
         final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
         cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
         components.add(cacheInvalidatorRegistry);
@@ -610,6 +617,21 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         cacheInvalidatorRegistry.validate();
 
         return components;
+    }
+
+    protected void possiblySetElasticPassword(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+        if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
+            && currentState.equals(SecurityIndexManager.State.UNRECOVERED_STATE) == false
+            && securityIndex.get().indexExists() == false
+            && elasticPasswordHash.get() != null) {
+            final ChangePasswordRequest request = new ChangePasswordRequest();
+            request.username("elastic");
+            request.passwordHash(elasticPasswordHash.get().getChars());
+            nativeUsersStore.get().changePassword(request, ActionListener.wrap(
+                r -> {},
+                e -> logger.warn("failed to set the elastic user password from the value of [" + ELASTIC_PASSWORD_HASH.getKey() + "]")));
+            elasticPasswordHash.get().close();
+        }
     }
 
     private AuthorizationEngine getAuthorizationEngine() {

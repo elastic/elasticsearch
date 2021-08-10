@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -93,6 +94,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.xpack.core.XPackSettings.ELASTIC_PASSWORD_HASH;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
@@ -649,6 +651,19 @@ public class SecurityTests extends ESTestCase {
             appender.stop();
             Loggers.removeAppender(mockLogger, appender);
         }
+    }
+
+    public void testNoElasticPasswordHashInKeystore() throws Exception {
+        createComponents(Settings.EMPTY);
+        assertNull(security.getElasticPasswordHash());
+    }
+
+    public void testElasticPasswordHashInKeystore() throws Exception {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(ELASTIC_PASSWORD_HASH.getKey(), "some_hash_here");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        createComponents(settings);
+        assertThat(security.getElasticPasswordHash().toString(), equalTo("some_hash_here"));
     }
 
     private void logAndFail(Exception e) {

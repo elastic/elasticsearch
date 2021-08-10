@@ -41,15 +41,6 @@ testClusters.all {
   setting 'xpack.license.self_generated.type', 'trial'
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.vector_tile_feature_flag_registered', 'true'
-  }
-}
-
-tasks.named("test").configure {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.vector_tile_feature_flag_registered', 'true'
-  }
 }
 
 tasks.named("thirdPartyAudit").configure {

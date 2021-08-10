@@ -206,6 +206,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         /**
          * Read from a stream.
          */
+        @SuppressWarnings("unchecked")
         Item(StreamInput in) throws IOException {
             index = in.readOptionalString();
             if (in.getVersion().before(Version.V_8_0_0)) {

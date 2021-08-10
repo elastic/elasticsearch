@@ -74,7 +74,8 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
     protected BlobContainer createBlobContainer(Integer maxRetries,
                                                 TimeValue readTimeout,
                                                 Boolean disableChunkedEncoding,
-                                                ByteSizeValue bufferSize) {
+                                                ByteSizeValue bufferSize,
+                                                BlobPath path) {
         Settings.Builder settingsBuilder = Settings.builder();
 
         if (maxRetries != null) {
@@ -90,7 +91,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
             final URLHttpClientSettings httpClientSettings = URLHttpClientSettings.fromSettings(settings);
             URLBlobStore urlBlobStore =
                 new URLBlobStore(settings, new URL(getEndpointForServer()), factory.create(httpClientSettings), httpClientSettings);
-            return urlBlobStore.blobContainer(BlobPath.EMPTY);
+            return urlBlobStore.blobContainer(path == null ? BlobPath.EMPTY : path);
         } catch (MalformedURLException e) {
             throw new RuntimeException("Unable to create URLBlobStore", e);
         }

@@ -546,6 +546,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }));
     }
 
+    @SuppressWarnings("unchecked")
     public void testParseMappingsAppliesDataFromTemplateAndRequest() throws Exception {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(templateBuilder -> {
             templateBuilder.putAlias(AliasMetadata.builder("alias1"));
@@ -608,6 +609,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertEquals("date-math-based-2021-01-01", aliasMetadata.get(0).alias() );
     }
 
+    @SuppressWarnings("unchecked")
     public void testRequestDataHavePriorityOverTemplateData() throws Exception {
         CompressedXContent templateMapping = createMapping("test", "text");
         CompressedXContent reqMapping = createMapping("test", "keyword");

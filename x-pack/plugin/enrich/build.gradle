@@ -16,6 +16,10 @@ dependencies {
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:geo')
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
+  testImplementation(testArtifact(project(xpackModule('security')))) {
+    // security only uses guava for saml, and it version-clashes here with the guava that watcher uses for HTML sanitization
+    exclude group: 'com.google.guava', module: 'guava'
+  }
 }
 
 addQaCheckDependencies()

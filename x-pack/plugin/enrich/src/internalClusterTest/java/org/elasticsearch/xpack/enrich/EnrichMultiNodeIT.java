@@ -20,16 +20,19 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -39,6 +42,7 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,13 +50,14 @@ import java.util.Set;
 
 import static org.elasticsearch.test.NodeRoles.ingestOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonIngestNode;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class EnrichMultiNodeIT extends ESIntegTestCase {
+public class EnrichMultiNodeIT extends SecurityIntegTestCase {
 
     static final String POLICY_NAME = "my-policy";
     private static final String PIPELINE_NAME = "my-pipeline";
@@ -66,13 +71,36 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            // TODO Change this to run with security enabled
-            // https://github.com/elastic/elasticsearch/issues/75940
-            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-            .build();
+    protected String configUsers() {
+        final String usersPasswdHashed =
+                new String(getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        return super.configUsers() +
+                "enrich_user:" + usersPasswdHashed + "\n" +
+                "ingest_user:" + usersPasswdHashed + "\n";
+    }
+
+    @Override
+    protected String configUsersRoles() {
+        return super.configUsersRoles() +
+                "enrich_user:enrich_user\n" +
+                "read_users_index_role:enrich_user\n" +
+                "ingest_role:ingest_user\n";
+    }
+
+    @Override
+    protected String configRoles() {
+        return super.configRoles() +
+                "\nread_users_index_role:\n" +
+                "  indices:\n" +
+                "    - names: '" + SOURCE_INDEX_NAME + "'\n" +
+                "      privileges: [ read, view_index_metadata ]\n" +
+                "\ningest_role:\n" +
+                "  indices:\n" +
+                "    - names: 'my-index'\n" +
+                "      privileges: [ write, auto_configure ]\n";
+    }
+
+    protected void doAssertXPackIsInstalled() {
     }
 
     public void testEnrichAPIs() {
@@ -91,10 +119,10 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
                 List.of(DECORATE_FIELDS)
             );
             PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
-            client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
-            client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
+            enrichClient().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
+            enrichClient().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
-            EnrichPolicy.NamedPolicy result = client().execute(
+            EnrichPolicy.NamedPolicy result = enrichClient().execute(
                 GetEnrichPolicyAction.INSTANCE,
                 new GetEnrichPolicyAction.Request(new String[] { policyName })
             ).actionGet().getPolicies().get(0);
@@ -156,7 +184,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             indexRequest.source(Map.of(MATCH_FIELD, randomFrom(keys)));
             bulkRequest.add(indexRequest);
         }
-        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        BulkResponse bulkResponse = ingestClient(coordinatingNode).bulk(bulkRequest).actionGet();
         assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
         int expectedId = 0;
         for (BulkItemResponse itemResponse : bulkResponse) {
@@ -174,7 +202,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             }
         }
 
-        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
+        EnrichStatsAction.Response statsResponse = enrichClient().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
             .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(internalCluster().size()));
         String nodeId = internalCluster().getInstance(ClusterService.class, coordinatingNode).localNode().getId();
@@ -222,8 +250,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             List.of(DECORATE_FIELDS)
         );
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(POLICY_NAME, enrichPolicy);
-        client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
-        final ActionFuture<ExecuteEnrichPolicyAction.Response> policyExecuteFuture = client().execute(
+        enrichClient().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
+        final ActionFuture<ExecuteEnrichPolicyAction.Response> policyExecuteFuture = enrichClient().execute(
             ExecuteEnrichPolicyAction.INSTANCE,
             new ExecuteEnrichPolicyAction.Request(POLICY_NAME)
         );
@@ -253,6 +281,18 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             + MATCH_FIELD
             + "\", \"target_field\": \"user\"}}]}";
         PutPipelineRequest request = new PutPipelineRequest(PIPELINE_NAME, new BytesArray(pipelineBody), XContentType.JSON);
-        client().admin().cluster().putPipeline(request).actionGet();
+        enrichClient().admin().cluster().putPipeline(request).actionGet();
+    }
+
+    private static Client enrichClient() {
+        Map<String, String> headers = Collections.singletonMap("Authorization",
+                basicAuthHeaderValue("enrich_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        return client().filterWithHeader(headers);
+    }
+
+    private static Client ingestClient(@Nullable String node) {
+        Map<String, String> headers = Collections.singletonMap("Authorization",
+                basicAuthHeaderValue("ingest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        return client(node).filterWithHeader(headers);
     }
 }

@@ -62,7 +62,7 @@ dependencies {
   api "com.nimbusds:oauth2-oidc-sdk:9.3.1"
   api "com.nimbusds:nimbus-jose-jwt:9.8.1"
   api "com.nimbusds:lang-tag:1.4.4"
-  api "com.sun.mail:jakarta.mail:1.6.3"
+  api "com.sun.mail:jakarta.mail:1.6.4"
   api "net.jcip:jcip-annotations:1.0"
   api "net.minidev:json-smart:2.4.2"
   api "net.minidev:accessors-smart:2.4.2"

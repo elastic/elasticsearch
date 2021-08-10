@@ -19,6 +19,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.Security;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -35,6 +37,14 @@ public class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
                 return LocalStateEnrich.this.getLicenseState();
             }
         });
+
+        plugins.add(new Security(settings, configPath) {
+            @Override
+            protected SSLService getSslService() { return LocalStateEnrich.this.getSslService(); }
+
+            @Override
+            protected XPackLicenseState getLicenseState() { return LocalStateEnrich.this.getLicenseState(); }
+        });
     }
 
     public static class EnrichTransportXPackInfoAction extends TransportXPackInfoAction {
@@ -50,7 +60,7 @@ public class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
 
         @Override
         protected List<XPackInfoFeatureAction> infoActions() {
-            return Collections.singletonList(XPackInfoFeatureAction.ENRICH);
+            return List.of(XPackInfoFeatureAction.ENRICH, XPackInfoFeatureAction.SECURITY);
         }
     }
 

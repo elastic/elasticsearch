@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
@@ -213,6 +215,8 @@ public class XPackSettings {
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
     private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
+    public static final Setting<SecureString> ELASTIC_PASSWORD_HASH = SecureSetting.secureString("autoconfiguration.password_hash", null);
+
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
@@ -232,6 +236,7 @@ public class XPackSettings {
         settings.add(USER_SETTING);
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(ENROLLMENT_ENABLED);
+        settings.add(ELASTIC_PASSWORD_HASH);
         return Collections.unmodifiableList(settings);
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.runtime.DoubleScriptFieldTermsQuery;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
@@ -37,7 +39,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     private static class Builder extends AbstractScriptFieldType.Builder<DoubleFieldScript.Factory> {
         Builder(String name) {
-            super(name, DoubleFieldScript.CONTEXT, DoubleFieldScript.PARSE_FROM_SOURCE);
+            super(name, DoubleFieldScript.CONTEXT);
         }
 
         @Override
@@ -46,6 +48,16 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
                                                    Script script,
                                                    Map<String, String> meta) {
             return new DoubleScriptFieldType(name, factory, script, meta);
+        }
+
+        @Override
+        DoubleFieldScript.Factory getParseFromSourceFactory() {
+            return DoubleFieldScript.PARSE_FROM_SOURCE;
+        }
+
+        @Override
+        DoubleFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return DoubleFieldScript.leafAdapter(parentScriptFactory);
         }
     }
 

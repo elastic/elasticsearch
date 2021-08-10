@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -277,7 +278,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         DocumentMapper oldMapper = this.mapper;
         Mapping newMapping = mergeMappings(oldMapper, incomingMapping, MergeReason.MAPPING_UPDATE_PREFLIGHT);
         newDocumentMapper(newMapping, MergeReason.MAPPING_UPDATE_PREFLIGHT);
-        if (false == newMapping.getTimeSeriesIdGenerator().equals(oldMapper.mapping().getTimeSeriesIdGenerator())) {
+
+        TimeSeriesIdGenerator oldTimeSeriesIdGenerator = oldMapper == null ? null : oldMapper.mapping().getTimeSeriesIdGenerator();
+        if (false == Objects.equals(newMapping.getTimeSeriesIdGenerator(), oldTimeSeriesIdGenerator)) {
             throw new IllegalStateException("added a dimension with a dynamic mapping");
         }
     }

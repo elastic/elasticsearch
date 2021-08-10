@@ -94,7 +94,7 @@ document:
 The index that contains the document.
 Required if no index is specified in the request URI.
 
-`_routing`::
+`routing`::
 (Optional, string) The key for the primary shard the document resides on.
 Required if routing is used during indexing.
 

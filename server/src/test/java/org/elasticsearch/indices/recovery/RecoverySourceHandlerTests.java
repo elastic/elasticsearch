@@ -1141,6 +1141,81 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
     }
 
+    public void testWaitsForOutstandingRestoreFileFromSnapshotRequestsToNotifyCancellation() throws Exception {
+        try (Store store = newStore(createTempDir("source"), false)) {
+            IndexShard shard = mock(IndexShard.class);
+            when(shard.store()).thenReturn(store);
+            when(shard.state()).thenReturn(IndexShardState.STARTED);
+
+            ShardRecoveryPlan shardRecoveryPlan = createShardRecoveryPlan(store, 0, randomIntBetween(10, 20));
+
+            int maxConcurrentSnapshotFileDownloads = randomIntBetween(2, 4);
+            CountDownLatch downloadSnapshotFileReceived = new CountDownLatch(maxConcurrentSnapshotFileDownloads);
+            List<RecoverSnapshotFileResponse> unrespondedRecoverSnapshotFiles = new CopyOnWriteArrayList<>();
+            TestRecoveryTargetHandler recoveryTarget = new Phase1RecoveryTargetHandler() {
+                @Override
+                public void restoreFileFromSnapshot(String repository,
+                                                    IndexId indexId,
+                                                    BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+                                                    ActionListener<Void> listener) {
+                    unrespondedRecoverSnapshotFiles.add(new RecoverSnapshotFileResponse(snapshotFile, listener));
+                    downloadSnapshotFileReceived.countDown();
+                }
+
+                @Override
+                public void writeFileChunk(StoreFileMetadata fileMetadata,
+                                           long position,
+                                           ReleasableBytesReference content,
+                                           boolean lastChunk,
+                                           int totalTranslogOps,
+                                           ActionListener<Void> listener) {
+                    assert false : "Unexpected call";
+                }
+            };
+
+            RecoverySourceHandler handler = new RecoverySourceHandler(
+                shard,
+                recoveryTarget,
+                threadPool,
+                getStartRecoveryRequest(),
+                between(1, 16),
+                between(1, 4),
+                between(1, 4),
+                maxConcurrentSnapshotFileDownloads,
+                true,
+                null) {
+                @Override
+                void createRetentionLease(long startingSeqNo, ActionListener<RetentionLease> listener) {
+                    listener.onResponse(new RetentionLease("id", startingSeqNo, 0, "test"));
+                }
+            };
+
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
+
+            downloadSnapshotFileReceived.await();
+            assertThat(unrespondedRecoverSnapshotFiles.size(), is(equalTo(maxConcurrentSnapshotFileDownloads)));
+
+            handler.cancel("test");
+
+            assertThat(future.isDone(), is(equalTo(false)));
+            for (int i = 0; i < unrespondedRecoverSnapshotFiles.size(); i++) {
+                RecoverSnapshotFileResponse snapshotFileResponse = unrespondedRecoverSnapshotFiles.get(i);
+                if (randomBoolean()) {
+                    snapshotFileResponse.listener.onResponse(null);
+                } else {
+                    snapshotFileResponse.listener.onFailure(new RuntimeException("boom"));
+                }
+
+                if (i < unrespondedRecoverSnapshotFiles.size() - 1) {
+                    assertThat(future.isDone(), is(equalTo(false)));
+                }
+            }
+
+            expectThrows(Exception.class, future::get);
+        }
+    }
+
     private boolean containsSnapshotFile(ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover,
                                          BlobStoreIndexShardSnapshot.FileInfo snapshotFile) {
         return snapshotFilesToRecover.getSnapshotFiles().stream().anyMatch(f -> f.metadata().isSame(snapshotFile.metadata()));

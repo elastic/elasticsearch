@@ -73,9 +73,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -632,6 +634,7 @@ public class RecoverySourceHandler {
         final CountDown countDown;
         final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> pendingSnapshotFilesToRecover;
         final AtomicBoolean cancelled = new AtomicBoolean();
+        final Set<ListenableFuture<Void>> outstandingRequests = new HashSet<>(maxConcurrentSnapshotFileDownloads);
         List<StoreFileMetadata> filesFailedToDownloadFromSnapshot;
 
         SnapshotRecoverFileRequestsSender(ShardRecoveryPlan shardRecoveryPlan, ActionListener<List<StoreFileMetadata>> listener) {
@@ -654,6 +657,7 @@ public class RecoverySourceHandler {
                 return;
             }
 
+            final ListenableFuture<Void> requestFuture = new ListenableFuture<>();
             try {
                 cancellableThreads.checkForCancel();
 
@@ -670,25 +674,27 @@ public class RecoverySourceHandler {
                         onRequestCompletion(snapshotFileToRecover.metadata(), e);
                     }
                 };
+                requestFuture.addListener(sendRequestListener);
 
+                trackOutstandingRequest(requestFuture);
                 recoveryTarget.restoreFileFromSnapshot(
                     snapshotFilesToRecover.getRepository(),
                     snapshotFilesToRecover.getIndexId(),
                     snapshotFileToRecover,
-                    ActionListener.runAfter(sendRequestListener, this::sendRequest)
+                    ActionListener.runBefore(requestFuture, () -> unTrackOutstandingRequest(requestFuture))
                 );
             } catch (CancellableThreads.ExecutionCancelledException e) {
                 onCancellation(e);
             } catch (Exception e) {
+                unTrackOutstandingRequest(requestFuture);
                 onRequestCompletion(snapshotFileToRecover.metadata(), e);
-                sendRequest();
             }
         }
 
         void onCancellation(Exception e) {
             if (cancelled.compareAndSet(false, true)) {
                 pendingSnapshotFilesToRecover.clear();
-                listener.onFailure(e);
+                notifyFailureOnceAllOutstandingRequestAreDone(e);
             }
         }
 
@@ -704,6 +710,8 @@ public class RecoverySourceHandler {
             if (countDown.countDown()) {
                 final List<StoreFileMetadata> failedToRecoverFromSnapshotFiles = getFilesFailedToRecoverFromSnapshot();
                 listener.onResponse(failedToRecoverFromSnapshotFiles);
+            } else {
+                sendRequest();
             }
         }
 
@@ -716,6 +724,38 @@ public class RecoverySourceHandler {
 
         synchronized List<StoreFileMetadata> getFilesFailedToRecoverFromSnapshot() {
             return Objects.requireNonNullElse(filesFailedToDownloadFromSnapshot, Collections.emptyList());
+        }
+
+        private void trackOutstandingRequest(ListenableFuture<Void> future) {
+            synchronized (outstandingRequests) {
+                outstandingRequests.add(future);
+            }
+        }
+
+        private void unTrackOutstandingRequest(ListenableFuture<Void> future) {
+            synchronized (outstandingRequests) {
+                outstandingRequests.remove(future);
+            }
+        }
+
+        private void notifyFailureOnceAllOutstandingRequestAreDone(Exception e) {
+            assert cancelled.get();
+
+            final Set<ListenableFuture<Void>> pendingRequests;
+            synchronized (outstandingRequests) {
+                pendingRequests = outstandingRequests;
+            }
+            // The recovery was cancelled so from this point onwards outstandingRequests won't track
+            // new requests and therefore we can safely use to wait until all the pending requests complete
+            // to notify the listener about the cancellation
+            final CountDown pendingRequestsCountDown = new CountDown(pendingRequests.size());
+            for (ListenableFuture<Void> outstandingFuture : pendingRequests) {
+                outstandingFuture.addListener(ActionListener.wrap(() -> {
+                    if (pendingRequestsCountDown.countDown()) {
+                        listener.onFailure(e);
+                    }
+                }));
+            }
         }
     }
 

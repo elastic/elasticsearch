@@ -367,11 +367,6 @@ public class DoSection implements ExecutableSection {
             } else {
                 throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
             }
-
-            final String testPath = executionContext.getClientYamlTestCandidate() != null
-                ? executionContext.getClientYamlTestCandidate().getTestPath()
-                : null;
-            checkWarningHeaders(restTestResponse.getWarningHeaders(), testPath);
         }
     }
 

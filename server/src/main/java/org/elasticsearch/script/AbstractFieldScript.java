@@ -68,17 +68,18 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     );
 
     protected final String fieldName;
+    protected final SourceLookup sourceLookup;
     private final Map<String, Object> params;
-    protected final LeafSearchLookup leafSearchLookup;
 
     public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(new DocValuesDocReader(searchLookup, ctx));
 
         this.fieldName = fieldName;
-        this.leafSearchLookup = searchLookup.getLeafSearchLookup(ctx);
+        Map<String, Object> docAsMap = docAsMap();
+        this.sourceLookup = (SourceLookup)docAsMap.get("_source");
         params = new HashMap<>(params);
-        params.put("_source", leafSearchLookup.source());
-        params.put("_fields", leafSearchLookup.fields());
+        params.put("_source", sourceLookup);
+        params.put("_fields", docAsMap.get("_fields"));
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
     }
 
@@ -90,7 +91,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     }
 
     protected List<Object> extractFromSource(String path) {
-        return XContentMapValues.extractRawValues(path, leafSearchLookup.source().source());
+        return XContentMapValues.extractRawValues(path, sourceLookup.source());
     }
 
     protected final void emitFromCompositeScript(CompositeFieldScript compositeFieldScript) {

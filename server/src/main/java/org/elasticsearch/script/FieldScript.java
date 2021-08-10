@@ -47,14 +47,10 @@ public abstract class FieldScript extends DocBasedScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    /** A leaf lookup for the bound segment this script will operate on. */
-    private final LeafSearchLookup leafLookup;
-
     public FieldScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         super(new DocValuesDocReader(lookup, leafContext));
-        this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         params = new HashMap<>(params);
-        params.putAll(leafLookup.asMap());
+        params.putAll(docAsMap());
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
     }
 
@@ -62,15 +58,9 @@ public abstract class FieldScript extends DocBasedScript {
     protected FieldScript() {
         super(null);
         params = null;
-        leafLookup = null;
     }
 
     public abstract Object execute();
-
-    /** The leaf lookup for the Lucene segment this script was created for. */
-    protected final LeafSearchLookup getLeafLookup() {
-        return leafLookup;
-    }
 
     /** Return the parameters for this script. */
     public Map<String, Object> getParams() {

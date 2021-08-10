@@ -51,11 +51,6 @@ public abstract class AggregationScript extends DocBasedScript implements Scorer
     private final Map<String, Object> params;
 
     /**
-     * A leaf lookup for the bound segment this script will operate on.
-     */
-    private final LeafSearchLookup leafLookup;
-
-    /**
      * A scorer that will return the score for the current document when the script is run.
      */
     protected Scorable scorer;
@@ -65,14 +60,12 @@ public abstract class AggregationScript extends DocBasedScript implements Scorer
     public AggregationScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         super(new DocValuesDocReader(lookup, leafContext));
         this.params = new DynamicMap(new HashMap<>(params), PARAMS_FUNCTIONS);
-        this.leafLookup = lookup.getLeafSearchLookup(leafContext);
-        this.params.putAll(leafLookup.asMap());
+        this.params.putAll(docAsMap());
     }
 
     protected AggregationScript() {
         super(null);
         params = null;
-        leafLookup = null;
     }
 
     /**

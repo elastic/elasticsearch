@@ -79,19 +79,14 @@ public class ScriptedMetricAggContexts {
 
         private final Map<String, Object> params;
         private final Map<String, Object> state;
-        private final LeafSearchLookup leafLookup;
         private Scorable scorer;
 
         public MapScript(Map<String, Object> params, Map<String, Object> state, SearchLookup lookup, LeafReaderContext leafContext) {
             super(leafContext == null ? null : new DocValuesDocReader(lookup, leafContext));
             this.state = state;
-            this.leafLookup = leafContext == null ? null : lookup.getLeafSearchLookup(leafContext);
-            if (leafLookup != null) {
-                params = new HashMap<>(params); // copy params so we aren't modifying input
-                params.putAll(leafLookup.asMap()); // add lookup vars
-                params = new DynamicMap(params, PARAMS_FUNCTIONS); // wrap with deprecations
-            }
-            this.params = params;
+            params = new HashMap<>(params); // copy params so we aren't modifying input
+            params.putAll(docAsMap()); // add lookup vars
+            this.params = new DynamicMap(params, PARAMS_FUNCTIONS); // wrap with deprecations
         }
 
         public Map<String, Object> getParams() {

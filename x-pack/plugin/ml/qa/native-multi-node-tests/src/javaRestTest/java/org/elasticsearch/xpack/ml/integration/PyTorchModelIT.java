@@ -20,6 +20,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -49,6 +52,8 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_SUPER_USER =
         UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+    private final ExecutorService executorService = Executors.newFixedThreadPool(5);
+
 
     @Override
     protected Settings restClientSettings() {
@@ -79,6 +84,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             "    }" +
             "}");
         client().performRequest(loggingSettings);
+        executorService.shutdown();
     }
 
     private static final String MODEL_INDEX = "model_store";
@@ -111,21 +117,30 @@ public class PyTorchModelIT extends ESRestTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/75759")
-    public void testEvaluate() throws IOException {
+    public void testEvaluate() throws Exception {
         createModelStoreIndex();
         putTaskConfig();
         putModelDefinition();
         refreshModelStoreIndex();
         createTrainedModel();
         startDeployment();
+        CountDownLatch latch = new CountDownLatch(10);
         try {
             // Adding multiple inference calls to verify different calls get routed to separate nodes
             for (int i = 0; i < 10; i++) {
-                Response inference = infer("my words");
-                assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference\":[[1.0,1.0]]}"));
+                executorService.execute(() -> {
+                    try {
+                        Response inference = infer("my words");
+                        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference\":[[1.0,1.0]]}"));
+                    } catch (IOException ex) {
+                        fail(ex.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
+                });
             }
         } finally {
+            latch.await();
             stopDeployment();
         }
     }

@@ -165,7 +165,7 @@ public class DeploymentManager {
     public void stopDeployment(TrainedModelDeploymentTask task) {
         ProcessContext processContext;
         synchronized (processContextByAllocation) {
-            processContext = processContextByAllocation.remove(task.getId());
+            processContext = processContextByAllocation.get(task.getId());
         }
         if (processContext != null) {
             logger.info("[{}] Stopping deployment", task.getModelId());
@@ -277,6 +277,7 @@ public class DeploymentManager {
             try {
                 stateStreamer.cancel();
                 process.get().kill(true);
+                processContextByAllocation.remove(taskId);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Failed to kill process", modelId), e);
             }

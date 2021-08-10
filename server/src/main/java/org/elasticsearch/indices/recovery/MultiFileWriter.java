@@ -26,6 +26,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.transport.Transports;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -90,9 +91,16 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             int bufferSize = Math.toIntExact(Math.min(DEFAULT_WRITE_FILE_BUFFER_SIZE, fileMetadata.length()));
             byte[] buffer = new byte[bufferSize];
             int length;
+            long bytesWritten = 0;
             while ((length = stream.read(buffer)) > 0) {
                 indexOutput.writeBytes(buffer, length);
                 indexState.addRecoveredBytesToFile(fileName, length);
+                bytesWritten += length;
+            }
+
+            if (bytesWritten < fileMetadata.length()) {
+                throw new EOFException("Expected to write a file of length [" + fileMetadata.length() + "] " +
+                    "but only [" + bytesWritten + "] bytes were written");
             }
 
             Store.verify(indexOutput);

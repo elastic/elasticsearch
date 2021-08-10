@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -49,6 +50,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -59,6 +61,7 @@ import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -66,6 +69,7 @@ import java.util.stream.LongStream;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -396,6 +400,13 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    enum DownloadFileErrorType {
+        CORRUPTED_FILE,
+        TRUNCATED_FILE,
+        LARGER_THAN_EXPECTED_FILE,
+        FETCH_ERROR
+    }
+
     public void testSnapshotFileIsDeletedAfterFailure() throws Exception {
         DiscoveryNode pNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
             Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
@@ -416,6 +427,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         Tuple<StoreFileMetadata, byte[]> storeFileMetadataAndData = createStoreFileMetadataWithRandomContent(fileName);
         StoreFileMetadata storeFileMetadata = storeFileMetadataAndData.v1();
         byte[] fileData = storeFileMetadataAndData.v2();
+        final DownloadFileErrorType downloadFileErrorType = randomFrom(DownloadFileErrorType.values());
 
         SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(mock(RepositoriesService.class)) {
             @Override
@@ -424,21 +436,31 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                                                              ShardId requestedShardId,
                                                              BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
                                                              Consumer<Long> rateLimiterListener) {
-                if (randomBoolean()) {
-                    throw new RuntimeException("Unexpected error");
-                }
-
-                if (randomBoolean()) {
-                    byte[] fileDataCopy = new byte[fileData.length];
-                    System.arraycopy(fileData, 0, fileDataCopy, 0, fileData.length);
-                    // Corrupt the file
-                    for (int i = 0; i < randomIntBetween(1, fileDataCopy.length); i++) {
-                        fileDataCopy[i] = randomByte();
-                    }
-                    return new ByteArrayInputStream(fileDataCopy);
-                } else {
-                    // Return random data
-                    return new ByteArrayInputStream(randomByteArrayOfLength(randomIntBetween(1, fileData.length)));
+                switch (downloadFileErrorType) {
+                    case CORRUPTED_FILE:
+                        byte[] fileDataCopy = new byte[fileData.length];
+                        System.arraycopy(fileData, 0, fileDataCopy, 0, fileData.length);
+                        // Corrupt the file
+                        for (int i = 0; i < randomIntBetween(1, fileDataCopy.length); i++) {
+                            fileDataCopy[i] = randomByte();
+                        }
+                        return new ByteArrayInputStream(fileDataCopy);
+                    case TRUNCATED_FILE:
+                        final int truncatedFileLength = fileData.length / 2;
+                        byte[] truncatedCopy = new byte[truncatedFileLength];
+                        System.arraycopy(fileData, 0, truncatedCopy, 0, truncatedFileLength);
+                        return new ByteArrayInputStream(truncatedCopy);
+                    case LARGER_THAN_EXPECTED_FILE:
+                        byte[] largerData = new byte[fileData.length + randomIntBetween(1, 250)];
+                        System.arraycopy(fileData, 0, largerData, 0, fileData.length);
+                        for (int i = fileData.length; i < largerData.length ; i++) {
+                            largerData[i] = randomByte();
+                        }
+                        return new ByteArrayInputStream(largerData);
+                    case FETCH_ERROR:
+                        throw new RuntimeException("Unexpected error");
+                    default:
+                        throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
                 }
             }
         };
@@ -455,7 +477,24 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
         recoveryTarget.downloadSnapshotFile(repositoryName, indexId, fileInfo, writeSnapshotFileFuture);
-        expectThrows(Exception.class, writeSnapshotFileFuture::actionGet);
+        ExecutionException executionException = expectThrows(ExecutionException.class, writeSnapshotFileFuture::get);
+
+        Throwable downloadFileError = executionException.getCause();
+        switch (downloadFileErrorType) {
+            case CORRUPTED_FILE:
+            case LARGER_THAN_EXPECTED_FILE:
+                // Files larger than expected are catch by VerifyingIndexInput too
+                assertThat(downloadFileError, is(instanceOf(CorruptIndexException.class)));
+                break;
+            case TRUNCATED_FILE:
+                assertThat(downloadFileError, is(instanceOf(EOFException.class)));
+                break;
+            case FETCH_ERROR:
+                assertThat(downloadFileError, is(instanceOf(RuntimeException.class)));
+                break;
+            default:
+                throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
+        }
 
         assertThat(filesBeforeRestoringSnapshotFile, equalTo(directory.listAll()));
 

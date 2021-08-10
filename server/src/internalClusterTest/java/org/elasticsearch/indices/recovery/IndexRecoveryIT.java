@@ -1836,7 +1836,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 stats.getSeqNoStats().getMaxSeqNo(), equalTo(stats.getSeqNoStats().getGlobalCheckpoint()));
         }, 60, TimeUnit.SECONDS);
 
-        ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(indexName).setFlush(true).get();
+        // Force merge to make sure that the resulting snapshot would contain the same index files as the safe commit
+        ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(indexName).setFlush(randomBoolean()).get();
         assertThat(forceMergeResponse.getTotalShards(), equalTo(forceMergeResponse.getSuccessfulShards()));
         createRepository();
         createSnapshot(indexName);

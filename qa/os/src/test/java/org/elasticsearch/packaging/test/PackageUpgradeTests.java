@@ -88,11 +88,13 @@ public class PackageUpgradeTests extends PackagingTestCase {
     }
 
     private void assertDocsExist() throws Exception {
-        String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"));
+        // We can properly handle this as part of https://github.com/elastic/elasticsearch/issues/75940
+        // For now we can use elastic with "keystore.seed" as we set it explicitly in PackageUpgradeTests#test11ModifyKeystore
+        String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"), "elastic", "keystore_seed", null);
         assertThat(response1, containsString("Elasticsearch"));
-        String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"));
+        String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"), "elastic", "keystore_seed", null);
         assertThat(response2, containsString("World"));
-        String response3 = makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
+        String response3 = makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"), "elastic", "keystore_seed", null);
         assertThat(response3, containsString("Darkness"));
     }
 }

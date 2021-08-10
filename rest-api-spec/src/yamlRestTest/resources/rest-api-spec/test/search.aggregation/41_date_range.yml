@@ -12,6 +12,34 @@ setup:
                   format: epoch_second
 
   - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                date:
+                  type: date
+                  format: epoch_second
+
+# March 8th 2020 was the start of daylight savings time that year
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "date" : "2020-03-08T06:15:00Z" }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "date" : "2020-03-08T07:15:00Z" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
       cluster.health:
         wait_for_status: green
 

@@ -32,6 +32,7 @@ final class TransportSearchHelper {
 
     static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults) {
         try {
+            // TODO replace with BytesStreamOutput to avoid endiannessreverser
             ByteBuffersDataOutput out = new ByteBuffersDataOutput();
             out.writeString(INCLUDE_CONTEXT_UUID);
             out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);

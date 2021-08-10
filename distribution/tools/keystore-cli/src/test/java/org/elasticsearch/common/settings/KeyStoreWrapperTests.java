@@ -8,7 +8,9 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -40,7 +42,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
 import javax.crypto.Cipher;
 import javax.crypto.CipherOutputStream;
 import javax.crypto.SecretKey;
@@ -345,13 +346,14 @@ public class KeyStoreWrapperTests extends ESTestCase {
         byte[] encryptedBytes,
         int truncEncryptedDataLength
     ) throws Exception {
-        CodecUtil.writeBEInt(indexOutput, 4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
-        CodecUtil.writeBEInt(indexOutput, salt.length);
-        indexOutput.writeBytes(salt, salt.length);
-        CodecUtil.writeBEInt(indexOutput, iv.length);
-        indexOutput.writeBytes(iv, iv.length);
-        CodecUtil.writeBEInt(indexOutput, encryptedBytes.length - truncEncryptedDataLength);
-        indexOutput.writeBytes(encryptedBytes, encryptedBytes.length);
+        DataOutput out = EndiannessReverserUtil.wrapDataOutput(indexOutput);
+        out.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
+        out.writeInt(salt.length);
+        out.writeBytes(salt, salt.length);
+        out.writeInt(iv.length);
+        out.writeBytes(iv, iv.length);
+        out.writeInt(encryptedBytes.length - truncEncryptedDataLength);
+        out.writeBytes(encryptedBytes, encryptedBytes.length);
     }
 
     public void testUpgradeAddsSeed() throws Exception {
@@ -382,7 +384,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         Path configDir = env.configFile();
         try (
             Directory directory = newFSDirectory(configDir);
-            IndexOutput output = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)
+            IndexOutput output = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT);
         ) {
             CodecUtil.writeHeader(output, "elasticsearch.keystore", 1);
             output.writeByte((byte) 0); // hasPassword = false
@@ -399,7 +401,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
             ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
             keystore.store(keystoreBytesStream, new char[0]);
             byte[] keystoreBytes = keystoreBytesStream.toByteArray();
-            CodecUtil.writeBEInt(output, keystoreBytes.length);
+            output.writeInt(keystoreBytes.length);
             output.writeBytes(keystoreBytes, keystoreBytes.length);
             CodecUtil.writeFooter(output);
         }
@@ -417,9 +419,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
         random().nextBytes(fileBytes);
         try (
             Directory directory = newFSDirectory(configDir);
-            IndexOutput output = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)
+            IndexOutput output = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT);
         ) {
-
             CodecUtil.writeHeader(output, "elasticsearch.keystore", 2);
             output.writeByte((byte) 0); // hasPassword = false
             output.writeString("PKCS12");
@@ -450,7 +451,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
             ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
             keystore.store(keystoreBytesStream, new char[0]);
             byte[] keystoreBytes = keystoreBytesStream.toByteArray();
-            CodecUtil.writeBEInt(output, keystoreBytes.length);
+            output.writeInt(keystoreBytes.length);
             output.writeBytes(keystoreBytes, keystoreBytes.length);
             CodecUtil.writeFooter(output);
         }

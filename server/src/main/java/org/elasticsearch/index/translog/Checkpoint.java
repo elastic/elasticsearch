@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.translog;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -85,14 +86,14 @@ final class Checkpoint {
     }
 
     private void write(DataOutput out) throws IOException {
-        CodecUtil.writeBELong(out, offset);
-        CodecUtil.writeBEInt(out, numOps);
-        CodecUtil.writeBELong(out, generation);
-        CodecUtil.writeBELong(out, minSeqNo);
-        CodecUtil.writeBELong(out, maxSeqNo);
-        CodecUtil.writeBELong(out, globalCheckpoint);
-        CodecUtil.writeBELong(out, minTranslogGeneration);
-        CodecUtil.writeBELong(out, trimmedAboveSeqNo);
+        out.writeLong(offset);
+        out.writeInt(numOps);
+        out.writeLong(generation);
+        out.writeLong(minSeqNo);
+        out.writeLong(maxSeqNo);
+        out.writeLong(globalCheckpoint);
+        out.writeLong(minTranslogGeneration);
+        out.writeLong(trimmedAboveSeqNo);
     }
 
     /**
@@ -115,14 +116,14 @@ final class Checkpoint {
     }
 
     static Checkpoint readCheckpointV3(final DataInput in) throws IOException {
-        final long offset = CodecUtil.readBELong(in);
-        final int numOps = CodecUtil.readBEInt(in);
-        final long generation = CodecUtil.readBELong(in);
-        final long minSeqNo = CodecUtil.readBELong(in);
-        final long maxSeqNo = CodecUtil.readBELong(in);
-        final long globalCheckpoint = CodecUtil.readBELong(in);
-        final long minTranslogGeneration = CodecUtil.readBELong(in);
-        final long trimmedAboveSeqNo = CodecUtil.readBELong(in);
+        final long offset = in.readLong();
+        final int numOps = in.readInt();
+        final long generation = in.readLong();
+        final long minSeqNo = in.readLong();
+        final long maxSeqNo = in.readLong();
+        final long globalCheckpoint = in.readLong();
+        final long minTranslogGeneration = in.readLong();
+        final long trimmedAboveSeqNo = in.readLong();
         return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
 
@@ -142,7 +143,7 @@ final class Checkpoint {
 
     public static Checkpoint read(Path path) throws IOException {
         try (Directory dir = new NIOFSDirectory(path.getParent())) {
-            try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
+            try (IndexInput indexInput = EndiannessReverserUtil.openInput(dir, path.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, CURRENT_VERSION, CURRENT_VERSION);
@@ -186,7 +187,7 @@ final class Checkpoint {
         try (OutputStreamIndexOutput indexOutput =
                  new OutputStreamIndexOutput(resourceDesc, checkpointFile.toString(), byteOutputStream, V3_FILE_SIZE)) {
             CodecUtil.writeHeader(indexOutput, CHECKPOINT_CODEC, CURRENT_VERSION);
-            checkpoint.write(indexOutput);
+            checkpoint.write(EndiannessReverserUtil.wrapDataOutput(indexOutput));
             CodecUtil.writeFooter(indexOutput);
 
             assert indexOutput.getFilePointer() == V3_FILE_SIZE :

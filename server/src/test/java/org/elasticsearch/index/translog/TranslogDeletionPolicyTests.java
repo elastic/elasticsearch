@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.translog;
 
-import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -87,7 +86,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
 
             for (int ops = randomIntBetween(0, 20); ops > 0; ops--) {
                 out.reset(bytes);
-                CodecUtil.writeBEInt(out, ops);
+                out.writeInt(ops);
                 writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), ops);
             }
         }

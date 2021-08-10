@@ -745,6 +745,11 @@ public class RecoverySourceHandler {
             synchronized (outstandingRequests) {
                 pendingRequests = outstandingRequests;
             }
+
+            if (pendingRequests.isEmpty()) {
+                listener.onFailure(e);
+                return;
+            }
             // The recovery was cancelled so from this point onwards outstandingRequests won't track
             // new requests and therefore we can safely use to wait until all the pending requests complete
             // to notify the listener about the cancellation

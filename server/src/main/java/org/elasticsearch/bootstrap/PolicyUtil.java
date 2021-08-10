@@ -287,6 +287,19 @@ public class PolicyUtil {
                 }
             }
         }
+        // also add spi jars
+        // TODO: move this to a shared function, or fix plugin layout to have jar files in lib directory
+        Path spiDir = pluginRoot.resolve("spi");
+        if (Files.exists(spiDir)) {
+            try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(spiDir, "*.jar")) {
+                for (Path jar : jarStream) {
+                    URL url = jar.toRealPath().toUri().toURL();
+                    if (jars.add(url) == false) {
+                        throw new IllegalStateException("duplicate module/plugin: " + url);
+                    }
+                }
+            }
+        }
 
         // parse the plugin's policy file into a set of permissions
         Policy policy = readPolicy(policyFile.toUri().toURL(), getCodebaseJarMap(jars));

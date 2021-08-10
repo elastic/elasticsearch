@@ -43,6 +43,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -562,6 +563,50 @@ public class PluginsServiceTests extends ESTestCase {
         Set<URL> deps = transitiveDeps.get("myplugin");
         assertNotNull(deps);
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
+    }
+
+    public void testJarHellSpiAddedToTransitiveDeps() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass2.class);
+        Path spiDir = pluginDir.resolve("spi");
+        Files.createDirectories(spiDir);
+        Path spiJar = spiDir.resolve("spi.jar");
+        makeJar(spiJar, DummyClass3.class);
+        Path depDir = createTempDir();
+        Path depJar = depDir.resolve("dep.jar");
+        makeJar(depJar, DummyClass1.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        Set<URL> transitive = transitiveDeps.get("myplugin");
+        assertThat(transitive, containsInAnyOrder(spiJar.toUri().toURL(), depJar.toUri().toURL()));
+    }
+
+    public void testJarHellSpiConflict() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass2.class);
+        Path spiDir = pluginDir.resolve("spi");
+        Files.createDirectories(spiDir);
+        Path spiJar = spiDir.resolve("spi.jar");
+        makeJar(spiJar, DummyClass1.class);
+        Path depDir = createTempDir();
+        Path depJar = depDir.resolve("dep.jar");
+        makeJar(depJar, DummyClass1.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
+        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
+        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
+        assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
     }
 
     public void testNonExtensibleDep() throws Exception {

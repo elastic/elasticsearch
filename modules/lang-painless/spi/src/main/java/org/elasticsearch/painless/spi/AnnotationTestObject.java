@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.spi;
 
 import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
 

@@ -16,6 +16,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.plan.SnapshotsRecoveryPlannerService;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.transport.TransportService;
 
@@ -35,7 +36,8 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         when(indicesService.clusterService()).thenReturn(clusterService);
         PeerRecoverySourceService peerRecoverySourceService = new PeerRecoverySourceService(
             mock(TransportService.class), indicesService,
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            mock(SnapshotsRecoveryPlannerService.class));
         StartRecoveryRequest startRecoveryRequest = new StartRecoveryRequest(primary.shardId(), randomAlphaOfLength(10),
             getFakeDiscoNode("source"), getFakeDiscoNode("target"), Store.MetadataSnapshot.EMPTY, randomBoolean(), randomLong(),
             SequenceNumbers.UNASSIGNED_SEQ_NO);

@@ -54,7 +54,8 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     @Override
     public LongField asLongField() {
         if (values instanceof FieldValues.Longs == false) {
-            throw new IllegalStateException("This Field cannot be converted to a LongField due to the underlying data");
+            throw new IllegalStateException("This Field cannot be converted to a LongField due to the underlying data [" +
+                    values.getClass().getSimpleName() + "]");
         }
 
         return new LongField(name, (FieldValues.Longs) values);
@@ -68,7 +69,8 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     @Override
     public DoubleField asDoubleField() {
         if (values instanceof FieldValues.Doubles == false) {
-            throw new IllegalStateException("This Field cannot be converted to a DoubleValues due to the underlying data");
+            throw new IllegalStateException("This Field cannot be converted to a DoubleValues due to the underlying data [" +
+                    values.getClass().getSimpleName() + "]");
         }
 
         return new DoubleField(name, (FieldValues.Doubles) values);
@@ -82,7 +84,8 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     @Override
     public BigIntegerField asBigIntegerField() {
         if (values instanceof FieldValues.BigIntegers == false) {
-            throw new IllegalStateException("This Field cannot be converted to a BigIntegerField due to the underlying data");
+            throw new IllegalStateException("This Field cannot be converted to a BigIntegerField due to the underlying data [" +
+                    values.getClass().getSimpleName() + "]");
         }
 
         return new BigIntegerField(name, (FieldValues.BigIntegers) values);
@@ -96,7 +99,8 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     @Override
     public StringField asStringField() {
         if (values instanceof FieldValues.Strings == false) {
-            throw new IllegalStateException("This Field cannot be converted to a StringField due to the underlying data");
+            throw new IllegalStateException("This Field cannot be converted to a StringField due to the underlying data [" +
+                    values.getClass().getSimpleName() + "]");
         }
 
         return new StringField(name, (FieldValues.Strings) values);
@@ -110,7 +114,8 @@ public abstract class AbstractField<T, V extends FieldValues> implements Field<T
     @Override
     public DefField asDefField() {
         if (values instanceof FieldValues.Objects == false) {
-            throw new IllegalStateException("This Field cannot be converted to a ObjectField due to the underlying data");
+            throw new IllegalStateException("This Field cannot be converted to a ObjectField due to the underlying data [" +
+                    values.getClass().getSimpleName() + "]");
         }
 
         return new DefField(name, (FieldValues.Objects) values);

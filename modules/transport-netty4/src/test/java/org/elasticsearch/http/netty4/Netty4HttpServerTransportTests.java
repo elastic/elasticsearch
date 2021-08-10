@@ -46,6 +46,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpServerTransport;
@@ -55,7 +56,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -84,7 +84,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests for the {@link Netty4HttpServerTransport} class.
  */
-public class Netty4HttpServerTransportTests extends ESTestCase {
+public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportTestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;
@@ -96,7 +96,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettings = randomClusterSettings();
     }
 
     @After
@@ -360,7 +360,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "elastic.co").build();
 
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-            xContentRegistry(), dispatcher, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            xContentRegistry(), dispatcher, randomClusterSettings(),
             new SharedGroupFactory(settings))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
@@ -423,7 +423,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
         NioEventLoopGroup group = new NioEventLoopGroup();
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-            xContentRegistry(), dispatcher, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            xContentRegistry(), dispatcher, randomClusterSettings(),
             new SharedGroupFactory(settings))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());

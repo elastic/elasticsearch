@@ -12,13 +12,13 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -71,10 +71,35 @@ public class PluginsServiceTests extends ESTestCase {
 
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
-    static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
+    static PluginsService newPluginsService(Settings settings) {
         return new PluginsService(
             settings, null, null,
-            TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins)
+            TestEnvironment.newEnvironment(settings).pluginsFile(), List.of()
+        );
+    }
+
+    static PluginsService newPluginsService(Settings settings, Class<? extends Plugin> classpathPlugin) {
+        return new PluginsService(
+            settings, null, null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(), List.of(classpathPlugin)
+        );
+    }
+
+    static PluginsService newPluginsService(Settings settings, List<Class<? extends Plugin>> classpathPlugins) {
+        return new PluginsService(
+            settings, null, null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(), classpathPlugins
+        );
+    }
+
+    static PluginsService newPluginsService(
+        Settings settings,
+        Class<? extends Plugin> classpathPlugin1,
+        Class<? extends Plugin> classpathPlugin2
+    ) {
+        return new PluginsService(
+            settings, null, null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(), List.of(classpathPlugin1, classpathPlugin2)
         );
     }
 
@@ -136,7 +161,6 @@ public class PluginsServiceTests extends ESTestCase {
                         .build();
         final Path hidden = home.resolve("plugins").resolve(".hidden");
         Files.createDirectories(hidden);
-        @SuppressWarnings("unchecked")
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> newPluginsService(settings));
@@ -156,7 +180,7 @@ public class PluginsServiceTests extends ESTestCase {
         final Path desktopServicesStore = plugins.resolve(".DS_Store");
         Files.createFile(desktopServicesStore);
         if (Constants.MAC_OS_X) {
-            @SuppressWarnings("unchecked") final PluginsService pluginsService = newPluginsService(settings);
+            final PluginsService pluginsService = newPluginsService(settings);
             assertNotNull(pluginsService);
         } else {
             final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
@@ -409,9 +433,9 @@ public class PluginsServiceTests extends ESTestCase {
 
     public static class DummyClass3 {}
 
-    void makeJar(Path jarFile, Class... classes) throws Exception {
+    void makeJar(Path jarFile, Class<?>... classes) throws Exception {
         try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(jarFile))) {
-            for (Class clazz : classes) {
+            for (Class<?> clazz : classes) {
                 String relativePath = clazz.getCanonicalName().replaceAll("\\.", "/") + ".class";
                 if (relativePath.contains(PluginsServiceTests.class.getSimpleName())) {
                     // static inner class of this test

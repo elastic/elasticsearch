@@ -124,7 +124,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('rank').getValue(false) < params.max_rank);"
+            source: "emit(field('rank').asLong(-1l) < params.max_rank);"
             params:
               max_rank: 5.0
           context: "boolean_field"
@@ -141,7 +141,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('rank').getValue(false) < params.max_rank); emit(false); emit(false); emit(true);"
+            source: "emit(field('rank').asLong(-1l) < params.max_rank); emit(false); emit(false); emit(true);"
             params:
               max_rank: 5.0
           context: "boolean_field"
@@ -186,7 +186,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('date').getValue(0).toInstant().toEpochMilli())"
+            source: "emit(field('date').asDef(new Date()).toInstant().toEpochMilli())"
           context: "date_field"
           context_setup:
             document:
@@ -247,7 +247,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('rank').getValue(0.0) * params.max_rank)"
+            source: "emit(field('rank').asLong(0) * params.max_rank)"
             params:
               max_rank: 5.0
           context: "double_field"
@@ -263,7 +263,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('rank').getValue(0.0) * params.max_rank); emit(400.0); emit(55.0)"
+            source: "emit(field('rank').asLong(0) * params.max_rank); emit(400.0); emit(55.0)"
             params:
               max_rank: 5.0
           context: "double_field"
@@ -321,7 +321,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('point').getValue(null).lat + 1.0, field('point').getValue(null).lon - 1.0)"
+            source: "emit(field('point').asDef(null).lat + 1.0, field('point').asDef(null).lon - 1.0)"
           context: "geo_point_field"
           context_setup:
             document:
@@ -388,7 +388,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('ip').getValue('0.0.0.0'));"
+            source: "emit(field('ip').asDef('0.0.0.0'));"
           context: "ip_field"
           context_setup:
             document:
@@ -403,7 +403,7 @@ setup:
         body:
           script:
             source: "emit('2001:0db8:0000:0000:0000:8a2e:0370:7333');
-                     emit(field('ip').getValue('0.0.0.0'));
+                     emit(field('ip').asDef('0.0.0.0'));
                      emit('2001:db8::8a2e:370:7334')"
           context: "ip_field"
           context_setup:
@@ -450,7 +450,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('rank').getValue(0L) * (long)params.max_rank)"
+            source: "emit(field('rank').asLong(0L) * (long)params.max_rank)"
             params:
               max_rank: 5.0
           context: "long_field"
@@ -466,7 +466,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('rank').getValue(0L) * (long)params.max_rank); emit(35); emit(0); emit(-90); emit(20);"
+            source: "emit(field('rank').asLong(0L) * (long)params.max_rank); emit(35); emit(0); emit(-90); emit(20);"
             params:
               max_rank: 5.0
           context: "long_field"
@@ -511,7 +511,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('keyword').getValue(''));"
+            source: "emit(field('keyword').asString(''));"
           context: "keyword_field"
           context_setup:
             document:
@@ -525,7 +525,7 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(field('keyword').getValue('')); emit(field('keyword').getValue('') + '_test');"
+            source: "emit(field('keyword').asString('')); emit(field('keyword').asString('') + '_test');"
           context: "keyword_field"
           context_setup:
             document:

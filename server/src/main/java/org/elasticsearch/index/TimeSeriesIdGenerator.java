@@ -171,6 +171,23 @@ public final class TimeSeriesIdGenerator {
         return "extract dimensions using " + root;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        TimeSeriesIdGenerator other = (TimeSeriesIdGenerator) obj;
+        return root.equals(other.root);
+    }
+
+    @Override
+    public int hashCode() {
+        return root.hashCode();
+    }
+
     /**
      * Build the tsid from the {@code _source}. See class docs for more on what it looks like and why.
      */
@@ -256,6 +273,12 @@ public final class TimeSeriesIdGenerator {
         ) throws IOException;
 
         abstract void collectDimensionNames(String name, Consumer<String> consumer);
+
+        @Override
+        public abstract boolean equals(Object obj);
+
+        @Override
+        public abstract int hashCode();
     }
 
     public static final class ObjectComponent extends Component {
@@ -296,6 +319,23 @@ public final class TimeSeriesIdGenerator {
         @Override
         public String toString() {
             return components.toString();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) {
+                return true;
+            }
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            TimeSeriesIdGenerator.ObjectComponent other = (TimeSeriesIdGenerator.ObjectComponent) obj;
+            return components.equals(other.components);
+        }
+
+        @Override
+        public int hashCode() {
+            return components.hashCode();
         }
     }
 

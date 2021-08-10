@@ -540,5 +540,22 @@ public class IpFieldMapper extends FieldMapper {
         public String toString() {
             return "ip[" + nullValue + "]";
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) {
+                return true;
+            }
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            IpTsidGen other = (IpTsidGen) obj;
+            return Objects.equals(nullValue, other.nullValue);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(nullValue);
+        }
     }
 }

@@ -1282,7 +1282,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final boolean coerce;
 
         WholeNumberTsidGen(NumberType numberType, Number nullValue, boolean coerce) {
-            this.numberType = numberType;
+            this.numberType = Objects.requireNonNull(numberType);
             this.nullValue = nullValue;
             this.coerce = coerce;
         }
@@ -1299,6 +1299,23 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public String toString() {
             return numberType + "[" + nullValue + "," + coerce + "]";
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) {
+                return true;
+            }
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            WholeNumberTsidGen other = (WholeNumberTsidGen) obj;
+            return numberType.equals(other.numberType) && Objects.equals(nullValue, other.nullValue) && coerce == other.coerce;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(numberType, nullValue, coerce);
         }
     }
 }

@@ -268,10 +268,10 @@ public final class DocumentParser {
         }
         root.addRuntimeFields(dynamicRuntimeFields);
         Mapping mapping = mappingLookup.getMapping().mappingUpdate(root);
-//        if (false == mapping.getTimeSeriesIdGenerator().equals(mappingLookup.getMapping().getTimeSeriesIdGenerator())) {
-//            // NOCOMMIT we have to implements equals and hashCode for this to work. We haven't
-//            throw new IllegalStateException("added a dimension with a dynamic mapping");
-//        }
+        if (false == mapping.getTimeSeriesIdGenerator().equals(mappingLookup.getMapping().getTimeSeriesIdGenerator())) {
+            // NOCOMMIT we have to implements equals and hashCode for this to work. We haven't
+            throw new IllegalStateException("added a dimension with a dynamic mapping");
+        }
         return mapping;
     }
 

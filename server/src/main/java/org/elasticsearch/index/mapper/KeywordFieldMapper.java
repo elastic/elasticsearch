@@ -619,5 +619,22 @@ public final class KeywordFieldMapper extends FieldMapper {
         public String toString() {
             return "kwd[" + nullValue + "]";
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) {
+                return true;
+            }
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            KeywordTsidGen other = (KeywordTsidGen) obj;
+            return Objects.equals(nullValue, other.nullValue);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(nullValue);
+        }
     }
 }

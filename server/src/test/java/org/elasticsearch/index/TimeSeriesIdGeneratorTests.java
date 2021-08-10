@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 import io.github.nik9000.mapmatcher.MapMatcher;
 
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -391,16 +393,30 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
         Map<String, Object> result = new LinkedHashMap<>(doc.size());
         for (Map.Entry<?, ?> e : doc.entrySet()) {
             if (e.getKey().equals(keyToModify)) {
-                Object val = e.getValue();
-                Object modified = val instanceof Map
-                    ? modifyDimensionValue((Map<?, ?>) val, (Map<?, ?>) dimensions.get(e.getKey()))
-                    : val + "modified";
-                result.put(e.getKey().toString(), modified);
+                result.put(e.getKey().toString(), modifyDimensionValue(dimensions, e.getKey(), e.getValue()));
             } else {
                 result.put(e.getKey().toString(), e.getValue());
             }
         }
         return result;
+    }
+
+    private Object modifyDimensionValue(Map<?, ?> dimensions, Object key, Object val) {
+        if (val instanceof Map) {
+            return modifyDimensionValue((Map<?, ?>) val, (Map<?, ?>) dimensions.get(key));
+        }
+        if (val instanceof Long) {
+            return ((Long) val).longValue() + 1;
+        }
+        if (val instanceof String) {
+            try {
+                InetAddress address = InetAddresses.forString((String) val);
+                return randomValueOtherThan(address, () -> NetworkAddress.format(randomIp(randomBoolean())));
+            } catch (IllegalArgumentException e) {
+                return val + "modified";
+            }
+        }
+        throw new IllegalArgumentException("don't know how to modify [" + val + "]");
     }
 
     /**
@@ -464,6 +480,40 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("There aren't any mapped dimensions"));
     }
 
+    public void testEquals() {
+        Map<String, Object> doc = randomDoc(between(1, 100), between(0, 2));
+        Map<String, Object> dimensions = randomDimensionsFromDoc(doc);
+        TimeSeriesIdGenerator gen = TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions));
+        assertThat(gen, equalTo(gen));
+        assertThat(TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions)), equalTo(gen));
+        assertThat(TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions)).hashCode(), equalTo(gen.hashCode()));
+
+        Map<String, Object> otherDimensions = randomValueOtherThan(dimensions, () -> randomDimensionsFromDoc(doc));
+        assertThat(TimeSeriesIdGenerator.build(objectComponentForDimensions(otherDimensions)), not(equalTo(gen)));
+    }
+
+    public void testHashCodeSame() {
+        Map<String, Object> doc = randomDoc(between(1, 100), between(0, 2));
+        Map<String, Object> dimensions = randomDimensionsFromDoc(doc);
+        TimeSeriesIdGenerator gen = TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions));
+        assertThat(TimeSeriesIdGenerator.build(objectComponentForDimensions(dimensions)).hashCode(), equalTo(gen.hashCode()));
+    }
+
+    /**
+     * Test that two {@link TimeSeriesIdGenerator#hashCode()}s are different.
+     * Not randomized because you can't be sure that hashcode will always
+     * be different.
+     */
+    public void testHashCodeDifferent() {
+        TimeSeriesIdGenerator gen1 = TimeSeriesIdGenerator.build(objectComponentForDimensions(Map.of("a", "cat", "b", 1)));
+        TimeSeriesIdGenerator gen2 = TimeSeriesIdGenerator.build(
+            objectComponentForDimensions(
+                randomFrom(Map.of("a", "cat"), Map.of("b", 1), Map.of("a", 1, "b", 1), Map.of("a", "cat", "b", "dog"))
+            )
+        );
+        assertThat(gen1.hashCode(), not(equalTo(gen2)));
+    }
+
     /**
      * Removes one of the dimensions from a document.
      */
@@ -485,14 +535,27 @@ public class TimeSeriesIdGeneratorTests extends ESTestCase {
     }
 
     private LinkedHashMap<String, Object> randomDoc(int count, int subDepth) {
-        int keyLength = (int) Math.log(count) + 1;
+        int keyLength = (int) Math.log(count) + 1; // Use shorter keys for smaller tests so they fit better on the screen.
         LinkedHashMap<String, Object> doc = new LinkedHashMap<>(count);
         for (int i = 0; i < count; i++) {
             String key = randomValueOtherThanMany(doc::containsKey, () -> randomAlphaOfLength(keyLength));
-            Object sub = subDepth <= 0 || randomBoolean() ? randomAlphaOfLength(5) : randomDoc(count, subDepth - 1);
+            Object sub = subDepth <= 0 || randomBoolean() ? randomDimensionVaue() : randomDoc(count, subDepth - 1);
             doc.put(key, sub);
         }
         return doc;
+    }
+
+    private Object randomDimensionVaue() {
+        switch (between(0, 2)) {
+            case 0:
+                return randomAlphaOfLength(5);
+            case 1:
+                return NetworkAddress.format(randomIp(randomBoolean()));
+            case 2:
+                return randomLong();
+            default:
+                throw new IllegalStateException("unknown random choice");
+        }
     }
 
     /**

@@ -130,7 +130,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
         when(client_util.execute(eq("POST"), eq(command.changeElasticUserPasswordUrl(client)), anyString(), any(SecureString.class),
             any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getChangeElasticUserPasswordBody));
         command.execute(terminal, option, environment);
-        assertThat(terminal.getOutput(), containsString("'elastic' user password: Aljngvodjb94j8HSY803"));
+        assertThat(terminal.getOutput(), containsString("elastic user password: Aljngvodjb94j8HSY803"));
         assertThat(terminal.getOutput(), containsString("CA fingerprint: ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428" +
             "f8a91362d"));
         assertThat(terminal.getOutput(), containsString("Kibana enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wLjE" +
@@ -202,7 +202,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
         when(client_util.execute(eq("POST"), eq(command.changeElasticUserPasswordUrl(client)), anyString(), any(SecureString.class),
             any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getChangeElasticUserPasswordBody));
         command.execute(terminal, option, bootstrapPasswordEnvironment);
-        assertFalse(terminal.getOutput().contains("'elastic' user password:"));
+        assertFalse(terminal.getOutput().contains("elastic user password:"));
         assertThat(terminal.getOutput(), containsString("CA fingerprint: ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428" +
             "f8a91362d"));
         assertThat(terminal.getOutput(), containsString("Kibana enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wLjE" +

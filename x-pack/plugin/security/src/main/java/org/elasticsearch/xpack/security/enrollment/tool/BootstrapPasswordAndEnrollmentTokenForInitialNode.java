@@ -48,6 +48,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
     private final  OptionSpec<String> keyStorePassword;
+    private final  OptionSpec<Void> docker;
     final SecureRandom secureRandom = new SecureRandom();
 
     // Package-private for testing
@@ -78,6 +79,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
         parser.allowsUnrecognizedOptions();
         keyStorePassword = parser.accepts("keystore-password", "keystore password").withRequiredArg();
+        docker = parser.accepts("docker", "determine that we are running in docker");
     }
 
     public static void main(String[] args) throws Exception {
@@ -89,6 +91,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         if (!options.has(keyStorePassword)) {
             throw new UserException(ExitCodes.USAGE, null);
         }
+
         final SecureString keystorePassword = new SecureString(keyStorePassword.values(options).get(0));
         SecureString password;
         final CommandLineHttpClient client = getClient(env);
@@ -104,7 +107,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
             password = bootstrapPassword;
         } else {
             password = setElasticUserPassword(client, bootstrapPassword);
-            terminal.println("'elastic' user password: " + password);
+            terminal.println("elastic user password: " + password);
         }
         final EnrollmentToken kibanaToken;
         try {
@@ -114,7 +117,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         }
         terminal.println("CA fingerprint: " + kibanaToken.getFingerprint());
         terminal.println("Kibana enrollment token: " + kibanaToken.encode());
-        if (options.nonOptionArguments().contains("--docker")) {
+        if (options.has(docker)) {
             final EnrollmentToken nodeToken;
             try {
                 nodeToken = enrollmentTokenGenerator.createNodeEnrollmentToken(elasticUser, password);

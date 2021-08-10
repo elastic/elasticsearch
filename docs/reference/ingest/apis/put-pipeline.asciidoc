@@ -125,4 +125,4 @@ PUT /_ingest/pipeline/my-pipeline-id
 }
 --------------------------------------------------
 
-To check the `_meta`, you can use the <<get-pipeline-api,get pipeline>> API.
+To check the `_meta`, use the <<get-pipeline-api,get pipeline>> API.

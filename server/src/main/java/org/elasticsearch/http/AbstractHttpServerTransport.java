@@ -31,6 +31,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -50,7 +52,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -84,8 +85,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private volatile BoundTransportAddress boundAddress;
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
     private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final AtomicInteger openChannels = new AtomicInteger(0);
     private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
+    private final RefCounted refCounted = new AbstractRefCounted("abstract-http-server-transport") {
+        @Override
+        protected void closeInternal() {
+            allClientsClosedListener.onResponse(null);
+        }
+    };
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Map<Integer, HttpStats.ClientStats> httpChannelStats = new ConcurrentHashMap<>();
 
@@ -248,13 +254,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             }
         }
         try {
-            final List<HttpChannel> channelsToClose = new ArrayList<>(httpChannels);
-            if (channelsToClose.isEmpty() == false) {
-                CloseableChannel.closeChannels(channelsToClose, true);
-            } else {
-                assert openChannels.get() == 0 : "open channels counter must be at 0 but was [" + openChannels.get() + "]";
-                allClientsClosedListener.onResponse(null);
-            }
+            refCounted.decRef();
+            CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
         } catch (Exception e) {
             logger.warn("unexpected exception while closing http channels", e);
         }
@@ -345,12 +346,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
-        openChannels.incrementAndGet();
+        refCounted.incRef();
         httpChannel.addCloseListener(ActionListener.wrap(() -> {
             httpChannels.remove(httpChannel);
-            if (openChannels.decrementAndGet() == 0 && lifecycle.started() == false) {
-                allClientsClosedListener.onResponse(null);
-            }
+            refCounted.decRef();
         }));
         totalChannelsAccepted.incrementAndGet();
         addClientStats(httpChannel);

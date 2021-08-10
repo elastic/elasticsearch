@@ -133,21 +133,6 @@ setup:
     - match: { hits.hits.0.fields.bar.0: 8}
 
 ---
-"Scripted Field with a null safe dereference (non-null, fields api)":
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        body:
-          script_fields:
-            bar:
-              script:
-                source: "(field('foo').getValue('')?.length() ?: 0) + params.x;"
-                params:
-                  x: 5
-
-  - match: { hits.hits.0.fields.bar.0: 8}
-
----
 "Scripted Field with a null safe dereference (null)":
     - do:
         search:
@@ -184,7 +169,7 @@ setup:
           script_fields:
             bar:
               script:
-                source: "field('date').getValue(0L).dayOfWeekEnum.value"
+                source: "field('date').getValue(new Date()).dayOfWeekEnum.value"
 
   - match: { hits.hits.0.fields.bar.0: 7}
 

@@ -221,6 +221,20 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createSnapshot(repoName, snapshot, Collections.singletonList(indexName));
 
         String targetNode = internalCluster().startDataOnlyNode();
+
+        MockTransportService sourceMockTransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, sourceNode);
+        MockTransportService targetMockTransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, targetNode);
+
+        AtomicInteger numberOfFileChunkRequests = new AtomicInteger();
+        sourceMockTransportService.addSendBehavior(targetMockTransportService, (connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                numberOfFileChunkRequests.incrementAndGet();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
         client().admin().indices().prepareUpdateSettings(indexName)
             .setSettings(Settings.builder()
                 .put("index.routing.allocation.require._name", targetNode)).get();
@@ -246,6 +260,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         long snapshotSizeForIndex = getSnapshotSizeForIndex(repoName, snapshot, indexName);
         assertThat(repository.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
+        assertThat(numberOfFileChunkRequests.get(), is(equalTo(0)));
 
         assertDocumentsAreEqual(indexName, numDocs);
     }
@@ -452,7 +467,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             CountDownLatch recoverSnapshotFileRequestReceived = new CountDownLatch(1);
             CountDownLatch respondToRecoverSnapshotFile = new CountDownLatch(1);
             AtomicInteger numberOfRecoverSnapshotFileRequestsReceived = new AtomicInteger();
-            targetMockTransportService.addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.RECOVER_SNAPSHOT_FILE,
+            targetMockTransportService.addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
                 (handler, request, channel, task) -> {
                     numberOfRecoverSnapshotFileRequestsReceived.incrementAndGet();
                     recoverSnapshotFileRequestReceived.countDown();

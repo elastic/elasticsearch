@@ -64,9 +64,18 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                 break;
             case MIXED:
             case UPGRADED:
+                // Drop replicas
+                updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0));
                 ensureGreen(indexName);
-                for (int i = 0; i < 4; i++) {
-                    assertSearchResultsAreCorrect(indexName, numDocs);
+
+                // Add replicas 1 by 1
+                for (int replicas = 1; replicas <= 2; replicas++) {
+                    updateIndexSettings(indexName,
+                        Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), replicas));
+                    ensureGreen(indexName);
+                    for (int i = 0; i < 4; i++) {
+                        assertSearchResultsAreCorrect(indexName, numDocs);
+                    }
                 }
                 break;
             default:

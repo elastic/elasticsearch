@@ -671,18 +671,21 @@ public class RecoverySourceHandler {
                     }
                 };
 
-                recoveryTarget.downloadSnapshotFile(
+                recoveryTarget.restoreFileFromSnapshot(
                     snapshotFilesToRecover.getRepository(),
                     snapshotFilesToRecover.getIndexId(),
                     snapshotFileToRecover,
                     ActionListener.runAfter(sendRequestListener, this::sendRequest)
                 );
+            } catch (CancellableThreads.ExecutionCancelledException e) {
+                onCancellation(e);
             } catch (Exception e) {
-                onFailure(e);
+                onRequestCompletion(snapshotFileToRecover.metadata(), e);
+                sendRequest();
             }
         }
 
-        void onFailure(Exception e) {
+        void onCancellation(Exception e) {
             if (cancelled.compareAndSet(false, true)) {
                 pendingSnapshotFilesToRecover.clear();
                 listener.onFailure(e);

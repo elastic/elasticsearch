@@ -922,18 +922,22 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             Set<String> filesRecoveredFromSnapshot = Collections.synchronizedSet(new HashSet<>());
             TestRecoveryTargetHandler recoveryTarget = new Phase1RecoveryTargetHandler() {
                 @Override
-                public void downloadSnapshotFile(String repository,
-                                                 IndexId indexId,
-                                                 BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
-                                                 ActionListener<Void> listener) {
+                public void restoreFileFromSnapshot(String repository,
+                                                    IndexId indexId,
+                                                    BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+                                                    ActionListener<Void> listener) {
                     assertThat(repository, is(equalTo(snapshotFilesToRecover.getRepository())));
                     assertThat(indexId, is(equalTo(snapshotFilesToRecover.getIndexId())));
                     assertThat(containsSnapshotFile(snapshotFilesToRecover, snapshotFile), is(equalTo(true)));
+                    String fileName = snapshotFile.metadata().name();
 
-                    final String fileName = snapshotFile.metadata().name();
                     if (randomBoolean()) {
                         filesFailedToDownload.add(fileName);
-                        listener.onFailure(randomFrom(new IOException("Failure"), new CorruptIndexException("idx", "")));
+                        if (randomBoolean()) {
+                            listener.onFailure(randomFrom(new IOException("Failure"), new CorruptIndexException("idx", "")));
+                        } else {
+                            throw new RuntimeException("Unexpected exception");
+                        }
                     } else {
                         filesRecoveredFromSnapshot.add(fileName);
                         listener.onResponse(null);
@@ -998,10 +1002,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             List<RecoverSnapshotFileResponse> unrespondedRecoverSnapshotFiles = new CopyOnWriteArrayList<>();
             TestRecoveryTargetHandler recoveryTarget = new Phase1RecoveryTargetHandler() {
                 @Override
-                public void downloadSnapshotFile(String repository,
-                                                 IndexId indexId,
-                                                 BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
-                                                 ActionListener<Void> listener) {
+                public void restoreFileFromSnapshot(String repository,
+                                                    IndexId indexId,
+                                                    BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+                                                    ActionListener<Void> listener) {
                     unrespondedRecoverSnapshotFiles.add(new RecoverSnapshotFileResponse(snapshotFile, listener));
                     recoverSnapshotFileRequests.incrementAndGet();
                 }
@@ -1079,10 +1083,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             List<RecoverSnapshotFileResponse> unrespondedRecoverSnapshotFiles = new CopyOnWriteArrayList<>();
             TestRecoveryTargetHandler recoveryTarget = new Phase1RecoveryTargetHandler() {
                 @Override
-                public void downloadSnapshotFile(String repository,
-                                                 IndexId indexId,
-                                                 BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
-                                                 ActionListener<Void> listener) {
+                public void restoreFileFromSnapshot(String repository,
+                                                    IndexId indexId,
+                                                    BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+                                                    ActionListener<Void> listener) {
                     assert unrespondedRecoverSnapshotFiles.isEmpty(): "Unexpected call";
 
                     unrespondedRecoverSnapshotFiles.add(new RecoverSnapshotFileResponse(snapshotFile, listener));
@@ -1262,9 +1266,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void downloadSnapshotFile(String repository, IndexId indexId, BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
-                                         ActionListener<Void> listener) {
-
+        public void restoreFileFromSnapshot(String repository, IndexId indexId, BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+                                            ActionListener<Void> listener) {
         }
 
         @Override

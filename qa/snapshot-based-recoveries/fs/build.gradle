@@ -22,6 +22,9 @@ restResources {
 }
 
 tasks.withType(Test).configureEach {
+  doFirst {
+    delete(repoDir)
+  }
   systemProperty 'tests.path.repo', repoDir
 }
 

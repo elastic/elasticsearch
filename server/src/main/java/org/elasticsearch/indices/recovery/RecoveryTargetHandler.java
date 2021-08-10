@@ -95,15 +95,15 @@ public interface RecoveryTargetHandler {
     void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener);
 
     /**
-     * Downloads a snapshot file in the target store
+     * Restores a snapshot file in the target store
      * @param repository the repository to fetch the snapshot file
      * @param indexId the repository index id that identifies the shard index
      * @param snapshotFile the actual snapshot file to download
      */
-    void downloadSnapshotFile(String repository,
-                              IndexId indexId,
-                              BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
-                              ActionListener<Void> listener);
+    void restoreFileFromSnapshot(String repository,
+                                 IndexId indexId,
+                                 BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+                                 ActionListener<Void> listener);
 
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content,

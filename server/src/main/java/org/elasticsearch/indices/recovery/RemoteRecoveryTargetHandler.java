@@ -173,11 +173,11 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void downloadSnapshotFile(String repository,
-                                     IndexId indexId,
-                                     BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
-                                     ActionListener<Void> listener) {
-        final String action = PeerRecoveryTargetService.Actions.RECOVER_SNAPSHOT_FILE;
+    public void restoreFileFromSnapshot(String repository,
+                                        IndexId indexId,
+                                        BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+                                        ActionListener<Void> listener) {
+        final String action = PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT;
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         final RecoverySnapshotFileRequest request =
             new RecoverySnapshotFileRequest(recoveryId, requestSeqNo, shardId, repository, indexId, snapshotFile);

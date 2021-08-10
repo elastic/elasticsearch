@@ -505,10 +505,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void downloadSnapshotFile(String repository,
-                                     IndexId indexId,
-                                     BlobStoreIndexShardSnapshot.FileInfo fileInfo,
-                                     ActionListener<Void> listener) {
+    public void restoreFileFromSnapshot(String repository,
+                                        IndexId indexId,
+                                        BlobStoreIndexShardSnapshot.FileInfo fileInfo,
+                                        ActionListener<Void> listener) {
         try (InputStream inputStream =
                  snapshotFilesProvider.getInputStreamForSnapshotFile(repository, indexId, shardId, fileInfo, this::registerThrottleTime)) {
             StoreFileMetadata metadata = fileInfo.metadata();

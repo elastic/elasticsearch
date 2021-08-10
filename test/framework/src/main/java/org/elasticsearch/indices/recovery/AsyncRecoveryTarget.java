@@ -86,10 +86,10 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void downloadSnapshotFile(String repository,
-                                     IndexId indexId,
-                                     BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
-                                     ActionListener<Void> listener) {
-        executor.execute(() -> target.downloadSnapshotFile(repository, indexId, snapshotFile, listener));
+    public void restoreFileFromSnapshot(String repository,
+                                        IndexId indexId,
+                                        BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+                                        ActionListener<Void> listener) {
+        executor.execute(() -> target.restoreFileFromSnapshot(repository, indexId, snapshotFile, listener));
     }
 }

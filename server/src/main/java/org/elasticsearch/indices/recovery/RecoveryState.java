@@ -635,6 +635,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         void resetRecoveredBytes() {
             assert reused == false : "file is marked as reused, can't update recovered bytes";
+            // TODO: change this once we keep track of recovered data broke down by snapshot/primary
             recovered = 0;
         }
 

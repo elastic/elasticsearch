@@ -371,6 +371,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
                 return new ByteArrayInputStream(fileData);
             }
+
+            @Override
+            public int getReadSnapshotFileBufferSizeForRepo(String repository) {
+                return (int) new ByteSizeValue(128, ByteSizeUnit.KB).getBytes();
+            }
         };
 
         recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
@@ -379,7 +384,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, null);
 
         PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
-        recoveryTarget.downloadSnapshotFile(repositoryName, indexId, fileInfo, writeSnapshotFileFuture);
+        recoveryTarget.restoreFileFromSnapshot(repositoryName, indexId, fileInfo, writeSnapshotFileFuture);
         writeSnapshotFileFuture.get();
 
         Optional<String> tmpFileName = Arrays.stream(directory.listAll())
@@ -463,6 +468,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                         throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
                 }
             }
+
+            @Override
+            public int getReadSnapshotFileBufferSizeForRepo(String repository) {
+                return (int) new ByteSizeValue(128, ByteSizeUnit.KB).getBytes();
+            }
         };
 
         recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
@@ -476,14 +486,14 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             new BlobStoreIndexShardSnapshot.FileInfo("name", storeFileMetadata, SNAPSHOT_FILE_PART_SIZE);
 
         PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
-        recoveryTarget.downloadSnapshotFile(repositoryName, indexId, fileInfo, writeSnapshotFileFuture);
+        recoveryTarget.restoreFileFromSnapshot(repositoryName, indexId, fileInfo, writeSnapshotFileFuture);
         ExecutionException executionException = expectThrows(ExecutionException.class, writeSnapshotFileFuture::get);
 
         Throwable downloadFileError = executionException.getCause();
         switch (downloadFileErrorType) {
             case CORRUPTED_FILE:
             case LARGER_THAN_EXPECTED_FILE:
-                // Files larger than expected are catch by VerifyingIndexInput too
+                // Files larger than expected are caught by VerifyingIndexInput too
                 assertThat(downloadFileError, is(instanceOf(CorruptIndexException.class)));
                 break;
             case TRUNCATED_FILE:
@@ -541,6 +551,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                                                              Consumer<Long> rateLimiterListener) {
                 return new ByteArrayInputStream(fileData);
             }
+
+            @Override
+            public int getReadSnapshotFileBufferSizeForRepo(String repository) {
+                return (int) new ByteSizeValue(128, ByteSizeUnit.KB).getBytes();
+            }
         };
 
         recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
@@ -556,7 +571,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         recoveryTarget.incRef();
 
         PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
-        recoveryTarget.downloadSnapshotFile(repository, indexId, fileInfo, writeSnapshotFileFuture);
+        recoveryTarget.restoreFileFromSnapshot(repository, indexId, fileInfo, writeSnapshotFileFuture);
         writeSnapshotFileFuture.get();
 
         RecoveryState.FileDetail fileDetails = recoveryStateIndex.getFileDetails(storeFileMetadata.name());

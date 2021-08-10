@@ -768,7 +768,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
             PeerRecoveryTargetService.Actions.TRANSLOG_OPS,
             PeerRecoveryTargetService.Actions.FILES_INFO,
-            PeerRecoveryTargetService.Actions.RECOVER_SNAPSHOT_FILE,
+            PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
             PeerRecoveryTargetService.Actions.FILE_CHUNK,
             PeerRecoveryTargetService.Actions.CLEAN_FILES,
             PeerRecoveryTargetService.Actions.FINALIZE
@@ -776,7 +776,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String recoveryActionToBlock = randomFrom(recoveryActions);
         logger.info("--> will temporarily interrupt recovery action between blue & red on [{}]", recoveryActionToBlock);
 
-        if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RECOVER_SNAPSHOT_FILE)) {
+        if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
         }
 
@@ -943,7 +943,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         String[] recoveryActions = new String[]{
                 PeerRecoverySourceService.Actions.START_RECOVERY,
                 PeerRecoveryTargetService.Actions.FILES_INFO,
-                PeerRecoveryTargetService.Actions.RECOVER_SNAPSHOT_FILE,
+                PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
                 PeerRecoveryTargetService.Actions.FILE_CHUNK,
                 PeerRecoveryTargetService.Actions.CLEAN_FILES,
                 //RecoveryTarget.Actions.TRANSLOG_OPS, <-- may not be sent if already flushed
@@ -955,7 +955,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> will {} between blue & red on [{}]", dropRequests ? "drop requests" : "break connection", recoveryActionToBlock);
 
         // Generate a snapshot to recover from it if the action that we're blocking is sending the request  snapshot files
-        if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RECOVER_SNAPSHOT_FILE)) {
+        if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
         }
 

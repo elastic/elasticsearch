@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 7.14.99"
-      reason: field usage stats API is introduced in 7.15
+      version: " - 7.99.99"
+      reason: field usage changes in lucene 9
 
 ---
 "Field usage stats":

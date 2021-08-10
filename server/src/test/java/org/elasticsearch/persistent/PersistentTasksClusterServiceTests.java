@@ -672,17 +672,19 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             t1.start();
             t2.start();
             // Make sure we have at least one reassign check before we count down the latch
-            assertBusy(() -> verify(recheckTestClusterService, atLeastOnce()).submitStateUpdateTask(eq("reassign persistent tasks"), any()));
+            assertBusy(
+                () -> verify(recheckTestClusterService, atLeastOnce()).submitStateUpdateTask(eq("reassign persistent tasks"), any())
+            );
         } finally {
             latch.countDown();
             t1.join();
             t2.join();
             service.reassignPersistentTasks();
-            // verify that our reassignment is possible again, here we have once from the previous reassignment in the `try` block
-            // And one from the line above once the other threads have joined
-            assertBusy(() -> verify(recheckTestClusterService, times(2)).submitStateUpdateTask(eq("reassign persistent tasks"), any()));
-            verifyNoMoreInteractions(recheckTestClusterService);
         }
+        // verify that our reassignment is possible again, here we have once from the previous reassignment in the `try` block
+        // And one from the line above once the other threads have joined
+        assertBusy(() -> verify(recheckTestClusterService, times(2)).submitStateUpdateTask(eq("reassign persistent tasks"), any()));
+        verifyNoMoreInteractions(recheckTestClusterService);
     }
 
     private ClusterService createStateUpdateClusterState(ClusterState initialState, boolean shouldSimulateFailure) {

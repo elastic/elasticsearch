@@ -11,7 +11,6 @@ package org.elasticsearch.script;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Fields API accessor for DocValues, users must currently call their own casting methods using

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.spi.AnnotationTestObject;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistClass;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -15,11 +16,12 @@ import org.elasticsearch.painless.spi.WhitelistMethod;
 import org.elasticsearch.painless.spi.annotation.DeprecatedAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
 import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class WhitelistLoaderTests extends ScriptTestCase {
+public class WhitelistLoaderTests extends ESTestCase {
     public void testUnknownAnnotations() {
         Map<String, WhitelistAnnotationParser> parsers = new HashMap<>(WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS);
 

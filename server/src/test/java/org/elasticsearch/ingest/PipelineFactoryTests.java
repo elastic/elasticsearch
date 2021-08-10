@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,7 +30,7 @@ public class PipelineFactoryTests extends ESTestCase {
     private final Integer version = randomBoolean() ? randomInt() : null;
     private final String versionString = version != null ? Integer.toString(version) : null;
     private final ScriptService scriptService = mock(ScriptService.class);
-    private final Map<String, Object> metadata = randomMeta();
+    private final Map<String, Object> metadata = randomMapOfMaps();
 
     public void testCreate() throws Exception {
         Map<String, Object> processorConfig0 = new HashMap<>();
@@ -216,16 +217,26 @@ public class PipelineFactoryTests extends ESTestCase {
         assertThat(flattened.size(), equalTo(4));
     }
 
-    public static Map<String, Object> randomMeta() {
+    private Map<String, Object> randomMapOfMaps() {
         if (randomBoolean()) {
-            if (randomBoolean()) {
-                return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
-            } else {
-                return Collections.singletonMap(randomAlphaOfLength(5),
-                    Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
-            }
+            return randomNonNullMapOfMaps(10);
         } else {
             return null;
         }
+    }
+
+    private Map<String, Object> randomNonNullMapOfMaps(int maxDepth) {
+        return randomMap(0, randomIntBetween(1, 5), () -> randomNonNullMapOfMapsSupplier(maxDepth));
+    }
+
+    private Tuple<String, Object> randomNonNullMapOfMapsSupplier(int maxDepth) {
+        String key = randomAlphaOfLength(randomIntBetween(2, 15));
+        Object value;
+        if (maxDepth == 0 || randomBoolean()) {
+            value = randomAlphaOfLength(randomIntBetween(1, 10));
+        } else {
+            value = randomNonNullMapOfMaps(maxDepth - 1);
+        }
+        return Tuple.tuple(key, value);
     }
 }

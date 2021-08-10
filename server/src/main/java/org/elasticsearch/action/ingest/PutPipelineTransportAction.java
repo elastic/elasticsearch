@@ -61,9 +61,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         if (state.getNodes().getMinNodeVersion().before(Version.V_8_0_0)) {
             Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
             if (pipelineConfig.containsKey(Pipeline.META_KEY)) {
-                throw new IllegalArgumentException("All nodes in the cluster must be at " + Version.V_8_0_0 + " or higher in order to" +
-                    "create a pipeline with the " + Pipeline.META_KEY + " field. The minimum version currently in the cluster is " +
-                    state.getNodes().getMinNodeVersion());
+                throw new IllegalStateException("pipelines with _meta field require minimum node version of " + Version.V_8_0_0);
             }
         }
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();

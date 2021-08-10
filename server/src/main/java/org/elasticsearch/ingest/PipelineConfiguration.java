@@ -125,42 +125,8 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        final BytesReference bytesReferenceToWrite;
-        final XContentType xContentTypeToWrite;
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            /*
-             * While serialization works fine regardless of which fields are in the PipelineConfiguration, the Pipeline class throws an
-             * exception if there are fields in the PipelineConfiguration that it does not expect. So when sending the config to older
-             * versions we have to strip out newer fields.
-             */
-            Map<String, Object> configMap = getConfigAsMap();
-            if (configMap.containsKey(Pipeline.META_KEY)) {
-                Map<String, Object> noMetaConfigMap = removeMetaField(configMap);
-                xContentTypeToWrite = XContentType.JSON;
-                String json = mapToXContentString(noMetaConfigMap, xContentTypeToWrite);
-                bytesReferenceToWrite = new BytesArray(json.getBytes(StandardCharsets.UTF_8));
-            } else {
-                bytesReferenceToWrite = config;
-                xContentTypeToWrite = xContentType;
-            }
-        } else {
-            bytesReferenceToWrite = config;
-            xContentTypeToWrite = xContentType;
-        }
-        out.writeBytesReference(bytesReferenceToWrite);
-        XContentHelper.writeTo(out, xContentTypeToWrite);
-    }
-
-    private static String mapToXContentString(Map<String, Object> configMap, XContentType xContentType) throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent()).map(configMap)) {
-            return BytesReference.bytes(builder).utf8ToString();
-        }
-    }
-
-    private static Map<String, Object> removeMetaField(Map<String, Object> configMap) {
-        return configMap.entrySet().stream().filter(entry -> Pipeline.META_KEY.equals(entry.getKey()) == false).collect(
-            Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)
-        );
+        out.writeBytesReference(config);
+        XContentHelper.writeTo(out, xContentType);
     }
 
     @Override

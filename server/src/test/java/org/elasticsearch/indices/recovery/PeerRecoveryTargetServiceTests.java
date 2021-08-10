@@ -328,7 +328,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         recoveryTarget.decRef();
         closeShards(shard);
     }
-
+    private static final ByteSizeValue readSnapshotFileBufferSize = new ByteSizeValue(128, ByteSizeUnit.KB);
     public void testSnapshotFileWrite() throws Exception {
         DiscoveryNode pNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
             Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
@@ -355,23 +355,24 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         BlobStoreIndexShardSnapshot.FileInfo fileInfo =
             new BlobStoreIndexShardSnapshot.FileInfo("name", storeFileMetadata, SNAPSHOT_FILE_PART_SIZE);
 
-        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(mock(RepositoriesService.class)) {
-            @Override
-            public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
-                                                             IndexId requestedIndexId,
-                                                             ShardId requestedShardId,
-                                                             BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
-                                                             Consumer<Long> rateLimiterListener) {
-                assertThat(requestedRepositoryName, equalTo(repositoryName));
-                assertThat(requestedIndexId, equalTo(indexId));
-                assertThat(requestedShardId, equalTo(shardId));
+        SnapshotFilesProvider snapshotFilesProvider =
+            new SnapshotFilesProvider(mock(RepositoriesService.class), () -> readSnapshotFileBufferSize) {
+                @Override
+                public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
+                                                                 IndexId requestedIndexId,
+                                                                 ShardId requestedShardId,
+                                                                 BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
+                                                                 Consumer<Long> rateLimiterListener) {
+                    assertThat(requestedRepositoryName, equalTo(repositoryName));
+                    assertThat(requestedIndexId, equalTo(indexId));
+                    assertThat(requestedShardId, equalTo(shardId));
 
-                assertThat(snapshotFileInfo.name(), equalTo(fileInfo.name()));
-                assertThat(snapshotFileInfo.metadata().isSame(storeFileMetadata), equalTo(true));
+                    assertThat(snapshotFileInfo.name(), equalTo(fileInfo.name()));
+                    assertThat(snapshotFileInfo.metadata().isSame(storeFileMetadata), equalTo(true));
 
-                return new ByteArrayInputStream(fileData);
-            }
-        };
+                    return new ByteArrayInputStream(fileData);
+                }
+            };
 
         recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
         recoveryStateIndex.setFileDetailsComplete();
@@ -429,41 +430,42 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         byte[] fileData = storeFileMetadataAndData.v2();
         final DownloadFileErrorType downloadFileErrorType = randomFrom(DownloadFileErrorType.values());
 
-        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(mock(RepositoriesService.class)) {
-            @Override
-            public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
-                                                             IndexId requestedIndexId,
-                                                             ShardId requestedShardId,
-                                                             BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
-                                                             Consumer<Long> rateLimiterListener) {
-                switch (downloadFileErrorType) {
-                    case CORRUPTED_FILE:
-                        byte[] fileDataCopy = new byte[fileData.length];
-                        System.arraycopy(fileData, 0, fileDataCopy, 0, fileData.length);
-                        // Corrupt the file
-                        for (int i = 0; i < randomIntBetween(1, fileDataCopy.length); i++) {
-                            fileDataCopy[i] = randomByte();
-                        }
-                        return new ByteArrayInputStream(fileDataCopy);
-                    case TRUNCATED_FILE:
-                        final int truncatedFileLength = fileData.length / 2;
-                        byte[] truncatedCopy = new byte[truncatedFileLength];
-                        System.arraycopy(fileData, 0, truncatedCopy, 0, truncatedFileLength);
-                        return new ByteArrayInputStream(truncatedCopy);
-                    case LARGER_THAN_EXPECTED_FILE:
-                        byte[] largerData = new byte[fileData.length + randomIntBetween(1, 250)];
-                        System.arraycopy(fileData, 0, largerData, 0, fileData.length);
-                        for (int i = fileData.length; i < largerData.length ; i++) {
-                            largerData[i] = randomByte();
-                        }
-                        return new ByteArrayInputStream(largerData);
-                    case FETCH_ERROR:
-                        throw new RuntimeException("Unexpected error");
-                    default:
-                        throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
+        SnapshotFilesProvider snapshotFilesProvider =
+            new SnapshotFilesProvider(mock(RepositoriesService.class), () -> readSnapshotFileBufferSize) {
+                @Override
+                public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
+                                                                 IndexId requestedIndexId,
+                                                                 ShardId requestedShardId,
+                                                                 BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
+                                                                 Consumer<Long> rateLimiterListener) {
+                    switch (downloadFileErrorType) {
+                        case CORRUPTED_FILE:
+                            byte[] fileDataCopy = new byte[fileData.length];
+                            System.arraycopy(fileData, 0, fileDataCopy, 0, fileData.length);
+                            // Corrupt the file
+                            for (int i = 0; i < randomIntBetween(1, fileDataCopy.length); i++) {
+                                fileDataCopy[i] = randomByte();
+                            }
+                            return new ByteArrayInputStream(fileDataCopy);
+                        case TRUNCATED_FILE:
+                            final int truncatedFileLength = fileData.length / 2;
+                            byte[] truncatedCopy = new byte[truncatedFileLength];
+                            System.arraycopy(fileData, 0, truncatedCopy, 0, truncatedFileLength);
+                            return new ByteArrayInputStream(truncatedCopy);
+                        case LARGER_THAN_EXPECTED_FILE:
+                            byte[] largerData = new byte[fileData.length + randomIntBetween(1, 250)];
+                            System.arraycopy(fileData, 0, largerData, 0, fileData.length);
+                            for (int i = fileData.length; i < largerData.length; i++) {
+                                largerData[i] = randomByte();
+                            }
+                            return new ByteArrayInputStream(largerData);
+                        case FETCH_ERROR:
+                            throw new RuntimeException("Unexpected error");
+                        default:
+                            throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
+                    }
                 }
-            }
-        };
+            };
 
         recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
         recoveryStateIndex.setFileDetailsComplete();
@@ -532,16 +534,17 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         StoreFileMetadata storeFileMetadata = storeFileMetadataAndData.v1();
         byte[] fileData = storeFileMetadataAndData.v2();
 
-        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(mock(RepositoriesService.class)) {
-            @Override
-            public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
-                                                             IndexId requestedIndexId,
-                                                             ShardId requestedShardId,
-                                                             BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
-                                                             Consumer<Long> rateLimiterListener) {
-                return new ByteArrayInputStream(fileData);
-            }
-        };
+        SnapshotFilesProvider snapshotFilesProvider =
+            new SnapshotFilesProvider(mock(RepositoriesService.class), () -> readSnapshotFileBufferSize) {
+                @Override
+                public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
+                                                                 IndexId requestedIndexId,
+                                                                 ShardId requestedShardId,
+                                                                 BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
+                                                                 Consumer<Long> rateLimiterListener) {
+                    return new ByteArrayInputStream(fileData);
+                }
+            };
 
         recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
         recoveryStateIndex.setFileDetailsComplete();

@@ -1,0 +1,5 @@
+# whitelist for annotation tests with unknown annotation containing options
+
+class org.elasticsearch.painless.spi.AnnotationTestObject @no_import {
+  void unknownAnnotationMethod() @unknownAnootationWithMessage[arg="arg value"]
+}

@@ -1,80 +1,197 @@
 [[configuring-stack-security]]
-== Configure security for the Elastic Stack
-++++
-<titleabbrev>Configuring security</titleabbrev>
-++++
+== Start the Elastic Stack with security enabled
 
-Security needs vary depending on whether you're developing locally on your
-laptop or securing all communications in a production environment. Because
-security needs vary, the following scenarios provide options for configuring
-the Elastic Stack.
+beta::[This functionality is in alpha and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Alpha features are not subject to the support SLA of official GA features.]
 
-TIP: Each subsequent scenario builds on the previous one so that you can add
-additional security by building on the existing layer.
-
-These scenarios don't cover every situation, but provide a framework for
-securing {es} and the Elastic Stack based on typical use cases.
-
-image::images/elastic-security-overview.png[Elastic Security layers]
+Before you start {es} for the first time, run the `elasticsearch-security-config`
+tool. This tool generates certificates and keys for the transport and HTTP
+layers of {es}, and writes the TLS configuration settings to `elasticsearch.yml`.
 
 [discrete]
-[[security-minimal-overview]]
-=== Minimal security ({es} Development)
+=== Prerequisites
 
-If you want to set up {es} on your laptop and start developing, this scenario
-is for you. This configuration prevents unauthorized access to your local
-cluster by setting up passwords for the built-in users. You also configure
-password authentication for {kib}.
-
-// tag::minimal-security-note[]
-IMPORTANT: The minimal security scenario is not sufficient for
-<<dev-vs-prod-mode,production mode>> clusters. If your cluster has multiple
-nodes, you must enable minimal security and then
-<<security-basic-setup,configure Transport Layer Security (TLS)>> between
-nodes.
-
-// end::minimal-security-note[]
-
-<<security-minimal-setup,Set up minimal security>>
+Download the `elasticsearch 8.0.0-alpha1` package distribution for your
+environment.
 
 [discrete]
-[[security-basic-overview]]
-=== Basic security ({es} Production)
+=== Start {es} with security enabled
 
-This scenario builds on the minimal security requirements by adding transport
-Layer Security (TLS) for communication between nodes. This additional layer
-requires that nodes verify security certificates, which prevents unauthorized
-nodes from joining your {es} cluster.
+. Before starting {es} for the first time, run the
+`elasticsearch-security-config` tool from the directory where you downloaded
+the {es} package distribution:
++
+[source,shell]
+----
+./bin/elasticsearch-security-config
+----
++
+The `elasticsearch-security-config` tool generates the following security
+certificates and keys in `$ES_PATH_CONF/auto_config_on_<timestamp>`:
++
+--
+`http_ca.crt`::
+The CA certificate that is used to sign the certificates for the HTTP layer of
+this {es} cluster.
 
-Your external HTTP traffic between {es} and {kib} won't be encrypted, but
-internode communication will be secured.
+`http_keystore_local_node.p12`::
+Keystore that contains the key and certificate for the HTTP layer for this node.
 
-<<security-basic-setup,Set up basic security>>
+`transport_keystore_all_nodes.p12`::
+Keystore that contains the key and certificate for the transport layer for all the nodes in your cluster.
+--
++
+NOTE: The `ES_PATH_CONF` variable is the path for the {es}
+configuration files. If you installed {es} using archive distributions
+(`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
+package distributions (Debian or RPM), the variable defaults to
+`/etc/elasticsearch`.
+
+. Start {es}.
++
+[source,shell]
+----
+./bin/elasticsearch
+----
+
+. In another terminal window, run the
+<<setup-passwords,`elasticsearch-setup-passwords`>> utility from the directory
+where you downloaded the {es} package distribution:
++
+[source,shell]
+----
+./bin/elasticsearch-setup-passwords auto
+----
++
+If you want to use your own passwords, run the command with the
+`interactive` parameter instead of the `auto` parameter. Using this mode
+steps you through password configuration for all of the built-in users.
++
+[source,shell]
+----
+./bin/elasticsearch-setup-passwords interactive
+----
+
+. Save the generated passwords. You'll need them to add the built-in user to
+{kib}.
++
+NOTE: After you set a password for the `elastic` user, you cannot run the
+`elasticsearch-setup-passwords` command a second time. If you forgot the
+password for the `elastic` user or want to change it, use the
+<<reset-elastic-password,`elasticsearch-reset-elastic-password`>> tool.
+
+. Make an authenticated call to your {es} cluster and enter the password for
+the `elastic` user when prompted:
++
+[source,shell]
+----
+curl --cacert $ES_PATH_CONF/auto_config_on_<timestamp>/http_ca.crt \
+-u elastic https://localhost:9200
+----
+// NOTCONSOLE
++
+`--cacert`::
+Path to the generated `http_ca.crt` certificate for the HTTP layer.
+
+*Next*: <<add-kib-user,Configure {kib} to connect to {es} with a password>>
 
 [discrete]
-[[security-basic-https-overview]]
-=== Basic security plus secured HTTPS traffic (Elastic Stack)
+[[add-kib-user]]
+=== Configure {kib} to connect to {es} with a password
 
-This scenario builds on the one for basic security and secures all HTTP
-traffic with TLS. In addition to configuring TLS on the transport interface of
-your {es} cluster, you configure TLS on the HTTP interface for both
-{es} and {kib}.
+With security enabled, users must log in to {kib} with a valid username and
+password.
 
-NOTE: If you need mutual (bidirectional) TLS on the HTTP layer, then you'll
-need to configure mutual authenticated encryption.
+You'll configure {kib} to use the built-in `kibana_system` user and the password
+that you created earlier. {kib} performs some background tasks that require use
+of the `kibana_system` user.
 
-You then configure {kib} and Beats to communicate with
-{es} using TLS so that all communications are encrypted. This level
-of security is strong, and ensures that any communications in and out of your
-cluster are secure.
+This account is not meant for individual users and does not have permission to
+log in to {kib} from a browser. Instead, you'll log in to {kib} as the `elastic`
+superuser. 
 
-<<security-basic-setup-https,Set up basic security plus HTTPS traffic>>
+. Add the `elasticsearch.username` setting to the `$KBN_PATH_CONF/kibana.yml`
+file and set the value to the `kibana_system` user:
++
+[source,yaml]
+----
+elasticsearch.username: "kibana_system"
+----
++
+NOTE: The `$KBN_PATH_CONF` variable is the path for the {kib}
+configuration files. If you installed {kib} using archive distributions
+(`zip` or `tar.gz`), the variable defaults to `$KBN_HOME/config`. If you used
+package distributions (Debian or RPM), the variable defaults to `/etc/kibana`.
 
-include::securing-communications/security-minimal-setup.asciidoc[]
-include::securing-communications/security-basic-setup.asciidoc[]
-include::securing-communications/security-basic-setup-https.asciidoc[]
-include::securing-communications/configuring-tls-docker.asciidoc[]
-include::securing-communications/enabling-cipher-suites.asciidoc[]
-include::securing-communications/tls-versions-jdk.asciidoc[]
-include::reference/files.asciidoc[]
-include::fips-140-compliance.asciidoc[]
+. From the directory where you installed {kib}, run the following commands
+to create the {kib} keystore and add the secure settings:
+
+   a. Create the {kib} keystore:
++
+[source,shell]
+----
+./bin/kibana-keystore create
+----
+
+   b. Add the password for the `kibana_system` user to the {kib} keystore:
++
+[source,shell]
+----
+./bin/kibana-keystore add elasticsearch.password
+----
++
+When prompted, enter the password for the `kibana_system` user.
+
+. Restart {kib}. For example, if you installed {kib} with a `.tar.gz` package, run the following command from the {kib} directory:
++
+[source,shell]
+----
+./bin/kibana
+----
+
+. Log in to {kib} as the `elastic` user. Use this superuser account to 
+{kibana-ref}/tutorial-secure-access-to-kibana.html[manage spaces, create new users, and assign roles]. If you're running {kib} locally, go to `http://localhost:5601` to view the login page.
+
+*Next*: <<encrypt-kibana-with-elasticsearch,Encrypt traffic between {kib} and {es}>>
+
+[discrete]
+[[encrypt-kibana-with-elasticsearch]]
+=== Encrypt traffic between {kib} and {es}
+
+When you ran the `elasticsearch-security-config` tool, it
+created an `http_ca.crt` file in `$ES_PATH_CONF/auto_config_on_<timestamp>`.
+Use this file to configure {kib} to trust the {es} CA for the HTTP layer.
+
+1. Copy the `http_ca.crt` file to the {kib} configuration directory, as defined
+by the `$KBN_PATH_CONF` path.
+
+2. Open `kibana.yml` and add the following line to specify the location of the
+security certificate for the HTTP layer.
++
+[source,yaml]
+----
+elasticsearch.ssl.certificateAuthorities: $KBN_PATH_CONF/http_ca.crt
+----
+
+3. Add the following line to specify the HTTPS URL for your {es}
+cluster.
++
+[source,yaml]
+----
+elasticsearch.hosts: https://<your_elasticsearch_host>.com:9200
+----
+
+4. Restart {kib}. You can now connect to {kib} securely over HTTPS, such as
+`https://localhost:5601`.
+
+.Connect to a secure monitoring cluster
+****
+If the Elastic monitoring features are enabled and you configured a separate
+{es} monitoring cluster, you can also configure {kib} to connect to
+the monitoring cluster via HTTPS. The steps are the same, but each setting is
+prefixed by `monitoring`. For example, `monitoring.ui.elasticsearch.hosts` and
+`monitoring.ui.elasticsearch.ssl.truststore.path`.
+
+NOTE: You must create a separate `elasticsearch-ca.pem` security file for the
+monitoring cluster. Refer to
+<<encrypt-http-communication,Encrypt HTTP client communications for {es}>>.
+****

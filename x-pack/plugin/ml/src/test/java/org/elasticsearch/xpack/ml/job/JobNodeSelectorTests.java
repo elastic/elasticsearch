@@ -643,9 +643,13 @@ public class JobNodeSelectorTests extends ESTestCase {
         assertThat(
             result.getExplanation(),
             equalTo(
-                "Not opening job [incompatible_type_job] on node [{_node_name1}{version=8.0.0}], "
+                "Not opening job [incompatible_type_job] on node [{_node_name1}{version="
+                    + Version.CURRENT
+                    + "}], "
                     + "because this node does not support jobs of type [incompatible_type]|"
-                    + "Not opening job [incompatible_type_job] on node [{_node_name2}{version=8.0.0}], "
+                    + "Not opening job [incompatible_type_job] on node [{_node_name2}{version="
+                    + Version.CURRENT
+                    + "}], "
                     + "because this node does not support jobs of type [incompatible_type]"
             )
         );

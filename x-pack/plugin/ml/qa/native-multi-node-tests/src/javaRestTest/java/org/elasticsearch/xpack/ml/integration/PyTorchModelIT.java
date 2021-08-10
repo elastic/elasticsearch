@@ -20,9 +20,12 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -125,6 +128,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         createTrainedModel();
         startDeployment();
         CountDownLatch latch = new CountDownLatch(10);
+        Queue<String> failures = new ConcurrentLinkedQueue<>();
         try {
             // Adding multiple inference calls to verify different calls get routed to separate nodes
             for (int i = 0; i < 10; i++) {
@@ -133,15 +137,18 @@ public class PyTorchModelIT extends ESRestTestCase {
                         Response inference = infer("my words");
                         assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference\":[[1.0,1.0]]}"));
                     } catch (IOException ex) {
-                        fail(ex.getMessage());
+                        failures.add(ex.getMessage());
                     } finally {
                         latch.countDown();
                     }
                 });
             }
         } finally {
-            latch.await();
+            assertTrue("timed-out waiting for inference requests after 30s", latch.await(30, TimeUnit.SECONDS));
             stopDeployment();
+        }
+        if (failures.isEmpty() == false) {
+            fail("Inference calls failed with [" + failures.stream().reduce((s1, s2) -> s1 + ", " + s2) + "]");
         }
     }
 

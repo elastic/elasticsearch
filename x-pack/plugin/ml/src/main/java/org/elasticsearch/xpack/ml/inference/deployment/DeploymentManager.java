@@ -178,8 +178,19 @@ public class DeploymentManager {
     public void infer(TrainedModelDeploymentTask task,
                       String input, TimeValue timeout,
                       ActionListener<InferenceResults> listener) {
-        ProcessContext processContext = processContextByAllocation.get(task.getId());
+        if (task.isStopped()) {
+            listener.onFailure(
+                new IllegalStateException("["
+                    + task.getModelId()
+                    + "] is stopping or stopped due to ["
+                    + task.stoppedReason().orElse("")
+                    + "]"
+                )
+            );
+            return;
+        }
 
+        ProcessContext processContext = processContextByAllocation.get(task.getId());
         if (processContext == null) {
             listener.onFailure(new IllegalStateException("[" + task.getModelId() + "] process context missing"));
             return;

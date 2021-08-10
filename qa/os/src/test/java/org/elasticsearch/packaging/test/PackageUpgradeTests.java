@@ -83,6 +83,7 @@ public class PackageUpgradeTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution, sh);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76283")
     public void test21CheckUpgradedVersion() throws Exception {
         assertWhileRunning(() -> { assertDocsExist(); });
     }

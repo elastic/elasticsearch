@@ -1,0 +1,20 @@
+---
+setup:
+  - skip:
+      version: "9.0.0 - "
+      reason: "compatible from 8.x to 7.x"
+      features:
+        - "headers"
+        - "warnings_regex"
+
+---
+"Throw exception when adding voting config exclusion by specifying a 'node_name'":
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      cluster.post_voting_config_exclusions_with_node_name_part:
+        node_name: someNodeName
+      warnings_regex:
+        - ".* /_cluster/voting_config_exclusions/\\{node_name\\} has been removed. .*"
+      catch: /\[node_name\] has been removed, you must set \[node_names\] or \[node_ids\]/

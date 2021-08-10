@@ -84,7 +84,7 @@ public abstract class AbstractFieldScript {
     /**
      * Set the document to run the script against.
      */
-    public final void setDocument(int docId) {
+    public void setDocument(int docId) {
         this.leafSearchLookup.setDocument(docId);
     }
 
@@ -104,6 +104,16 @@ public abstract class AbstractFieldScript {
 
     protected List<Object> extractFromSource(String path) {
         return XContentMapValues.extractRawValues(path, leafSearchLookup.source().source());
+    }
+
+    protected final void emitFromCompositeScript(CompositeFieldScript compositeFieldScript) {
+        List<Object> values = compositeFieldScript.getValues(fieldName);
+        if (values == null) {
+            return;
+        }
+        for (Object value : values) {
+            emitFromObject(value);
+        }
     }
 
     protected abstract void emitFromObject(Object v);

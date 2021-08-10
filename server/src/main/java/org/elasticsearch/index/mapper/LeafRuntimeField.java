@@ -11,13 +11,12 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
- * RuntimeField base class for leaf fields that will only ever return
- * a single MappedFieldType from {@link RuntimeField#asMappedFieldTypes()}
+ * RuntimeField base class for leaf fields that will only ever return a single {@link MappedFieldType}
+ * from {@link RuntimeField#asMappedFieldTypes()}. Can be a standalone runtime field, or part of a composite.
  */
 public final class LeafRuntimeField implements RuntimeField {
     private final String name;
@@ -28,17 +27,17 @@ public final class LeafRuntimeField implements RuntimeField {
         this.name = name;
         this.mappedFieldType = mappedFieldType;
         this.parameters = parameters;
-        assert name.equals(mappedFieldType.name());
+        assert mappedFieldType.name().endsWith(name) : "full name: " + mappedFieldType.name() + " - leaf name: " + name;
     }
 
     @Override
     public String name() {
-        return name;
+        return mappedFieldType.name();
     }
 
     @Override
-    public Collection<MappedFieldType> asMappedFieldTypes() {
-        return Collections.singleton(mappedFieldType);
+    public Stream<MappedFieldType> asMappedFieldTypes() {
+        return Stream.of(mappedFieldType);
     }
 
     @Override

@@ -163,9 +163,7 @@ public final class MappingLookup {
         
         this.shadowedFields = new HashSet<>();
         for (RuntimeField runtimeField : mapping.getRoot().runtimeFields()) {
-            for (MappedFieldType mft : runtimeField.asMappedFieldTypes()) {
-                shadowedFields.add(mft.name());
-            }
+            runtimeField.asMappedFieldTypes().forEach(mft -> shadowedFields.add(mft.name()));
         }
 
         this.fieldTypeLookup = new FieldTypeLookup(mapping.type(), mappers, aliasMappers, mapping.getRoot().runtimeFields());

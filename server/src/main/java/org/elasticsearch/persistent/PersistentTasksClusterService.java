@@ -355,7 +355,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     /**
      * Submit a cluster state update to reassign any persistent tasks that need reassigning
      */
-    private void reassignPersistentTasks() {
+    void reassignPersistentTasks() {
         if (this.reassigningTasks.compareAndSet(false, true) == false) {
             return;
         }

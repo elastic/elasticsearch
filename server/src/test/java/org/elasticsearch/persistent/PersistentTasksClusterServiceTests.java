@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -69,8 +70,13 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class PersistentTasksClusterServiceTests extends ESTestCase {
@@ -429,7 +435,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         nonClusterStateCondition = false;
 
         boolean shouldSimulateFailure = randomBoolean();
-        ClusterService recheckTestClusterService = createRecheckTestClusterService(clusterState, shouldSimulateFailure);
+        ClusterService recheckTestClusterService = createStateUpdateClusterState(clusterState, shouldSimulateFailure);
         PersistentTasksClusterService service = createService(recheckTestClusterService,
             (params, candidateNodes, currentState) -> assignBasedOnNonClusterStateCondition(candidateNodes));
 
@@ -477,7 +483,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         ClusterState clusterState = builder.metadata(metadata).nodes(nodes).build();
         nonClusterStateCondition = false;
 
-        ClusterService recheckTestClusterService = createRecheckTestClusterService(clusterState, false);
+        ClusterService recheckTestClusterService = createStateUpdateClusterState(clusterState, false);
         PersistentTasksClusterService service = createService(recheckTestClusterService,
             (params, candidateNodes, currentState) -> assignBasedOnNonClusterStateCondition(candidateNodes));
 
@@ -639,7 +645,49 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             Sets.haveEmptyIntersection(shutdownNodes, nodesWithTasks));
     }
 
-    private ClusterService createRecheckTestClusterService(ClusterState initialState, boolean shouldSimulateFailure) {
+    public void testReassignOnlyOnce() throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        ClusterState initialState = initialState();
+        ClusterState.Builder builder = ClusterState.builder(initialState);
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
+            initialState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
+        );
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(initialState.nodes());
+        addTestNodes(nodes, randomIntBetween(1, 3));
+        addTask(tasks, "assign_based_on_non_cluster_state_condition", null);
+        Metadata.Builder metadata = Metadata.builder(initialState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        ClusterState clusterState = builder.metadata(metadata).nodes(nodes).build();
+
+        boolean shouldSimulateFailure = randomBoolean();
+        ClusterService recheckTestClusterService = createStateUpdateClusterState(clusterState, shouldSimulateFailure, latch);
+        PersistentTasksClusterService service = createService(
+            recheckTestClusterService,
+            (params, candidateNodes, currentState) -> assignBasedOnNonClusterStateCondition(candidateNodes)
+        );
+        verify(recheckTestClusterService, atLeastOnce()).getClusterSettings();
+        verify(recheckTestClusterService, atLeastOnce()).addListener(any());
+        Thread t1 = new Thread(service::reassignPersistentTasks);
+        Thread t2 = new Thread(service::reassignPersistentTasks);
+        try {
+            t1.start();
+            t2.start();
+            assertBusy(() -> verify(recheckTestClusterService, times(1)).submitStateUpdateTask(eq("reassign persistent tasks"), any()));
+            latch.countDown();
+            t1.join();
+            t2.join();
+            verifyNoMoreInteractions(recheckTestClusterService);
+        } finally {
+            latch.countDown();
+            t1.join();
+            t2.join();
+        }
+    }
+
+    private ClusterService createStateUpdateClusterState(ClusterState initialState, boolean shouldSimulateFailure) {
+        return createStateUpdateClusterState(initialState, shouldSimulateFailure, null);
+    }
+
+    private ClusterService createStateUpdateClusterState(ClusterState initialState, boolean shouldSimulateFailure, CountDownLatch await) {
         AtomicBoolean testFailureNextTime = new AtomicBoolean(shouldSimulateFailure);
         AtomicReference<ClusterState> state = new AtomicReference<>(initialState);
         ClusterService recheckTestClusterService = mock(ClusterService.class);
@@ -651,6 +699,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             ClusterStateUpdateTask task = (ClusterStateUpdateTask) invocationOnMock.getArguments()[1];
             ClusterState before = state.get();
             ClusterState after = task.execute(before);
+            if (await != null) {
+                await.await();
+            }
             if (testFailureNextTime.compareAndSet(true, false)) {
                 task.onFailure("testing failure", new RuntimeException("foo"));
             } else {

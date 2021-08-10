@@ -47,8 +47,10 @@ NOTE: The number of shards are limited to `1024` per index. This limitation is a
 `index.number_of_routing_shards`::
 +
 ====
-Number of routing shards used to <<indices-split-index,split>> an index.
+Integer value used with <<index-number-of-shards,`index.number_of_shards`>> to
+route documents to a primary shard. See <<mapping-routing-field>>.
 
+{es} uses this value when <<indices-split-index,splitting>> an index.
 For example, a 5 shard index with `number_of_routing_shards` set to `30` (`5 x
 2 x 3`) could be split by a factor of `2` or `3`. In other words, it could be
 split as follows:

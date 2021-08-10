@@ -234,7 +234,7 @@ on startup.
 
 [discrete]
 [[ssl-misc-changes]]
-==== Other SSL/TLS changes 
+===== Other SSL/TLS changes 
 
 .PKCS#11 keystores and trustores cannot be configured in `elasticsearch.yml`
 [%collapsible]
@@ -311,9 +311,11 @@ Discontinue use of the `kibana_user` role.
 
 // These are non-notable changes
 
+[discrete]
 // This change is not notable because it should not have any impact on upgrades
 // However we document it here out of an abundance of caution
 [[fips-default-hash-changed]]
+===== Changes to FIPS 140 mode
 .When FIPS mode is enabled the default password hash is now PBKDF2_STRETCH
 [%collapsible]
 ====

@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-public abstract class AggregationScript implements ScorerAware {
+public abstract class AggregationScript extends DocBasedScript implements ScorerAware {
 
     public static final String[] PARAMETERS = {};
 
@@ -64,12 +64,14 @@ public abstract class AggregationScript implements ScorerAware {
     private Object value;
 
     public AggregationScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
+        super(new DocValuesDocReader(lookup, leafContext));
         this.params = new DynamicMap(new HashMap<>(params), PARAMS_FUNCTIONS);
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         this.params.putAll(leafLookup.asMap());
     }
 
     protected AggregationScript() {
+        super(null);
         params = null;
         leafLookup = null;
     }
@@ -79,20 +81,6 @@ public abstract class AggregationScript implements ScorerAware {
      */
     public Map<String, Object> getParams() {
         return params;
-    }
-
-    /**
-     * The doc lookup for the Lucene segment this script was created for.
-     */
-    public Map<String, ScriptDocValues<?>> getDoc() {
-        return leafLookup.doc();
-    }
-
-    /**
-     * Set the current document to run the script on next.
-     */
-    public void setDocument(int docid) {
-        leafLookup.setDocument(docid);
     }
 
     @Override

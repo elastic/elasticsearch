@@ -84,24 +84,10 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     }
 
     /**
-     * Set the document to run the script against.
-     */
-    public void setDocument(int docId) {
-        this.leafSearchLookup.setDocument(docId);
-    }
-
-    /**
      * Expose the {@code params} of the script to the script itself.
      */
     public final Map<String, Object> getParams() {
         return params;
-    }
-
-    /**
-     * Expose field data to the script as {@code doc}.
-     */
-    public final Map<String, ScriptDocValues<?>> getDoc() {
-        return leafSearchLookup.doc();
     }
 
     protected List<Object> extractFromSource(String path) {

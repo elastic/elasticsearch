@@ -530,6 +530,26 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("Level"));
     }
 
+    public void testJarHellWhenExtendedPluginJarNotFound() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("dummy.jar");
+
+        Path otherDir = createTempDir();
+        Path extendedPlugin = otherDir.resolve("extendedDep-not-present.jar");
+
+        PluginInfo info = new PluginInfo("dummy", "desc", "1.0", Version.CURRENT, "1.8",
+            "Dummy", Arrays.asList("extendedPlugin"), false, PluginType.ISOLATED, "", false);
+
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        transitiveUrls.put("extendedPlugin", Collections.singleton(extendedPlugin.toUri().toURL()));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls));
+
+        assertEquals("failed to load plugin dummy while checking for jar hell", e.getMessage());
+    }
+
     public void testJarHellDuplicateClassWithDep() throws Exception {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");

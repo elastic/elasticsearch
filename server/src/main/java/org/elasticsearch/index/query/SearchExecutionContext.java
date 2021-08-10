@@ -675,8 +675,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
-        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
-            mapperService.parserContext(), false);
+        //TODO add specific tests to SearchExecutionTests similar to the ones in FieldTypeLookupTests
+        MappingParserContext parserContext = mapperService.parserContext();
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(
+            new HashMap<>(runtimeMappings),
+            parserContext,
+            false);
         return RuntimeField.collectFieldTypes(runtimeFields.values());
     }
 

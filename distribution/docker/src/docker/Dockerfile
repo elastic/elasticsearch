@@ -224,7 +224,7 @@ WORKDIR /usr/share/elasticsearch
 <% if (docker_base == "iron_bank") {
   // Iron Bank always copies the local artifact
 %>
-COPY elasticsearch-7.14.0-linux-x86_64.tar.gz /opt/elasticsearch.tar.gz
+COPY elasticsearch-${version}-linux-x86_64.tar.gz /opt/elasticsearch.tar.gz
 <% } else {
   // Fetch the appropriate Elasticsearch distribution for this architecture.
   // Keep this command on one line - it is replaced with a `COPY` during local builds.

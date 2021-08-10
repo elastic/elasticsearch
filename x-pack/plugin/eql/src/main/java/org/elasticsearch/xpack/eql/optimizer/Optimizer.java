@@ -65,7 +65,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 
@@ -448,13 +447,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         // preserve the order for the base query, everything else needs to be ascending
                         List<Order> pushedOrder = baseFilter ? orderBy.order() : ascendingOrders;
                         OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
-                        orderedQueries.add((KeyedFilter) filter.replaceChildrenSameSize(singletonList(order)));
+                        orderedQueries.add(filter.replaceChild(order));
                         baseFilter = false;
                     }
 
                     KeyedFilter until = join.until();
                     OrderBy order = new OrderBy(until.source(), until.child(), ascendingOrders);
-                    until = (KeyedFilter) until.replaceChildrenSameSize(singletonList(order));
+                    until = until.replaceChild(order);
 
                     OrderDirection direction = orderBy.order().get(0).direction();
                     plan = join.with(orderedQueries, until, direction);

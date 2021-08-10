@@ -68,7 +68,6 @@ import java.util.function.BiFunction;
 
 import static java.lang.Math.signum;
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineAnd;
@@ -1207,14 +1206,12 @@ public final class OptimizerRules {
                     }
                     // if at least one expression can be pushed down, update the tree
                     if (conjunctions.size() > 0) {
-                        child = child.replaceChildrenSameSize(
-                            singletonList(filter.with(unary.child(), Predicates.combineAnd(conjunctions)))
-                        );
+                        child = unary.replaceChild(filter.with(unary.child(), Predicates.combineAnd(conjunctions)));
                         plan = filter.with(child, Predicates.combineAnd(inPlace));
                     }
                 } else {
                     // push down filter
-                    plan = child.replaceChildrenSameSize(singletonList(filter.with(unary.child(), condition)));
+                    plan = unary.replaceChild(filter.with(unary.child(), condition));
                 }
             }
 

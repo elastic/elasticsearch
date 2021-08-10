@@ -38,7 +38,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestQueryApiKeyActionTests extends ESTestCase {
 
@@ -51,7 +50,6 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
         super.setUp();
         settings = Settings.builder().put("path.home", createTempDir().toString()).put("node.name", "test-" + getTestName())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        when(mockLicenseState.isSecurityEnabled()).thenReturn(true);
         threadPool = new ThreadPool(settings);
     }
 

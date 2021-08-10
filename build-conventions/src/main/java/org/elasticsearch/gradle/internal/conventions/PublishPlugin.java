@@ -68,13 +68,13 @@ public class PublishPlugin implements Plugin<Project> {
     private void configurePublications(Project project) {
         var publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
         var publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
-//        project.afterEvaluate(project1 -> {
-//            if (project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
-//                configureWithShadowPlugin(project1, publication);
-//            } else if (project1.getPlugins().hasPlugin(JavaPlugin.class)) {
-//                publication.from(project.getComponents().getByName("java"));
-//            }
-//        });
+        project.afterEvaluate(project1 -> {
+            if (project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
+                configureWithShadowPlugin(project1, publication);
+            } else if (project1.getPlugins().hasPlugin(JavaPlugin.class)) {
+                publication.from(project.getComponents().getByName("java"));
+            }
+        });
         var projectLicenses = (MapProperty<String, String>) project.getExtensions().getExtraProperties().get("projectLicenses");
         publication.getPom().withXml(xml -> {
             var node = xml.asNode();
@@ -124,7 +124,7 @@ public class PublishPlugin implements Plugin<Project> {
         var publishing = extensions.getByType(PublishingExtension.class);
         final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
         addNameAndDescriptiontoPom(project, mavenPublications);
-        mavenPublications.all(publication -> {
+        mavenPublications.configureEach(publication -> {
             // Add git origin info to generated POM files for internal builds
             publication.getPom().withXml(xml -> addScmInfo(xml, gitInfo.get()));
             // have to defer this until archivesBaseName is set
@@ -136,7 +136,7 @@ public class PublishPlugin implements Plugin<Project> {
     private void addNameAndDescriptiontoPom(Project project, NamedDomainObjectSet<MavenPublication> mavenPublications) {
         var name = project.getName();
         var description = providerFactory.provider(() -> project.getDescription() != null ? project.getDescription() : "");
-        mavenPublications.all(p -> p.getPom().withXml(xml -> {
+        mavenPublications.configureEach(p -> p.getPom().withXml(xml -> {
             var root = xml.asNode();
             root.appendNode("name", name);
             root.appendNode("description", description.get());

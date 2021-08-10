@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -748,7 +749,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         commonStats.getStore().add(storeStats);
         commonStats.getDocs().add(docsStats);
 
-        Path fakePath = Path.of("test/dir/" + routing.shardId().getIndex().getUUID() + "/" + routing.shardId().id());
+        Path fakePath = PathUtils.get("test/dir/" + routing.shardId().getIndex().getUUID() + "/" + routing.shardId().id());
         ShardPath fakeShardPath = new ShardPath(false, fakePath, fakePath, routing.shardId());
 
         return new ShardStats(routing, fakeShardPath, commonStats, null, null, null);

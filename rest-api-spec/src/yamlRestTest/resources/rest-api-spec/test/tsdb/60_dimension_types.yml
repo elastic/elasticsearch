@@ -40,6 +40,7 @@ keyword dimension:
           - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 3.1}'
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 3.3}'
+  - is_false: errors
 
   - do:
       search:

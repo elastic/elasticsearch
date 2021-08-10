@@ -272,6 +272,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
+    public void checkDynamicMappingUpdate(String type, CompressedXContent mappingSource) {
+        Mapping incomingMapping = parseMapping(type, mappingSource);
+        DocumentMapper oldMapper = this.mapper;
+        Mapping newMapping = mergeMappings(oldMapper, incomingMapping, MergeReason.MAPPING_UPDATE_PREFLIGHT);
+        newDocumentMapper(newMapping, MergeReason.MAPPING_UPDATE_PREFLIGHT);
+        if (false == newMapping.getTimeSeriesIdGenerator().equals(oldMapper.mapping().getTimeSeriesIdGenerator())) {
+            throw new IllegalStateException("added a dimension with a dynamic mapping");
+        }
+    }
+
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
         return mergeAndApplyMappings(type, mappingSource, reason);
     }

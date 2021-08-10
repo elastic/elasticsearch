@@ -290,9 +290,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
 
             try {
-                primary.mapperService().merge(MapperService.SINGLE_MAPPING_NAME,
-                    new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
-                    MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT);
+                primary.mapperService().checkDynamicMappingUpdate(MapperService.SINGLE_MAPPING_NAME,
+                    new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS));
             } catch (Exception e) {
                 logger.info(() -> new ParameterizedMessage("{} mapping update rejected by primary", primary.shardId()), e);
                 onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);

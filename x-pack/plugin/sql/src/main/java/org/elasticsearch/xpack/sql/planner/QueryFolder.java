@@ -90,6 +90,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
@@ -704,8 +705,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // Reverse traversal together with the upwards fold direction ensures that sort clauses are added in reverse order of
                 // precedence. E.g. for the plan `OrderBy[a desc,b](OrderBy[a asc,c](EsExec[...]))`, `prependSort` is called with the
                 // following sequence of arguments: `c`, `a asc`, `b`, `a desc`. The resulting sort order is `a desc,b,c`.
-                for (int i = plan.order().size() - 1; i >= 0; i--) {
-                    Order order = plan.order().get(i);
+                for (ListIterator<Order> it = plan.order().listIterator(); it.hasPrevious();) {
+                    Order order = it.previous();
 
                     Direction direction = Direction.from(order.direction());
                     Missing missing = Missing.from(order.nullsPosition());

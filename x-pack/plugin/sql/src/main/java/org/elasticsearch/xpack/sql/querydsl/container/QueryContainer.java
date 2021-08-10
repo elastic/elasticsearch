@@ -306,6 +306,10 @@ public class QueryContainer {
         return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
+    /**
+     * Adds a sort expression that takes precedence over all existing sort expressions. Expressions are prepended because the logical plan
+     * is folded from bottom up. So the most significant sort order will be added last.
+     */
     public QueryContainer prependSort(String expressionId, Sort sortable) {
         Map<String, Sort> newSort = new LinkedHashMap<>(this.sort.size() + 1);
         newSort.put(expressionId, sortable);

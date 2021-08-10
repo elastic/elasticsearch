@@ -34,7 +34,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasLength;
+import static org.hamcrest.Matchers.is;
 
 public class GenerateElasticPasswordHashTests extends CommandTestCase {
 
@@ -46,8 +50,7 @@ public class GenerateElasticPasswordHashTests extends CommandTestCase {
 
     @BeforeClass
     public static void setupJimfs() {
-        String view = randomFrom("basic", "posix");
-        Configuration conf = Configuration.unix().toBuilder().setAttributeViews(view).build();
+        Configuration conf = Configuration.unix().toBuilder().setAttributeViews("posix").build();
         jimfs = Jimfs.newFileSystem(conf);
         PathUtilsForTesting.installMock(jimfs);
     }
@@ -67,7 +70,7 @@ public class GenerateElasticPasswordHashTests extends CommandTestCase {
             .build();
         env = new Environment(GenerateElasticPasswordHashTests.this.settings, confDir);
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
-        keystore.save(confDir, null);
+        keystore.save(confDir, new char[0]);
     }
 
     @AfterClass
@@ -78,7 +81,6 @@ public class GenerateElasticPasswordHashTests extends CommandTestCase {
         }
     }
 
-
     @Override protected Command newCommand() {
         return new GenerateElasticPasswordHash() {
             @Override
@@ -88,8 +90,22 @@ public class GenerateElasticPasswordHashTests extends CommandTestCase {
         };
     }
 
-    public void testA() throws Exception {
+    public void testSuccessfullyGenerateAndStoreHash() throws Exception {
         execute();
         assertThat(terminal.getOutput(), hasLength(20));
+        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configFile());
+        keyStoreWrapper.decrypt(new char[0]);
+        assertThat(keyStoreWrapper.getSettingNames(),
+            containsInAnyOrder(GenerateElasticPasswordHash.KEYSTORE_SETTING_NAME, "keystore.seed"));
+    }
+
+    public void testFailToWriteToKeystore() throws Exception {
+        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configFile());
+        keyStoreWrapper.decrypt(new char[0]);
+        // set a random password so that we fail to decrypt it in GenerateElasticPasswordHash#execute
+        keyStoreWrapper.save(env.configFile(), randomAlphaOfLength(8).toCharArray());
+        execute();
+        assertThat(terminal.getOutput(), is(emptyString()));
+        assertThat(terminal.getErrorOutput(), containsString("Provided keystore password was incorrect"));
     }
 }

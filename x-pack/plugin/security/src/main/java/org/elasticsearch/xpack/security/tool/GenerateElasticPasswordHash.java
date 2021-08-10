@@ -21,6 +21,8 @@ import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePasswor
 
 public class GenerateElasticPasswordHash extends EnvironmentAwareCommand {
 
+    public static final String KEYSTORE_SETTING_NAME = "autoconfiguration.password_hash";
+
     public GenerateElasticPasswordHash() {
         super("Generates a password hash for for the elastic user and stores it in  elasticsearch.keystore");
     }
@@ -29,6 +31,11 @@ public class GenerateElasticPasswordHash extends EnvironmentAwareCommand {
         exit(new GenerateElasticPasswordHash().main(args, Terminal.DEFAULT));
     }
 
+    /**
+     * This is called by the package installers. It generates a random strong password for the elastic user and stores a salted
+     * hash of it in the elasticsearch keystore , in the autoconfiguration.password_hash setting. This is subsequently picked up
+     * by the node on startup and is set as the password of the elastic user in the security index.
+     */
     @Override protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()));
         try (
@@ -38,11 +45,12 @@ public class GenerateElasticPasswordHash extends EnvironmentAwareCommand {
             // that the elasticsearch keystore is obfuscated and not password protected.
             KeyStoreWrapper nodeKeystore=KeyStoreWrapper.bootstrap(env.configFile(),() -> new SecureString("")))
         {
-            nodeKeystore.setString("autoconfiguration.password_hash", hasher.hash(elasticPassword));
+            nodeKeystore.setString(KEYSTORE_SETTING_NAME, hasher.hash(elasticPassword));
             nodeKeystore.save(env.configFile(), new char[0]);
-            terminal.println(elasticPassword.toString());
+            terminal.print(Terminal.Verbosity.NORMAL, elasticPassword.toString());
         } catch (Exception e){
             // Write nothing to stdout, so that the caller knows we failed to generate or set the password in the keystore
+            terminal.errorPrintln(e.getMessage());
         }
     }
 }

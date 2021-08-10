@@ -181,7 +181,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.description = description;
         this.tags = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(tags, TAGS));
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
-        this.input = ExceptionsHelper.requireNonNull(input, INPUT);
+        this.input = (input == null && modelType == TrainedModelType.PYTORCH) ?
+            new TrainedModelInput(Collections.singletonList("input")) : ExceptionsHelper.requireNonNull(input, INPUT);
         if (ExceptionsHelper.requireNonNull(estimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES) < 0) {
             throw new IllegalArgumentException(
                 "[" + ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName() + "] must be greater than or equal to 0");

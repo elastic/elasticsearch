@@ -241,7 +241,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                         .setModelType(TrainedModelType.PYTORCH)
                         .setInferenceConfig(new ClassificationConfig(1))
                         .setInput(new TrainedModelInput(Arrays.asList("text_field")))
-                        .setLocation(new IndexLocation(TRAINED_MODEL_ID, indexname))
+                        .setLocation(new IndexLocation(indexname))
                         .setModelId(TRAINED_MODEL_ID)
                         .build()
                 )

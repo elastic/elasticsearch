@@ -94,7 +94,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     private TimeSeriesIdFieldMapper() {
-        super(FIELD_TYPE, Lucene.KEYWORD_ANALYZER);
+        super(FIELD_TYPE);
     }
 
     @Override

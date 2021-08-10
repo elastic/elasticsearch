@@ -30,6 +30,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
@@ -161,5 +163,9 @@ public class CommandLineHttpClient {
             throw new IllegalStateException("unable to determine default URL from settings, please use the -u option to explicitly " +
                 "provide the url", e);
         }
+    }
+
+    public static URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
+        return new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
     }
 }

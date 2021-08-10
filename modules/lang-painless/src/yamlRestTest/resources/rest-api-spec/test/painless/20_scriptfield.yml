@@ -45,6 +45,21 @@ setup:
     - match: { hits.hits.0.fields.bar.0: "aaabbb"}
 
 ---
+"Scripted Field (fields api)":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            bar:
+              script:
+                source: "field('foo').getValue('') + params.x;"
+                params:
+                  x: "bbb"
+
+  - match: { hits.hits.0.fields.bar.0: "aaabbb"}
+
+---
 "Scripted Field Doing Compare":
     - do:
         search:
@@ -74,6 +89,35 @@ setup:
     - match: { hits.hits.0.fields.bar.0: false}
 
 ---
+"Scripted Field Doing Compare (fields api)":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            bar:
+              script:
+                source: "boolean compare(Supplier s, def v) {return s.get() == v;}
+                                     compare(() -> { return field('foo').getValue('') }, params.x);"
+                params:
+                  x: "aaa"
+
+  - match: { hits.hits.0.fields.bar.0: true}
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            bar:
+              script:
+                source: "boolean compare(Supplier s, def v) {return s.get() == v;}
+                                     compare(() -> { return doc['foo'].value }, params.x);"
+                params:
+                  x: "bbb"
+
+  - match: { hits.hits.0.fields.bar.0: false}
+
+---
 "Scripted Field with a null safe dereference (non-null)":
     - do:
         search:
@@ -87,6 +131,21 @@ setup:
                                 x: 5
 
     - match: { hits.hits.0.fields.bar.0: 8}
+
+---
+"Scripted Field with a null safe dereference (non-null, fields api)":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            bar:
+              script:
+                source: "(field('foo').getValue('')?.length() ?: 0) + params.x;"
+                params:
+                  x: 5
+
+  - match: { hits.hits.0.fields.bar.0: 8}
 
 ---
 "Scripted Field with a null safe dereference (null)":
@@ -117,6 +176,19 @@ setup:
     - match: { hits.hits.0.fields.bar.0: 7}
 
 ---
+"Access a date (fields api)":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            bar:
+              script:
+                source: "field('date').getValue(0L).dayOfWeekEnum.value"
+
+  - match: { hits.hits.0.fields.bar.0: 7}
+
+---
 "Access many dates":
     - do:
         search:
@@ -133,6 +205,24 @@ setup:
                               return b.toString().trim()
 
     - match: { hits.hits.0.fields.bar.0: "7 3 3"}
+
+---
+"Access many dates (fields api)":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            bar:
+              script:
+                source: >
+                  StringBuilder b = new StringBuilder();
+                  for (def date : field('dates').getValues()) {
+                    b.append(" ").append(date.getDayOfWeekEnum().value);
+                  }
+                  return b.toString().trim()
+
+  - match: { hits.hits.0.fields.bar.0: "7 3 3"}
 
 ---
 "Scripted Field with script error":

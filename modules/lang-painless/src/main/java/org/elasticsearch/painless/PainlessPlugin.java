@@ -39,6 +39,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.NumberSortScript;
@@ -153,6 +154,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
                 WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.aggmap.txt");
         aggmap.add(aggmapWhitelist);
         map.put(ScriptedMetricAggContexts.MapScript.CONTEXT, aggmap);
+
+        List<Whitelist> field = new ArrayList<>();
+        Whitelist fieldWhitelist =
+                WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.field.txt");
+        field.add(fieldWhitelist);
+        map.put(FieldScript.CONTEXT, field);
 
         // Execute context gets everything
         List<Whitelist> test = new ArrayList<>();

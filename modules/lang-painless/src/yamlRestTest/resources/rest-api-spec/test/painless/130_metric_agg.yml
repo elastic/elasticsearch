@@ -50,6 +50,29 @@ setup:
             "total": {
               "scripted_metric": {
                 "init_script": "state.transactions = []",
+                "map_script": "state.transactions.add(doc['double'].value)",
+                "combine_script": "double total = 0.0; for (t in state.transactions) { total += t } return total",
+                "reduce_script": "double total = 0; for (a in states) { total += a } return total"
+              }
+            }
+          }
+        }
+
+  - match: { hits.total: 3 }
+  - match: { aggregations.total.value: 4.0 }
+
+---
+"Scripted Metric Agg Total (fields api)":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: {
+          "size": 0,
+          "aggs": {
+            "total": {
+              "scripted_metric": {
+                "init_script": "state.transactions = []",
                 "map_script": "state.transactions.add(field('double').getValue(0.0))",
                 "combine_script": "double total = 0.0; for (t in state.transactions) { total += t } return total",
                 "reduce_script": "double total = 0; for (a in states) { total += a } return total"

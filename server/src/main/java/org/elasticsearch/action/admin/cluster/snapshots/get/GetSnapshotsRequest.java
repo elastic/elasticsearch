@@ -52,6 +52,11 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      */
     private int size = NO_LIMIT;
 
+    /**
+     * Numeric offset at which to start fetching snapshots. Mutually exclusive with {@link After} if not equal to {@code 0}.
+     */
+    private int offset = 0;
+
     @Nullable
     private After after;
 
@@ -104,6 +109,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             sort = in.readEnum(SortBy.class);
             size = in.readVInt();
             order = SortOrder.readFromStream(in);
+            if (in.getVersion().onOrAfter(NUMERIC_PAGINATION_VERSION)) {
+                offset = in.readVInt();
+            }
         }
     }
 
@@ -130,6 +138,13 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeEnum(sort);
             out.writeVInt(size);
             order.writeTo(out);
+            if (out.getVersion().onOrAfter(NUMERIC_PAGINATION_VERSION)) {
+                out.writeVInt(offset);
+            } else if (offset != 0) {
+                throw new IllegalArgumentException(
+                    "can't use numeric offset in get snapshots request with node version [" + out.getVersion() + "]"
+                );
+            }
         } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC) {
             throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
         }
@@ -151,12 +166,17 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if (size > 0) {
                 validationException = addValidationError("can't use size limit with verbose=false", validationException);
             }
+            if (offset > 0) {
+                validationException = addValidationError("can't use offset with verbose=false", validationException);
+            }
             if (after != null) {
                 validationException = addValidationError("can't use after with verbose=false", validationException);
             }
             if (order != SortOrder.ASC) {
                 validationException = addValidationError("can't use non-default sort order with verbose=false", validationException);
             }
+        } else if (after != null && offset > 0) {
+            validationException = addValidationError("can't use after and offset simultaneously", validationException);
         }
         return validationException;
     }
@@ -263,6 +283,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public int size() {
         return size;
+    }
+
+    public int offset() {
+        return offset;
+    }
+
+    public GetSnapshotsRequest offset(int offset) {
+        this.offset = offset;
+        return this;
     }
 
     public SortOrder order() {

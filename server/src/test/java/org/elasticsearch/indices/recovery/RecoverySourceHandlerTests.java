@@ -519,6 +519,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         IOUtils.close(store);
     }
 
+    @SuppressWarnings("unchecked")
     public void testThrowExceptionOnPrimaryRelocatedBeforePhase1Started() throws IOException {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
@@ -589,6 +590,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertFalse(phase2Called.get());
     }
 
+    @SuppressWarnings("unchecked")
     public void testCancellationsDoesNotLeakPrimaryPermits() throws Exception {
         final CancellableThreads cancellableThreads = new CancellableThreads();
         final IndexShard shard = mock(IndexShard.class);

@@ -22,9 +22,12 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -234,15 +237,15 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         AtomicInteger numberOfFileChunkRequests = new AtomicInteger();
         sourceMockTransportService.addSendBehavior(targetMockTransportService, (connection, requestId, action, request, options) -> {
-            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                numberOfFileChunkRequests.incrementAndGet();
-            }
+            assertNotEquals(PeerRecoveryTargetService.Actions.FILE_CHUNK, action);
             connection.sendRequest(requestId, action, request, options);
         });
 
-        client().admin().indices().prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder()
-                .put("index.routing.allocation.require._name", targetNode)).get();
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder()
+                    .put("index.routing.allocation.require._name", targetNode)).get()
+        );
 
         ensureGreen();
 
@@ -291,9 +294,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
         String targetNode = internalCluster().startDataOnlyNode();
-        client().admin().indices().prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder()
-                .put("index.routing.allocation.require._name", targetNode)).get();
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder()
+                    .put("index.routing.allocation.require._name", targetNode)).get()
+        );
 
         ensureGreen();
 
@@ -327,9 +332,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
             String targetNode = internalCluster().startDataOnlyNode();
-            client().admin().indices().prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder()
-                    .put("index.routing.allocation.require._name", targetNode)).get();
+            assertAcked(
+                client().admin().indices().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder()
+                        .put("index.routing.allocation.require._name", targetNode)).get()
+            );
 
             ensureGreen();
 
@@ -380,9 +387,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         indexDocs(indexName, numDocs, docsIndexedAfterSnapshot);
 
         String targetNode = internalCluster().startDataOnlyNode();
-        client().admin().indices().prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder()
-                .put("index.routing.allocation.require._name", targetNode)).get();
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder()
+                    .put("index.routing.allocation.require._name", targetNode)).get()
+        );
 
         ensureGreen();
 
@@ -422,9 +431,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         forceMerge();
 
         String targetNode = internalCluster().startDataOnlyNode();
-        client().admin().indices().prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder()
-                .put("index.routing.allocation.require._name", targetNode)).get();
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder()
+                    .put("index.routing.allocation.require._name", targetNode)).get()
+        );
 
         ensureGreen();
 
@@ -462,9 +473,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
             String targetNode = internalCluster().startDataOnlyNode();
-            client().admin().indices().prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder()
-                    .put("index.routing.allocation.require._name", targetNode)).get();
+            assertAcked(
+                client().admin().indices().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder()
+                        .put("index.routing.allocation.require._name", targetNode)).get()
+            );
 
             MockTransportService targetMockTransportService =
                 (MockTransportService) internalCluster().getInstance(TransportService.class, targetNode);
@@ -546,7 +559,56 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         long snapshotSizeForIndex = getSnapshotSizeForIndex(repoName, "snap", indexName);
 
+        assertThat(sourceRepo.totalBytesRead.get(), is(greaterThan(0L)));
         assertThat(sourceRepo.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
+    }
+
+    public void testPrimaryHandoverUsesSnapshots() throws Exception {
+        String sourceNode = internalCluster().startDataOnlyNode();
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                .put("index.routing.allocation.require._name", sourceNode)
+                .build()
+        );
+
+        int numDocs = randomIntBetween(3000, 5000);
+        indexDocs(indexName, 0, numDocs);
+
+        String repoName = "repo";
+        createRepo(repoName, TestRepositoryPlugin.INSTRUMENTED_TYPE);
+        createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+        String targetNode = internalCluster().startDataOnlyNode();
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder()
+                    .put("index.routing.allocation.require._name", targetNode)).get()
+        );
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            DiscoveryNode targetDiscoveryNode = state.nodes().resolveNode(targetNode);
+            ShardRouting primaryShard = state.routingTable().index(indexName).shard(0).primaryShard();
+            assertThat(primaryShard.currentNodeId(), is(equalTo(targetDiscoveryNode.getId())));
+            assertThat(primaryShard.started(), is(equalTo(true)));
+        });
+
+        ensureGreen(indexName);
+        assertDocumentsAreEqual(indexName, numDocs);
+
+        RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
+        assertPeerRecoveryWasSuccessful(recoveryState, sourceNode, targetNode);
+
+        long snapshotSizeForIndex = getSnapshotSizeForIndex(repoName, "snap", indexName);
+
+        InstrumentedRepo targetRepo = getRepositoryOnNode(repoName, targetNode);
+        assertThat(targetRepo.totalBytesRead.get(), is(greaterThan(0L)));
+        assertThat(targetRepo.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
     }
 
     private long getSnapshotSizeForIndex(String repository, String snapshot, String index) {

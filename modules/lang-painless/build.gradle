@@ -63,7 +63,7 @@ tasks.named("yamlRestCompatTest").configure {
  * Painless plugin */
 tasks.register("apiJavadoc", Javadoc) {
   source = sourceSets.main.allJava
-  classpath = sourceSets.main.runtimeClasspath + configurations.named("spi").classpath
+  classpath = sourceSets.main.runtimeClasspath + configurations.spi.classpath
   include '**/org/elasticsearch/painless/api/'
   destinationDir = new File(docsDir, 'apiJavadoc')
 }
@@ -79,7 +79,7 @@ tasks.named("assemble").configure {
 
 tasks.named("bundlePlugin").configure {
   it.into("spi") {
-    from(configurations.named("spi"))
+    from(configurations.spi)
   }
 }
 

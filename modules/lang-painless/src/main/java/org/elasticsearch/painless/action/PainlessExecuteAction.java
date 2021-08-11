@@ -69,6 +69,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -638,11 +639,19 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     StringFieldScript.Factory factory = scriptService.compile(request.script, StringFieldScript.CONTEXT);
                     StringFieldScript.LeafFactory leafFactory =
-                            factory.newFactory(StringFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
+                        factory.newFactory(StringFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     StringFieldScript stringFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<String> keywords = new ArrayList<>();
                     stringFieldScript.runForDoc(0, keywords::add);
                     return new Response(keywords);
+                }, indexService);
+            } else if (scriptContext == CompositeFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    CompositeFieldScript.Factory factory = scriptService.compile(request.script, CompositeFieldScript.CONTEXT);
+                    CompositeFieldScript.LeafFactory leafFactory =
+                        factory.newFactory(CompositeFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
+                    CompositeFieldScript compositeFieldScript = leafFactory.newInstance(leafReaderContext);
+                    return new Response(compositeFieldScript.runForDoc(0));
                 }, indexService);
             } else {
                 throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");

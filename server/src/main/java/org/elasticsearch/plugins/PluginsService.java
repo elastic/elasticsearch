@@ -607,8 +607,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Set<URL> union = new HashSet<>(classpath);
             union.addAll(bundle.urls);
             JarHell.checkJarHell(union, logger::debug);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", e);
+        } catch (final IllegalStateException ise) {
+            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", ise);
+        } catch (final Exception e) {
+            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " while checking for jar hell", e);
         }
     }
 

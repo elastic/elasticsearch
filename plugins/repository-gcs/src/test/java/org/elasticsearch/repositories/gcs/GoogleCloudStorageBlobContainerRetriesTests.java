@@ -113,7 +113,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     protected BlobContainer createBlobContainer(final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
         final @Nullable Boolean disableChunkedEncoding,
-        final @Nullable ByteSizeValue bufferSize) {
+        final @Nullable ByteSizeValue bufferSize,
+        final @Nullable BlobPath path) {
         final Settings.Builder clientSettings = Settings.builder();
         final String client = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(client).getKey(), httpServerUrl());
@@ -181,7 +182,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             exchange.close();
         });
 
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
         try (InputStream inputStream = blobContainer.readBlob("large_blob_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
@@ -218,7 +219,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }
         }));
 
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
             blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
         }
@@ -228,7 +229,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     public void testWriteBlobWithReadTimeouts() {
         final byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 128));
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
-        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, null, null);
+        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, null, null, null);
 
         // HTTP server does not send a response
         httpServer.createContext("/upload/storage/v1/b/bucket/o", exchange -> {
@@ -370,7 +371,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
         final TimeValue readTimeout = allowReadTimeout.get() ? TimeValue.timeValueSeconds(3) : null;
 
-        final BlobContainer blobContainer = createBlobContainer(nbErrors + 1, readTimeout, null, null);
+        final BlobContainer blobContainer = createBlobContainer(nbErrors + 1, readTimeout, null, null, null);
         if (randomBoolean()) {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
                 blobContainer.writeBlob("write_large_blob", stream, data.length, false);

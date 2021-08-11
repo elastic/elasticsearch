@@ -653,7 +653,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
-    private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
+    private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext<?> scriptContext) {
         try {
             scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext);
             fail("compile should have been rejected for lang [" + lang + "], " +
@@ -663,7 +663,7 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
+    private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptContext<?> scriptContext) {
         assertThat(
                 scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext),
                 notNullValue()

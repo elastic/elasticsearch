@@ -264,6 +264,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76347")
     public void testClusterChanged() throws Exception {
         final TrainedModelAllocationNodeService trainedModelAllocationNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder()

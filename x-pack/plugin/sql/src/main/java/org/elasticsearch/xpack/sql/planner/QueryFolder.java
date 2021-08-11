@@ -705,7 +705,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // Reverse traversal together with the upwards fold direction ensures that sort clauses are added in reverse order of
                 // precedence. E.g. for the plan `OrderBy[a desc,b](OrderBy[a asc,c](EsExec[...]))`, `prependSort` is called with the
                 // following sequence of arguments: `c`, `a asc`, `b`, `a desc`. The resulting sort order is `a desc,b,c`.
-                for (ListIterator<Order> it = plan.order().listIterator(); it.hasPrevious();) {
+                ListIterator<Order> it = plan.order().listIterator(plan.order().size());
+                while (it.hasPrevious()) {
                     Order order = it.previous();
 
                     Direction direction = Direction.from(order.direction());

@@ -71,7 +71,7 @@ public class MapXContentParserTests extends ESTestCase {
             new MapXContentParser(
                 xContentRegistry(),
                 LoggingDeprecationHandler.INSTANCE,
-                Map.of("a", "b"),
+                org.elasticsearch.core.Map.of("a", "b"),
                 randomFrom(XContentType.values())
             ).hasTextCharacters()
         );
@@ -82,7 +82,7 @@ public class MapXContentParserTests extends ESTestCase {
             XContentParser parser = new MapXContentParser(
                 xContentRegistry(),
                 LoggingDeprecationHandler.INSTANCE,
-                Map.of("a", "b"),
+                org.elasticsearch.core.Map.of("a", "b"),
                 randomFrom(XContentType.values())
             )
         ) {
@@ -90,7 +90,7 @@ public class MapXContentParserTests extends ESTestCase {
                 XContentBuilder builder = JsonXContent.contentBuilder().copyCurrentStructure(parser);
                 XContentParser copied = createParser(builder)
             ) {
-                assertEquals(copied.map(), Map.of("a", "b"));
+                assertEquals(copied.map(), org.elasticsearch.core.Map.of("a", "b"));
             }
         }
     }

@@ -10,8 +10,6 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -22,6 +20,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
@@ -37,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.datastreams.SystemDataStreamSnapshotIT.SystemDataStreamTestPlugin.SYSTEM_DATA_STREAM_NAME;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -88,13 +88,14 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());
         }
 
-        CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(REPO, SNAPSHOT)
-            .setWaitForCompletion(true)
-            .setIncludeGlobalState(false)
-            .get();
-        assertSnapshotSuccess(createSnapshotResponse);
+        assertSuccessful(
+            client().admin()
+                .cluster()
+                .prepareCreateSnapshot(REPO, SNAPSHOT)
+                .setWaitForCompletion(true)
+                .setIncludeGlobalState(false)
+                .execute()
+        );
 
         // We have to delete the data stream directly, as the feature reset API doesn't clean up system data streams yet
         // See https://github.com/elastic/elasticsearch/issues/75818
@@ -150,7 +151,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setSource("{ \"name\": \"my-name\" }", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .execute()
-            .actionGet();
+            .get();
         assertThat(indexResponse.status().getStatus(), oneOf(200, 201));
 
         {
@@ -160,17 +161,18 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());
         }
 
-        CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(REPO, SNAPSHOT)
-            .setIndices("my-index")
-            .setFeatureStates(SystemDataStreamTestPlugin.class.getSimpleName())
-            .setWaitForCompletion(true)
-            .setIncludeGlobalState(false)
-            .get();
-        assertSnapshotSuccess(createSnapshotResponse);
+        SnapshotInfo snapshotInfo = assertSuccessful(
+            client().admin()
+                .cluster()
+                .prepareCreateSnapshot(REPO, SNAPSHOT)
+                .setIndices("my-index")
+                .setFeatureStates(SystemDataStreamTestPlugin.class.getSimpleName())
+                .setWaitForCompletion(true)
+                .setIncludeGlobalState(false)
+                .execute()
+        );
 
-        assertThat(createSnapshotResponse.getSnapshotInfo().dataStreams(), not(empty()));
+        assertThat(snapshotInfo.dataStreams(), not(empty()));
 
         // We have to delete the data stream directly, as the feature reset API doesn't clean up system data streams yet
         // See https://github.com/elastic/elasticsearch/issues/75818
@@ -180,11 +182,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertTrue(response.isAcknowledged());
         }
 
-        {
-            DeleteIndexRequest request = new DeleteIndexRequest("my-index");
-            AcknowledgedResponse response = client().execute(DeleteIndexAction.INSTANCE, request).get();
-            assertTrue(response.isAcknowledged());
-        }
+        assertAcked(client().admin().indices().prepareDelete("my-index"));
 
         {
             GetIndexResponse indicesRemaining = client().admin().indices().prepareGetIndex().addIndices("_all").get();

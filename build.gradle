@@ -25,7 +25,7 @@ import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import java.nio.file.Files
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
 plugins {
   id 'lifecycle-base'
@@ -82,13 +82,6 @@ tasks.register("updateCIBwcVersions") {
       yml << "  - \"$it\"\n"
     }
   }
-}
-
-//TODO port buildMetaData to use provider api
-String buildMetadataValue = providers.environmentVariable('BUILD_METADATA').orElse("").forUseAtConfigurationTime().get()
-Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectEntries {
-  def (String key, String value) = it.split('=')
-  return [key, value]
 }
 
 tasks.register("verifyVersions") {
@@ -200,8 +193,6 @@ allprojects {
             providers.systemProperty("eclipse.application").forUseAtConfigurationTime().isPresent() ||    // Detects gradle launched from the Eclipse compiler server
             gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
             gradle.startParameter.taskNames.contains('cleanEclipse')
-
-    buildMetadata = buildMetadataMap
   }
 
   ext.bwc_tests_enabled = bwc_tests_enabled

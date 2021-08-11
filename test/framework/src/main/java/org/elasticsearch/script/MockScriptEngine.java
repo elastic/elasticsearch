@@ -181,12 +181,13 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(SignificantTermsHeuristicScoreScript.class)) {
             return context.factoryClazz.cast(new MockSignificantTermsHeuristicScoreScript(script));
         } else if (context.instanceClazz.equals(TemplateScript.class)) {
-            TemplateScript.Factory factory = vars -> {
+            TemplateScript.Factory factory = varsSupplier -> {
                 Map<String, Object> varsWithParams = new HashMap<>();
+                Map<String, Object> vars = varsSupplier.get();
                 if (vars != null) {
                     varsWithParams.put("params", vars);
                 }
-                return new TemplateScript() {
+                return new TemplateScript(vars) {
                     @Override
                     public String execute() {
                         return (String) script.apply(varsWithParams);

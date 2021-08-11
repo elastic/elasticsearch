@@ -1137,7 +1137,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
             }
             TemplateScript.Factory factory = p -> {
                 String script = scriptSource;
-                for (Entry<String, Object> entry : p.entrySet()) {
+                for (Entry<String, Object> entry : p.get().entrySet()) {
                     script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
                 }
                 String result = script;

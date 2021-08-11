@@ -100,7 +100,7 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
                 .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()) == false).count();
             assertThat(numJobsOnNodeToShutdown, is(0L));
             assertThat(numJobsOnOtherNodes, is(6L));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testCloseJobVacatingShuttingDownNode() throws Exception {
@@ -196,7 +196,7 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
                 .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()) == false).count();
             assertThat(numJobsOnNodeToShutdown, is(0L));
             assertThat(numJobsOnOtherNodes, is(5L)); // 5 rather than 6 because we closed one
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void setupJobAndDatafeed(String jobId, ByteSizeValue modelMemoryLimit) throws Exception {

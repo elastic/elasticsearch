@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.junit.After;
 import org.junit.Before;
 
@@ -60,6 +61,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -86,7 +88,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
     private Client client;
     private ThreadPool threadPool;
 
-    class MockedTransformIndexer extends TransformIndexer {
+    static class MockedTransformIndexer extends ClientTransformIndexer {
 
         private final Function<SearchRequest, SearchResponse> searchFunction;
         private final Function<BulkRequest, BulkResponse> bulkFunction;
@@ -97,7 +99,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         // used for synchronizing with the test
         private CountDownLatch latch;
 
-        MockedTransformIndexer(
+        protected MockedTransformIndexer(
             ThreadPool threadPool,
             String executorName,
             IndexBasedTransformConfigManager transformsConfigManager,
@@ -117,15 +119,18 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 threadPool,
                 transformsConfigManager,
                 checkpointProvider,
-                auditor,
-                transformConfig,
                 initialState,
                 initialPosition,
+                mock(Client.class),
+                auditor,
                 jobStats,
+                transformConfig,
                 /* TransformProgress */ null,
                 TransformCheckpoint.EMPTY,
                 TransformCheckpoint.EMPTY,
-                context
+                new SeqNoPrimaryTermAndIndex(1, 1, "foo"),
+                context,
+                false
             );
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
@@ -180,7 +185,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
             try {
                 BulkResponse response = bulkFunction.apply(request);
-                nextPhase.onResponse(response);
+                super.handleBulkResponse(response, nextPhase);
             } catch (Exception e) {
                 nextPhase.onFailure(e);
             }
@@ -245,7 +250,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }
 
         @Override
-        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+        protected void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
             try {
                 BulkByScrollResponse response = deleteByQueryFunction.apply(deleteByQueryRequest);
                 responseListener.onResponse(response);
@@ -255,7 +260,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }
 
         @Override
-        void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
+        protected void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
             responseListener.onResponse(new RefreshResponse(1, 1, 0, Collections.emptyList()));
         }
 
@@ -698,6 +703,116 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
         auditor.assertAllExpectationsMatched();
         assertEquals(1, context.getFailureCount());
+    }
+
+    public void testFailureCounterIsResetOnSuccess() throws Exception {
+        String transformId = randomAlphaOfLength(10);
+        TransformConfig config = new TransformConfig(
+            transformId,
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            null,
+            null,
+            randomPivotConfig(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
+            null,
+            null,
+            null
+        );
+
+        final SearchResponse searchResponse = new SearchResponse(
+            new InternalSearchResponse(
+                new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+                // Simulate completely null aggs
+                null,
+                new Suggest(Collections.emptyList()),
+                new SearchProfileShardResults(Collections.emptyMap()),
+                false,
+                false,
+                1
+            ),
+            "",
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = new Function<SearchRequest, SearchResponse>() {
+            final AtomicInteger calls = new AtomicInteger(0);
+
+            @Override
+            public SearchResponse apply(SearchRequest searchRequest) {
+                int call = calls.getAndIncrement();
+                if (call == 0) {
+                    throw new SearchPhaseExecutionException(
+                        "query",
+                        "Partial shards failure",
+                        new ShardSearchFailure[] { new ShardSearchFailure(new Exception()) }
+                    );
+                }
+                return searchResponse;
+            }
+        };
+
+        Function<BulkRequest, BulkResponse> bulkFunction = request -> new BulkResponse(new BulkItemResponse[0], 1);
+
+        final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
+        final AtomicReference<String> failureMessage = new AtomicReference<>();
+        Consumer<String> failureConsumer = message -> {
+            failIndexerCalled.compareAndSet(false, true);
+            failureMessage.compareAndSet(null, message);
+        };
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            null,
+            failureConsumer,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
+
+        final CountDownLatch latch = indexer.newLatch(1);
+
+        indexer.start();
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+
+        latch.countDown();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
+        assertFalse(failIndexerCalled.get());
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertEquals(1, context.getFailureCount());
+
+        final CountDownLatch secondLatch = indexer.newLatch(1);
+
+        indexer.start();
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+
+        secondLatch.countDown();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
+        assertFalse(failIndexerCalled.get());
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        auditor.assertAllExpectationsMatched();
+        assertEquals(0, context.getFailureCount());
     }
 
     private MockedTransformIndexer createMockIndexer(

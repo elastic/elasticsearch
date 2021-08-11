@@ -99,7 +99,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         // used for synchronizing with the test
         private CountDownLatch latch;
 
-        MockedTransformIndexer(
+        protected MockedTransformIndexer(
             ThreadPool threadPool,
             String executorName,
             IndexBasedTransformConfigManager transformsConfigManager,
@@ -119,11 +119,10 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 threadPool,
                 transformsConfigManager,
                 checkpointProvider,
-                auditor,
-                transformConfig,
                 initialState,
                 initialPosition,
                 mock(Client.class),
+                auditor,
                 jobStats,
                 transformConfig,
                 /* TransformProgress */ null,
@@ -745,7 +744,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
 
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        Function<SearchRequest, SearchResponse> searchFunction = new Function<>() {
+        Function<SearchRequest, SearchResponse> searchFunction = new Function<SearchRequest, SearchResponse>() {
             final AtomicInteger calls = new AtomicInteger(0);
 
             @Override

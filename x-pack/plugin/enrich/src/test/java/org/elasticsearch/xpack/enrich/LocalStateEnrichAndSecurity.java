@@ -16,29 +16,35 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.Security;
 
 import java.nio.file.Path;
 import java.util.List;
 
-public class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
+public class LocalStateEnrichAndSecurity extends LocalStateEnrich {
 
-    public LocalStateEnrich(final Settings settings, final Path configPath) throws Exception {
+    public LocalStateEnrichAndSecurity(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
 
-        plugins.add(new EnrichPlugin(settings) {
+        plugins.add(new Security(settings, configPath) {
+            @Override
+            protected SSLService getSslService() {
+                return LocalStateEnrichAndSecurity.this.getSslService();
+            }
+
             @Override
             protected XPackLicenseState getLicenseState() {
-                return LocalStateEnrich.this.getLicenseState();
+                return LocalStateEnrichAndSecurity.this.getLicenseState();
             }
         });
     }
 
-    public static class EnrichTransportXPackInfoAction extends TransportXPackInfoAction {
+    public static class EnrichAndSecurityTransportXPackInfoAction extends TransportXPackInfoAction {
         @Inject
-        public EnrichTransportXPackInfoAction(
+        public EnrichAndSecurityTransportXPackInfoAction(
             TransportService transportService,
             ActionFilters actionFilters,
             LicenseService licenseService,
@@ -49,12 +55,12 @@ public class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
 
         @Override
         protected List<XPackInfoFeatureAction> infoActions() {
-            return List.of(XPackInfoFeatureAction.ENRICH);
+            return List.of(XPackInfoFeatureAction.ENRICH, XPackInfoFeatureAction.SECURITY);
         }
     }
 
     @Override
     protected Class<? extends TransportAction<XPackInfoRequest, XPackInfoResponse>> getInfoAction() {
-        return EnrichTransportXPackInfoAction.class;
+        return EnrichAndSecurityTransportXPackInfoAction.class;
     }
 }

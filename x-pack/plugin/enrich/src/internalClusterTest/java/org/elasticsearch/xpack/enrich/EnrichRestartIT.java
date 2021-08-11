@@ -36,7 +36,7 @@ public class EnrichRestartIT extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateEnrich.class, ReindexPlugin.class);
+        return List.of(LocalStateEnrichAndSecurity.class, ReindexPlugin.class);
     }
 
     @Override

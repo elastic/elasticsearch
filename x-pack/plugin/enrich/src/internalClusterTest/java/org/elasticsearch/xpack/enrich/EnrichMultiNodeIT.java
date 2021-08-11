@@ -67,7 +67,7 @@ public class EnrichMultiNodeIT extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateEnrich.class, ReindexPlugin.class, IngestCommonPlugin.class);
+        return List.of(LocalStateEnrichAndSecurity.class, ReindexPlugin.class, IngestCommonPlugin.class);
     }
 
     @Override

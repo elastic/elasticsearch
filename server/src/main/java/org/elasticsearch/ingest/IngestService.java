@@ -850,7 +850,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
         };
         String description = "this is a place holder pipeline, because pipeline with id [" +  id + "] could not be loaded";
-        return new Pipeline(id, description, null, new CompoundProcessor(failureProcessor));
+        return new Pipeline(id, description, null, null, new CompoundProcessor(failureProcessor));
     }
 
     static class PipelineHolder {

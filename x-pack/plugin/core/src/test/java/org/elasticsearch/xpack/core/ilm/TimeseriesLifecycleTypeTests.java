@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     private static final AllocateAction TEST_ALLOCATE_ACTION =
-        new AllocateAction(2, Collections.singletonMap("node", "node1"),null, null);
+        new AllocateAction(2, 20, Collections.singletonMap("node", "node1"),null, null);
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
@@ -634,7 +634,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         {
             // the allocate action only specifies the number of replicas
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), new AllocateAction(2, null, null, null));
+            actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), new AllocateAction(2, 20, null, null, null));
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(true));
         }
@@ -862,7 +862,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         return Arrays.asList(availableActionNames).stream().map(n -> {
             switch (n) {
             case AllocateAction.NAME:
-                return new AllocateAction(null, Collections.singletonMap("foo", "bar"), Collections.emptyMap(), Collections.emptyMap());
+                return new AllocateAction(null, null, Collections.singletonMap("foo", "bar"), Collections.emptyMap(),
+                    Collections.emptyMap());
             case DeleteAction.NAME:
                 return new DeleteAction();
             case ForceMergeAction.NAME:

@@ -12,6 +12,7 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -23,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 
 import javax.net.ssl.KeyManager;

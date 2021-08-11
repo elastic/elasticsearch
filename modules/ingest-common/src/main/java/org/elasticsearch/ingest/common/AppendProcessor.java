@@ -78,7 +78,7 @@ public final class AppendProcessor extends AbstractProcessor {
                 processorTag,
                 description,
                 compiledTemplate,
-                ValueSource.wrap(value, scriptService, Map.of(Script.CONTENT_TYPE_OPTION, mediaType)),
+                ValueSource.wrap(value, scriptService, org.elasticsearch.core.Map.of(Script.CONTENT_TYPE_OPTION, mediaType)),
                 allowDuplicates
             );
         }

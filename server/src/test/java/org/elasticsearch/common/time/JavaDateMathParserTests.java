@@ -45,7 +45,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertEquals(1594429200000L, oneAm.toInstant().toEpochMilli());
         Instant actual = epochMillis.toDateMathParser()
             .parse(
-                "" + oneAm.toInstant().toEpochMilli(),
+                epochMillis.format(oneAm),
                 () -> { throw new UnsupportedOperationException(); },
                 false,
                 ZoneId.of("America/New_York")
@@ -53,13 +53,29 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertEquals(oneAm.toInstant(), actual);
     }
 
+    public void testIsoFormatDst() {
+        DateFormatter iso8601 = DateFormatter.forPattern("iso8601").withZone(ZoneId.of("America/New_York"));
+        ZonedDateTime sixAm = ZonedDateTime.of(2020, 11, 1, 6, 0, 0, 0, ZoneOffset.UTC);
+        assertEquals(1604210400000L, sixAm.toInstant().toEpochMilli());
+        assertEquals("2020-11-01T01:00:00.000-05:00", iso8601.format(sixAm));
+        Instant actual = iso8601.toDateMathParser()
+            .parse(
+                iso8601.format(sixAm),
+                () -> { throw new UnsupportedOperationException(); },
+                false,
+                ZoneId.of("America/New_York")
+            );
+        assertEquals(sixAm.toInstant(), actual);
+    }
+
     public void testEpochTimezoneDst() {
         DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis").withZone(ZoneId.of("America/New_York"));
         ZonedDateTime sixAm = ZonedDateTime.of(2020, 11, 1, 6, 0, 0, 0, ZoneOffset.UTC);
         assertEquals(1604210400000L, sixAm.toInstant().toEpochMilli());
+        assertEquals("1604210400000", epochMillis.format(sixAm));
         Instant actual = epochMillis.toDateMathParser()
             .parse(
-                "" + sixAm.toInstant().toEpochMilli(),
+                epochMillis.format(sixAm),
                 () -> { throw new UnsupportedOperationException(); },
                 false,
                 ZoneId.of("America/New_York")

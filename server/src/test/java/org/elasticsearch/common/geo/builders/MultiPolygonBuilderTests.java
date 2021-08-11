@@ -31,10 +31,10 @@ public class MultiPolygonBuilderTests extends AbstractShapeBuilderTestCase<Multi
         if (randomBoolean()) {
             mutation = new MultiPolygonBuilder(original.orientation() == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
             for (PolygonBuilder pb : original.polygons()) {
-                mutation.polygon((PolygonBuilder) copyShape(pb));
+                mutation.polygon(copyShape(pb));
             }
         } else {
-            mutation = (MultiPolygonBuilder) copyShape(original);
+            mutation = copyShape(original);
             if (mutation.polygons().size() > 0) {
                 int polyToChange = randomInt(mutation.polygons().size() - 1);
                 mutation.polygons().set(polyToChange, PolygonBuilderTests.mutatePolygonBuilder(mutation.polygons().get(polyToChange)));

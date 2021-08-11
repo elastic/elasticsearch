@@ -85,27 +85,28 @@ public class SearchFieldsIT extends ESIntegTestCase {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
             scripts.put("doc['num1'].value", vars -> {
-                Map<?, ?> doc = (Map) vars.get("doc");
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 ScriptDocValues.Doubles num1 = (ScriptDocValues.Doubles) doc.get("num1");
                 return num1.getValue();
             });
 
             scripts.put("doc['num1'].value * factor", vars -> {
-                Map<?, ?> doc = (Map) vars.get("doc");
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 ScriptDocValues.Doubles num1 = (ScriptDocValues.Doubles) doc.get("num1");
+                @SuppressWarnings("unchecked")
                 Map<String, Object> params = (Map<String, Object>) vars.get("params");
                 Double factor = (Double) params.get("factor");
                 return num1.getValue() * factor;
             });
 
             scripts.put("doc['date'].date.millis", vars -> {
-                Map<?, ?> doc = (Map) vars.get("doc");
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 ScriptDocValues.Dates dates = (ScriptDocValues.Dates) doc.get("date");
                 return dates.getValue().toInstant().toEpochMilli();
             });
 
             scripts.put("doc['date'].date.nanos", vars -> {
-                Map<?, ?> doc = (Map) vars.get("doc");
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 ScriptDocValues.Dates dates = (ScriptDocValues.Dates) doc.get("date");
                 return DateUtils.toLong(dates.getValue().toInstant());
             });
@@ -135,19 +136,19 @@ public class SearchFieldsIT extends ESIntegTestCase {
         }
 
         static Object fieldsScript(Map<String, Object> vars, String fieldName) {
-            Map<?, ?> fields = (Map) vars.get("_fields");
+            Map<?, ?> fields = (Map<?, ?>) vars.get("_fields");
             FieldLookup fieldLookup = (FieldLookup) fields.get(fieldName);
             return fieldLookup.getValue();
         }
 
-        @SuppressWarnings("unchecked")
         static Object sourceScript(Map<String, Object> vars, String path) {
-            Map<String, Object> source = (Map) vars.get("_source");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) vars.get("_source");
             return XContentMapValues.extractValue(path, source);
         }
 
         static Object docScript(Map<String, Object> vars, String fieldName) {
-            Map<?, ?> doc = (Map) vars.get("doc");
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
             ScriptDocValues<?> values = (ScriptDocValues<?>) doc.get(fieldName);
             return values;
         }

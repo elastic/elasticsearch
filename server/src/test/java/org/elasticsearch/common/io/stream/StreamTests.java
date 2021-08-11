@@ -160,6 +160,7 @@ public class StreamTests extends ESTestCase {
         }
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeGenericValue(write);
+        @SuppressWarnings("unchecked")
         LinkedHashMap<String, Integer> read = (LinkedHashMap<String, Integer>) out.bytes().streamInput().readGenericValue();
         assertEquals(size, read.size());
         int index = 0;

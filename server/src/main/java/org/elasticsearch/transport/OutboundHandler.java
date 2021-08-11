@@ -38,20 +38,17 @@ final class OutboundHandler {
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
-    private final Compression.Scheme configuredCompressionScheme;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
-    OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, BigArrays bigArrays,
-                    Compression.Scheme compressionScheme) {
+    OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, BigArrays bigArrays) {
         this.nodeName = nodeName;
         this.version = version;
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
-        this.configuredCompressionScheme = compressionScheme;
     }
 
     void setSlowLogThreshold(TimeValue slowLogThreshold) {

@@ -200,8 +200,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         loader.loadExtensions(PainlessExtension.class).stream()
             .flatMap(extension -> extension.getContextWhitelists().entrySet().stream())
             .forEach(entry -> {
-                List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(),
-                    c -> new ArrayList<>(BASE_WHITELISTS));
+                List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(), c -> new ArrayList<>());
                 existing.addAll(entry.getValue());
             });
     }

@@ -207,10 +207,11 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithContent(indexName);
 
         int snapshotIdx = 0;
-        createSnapshot(failingRepoName, "empty-snap-" + snapshotIdx++, Collections.singletonList(indexName));
+        createSnapshot(failingRepoName, String.format(Locale.ROOT, "snap-%03d", snapshotIdx++), Collections.singletonList(indexName));
         SnapshotInfo latestSnapshot = null;
         for (String workingRepoName : workingRepoNames) {
-            latestSnapshot = createSnapshot(workingRepoName, "empty-snap-" + snapshotIdx++, Collections.singletonList(indexName));
+            String snapshot = String.format(Locale.ROOT, "snap-%03d", snapshotIdx++);
+            latestSnapshot = createSnapshot(workingRepoName, snapshot, Collections.singletonList(indexName));
         }
 
         final MockRepository repository = getRepositoryOnMaster(failingRepoName);
@@ -264,7 +265,8 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         int snapshotIdx = 0;
         SnapshotInfo expectedLatestSnapshot = null;
         for (String repository : repositories) {
-            expectedLatestSnapshot = createSnapshot(repository, "snap-" + snapshotIdx++, Collections.singletonList(indexName));
+            String snapshot = String.format(Locale.ROOT, "snap-%03d", snapshotIdx++);
+            expectedLatestSnapshot = createSnapshot(repository, snapshot, Collections.singletonList(indexName));
         }
 
         GetShardSnapshotResponse response = getLatestSnapshotForShardFuture(repositories, indexName, 0).actionGet();

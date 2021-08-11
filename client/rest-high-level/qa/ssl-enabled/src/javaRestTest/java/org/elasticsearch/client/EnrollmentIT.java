@@ -25,6 +25,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
     private static Path httpTrustStore;
@@ -76,7 +77,6 @@ public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
         assertThat(kibanaResponse, notNullValue());
         assertThat(kibanaResponse.getHttpCa()
             , endsWith("brcNC5xq6YE7C4/06nH7F6le4kE4Uo6c9fpkl4ehOxQxndNLn462tFF+8VBA8IftJ1PPWzqGxLsCTzM6p6w8sa+XhgNYglLfkRjirc="));
-        assertNotNull(kibanaResponse.getPassword());
-        assertThat(kibanaResponse.getPassword().toString().length(), equalTo(14));
+        assertNotNull(kibanaResponse.getToken());
     }
 }

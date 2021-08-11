@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.List;
@@ -19,7 +20,7 @@ import java.util.stream.Collectors;
 
 final class ElasticServiceAccounts {
 
-    static final String NAMESPACE = "elastic";
+    public static final String NAMESPACE = "elastic";
 
     private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount("fleet-server",
         new RoleDescriptor(
@@ -43,8 +44,10 @@ final class ElasticServiceAccounts {
             null,
             null
         ));
+    private static final ServiceAccount KIBANA_SYSTEM_ACCOUNT =
+        new ElasticServiceAccount("kibana-system", ReservedRolesStore.kibanaSystemUserRole(NAMESPACE + "/kibana-system"));
 
-    static final Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT).stream()
+    static final Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT, KIBANA_SYSTEM_ACCOUNT).stream()
         .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));;
 
     private ElasticServiceAccounts() {}

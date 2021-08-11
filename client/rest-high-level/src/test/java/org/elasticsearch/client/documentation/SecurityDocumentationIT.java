@@ -2875,7 +2875,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testNodeEnrollment() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -2918,7 +2918,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testKibanaEnrollment() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -2928,10 +2928,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::kibana-enrollment-execute
 
             // tag::kibana-enrollment-response
-            SecureString password = response.getPassword(); // <1>
+            SecureString token = response.getToken(); // <1>
             String httoCa = response.getHttpCa(); // <2>
             // end::kibana-enrollment-response
-            assertThat(password.length(), equalTo(14));
+            assertNotNull(token);
         }
 
         {

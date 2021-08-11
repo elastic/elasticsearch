@@ -40,7 +40,7 @@ public class KibanaEnrollmentResponseTests extends AbstractXContentTestCase<Kiba
             try (StreamInput in = out.bytes().streamInput()) {
                 KibanaEnrollmentResponse serialized = new KibanaEnrollmentResponse(in);
                 assertThat(response.getHttpCa(), is(serialized.getHttpCa()));
-                assertThat(response.getPassword(), is(serialized.getPassword()));
+                assertThat(response.getToken(), is(serialized.getToken()));
             }
         }
     }

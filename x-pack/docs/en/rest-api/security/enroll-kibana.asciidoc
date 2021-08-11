@@ -35,10 +35,10 @@ The API returns the following response:
 [source,console_result]
 ----
 {
-  "password" : "longsecurepassword", <1>
+  "token" : "AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ", <1>
   "http_ca" : "MIIJlAIBAzCCCVoGCSqGSIb3....vsDfsA3UZBAjEPfhubpQysAICCAA=", <2>
 }
 ----
-<1> The password for the `kibana_system` user.
+<1> A token that can be used as a bearer token for the `kibana-system` service account.
 <2> The CA certificate used to sign the node certificates that {es} uses for TLS on the HTTP layer.
 The certificate is returned as a Base64 encoded string of the ASN.1 DER encoding of the certificate.

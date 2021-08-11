@@ -18,21 +18,21 @@ import java.util.Objects;
 
 public final class KibanaEnrollmentResponse {
 
-    private SecureString password;
+    private SecureString token;
     private String httpCa;
 
-    public KibanaEnrollmentResponse(SecureString password, String httpCa) {
-        this.password = password;
+    public KibanaEnrollmentResponse(SecureString token, String httpCa) {
+        this.token = token;
         this.httpCa = httpCa;
     }
 
-    public SecureString getPassword() { return password; }
+    public SecureString getToken() { return token; }
 
     public String getHttpCa() {
         return httpCa;
     }
 
-    private static final ParseField PASSWORD = new ParseField("password");
+    private static final ParseField TOKEN = new ParseField("token");
     private static final ParseField HTTP_CA = new ParseField("http_ca");
 
     @SuppressWarnings("unchecked")
@@ -42,7 +42,7 @@ public final class KibanaEnrollmentResponse {
             a -> new KibanaEnrollmentResponse(new SecureString(((String) a[0]).toCharArray()), (String) a[1]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PASSWORD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TOKEN);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA);
     }
 
@@ -54,10 +54,10 @@ public final class KibanaEnrollmentResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         KibanaEnrollmentResponse that = (KibanaEnrollmentResponse) o;
-        return password.equals(that.password) && httpCa.equals(that.httpCa);
+        return token.equals(that.token) && httpCa.equals(that.httpCa);
     }
 
     @Override public int hashCode() {
-        return Objects.hash(password, httpCa);
+        return Objects.hash(token, httpCa);
     }
 }

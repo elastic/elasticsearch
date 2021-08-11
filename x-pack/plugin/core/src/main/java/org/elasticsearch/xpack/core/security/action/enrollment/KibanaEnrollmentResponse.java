@@ -22,7 +22,7 @@ import java.util.Objects;
 
 public final class KibanaEnrollmentResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ParseField PASSWORD = new ParseField("password");
+    private static final ParseField TOKEN = new ParseField("token");
     private static final ParseField HTTP_CA = new ParseField("http_ca");
 
     @SuppressWarnings("unchecked")
@@ -32,25 +32,25 @@ public final class KibanaEnrollmentResponse extends ActionResponse implements To
             a -> new KibanaEnrollmentResponse(new SecureString(((String) a[0]).toCharArray()), (String) a[1]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PASSWORD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TOKEN);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA);
     }
 
-    private final SecureString password;
+    private final SecureString token;
     private final String httpCa;
 
     public KibanaEnrollmentResponse(StreamInput in) throws IOException {
         super(in);
-        password = in.readSecureString();
+        token = in.readSecureString();
         httpCa = in.readString();
     }
 
-    public KibanaEnrollmentResponse(SecureString password, String httpCa) {
-        this.password = password;
+    public KibanaEnrollmentResponse(SecureString token, String httpCa) {
+        this.token = token;
         this.httpCa = httpCa;
     }
 
-    public SecureString getPassword() { return password; }
+    public SecureString getToken() { return token; }
     public String getHttpCa() {
         return httpCa;
     }
@@ -58,13 +58,13 @@ public final class KibanaEnrollmentResponse extends ActionResponse implements To
     @Override public XContentBuilder toXContent(
         XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(PASSWORD.getPreferredName(), password.toString());
+        builder.field(TOKEN.getPreferredName(), token.toString());
         builder.field(HTTP_CA.getPreferredName(), httpCa);
         return builder.endObject();
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeSecureString(password);
+        out.writeSecureString(token);
         out.writeString(httpCa);
     }
 
@@ -76,10 +76,10 @@ public final class KibanaEnrollmentResponse extends ActionResponse implements To
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         KibanaEnrollmentResponse response = (KibanaEnrollmentResponse) o;
-        return password.equals(response.password) && httpCa.equals(response.httpCa);
+        return token.equals(response.token) && httpCa.equals(response.httpCa);
     }
 
     @Override public int hashCode() {
-        return Objects.hash(password, httpCa);
+        return Objects.hash(token, httpCa);
     }
 }

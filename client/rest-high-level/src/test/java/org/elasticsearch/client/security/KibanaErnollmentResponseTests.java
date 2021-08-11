@@ -24,17 +24,17 @@ import static org.hamcrest.Matchers.equalTo;
 public class KibanaErnollmentResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        final String password = randomAlphaOfLength(14);
+        final String token = randomAlphaOfLength(14);
         final String httpCa = randomAlphaOfLength(50);
         final List<String> nodesAddresses = randomList(2, 10, () -> buildNewFakeTransportAddress().toString());
 
         final XContentType xContentType = randomFrom(XContentType.values());
         final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
-        builder.startObject().field("password", password).field("http_ca", httpCa).field("nodes_addresses", nodesAddresses).endObject();
+        builder.startObject().field("token", token).field("http_ca", httpCa).field("nodes_addresses", nodesAddresses).endObject();
         BytesReference xContent = BytesReference.bytes(builder);
 
         final KibanaEnrollmentResponse response = KibanaEnrollmentResponse.fromXContent(createParser(xContentType.xContent(), xContent));
-        assertThat(response.getPassword(), equalTo(password));
+        assertThat(response.getToken(), equalTo(token));
         assertThat(response.getHttpCa(), equalTo(httpCa));
     }
 
@@ -44,10 +44,10 @@ public class KibanaErnollmentResponseTests extends ESTestCase {
         KibanaEnrollmentResponse kibanaEnrollmentResponse = new KibanaEnrollmentResponse(password, httpCa);
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kibanaEnrollmentResponse,
-            (original) -> new KibanaEnrollmentResponse(original.getPassword(), original.getHttpCa()));
+            (original) -> new KibanaEnrollmentResponse(original.getToken(), original.getHttpCa()));
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kibanaEnrollmentResponse,
-            (original) -> new KibanaEnrollmentResponse(original.getPassword(), original.getHttpCa()),
+            (original) -> new KibanaEnrollmentResponse(original.getToken(), original.getHttpCa()),
             KibanaErnollmentResponseTests::mutateTestItem);
     }
 
@@ -57,9 +57,9 @@ public class KibanaErnollmentResponseTests extends ESTestCase {
                 return new KibanaEnrollmentResponse(new SecureString(randomAlphaOfLength(14).toCharArray()),
                     original.getHttpCa());
             case 1:
-                return new KibanaEnrollmentResponse(original.getPassword(), randomAlphaOfLength(51));
+                return new KibanaEnrollmentResponse(original.getToken(), randomAlphaOfLength(51));
             default:
-                return new KibanaEnrollmentResponse(original.getPassword(),
+                return new KibanaEnrollmentResponse(original.getToken(),
                     original.getHttpCa());
         }
     }

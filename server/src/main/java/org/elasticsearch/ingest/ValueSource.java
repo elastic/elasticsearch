@@ -28,6 +28,14 @@ import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
  */
 public interface ValueSource {
 
+    /**
+     * Returns a copy of the value this ValueSource holds and resolves templates if there're any.
+     *
+     * For immutable values only a copy of the reference to the value is made.
+     *
+     * @param modelSupplier The model to be used when resolving any templates
+     * @return copy of the wrapped value
+     */
     Object copyAndResolve(Supplier<Map<String, Object>> modelSupplier);
 
     static ValueSource wrap(Object value, ScriptService scriptService) {

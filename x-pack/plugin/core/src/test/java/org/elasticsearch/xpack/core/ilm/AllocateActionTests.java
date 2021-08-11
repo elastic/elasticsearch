@@ -170,7 +170,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
     }
 
     public void testTotalNumberOfShards() throws Exception {
-        Integer totalShardsPerNode = randomIntBetween(-1000, 1000);
+        Integer totalShardsPerNode = randomIntBetween(-1, 1000);
         Integer numberOfReplicas = randomIntBetween(0, 4);
         AllocateAction action = new AllocateAction(numberOfReplicas, totalShardsPerNode, null, null, null);
         String phase = randomAlphaOfLengthBetween(1, 10);

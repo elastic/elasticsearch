@@ -12,6 +12,7 @@ import com.google.common.jimfs.Jimfs;
 
 import joptsimple.OptionSet;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
@@ -59,9 +61,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -173,11 +178,8 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
     }
 
     public void testUnhealthyCluster() throws Exception {
-        URL url = new URL(client.getDefaultURL());
-        HttpResponse healthResponse =
-            new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("red")));
-        when(client.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(healthResponse);
+        doThrow(new IllegalStateException("Failed to determine the health of the cluster. Cluster health is currently RED."))
+            .when(client).checkClusterHealthWithRetriesWaitingForCluster(anyString(), any(SecureString.class), anyInt(), anyBoolean());
         UserException e = expectThrows(UserException.class, this::execute);
         assertThat(e.exitCode, equalTo(ExitCodes.UNAVAILABLE));
         assertThat(e.getMessage(), containsString("RED"));
@@ -206,11 +208,9 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
     }
 
     public void testWillRetryOnUnauthorized() throws Exception {
-        URL url = new URL(client.getDefaultURL());
-        HttpResponse unauthorizedResponse =
-            new HttpResponse(HttpURLConnection.HTTP_UNAUTHORIZED, Map.of());
-        when(client.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(unauthorizedResponse);
+        doThrow(new ElasticsearchStatusException(
+            "Failed to determine the health of the cluster. Unexpected http status [401]", RestStatus.fromCode(401)))
+            .when(client).checkClusterHealthWithRetriesWaitingForCluster(anyString(), any(SecureString.class), anyInt(), anyBoolean());
         UserException e = expectThrows(UserException.class, () -> execute("--verbose"));
         String verboseOutput = terminal.getOutput();
         assertThat(verboseOutput.split("\\n").length, equalTo(5));

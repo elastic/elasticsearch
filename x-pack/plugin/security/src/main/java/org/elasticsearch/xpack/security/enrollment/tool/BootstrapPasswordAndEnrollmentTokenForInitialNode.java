@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.security.enrollment.tool;
 
-import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.ExitCodes;
@@ -49,15 +47,6 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
     private final OptionSpec<Void> docker;
     final SecureRandom secureRandom = new SecureRandom();
 
-    // Package-private for testing
-    CommandLineHttpClient getClient(Environment env) {
-        return clientFunction.apply(env);
-    }
-    EnrollmentTokenGenerator getEnrollmentTokenGenerator(Environment env) throws Exception{
-        return createEnrollmentTokenFunction.apply(env);
-    }
-    OptionParser getParser() { return parser; }
-
     BootstrapPasswordAndEnrollmentTokenForInitialNode() {
         this(
             environment -> new CommandLineHttpClient(environment),
@@ -91,8 +80,8 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         }
 
         final SecureString keystorePassword = new SecureString(keyStorePassword);
-        final CommandLineHttpClient client = getClient(env);
-        final EnrollmentTokenGenerator enrollmentTokenGenerator = getEnrollmentTokenGenerator(env);
+        final CommandLineHttpClient client = clientFunction.apply(env);
+        final EnrollmentTokenGenerator enrollmentTokenGenerator = createEnrollmentTokenFunction.apply(env);
         final SecureString bootstrapPassword = readBootstrapPassword(env, keystorePassword);
         try {
             client.checkClusterHealthWithRetriesWaitingForCluster(ELASTIC_USER, bootstrapPassword, 5, false);
@@ -148,15 +137,14 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
             settingsBuilder.setSecureSettings(keyStoreWrapper);
         }
         final Settings settings = settingsBuilder.build();
-        SecureString bootstrapPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(settings);
-        return bootstrapPassword;
+        return ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(settings);
     }
 
-    URL checkClusterHealthUrl(CommandLineHttpClient client) throws MalformedURLException, URISyntaxException {
+    public static URL checkClusterHealthUrl(CommandLineHttpClient client) throws MalformedURLException, URISyntaxException {
         return createURL(new URL(client.getDefaultURL()), "_cluster/health", "?pretty");
     }
 
-    URL setElasticUserPasswordUrl(CommandLineHttpClient client) throws MalformedURLException, URISyntaxException {
+    public static URL setElasticUserPasswordUrl(CommandLineHttpClient client) throws MalformedURLException, URISyntaxException {
         return createURL(new URL(client.getDefaultURL()), "/_security/user/" + ELASTIC_USER + "/_password",
             "?pretty");
     }

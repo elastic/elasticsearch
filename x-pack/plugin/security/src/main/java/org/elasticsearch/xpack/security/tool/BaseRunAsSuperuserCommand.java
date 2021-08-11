@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
 
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -39,11 +38,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.security.tool.CommandLineHttpClient.createURL;
 
 /**
  * A {@link KeyStoreAwareCommand} that can be extended fpr any CLI tool that needs to allow a local user with
@@ -196,17 +192,16 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
         try {
             client.checkClusterHealthWithRetriesWaitingForCluster(username, password, 0, force);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchStatusException &&
-                ((ElasticsearchStatusException) e).status().getStatus() == HttpURLConnection.HTTP_UNAUTHORIZED ||
-                ((ElasticsearchStatusException) e).status().getStatus() == HttpURLConnection.HTTP_FORBIDDEN) {
+            if ((e instanceof ElasticsearchStatusException) &&
+                (((ElasticsearchStatusException) e).status().getStatus() == HttpURLConnection.HTTP_UNAUTHORIZED ||
+                ((ElasticsearchStatusException) e).status().getStatus() == HttpURLConnection.HTTP_FORBIDDEN)) {
                 // We try to write the roles file first and then the users one, but theoretically we could have loaded the users
                 // before we have actually loaded the roles so we also retry on 403 ( temp user is found but has no roles )
                 if ( retries > 0 ) {
                     terminal.println(
                         Terminal.Verbosity.VERBOSE,
-                        "Unexpected http status while attempting to determine cluster health. Will retry at most "
-                            + retries
-                            + " more times."
+                        "Unexpected http status [" + ((ElasticsearchStatusException) e).status().getStatus()
+                            + "] while attempting to determine cluster health. Will retry at most " + retries + " more times."
                     );
                     Thread.sleep(1000);
                     retries -= 1;

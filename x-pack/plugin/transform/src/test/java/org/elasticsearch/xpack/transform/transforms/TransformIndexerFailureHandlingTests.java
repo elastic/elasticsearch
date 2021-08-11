@@ -749,7 +749,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
 
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        Function<SearchRequest, SearchResponse> searchFunction = new Function<>() {
+        Function<SearchRequest, SearchResponse> searchFunction = new Function<SearchRequest, SearchResponse>() {
             final AtomicInteger calls = new AtomicInteger(0);
 
             @Override

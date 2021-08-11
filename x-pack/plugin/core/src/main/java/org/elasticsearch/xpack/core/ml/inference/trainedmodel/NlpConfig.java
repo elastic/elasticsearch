@@ -7,7 +7,13 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.common.xcontent.ParseField;
+
 public interface NlpConfig extends LenientlyParsedInferenceConfig, StrictlyParsedInferenceConfig {
+
+    ParseField VOCABULARY = new ParseField("vocabulary");
+    ParseField TOKENIZATION_PARAMS = new ParseField("tokenization_params");
+    ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
 
     /**
      * @return the vocabulary configuration that allows retrieving it

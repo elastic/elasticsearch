@@ -18,12 +18,7 @@ public enum TrainedModelType {
 
     TREE_ENSEMBLE,
     LANG_IDENT,
-    PYTORCH {
-        @Override
-        public boolean hasInferenceDefinition() {
-            return false;
-        }
-    };
+    PYTORCH;
 
     public static TrainedModelType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -43,10 +38,6 @@ public enum TrainedModelType {
         } else {
             return null;
         }
-    }
-
-    public boolean hasInferenceDefinition() {
-        return true;
     }
 
     @Override

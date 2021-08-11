@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
@@ -24,10 +23,6 @@ import java.util.Objects;
 public class NerConfig implements NlpConfig {
 
     public static final String NAME = "ner";
-
-    private static final ParseField VOCABULARY = new ParseField("vocabulary");
-    private static final ParseField TOKENIZATION_PARAMS = new ParseField("tokenization_params");
-    private static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
 
     public static NerConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
@@ -74,7 +69,7 @@ public class NerConfig implements NlpConfig {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig);
         builder.field(TOKENIZATION_PARAMS.getPreferredName(), tokenizationParams);
-        if (classificationLabels != null) {
+        if (classificationLabels != null && classificationLabels.isEmpty() == false) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }
         builder.endObject();

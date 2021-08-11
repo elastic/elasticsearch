@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
@@ -23,9 +22,6 @@ import java.util.Objects;
 public class FillMaskConfig implements NlpConfig {
 
     public static final String NAME = "fill_mask";
-
-    private static final ParseField VOCABULARY = new ParseField("vocabulary");
-    private static final ParseField TOKENIZATION_PARAMS = new ParseField("tokenization_params");
 
     public static FillMaskConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);

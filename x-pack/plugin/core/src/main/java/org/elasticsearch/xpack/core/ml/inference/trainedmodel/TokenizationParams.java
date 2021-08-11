@@ -46,7 +46,7 @@ public class TokenizationParams implements ToXContentObject, Writeable {
 
     public TokenizationParams(@Nullable Boolean doLowerCase, @Nullable Boolean withSpecialTokens, @Nullable Integer maxSequenceLength) {
         if (maxSequenceLength != null && maxSequenceLength <= 0) {
-            throw new IllegalArgumentException("[{}] must be positive");
+            throw new IllegalArgumentException("[" + MAX_SEQUENCE_LENGTH.getPreferredName() + "] must be positive");
         }
         this.doLowerCase = doLowerCase == null ? false : doLowerCase;
         this.withSpecialTokens = withSpecialTokens == null ? true : withSpecialTokens;

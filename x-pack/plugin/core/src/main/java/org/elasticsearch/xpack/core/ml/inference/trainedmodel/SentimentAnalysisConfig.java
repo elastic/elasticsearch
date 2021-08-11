@@ -25,10 +25,6 @@ public class SentimentAnalysisConfig implements NlpConfig {
 
     public static final String NAME = "sentiment_analysis";
 
-    private static final ParseField VOCABULARY = new ParseField("vocabulary");
-    private static final ParseField TOKENIZATION_PARAMS = new ParseField("tokenization_params");
-    public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
-
     public static SentimentAnalysisConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
     }
@@ -73,7 +69,7 @@ public class SentimentAnalysisConfig implements NlpConfig {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig);
         builder.field(TOKENIZATION_PARAMS.getPreferredName(), tokenizationParams);
-        if (classificationLabels != null) {
+        if (classificationLabels != null && classificationLabels.isEmpty() == false) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }
         builder.endObject();

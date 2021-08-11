@@ -24,9 +24,6 @@ public class BertPassThroughConfig implements NlpConfig {
 
     public static final String NAME = "bert_pass_through";
 
-    private static final ParseField VOCABULARY = new ParseField("vocabulary");
-    private static final ParseField TOKENIZATION_PARAMS = new ParseField("tokenization_params");
-
     public static BertPassThroughConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
     }

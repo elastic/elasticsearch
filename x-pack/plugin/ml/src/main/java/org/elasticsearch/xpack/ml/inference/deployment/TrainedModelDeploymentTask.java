@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationNodeService;
 
 import java.util.Map;
+import java.util.Optional;
 
 public class TrainedModelDeploymentTask extends CancellableTask implements StartTrainedModelDeploymentAction.TaskMatcher {
 
@@ -29,6 +31,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     private final TaskParams params;
     private final TrainedModelAllocationNodeService trainedModelAllocationNodeService;
     private volatile boolean stopped;
+    private final SetOnce<String> stoppedReason = new SetOnce<>();
 
     public TrainedModelDeploymentTask(
         long id,
@@ -39,7 +42,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         TaskParams taskParams,
         TrainedModelAllocationNodeService trainedModelAllocationNodeService
     ) {
-        super(id, type, action, MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + taskParams.getModelId(), parentTask, headers);
+        super(id, type, action, MlTasks.trainedModelDeploymentTaskId(taskParams.getModelId()), parentTask, headers);
         this.params = taskParams;
         this.trainedModelAllocationNodeService = ExceptionsHelper.requireNonNull(
             trainedModelAllocationNodeService,
@@ -62,16 +65,22 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     public void stop(String reason) {
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
         stopped = true;
-        trainedModelAllocationNodeService.stopDeploymentAndNotify(this);
+        stoppedReason.trySet(reason);
+        trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason);
     }
 
     public void stopWithoutNotification(String reason) {
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
+        stoppedReason.trySet(reason);
         stopped = true;
     }
 
     public boolean isStopped() {
         return stopped;
+    }
+
+    public Optional<String> stoppedReason() {
+        return Optional.ofNullable(stoppedReason.get());
     }
 
     @Override

@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
@@ -216,6 +217,54 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }
 
+    public void testClusterChangedWithResetMode() {
+        final TrainedModelAllocationNodeService trainedModelAllocationNodeService = createService();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .localNodeId(NODE_ID)
+            .add(
+                new DiscoveryNode(
+                    NODE_ID,
+                    NODE_ID,
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    DiscoveryNodeRole.roles(),
+                    Version.CURRENT
+                )
+            )
+            .build();
+        String modelOne = "model-1";
+        String modelTwo = "model-2";
+        String notUsedModel = "model-3";
+        ClusterChangedEvent event = new ClusterChangedEvent(
+            "testClusterChanged",
+            ClusterState.builder(new ClusterName("testClusterChanged"))
+                .nodes(nodes)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            TrainedModelAllocationMetadata.NAME,
+                            TrainedModelAllocationMetadata.Builder.empty()
+                                .addNewAllocation(newParams(modelOne))
+                                .addNode(modelOne, NODE_ID)
+                                .addNewAllocation(newParams(modelTwo))
+                                .addNode(modelTwo, NODE_ID)
+                                .addNewAllocation(newParams(notUsedModel))
+                                .addNode(notUsedModel, "some-other-node")
+                                .build()
+                        )
+                        .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build())
+                        .build()
+                )
+                .build(),
+            ClusterState.EMPTY_STATE
+        );
+
+        trainedModelAllocationNodeService.clusterChanged(event);
+        trainedModelAllocationNodeService.loadQueuedModels();
+        verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76347")
     public void testClusterChanged() throws Exception {
         final TrainedModelAllocationNodeService trainedModelAllocationNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder()

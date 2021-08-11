@@ -190,15 +190,12 @@ public class XPackLicenseState {
             case BASIC:
                 switch (currentMode) {
                     case STANDARD:
-                        return new String[] {
-                            "Security will default to disabled (set " + XPackSettings.SECURITY_ENABLED.getKey() + " to enable security).",
-                        };
+                        return Strings.EMPTY_ARRAY;
                     case TRIAL:
                     case GOLD:
                     case PLATINUM:
                     case ENTERPRISE:
                         return new String[] {
-                            "Security will default to disabled (set " + XPackSettings.SECURITY_ENABLED.getKey() + " to enable security).",
                             "Authentication will be limited to the native and file realms.",
                             "Security tokens and API keys will not be supported.",
                             "IP filtering and auditing will be disabled.",
@@ -401,8 +398,6 @@ public class XPackLicenseState {
     }
 
     private final List<LicenseStateListener> listeners;
-    private final boolean isSecurityEnabled;
-    private final boolean isSecurityExplicitlyEnabled;
     private final Map<Feature, LongAccumulator> lastUsed;
     private final LongSupplier epochMillisProvider;
 
@@ -412,10 +407,8 @@ public class XPackLicenseState {
     // is only read once.
     private volatile Status status = new Status(OperationMode.TRIAL, true, Long.MAX_VALUE);
 
-    public XPackLicenseState(Settings settings, LongSupplier epochMillisProvider) {
+    public XPackLicenseState(LongSupplier epochMillisProvider) {
         this.listeners = new CopyOnWriteArrayList<>();
-        this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        this.isSecurityExplicitlyEnabled = isSecurityEnabled && isSecurityExplicitlyEnabled(settings);
 
         // prepopulate feature last used map with entries for non basic features, which are the ones we
         // care to actually keep track of
@@ -429,18 +422,12 @@ public class XPackLicenseState {
         this.epochMillisProvider = epochMillisProvider;
     }
 
-    private XPackLicenseState(List<LicenseStateListener> listeners, boolean isSecurityEnabled, boolean isSecurityExplicitlyEnabled,
-                              Status status, Map<Feature, LongAccumulator> lastUsed, LongSupplier epochMillisProvider) {
+    private XPackLicenseState(List<LicenseStateListener> listeners, Status status, Map<Feature, LongAccumulator> lastUsed,
+        LongSupplier epochMillisProvider) {
         this.listeners = listeners;
-        this.isSecurityEnabled = isSecurityEnabled;
-        this.isSecurityExplicitlyEnabled = isSecurityExplicitlyEnabled;
         this.status = status;
         this.lastUsed = lastUsed;
         this.epochMillisProvider = epochMillisProvider;
-    }
-
-    private static boolean isSecurityExplicitlyEnabled(Settings settings) {
-        return settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey());
     }
 
     /** Performs function against status, only reading the status once to avoid races */
@@ -551,14 +538,6 @@ public class XPackLicenseState {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
-    /**
-     * Returns whether security is enabled, taking into account the default enabled state
-     * based on the current license level.
-     */
-    public boolean isSecurityEnabled() {
-        return isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
-    }
-
     public static boolean isTransportTlsRequired(License license, Settings settings) {
         if (license == null) {
             return false;
@@ -568,25 +547,13 @@ public class XPackLicenseState {
             case GOLD:
             case PLATINUM:
             case ENTERPRISE:
-                return XPackSettings.SECURITY_ENABLED.get(settings);
             case BASIC:
-                return XPackSettings.SECURITY_ENABLED.get(settings) && isSecurityExplicitlyEnabled(settings);
+                return XPackSettings.SECURITY_ENABLED.get(settings);
             case MISSING:
             case TRIAL:
                 return false;
             default:
                 throw new AssertionError("unknown operation mode [" + license.operationMode() + "]");
-        }
-    }
-
-    private static boolean isSecurityEnabled(final OperationMode mode, final boolean isSecurityExplicitlyEnabled,
-                                             final boolean isSecurityEnabled) {
-        switch (mode) {
-            case TRIAL:
-            case BASIC:
-                return isSecurityExplicitlyEnabled;
-            default:
-                return isSecurityEnabled;
         }
     }
 
@@ -611,7 +578,7 @@ public class XPackLicenseState {
      */
     public XPackLicenseState copyCurrentLicenseState() {
         return executeAgainstStatus(status ->
-            new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status, lastUsed, epochMillisProvider));
+            new XPackLicenseState(listeners, status, lastUsed, epochMillisProvider));
     }
 
     /**

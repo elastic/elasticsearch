@@ -202,20 +202,27 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
   String configDirectory = base == DockerBase.IRON_BANK ? 'scripts' : 'config'
   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
 
-  tasks.register(taskName('build', architecture, base, 'DockerContext'), Tar) {
-    archiveExtension = 'tar.gz'
-    compression = Compression.GZIP
-    archiveClassifier = "docker-build-context${arch}"
-    archiveBaseName = "elasticsearch${base.suffix}"
-    with dockerBuildContext(architecture, base)
+  final TaskProvider<Tar> buildDockerContextTask =
+    tasks.register(taskName('build', architecture, base, 'DockerContext'), Tar) {
+      archiveExtension = 'tar.gz'
+      compression = Compression.GZIP
+      archiveClassifier = "docker-build-context${arch}"
+      archiveBaseName = "elasticsearch${base.suffix}"
+      with dockerBuildContext(architecture, base)
 
-    into(configDirectory) {
-      from(configurations.log4jConfig) {
-        filter TransformLog4jConfigFilter
+      into(configDirectory) {
+        from(configurations.log4jConfig) {
+          filter TransformLog4jConfigFilter
+        }
       }
+
+      onlyIf { Architecture.current() == architecture }
     }
 
-    onlyIf { Architecture.current() == architecture }
+  if (base == DockerBase.IRON_BANK) {
+    tasks.named("assemble").configure {
+      dependsOn(buildDockerContextTask)
+    }
   }
 }
 
@@ -303,8 +310,10 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       onlyIf { Architecture.current() == architecture }
     }
 
-  tasks.named("assemble").configure {
-    dependsOn(buildDockerImageTask)
+  if (base != DockerBase.IRON_BANK) {
+    tasks.named("assemble").configure {
+      dependsOn(buildDockerImageTask)
+    }
   }
 }
 

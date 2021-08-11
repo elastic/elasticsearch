@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.tool;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.Streams;
@@ -20,6 +22,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -196,8 +199,11 @@ public class CommandLineHttpClient {
         return error.toString();
     }
 
-    // If cluster is not up yet (connection refused or cluster still Red), we will retry @retries number of times
-    public void checkClusterHealthWithRetriesWaitingForCluster(String username, SecureString password, int retries) throws Exception {
+    /**
+     * If cluster is not up yet (connection refused or cluster still Red), we will retry @retries number of times
+     */
+    public void checkClusterHealthWithRetriesWaitingForCluster(String username, SecureString password, int retries, boolean force)
+        throws Exception {
         final URL clusterHealthUrl = createURL(new URL(getDefaultURL()), "_cluster/health", "?pretty");
         HttpResponse response = null;
         try {
@@ -206,31 +212,29 @@ public class CommandLineHttpClient {
             if (retries > 0) {
                 Thread.sleep(1000);
                 retries -= 1;
-                checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
+                checkClusterHealthWithRetriesWaitingForCluster(username, password, retries ,force);
             } else {
-                throw new UserException(ExitCodes.UNAVAILABLE, "Failed to determine the health of the cluster. ", e);
+                throw new IllegalStateException("Failed to determine the health of the cluster. ", e);
             }
         }
-        final int responseStatus = Objects.requireNonNull(response).getHttpStatus();
+        final int responseStatus = response.getHttpStatus();
         if (responseStatus != HttpURLConnection.HTTP_OK) {
-            throw new UserException(
-                ExitCodes.DATA_ERROR,
-                "Failed to determine the health of the cluster. Unexpected http status [" + responseStatus + "]"
-            );
+            throw new ElasticsearchStatusException(
+                "Failed to determine the health of the cluster. Unexpected http status [" + responseStatus + "]",
+                RestStatus.fromCode(responseStatus));
         } else {
             final String clusterStatus = Objects.toString(response.getResponseBody().get("status"), "");
             if (clusterStatus.isEmpty()) {
-                throw new UserException(
-                    ExitCodes.DATA_ERROR,
+                throw new IllegalStateException(
                     "Failed to determine the health of the cluster. Cluster health API did not return a status value."
                 );
-            } else if ("red".equalsIgnoreCase(clusterStatus)) {
+            } else if ("red".equalsIgnoreCase(clusterStatus) && force == false) {
                 if (retries > 0) {
                     Thread.sleep(1000);
                     retries -= 1;
-                    checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
+                    checkClusterHealthWithRetriesWaitingForCluster(username, password, retries, force);
                 } else {
-                    throw new UserException(ExitCodes.UNAVAILABLE,
+                    throw new IllegalStateException(
                         "Failed to determine the health of the cluster. Cluster health is currently RED.");
                 }
             }

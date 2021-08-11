@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 
 public class EnrollmentToken {
     private final String apiKey;
@@ -27,13 +28,13 @@ public class EnrollmentToken {
     public List<String> getBound_address() { return bound_address; }
 
     public EnrollmentToken(String apiKey, String fingerprint, String version, List<String> bound_address) {
-        this.apiKey = apiKey;
-        this.fingerprint = fingerprint;
-        this.version = version;
-        this.bound_address = bound_address;
+        this.apiKey = Objects.requireNonNull(apiKey);
+        this.fingerprint = Objects.requireNonNull(fingerprint);
+        this.version = Objects.requireNonNull(version);
+        this.bound_address = Objects.requireNonNull(bound_address);
     }
 
-    public String encode() throws Exception{
+    public String getRaw() throws Exception {
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("ver", version);
@@ -45,7 +46,11 @@ public class EnrollmentToken {
         builder.field("fgr", fingerprint);
         builder.field("key", apiKey);
         builder.endObject();
-        final String jsonString = Strings.toString(builder);
+        return Strings.toString(builder);
+    }
+
+    public String encode() throws Exception {
+        final String jsonString = getRaw();
         return Base64.getUrlEncoder().encodeToString(jsonString.getBytes(StandardCharsets.UTF_8));
     }
 }

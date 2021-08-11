@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.security.enrollment.tool;
 
 import joptsimple.OptionSet;
 
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -37,7 +37,9 @@ import java.util.Collections;
 
 import static org.elasticsearch.mock.orig.Mockito.doReturn;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -78,13 +80,14 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
     }
 
     public void testGenerateNewPasswordSuccess() throws Exception {
-        final BootstrapPasswordAndEnrollmentTokenForInitialNode command_util = mock(BootstrapPasswordAndEnrollmentTokenForInitialNode
+        final BootstrapPasswordAndEnrollmentTokenForInitialNode commandMock = mock(BootstrapPasswordAndEnrollmentTokenForInitialNode
             .class);
-        final CommandLineHttpClient client_util = mock(CommandLineHttpClient.class);
-        doReturn(client_util).when(command_util).getClient(environment);
+        final CommandLineHttpClient clientMock = mock(CommandLineHttpClient.class);
+        doReturn(clientMock).when(commandMock).getClient(environment);
         final MockTerminal terminal = new MockTerminal();
+        terminal.addSecretInput("password");
         final CommandLineHttpClient client = new CommandLineHttpClient(environment);
-        doReturn(client.getDefaultURL()).when(client_util).getDefaultURL();
+        doReturn(client.getDefaultURL()).when(clientMock).getDefaultURL();
         final EnrollmentTokenGenerator enrollmentTokenGenerator = mock(EnrollmentTokenGenerator.class);
         final EnrollmentToken token = new EnrollmentToken("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg",
             "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", "8.0.0",
@@ -92,7 +95,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
         final BootstrapPasswordAndEnrollmentTokenForInitialNode command = new BootstrapPasswordAndEnrollmentTokenForInitialNode() {
             @Override
             protected CommandLineHttpClient getClient(Environment env) {
-                return client_util;
+                return clientMock;
             }
             @Override
             protected EnrollmentTokenGenerator getEnrollmentTokenGenerator(Environment env) {
@@ -105,10 +108,10 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
             }
             @Override
             protected SecureString readBootstrapPassword(Environment env, SecureString password) {
-                return new SecureString("password");
+                return new SecureString("password".toCharArray());
             }
         };
-        final OptionSet option = command.getParser().parse("--keystore-password", "password", "--docker");
+        final OptionSet option = command.getParser().parse("--docker");
         when(enrollmentTokenGenerator.createKibanaEnrollmentToken(anyString(), any(SecureString.class))).thenReturn(token);
         when(enrollmentTokenGenerator.createNodeEnrollmentToken(anyString(), any(SecureString.class))).thenReturn(token);
         final String checkClusterHealthResponseBody;
@@ -118,17 +121,17 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
                 .endObject();
             checkClusterHealthResponseBody = Strings.toString(builder);
         }
-        when(client_util.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
+        when(clientMock.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
             any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, checkClusterHealthResponseBody));
 
-        final String getChangeElasticUserPasswordBody;
+        final String getSetElasticUserPasswordBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject()
                 .endObject();
-            getChangeElasticUserPasswordBody = Strings.toString(builder);
+            getSetElasticUserPasswordBody = Strings.toString(builder);
         }
-        when(client_util.execute(eq("POST"), eq(command.changeElasticUserPasswordUrl(client)), anyString(), any(SecureString.class),
-            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getChangeElasticUserPasswordBody));
+        when(clientMock.execute(eq("POST"), eq(command.setElasticUserPasswordUrl(client)), anyString(), any(SecureString.class),
+            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getSetElasticUserPasswordBody));
         command.execute(terminal, option, environment);
         assertThat(terminal.getOutput(), containsString("elastic user password: Aljngvodjb94j8HSY803"));
         assertThat(terminal.getOutput(), containsString("CA fingerprint: ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428" +
@@ -153,13 +156,14 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
             .build();
         final Environment bootstrapPasswordEnvironment = new Environment(settings, tempDir);
 
-        final BootstrapPasswordAndEnrollmentTokenForInitialNode command_util = mock(BootstrapPasswordAndEnrollmentTokenForInitialNode
+        final BootstrapPasswordAndEnrollmentTokenForInitialNode commandMock = mock(BootstrapPasswordAndEnrollmentTokenForInitialNode
             .class);
-        final CommandLineHttpClient client_util = mock(CommandLineHttpClient.class);
-        doReturn(client_util).when(command_util).getClient(bootstrapPasswordEnvironment);
+        final CommandLineHttpClient clientMock = mock(CommandLineHttpClient.class);
+        doReturn(clientMock).when(commandMock).getClient(bootstrapPasswordEnvironment);
         final MockTerminal terminal = new MockTerminal();
+        terminal.addSecretInput("password");
         final CommandLineHttpClient client = new CommandLineHttpClient(bootstrapPasswordEnvironment);
-        doReturn(client.getDefaultURL()).when(client_util).getDefaultURL();
+        doReturn(client.getDefaultURL()).when(clientMock).getDefaultURL();
         final EnrollmentTokenGenerator enrollmentTokenGenerator = mock(EnrollmentTokenGenerator.class);
         final EnrollmentToken token = new EnrollmentToken("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg",
             "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", "8.0.0",
@@ -167,7 +171,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
         final BootstrapPasswordAndEnrollmentTokenForInitialNode command = new BootstrapPasswordAndEnrollmentTokenForInitialNode() {
             @Override
             protected CommandLineHttpClient getClient(Environment env) {
-                return client_util;
+                return clientMock;
             }
             @Override
             protected EnrollmentTokenGenerator getEnrollmentTokenGenerator(Environment env) { return enrollmentTokenGenerator; }
@@ -178,10 +182,10 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
             }
             @Override
             protected SecureString readBootstrapPassword(Environment env, SecureString password) {
-                return new SecureString("password");
+                return new SecureString("password".toCharArray());
             }
         };
-        final OptionSet option = command.getParser().parse("--keystore-password", "password");
+        final OptionSet option = command.getParser().parse();
         when(enrollmentTokenGenerator.createKibanaEnrollmentToken(anyString(), any(SecureString.class))).thenReturn(token);
         final String checkClusterHealthResponseBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -190,17 +194,17 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
                 .endObject();
             checkClusterHealthResponseBody = Strings.toString(builder);
         }
-        when(client_util.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
+        when(clientMock.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
             any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, checkClusterHealthResponseBody));
 
-        final String getChangeElasticUserPasswordBody;
+        final String getSetElasticUserPasswordBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject()
                 .endObject();
-            getChangeElasticUserPasswordBody = Strings.toString(builder);
+            getSetElasticUserPasswordBody = Strings.toString(builder);
         }
-        when(client_util.execute(eq("POST"), eq(command.changeElasticUserPasswordUrl(client)), anyString(), any(SecureString.class),
-            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getChangeElasticUserPasswordBody));
+        when(clientMock.execute(eq("POST"), eq(command.setElasticUserPasswordUrl(client)), anyString(), any(SecureString.class),
+            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getSetElasticUserPasswordBody));
         command.execute(terminal, option, bootstrapPasswordEnvironment);
         assertFalse(terminal.getOutput().contains("elastic user password:"));
         assertThat(terminal.getOutput(), containsString("CA fingerprint: ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428" +
@@ -212,23 +216,25 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
     }
 
     public void testClusterHealthIsRed() throws Exception {
-        final BootstrapPasswordAndEnrollmentTokenForInitialNode command_util = mock(BootstrapPasswordAndEnrollmentTokenForInitialNode
+        final BootstrapPasswordAndEnrollmentTokenForInitialNode commandMock = mock(BootstrapPasswordAndEnrollmentTokenForInitialNode
             .class);
-        final CommandLineHttpClient client_util = mock(CommandLineHttpClient.class);
-        doReturn(client_util).when(command_util).getClient(environment);
-        final Terminal terminal = new MockTerminal();
+        final CommandLineHttpClient clientMock = mock(CommandLineHttpClient.class);
+        doReturn(clientMock).when(commandMock).getClient(environment);
+        final MockTerminal terminal = new MockTerminal();
+        terminal.addSecretInput("password");
         final CommandLineHttpClient client = new CommandLineHttpClient(environment);
-        doReturn(client.getDefaultURL()).when(client_util).getDefaultURL();
-        doCallRealMethod().when(client_util).checkClusterHealthWithRetriesWaitingForCluster(anyString(), anyObject(), anyInt());
+        doReturn(client.getDefaultURL()).when(clientMock).getDefaultURL();
+        doCallRealMethod().when(clientMock).checkClusterHealthWithRetriesWaitingForCluster(anyString(), anyObject(), anyInt(),
+            anyBoolean());
         final BootstrapPasswordAndEnrollmentTokenForInitialNode command = new BootstrapPasswordAndEnrollmentTokenForInitialNode() {
             @Override
-            protected CommandLineHttpClient getClient(Environment env) { return client_util; }
+            protected CommandLineHttpClient getClient(Environment env) { return clientMock; }
             @Override
             protected SecureString readBootstrapPassword(Environment env, SecureString password) {
-                return new SecureString("password");
+                return new SecureString("password".toCharArray());
             }
         };
-        final OptionSet option = command.getParser().parse("--keystore-password", "password");
+        final OptionSet option = command.getParser().parse();
         final String checkClusterHealthResponseBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject()
@@ -236,22 +242,24 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
                 .endObject();
             checkClusterHealthResponseBody = Strings.toString(builder);
         }
-        when(client_util.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
+        when(clientMock.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
             any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, checkClusterHealthResponseBody));
 
         final UserException ex = expectThrows(UserException.class, () ->
             command.execute(terminal, option, environment));
         assertNull(ex.getMessage());
+        assertThat(ex.exitCode, is(ExitCodes.UNAVAILABLE));
     }
 
     public void testFailedToSetPassword() throws Exception {
-        final BootstrapPasswordAndEnrollmentTokenForInitialNode command_util = mock(BootstrapPasswordAndEnrollmentTokenForInitialNode
+        final BootstrapPasswordAndEnrollmentTokenForInitialNode commandMock = mock(BootstrapPasswordAndEnrollmentTokenForInitialNode
             .class);
-        final CommandLineHttpClient client_util = mock(CommandLineHttpClient.class);
-        doReturn(client_util).when(command_util).getClient(environment);
-        final Terminal terminal = new MockTerminal();
+        final CommandLineHttpClient clientMock = mock(CommandLineHttpClient.class);
+        doReturn(clientMock).when(commandMock).getClient(environment);
+        final MockTerminal terminal = new MockTerminal();
+        terminal.addSecretInput("password");
         CommandLineHttpClient client = new CommandLineHttpClient(environment);
-        doReturn(client.getDefaultURL()).when(client_util).getDefaultURL();
+        doReturn(client.getDefaultURL()).when(clientMock).getDefaultURL();
         final EnrollmentTokenGenerator cet = mock(EnrollmentTokenGenerator.class);
         final EnrollmentToken token = new EnrollmentToken("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg",
             "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", "8.0.0",
@@ -259,7 +267,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
         final BootstrapPasswordAndEnrollmentTokenForInitialNode command = new BootstrapPasswordAndEnrollmentTokenForInitialNode() {
             @Override
             protected CommandLineHttpClient getClient(Environment env) {
-                return client_util;
+                return clientMock;
             }
             @Override
             protected EnrollmentTokenGenerator getEnrollmentTokenGenerator(Environment env) {
@@ -272,10 +280,10 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
             }
             @Override
             protected SecureString readBootstrapPassword(Environment env, SecureString password) {
-                return new SecureString("password");
+                return new SecureString("password".toCharArray());
             }
         };
-        final OptionSet option = command.getParser().parse("--keystore-password", "password");
+        final OptionSet option = command.getParser().parse();
         when(cet.createKibanaEnrollmentToken(anyString(), any(SecureString.class))).thenReturn(token);
         final String checkClusterHealthResponseBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -284,29 +292,31 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends ESTe
                 .endObject();
             checkClusterHealthResponseBody = Strings.toString(builder);
         }
-        when(client_util.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
+        when(clientMock.execute(eq("GET"), eq(command.checkClusterHealthUrl(client)), anyString(), any(SecureString.class),
             any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, checkClusterHealthResponseBody));
 
-        final String getChangeElasticUserPasswordBody;
+        final String getSetElasticUserPasswordBody;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject()
                 .endObject();
-            getChangeElasticUserPasswordBody = Strings.toString(builder);
+            getSetElasticUserPasswordBody = Strings.toString(builder);
         }
-        when(client_util.execute(eq("POST"), eq(command.changeElasticUserPasswordUrl(client)), anyString(), any(SecureString.class),
-            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_UNAUTHORIZED, getChangeElasticUserPasswordBody));
+        when(clientMock.execute(eq("POST"), eq(command.setElasticUserPasswordUrl(client)), anyString(), any(SecureString.class),
+            any(), any())).thenReturn(createHttpResponse(HttpURLConnection.HTTP_UNAUTHORIZED, getSetElasticUserPasswordBody));
         final UserException ex = expectThrows(UserException.class, () ->
             command.execute(terminal, option, environment));
         assertNull(ex.getMessage());
+        assertThat(ex.exitCode, is(ExitCodes.UNAVAILABLE));
     }
 
     public void testNoKeystorePassword() {
         final BootstrapPasswordAndEnrollmentTokenForInitialNode command = new BootstrapPasswordAndEnrollmentTokenForInitialNode();
-        final Terminal terminal = mock(Terminal.class);
+        final MockTerminal terminal = new MockTerminal();
         final OptionSet option = command.getParser().parse(Strings.toStringArray(Collections.singletonList("")));
         final UserException ex = expectThrows(UserException.class, () ->
             command.execute(terminal, option, environment));
         assertNull(ex.getMessage());
+        assertThat(ex.exitCode, is(ExitCodes.USAGE));
     }
 
     private HttpResponse createHttpResponse(final int httpStatus, final String responseJson) throws IOException {

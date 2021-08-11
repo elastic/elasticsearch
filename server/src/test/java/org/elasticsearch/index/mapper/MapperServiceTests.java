@@ -15,6 +15,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.VersionUtils;
@@ -26,6 +27,7 @@ import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -38,6 +40,18 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
         merge(mapperService, MergeReason.MAPPING_UPDATE, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
         assertThat("field was not created by mapping update", mapperService.fieldType("field0"), notNullValue());
+    }
+
+    public void testCheckDynamicMappingUpdate() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build(),
+            mapping(b -> b.startObject("@timestamp").field("type", "date").endObject())
+        );
+        CompressedXContent mappings = new CompressedXContent(
+            BytesReference.bytes(mapping(b -> b.startObject("dim").field("type", "keyword").field("dimension", true).endObject()))
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> mapperService.checkDynamicMappingUpdate("_doc", mappings));
+        assertThat(e.getMessage(), equalTo("added a dimension with a dynamic mapping"));
     }
 
     public void testMappingLookup() throws IOException {

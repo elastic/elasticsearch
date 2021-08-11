@@ -549,14 +549,17 @@ subprojects {
         assertLinesInFile(noticePath, noticeLines)
       }
     }
-    tasks.named("check").configure { dependsOn "checkNotice" }
 
-    tasks.register('checkLicenseMetadata', LoggedExec) {
+    def checkLicenseMetadataTaskProvider = tasks.register('checkLicenseMetadata', LoggedExec) {
       dependsOn buildDist, "checkExtraction"
     }
-    check.dependsOn checkLicenseMetadata
+    tasks.named("check").configure {
+      dependsOn "checkNotice"
+      dependsOn(checkLicenseMetadataTaskProvider)
+    }
+
     if (project.name.contains('deb')) {
-      checkLicenseMetadata { LoggedExec exec ->
+      checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
         onlyIf dpkgExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
         exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
@@ -592,7 +595,7 @@ subprojects {
       }
     } else {
       assert project.name.contains('rpm')
-      checkLicenseMetadata { LoggedExec exec ->
+      checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
         onlyIf rpmExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
         exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.get().outputs.files.singleFile}"

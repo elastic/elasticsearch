@@ -45,6 +45,10 @@ public class TokenizationParamsTests extends AbstractBWCSerializationTestCase<To
     }
 
     public static TokenizationParams createRandom() {
-        return new TokenizationParams(randomBoolean(), randomBoolean(), randomIntBetween(1, 1024));
+        return new TokenizationParams(
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomIntBetween(1, 1024)
+        );
     }
 }

@@ -47,8 +47,8 @@ public class NerConfigTests extends AbstractBWCSerializationTestCase<NerConfig> 
     public static NerConfig createRandom() {
         return new NerConfig(
             VocabularyConfigTests.createRandom(),
-            TokenizationParamsTests.createRandom(),
-            randomList(5, () -> randomAlphaOfLength(10))
+            randomBoolean() ? null : TokenizationParamsTests.createRandom(),
+            randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10))
         );
     }
 }

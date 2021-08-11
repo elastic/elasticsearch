@@ -47,8 +47,8 @@ public class SentimentAnalysisConfigTests extends AbstractBWCSerializationTestCa
     public static SentimentAnalysisConfig createRandom() {
         return new SentimentAnalysisConfig(
             VocabularyConfigTests.createRandom(),
-            TokenizationParamsTests.createRandom(),
-            randomList(5, () -> randomAlphaOfLength(10))
+            randomBoolean() ? null : TokenizationParamsTests.createRandom(),
+            randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10))
         );
     }
 }

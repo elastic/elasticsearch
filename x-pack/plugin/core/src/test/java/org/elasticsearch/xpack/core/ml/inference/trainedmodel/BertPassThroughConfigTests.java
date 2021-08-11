@@ -45,6 +45,9 @@ public class BertPassThroughConfigTests extends AbstractBWCSerializationTestCase
     }
 
     public static BertPassThroughConfig createRandom() {
-        return new BertPassThroughConfig(VocabularyConfigTests.createRandom(), TokenizationParamsTests.createRandom());
+        return new BertPassThroughConfig(
+            VocabularyConfigTests.createRandom(),
+            randomBoolean() ? null : TokenizationParamsTests.createRandom()
+        );
     }
 }

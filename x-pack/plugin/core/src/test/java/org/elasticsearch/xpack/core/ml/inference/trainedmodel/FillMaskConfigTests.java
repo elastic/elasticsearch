@@ -45,6 +45,9 @@ public class FillMaskConfigTests extends AbstractBWCSerializationTestCase<FillMa
     }
 
     public static FillMaskConfig createRandom() {
-        return new FillMaskConfig(VocabularyConfigTests.createRandom(), TokenizationParamsTests.createRandom());
+        return new FillMaskConfig(
+            VocabularyConfigTests.createRandom(),
+            randomBoolean() ? null : TokenizationParamsTests.createRandom()
+        );
     }
 }

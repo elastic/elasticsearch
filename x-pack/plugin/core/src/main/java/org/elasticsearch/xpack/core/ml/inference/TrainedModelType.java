@@ -7,18 +7,20 @@
 
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 
+import java.util.Collections;
 import java.util.Locale;
 
 public enum TrainedModelType {
 
-    TREE_ENSEMBLE,
-    LANG_IDENT,
-    PYTORCH;
+    TREE_ENSEMBLE(null),
+    LANG_IDENT(null),
+    PYTORCH(new TrainedModelInput(Collections.singletonList("input")));
 
     public static TrainedModelType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -40,8 +42,19 @@ public enum TrainedModelType {
         }
     }
 
+    private final TrainedModelInput defaultInput;
+
+    TrainedModelType(@Nullable TrainedModelInput defaultInput) {
+        this.defaultInput =defaultInput;
+    }
+
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
+    }
+
+    @Nullable
+    public TrainedModelInput getDefaultInput() {
+        return defaultInput;
     }
 }

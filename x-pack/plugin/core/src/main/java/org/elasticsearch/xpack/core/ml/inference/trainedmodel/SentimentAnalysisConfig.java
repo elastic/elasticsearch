@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -54,13 +55,20 @@ public class SentimentAnalysisConfig implements NlpConfig {
                                    @Nullable List<String> classificationLabels) {
         this.vocabularyConfig = ExceptionsHelper.requireNonNull(vocabularyConfig, VOCABULARY);
         this.tokenizationParams = tokenizationParams == null ? TokenizationParams.createDefault() : tokenizationParams;
-        this.classificationLabels = classificationLabels;
+        this.classificationLabels = classificationLabels == null ? Collections.emptyList() : classificationLabels;
     }
 
     public SentimentAnalysisConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenizationParams = new TokenizationParams(in);
-        classificationLabels = in.readOptionalStringList();
+        classificationLabels = in.readStringList();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        vocabularyConfig.writeTo(out);
+        tokenizationParams.writeTo(out);
+        out.writeStringCollection(classificationLabels);
     }
 
     @Override
@@ -68,7 +76,7 @@ public class SentimentAnalysisConfig implements NlpConfig {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig);
         builder.field(TOKENIZATION_PARAMS.getPreferredName(), tokenizationParams);
-        if (classificationLabels != null && classificationLabels.isEmpty() == false) {
+        if (classificationLabels.isEmpty() == false) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }
         builder.endObject();
@@ -78,13 +86,6 @@ public class SentimentAnalysisConfig implements NlpConfig {
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        vocabularyConfig.writeTo(out);
-        tokenizationParams.writeTo(out);
-        out.writeOptionalStringCollection(classificationLabels);
     }
 
     @Override
@@ -128,7 +129,6 @@ public class SentimentAnalysisConfig implements NlpConfig {
         return tokenizationParams;
     }
 
-    @Nullable
     public List<String> getClassificationLabels() {
         return classificationLabels;
     }

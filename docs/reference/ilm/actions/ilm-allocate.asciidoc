@@ -34,8 +34,8 @@ Number of replicas to assign to the index.
 
 `total_shards_per_node`::
 (Optional, integer)
-The maximum number of shards for the index on a single {es} node. Negative values
-are interpreted as unlimited. See <<allocation-total-shards, total shards>>.
+The maximum number of shards for the index on a single {es} node. A value of `-1` is
+interpreted as unlimited. See <<allocation-total-shards, total shards>>.
 
 `include`::
 (Optional, object)

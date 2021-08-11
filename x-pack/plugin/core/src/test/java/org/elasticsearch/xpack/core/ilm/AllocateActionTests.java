@@ -57,7 +57,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             requires = randomBoolean() ? null : Collections.emptyMap();
         }
         Integer numberOfReplicas = randomBoolean() ? null : randomIntBetween(0, 10);
-        Integer totalShardsPerNode = randomBoolean() ? null : randomIntBetween(-300, 300);
+        Integer totalShardsPerNode = randomBoolean() ? null : randomIntBetween(-1, 300);
         return new AllocateAction(numberOfReplicas, totalShardsPerNode, includes, excludes, requires);
     }
 
@@ -114,6 +114,15 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> new AllocateAction(randomIntBetween(-1000, -1), randomIntBetween(0, 300), include, exclude, require));
         assertEquals("[" + AllocateAction.NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
+    }
+
+    public void testInvalidTotalShardsPerNode() {
+        Map<String, String> include = randomAllocationRoutingMap(1, 5);
+        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> new AllocateAction(randomIntBetween(0, 300), randomIntBetween(-1000, -2), include, exclude, require));
+        assertEquals("[" + AllocateAction.TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName() + "] must be >= -1", exception.getMessage());
     }
 
     public static Map<String, String> randomAllocationRoutingMap(int minEntries, int maxEntries) {

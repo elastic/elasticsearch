@@ -85,12 +85,15 @@ public class AllocateAction implements LifecycleAction {
             throw new IllegalArgumentException("[" + NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0");
         }
         this.numberOfReplicas = numberOfReplicas;
+        if (totalShardsPerNode != null && totalShardsPerNode < -1) {
+            throw new IllegalArgumentException("[" + TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName() + "] must be >= -1");
+        }
         this.totalShardsPerNode = totalShardsPerNode;
     }
 
     @SuppressWarnings("unchecked")
     public AllocateAction(StreamInput in) throws IOException {
-        this(in.readOptionalVInt(), in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readOptionalVInt() : null,
+        this(in.readOptionalVInt(), in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readOptionalInt() : null,
             (Map<String, String>) in.readGenericValue(), (Map<String, String>) in.readGenericValue(),
             (Map<String, String>) in.readGenericValue());
     }
@@ -119,7 +122,7 @@ public class AllocateAction implements LifecycleAction {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(numberOfReplicas);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalVInt(totalShardsPerNode);
+            out.writeOptionalInt(totalShardsPerNode);
         }
         out.writeGenericValue(include);
         out.writeGenericValue(exclude);

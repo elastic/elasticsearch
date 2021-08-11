@@ -35,12 +35,15 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
   files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
   headerLine = "name,version,url,license,sourceURL"
-  target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
-
+  target = new File(providers.systemProperty('csv')
+                      .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
+                      .forUseAtConfigurationTime()
+                      .get()
+  )
   // explicitly add our dependency on the JDK
   String jdkVersion = VersionProperties.versions.get('bundled_jdk').split('@')[0]
   String jdkMajorVersion = jdkVersion.split('[+.]')[0]
-  String sourceUrl = "https://hg.openjdk.java.net/jdk-updates/jdk${jdkMajorVersion}u/archive/jdk-${jdkVersion}.tar.gz"
+  String sourceUrl = "https://github.com/openjdk/jdk${jdkMajorVersion}u/archive/refs/tags/jdk-${jdkVersion}.tar.gz"
   additionalLines << "OpenJDK,${jdkVersion},https://openjdk.java.net/,GPL-2.0-with-classpath-exception,${sourceUrl}".toString()
 
   // Explicitly add the dependency on the RHEL UBI Docker base image

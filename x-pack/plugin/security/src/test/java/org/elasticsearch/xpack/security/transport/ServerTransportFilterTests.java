@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -183,6 +182,6 @@ public class ServerTransportFilterTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
         return new ServerTransportFilter(authcService, authzService, threadContext, false, destructiveOperations,
-                new SecurityContext(settings, threadContext), new XPackLicenseState(settings, () -> 0));
+                new SecurityContext(settings, threadContext));
     }
 }

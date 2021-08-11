@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -41,8 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.getKeyStoreType;
 
 public class CertParsingUtils {
 
@@ -93,6 +93,23 @@ public class CertParsingUtils {
             }
         }
         return certificates.toArray(new Certificate[0]);
+    }
+
+    public static X509Certificate readX509Certificate(Path path) throws CertificateException, IOException {
+        List<Certificate> certificates = PemUtils.readCertificates(List.of(path));
+        if (certificates.size() != 1) {
+            throw new IllegalArgumentException("expected a single certificate in file [" + path.toAbsolutePath() + "] but found [" +
+                certificates.size() + "]");
+        }
+        final Certificate cert = certificates.get(0);
+        if (cert instanceof X509Certificate) {
+            return (X509Certificate) cert;
+        } else {
+            throw new IllegalArgumentException("the certificate in " + path.toAbsolutePath() + " is not an X.509 certificate ("
+                + cert.getType()
+                + " : "
+                + cert.getClass() + ")");
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -151,8 +168,8 @@ public class CertParsingUtils {
     /**
      * Creates a {@link KeyStore} from a PEM encoded certificate and key file
      */
-    public static KeyStore getKeyStoreFromPEM(Path certificatePath, Path keyPath, char[] keyPassword)
-        throws IOException, CertificateException, KeyStoreException, NoSuchAlgorithmException {
+    public static KeyStore getKeyStoreFromPEM(Path certificatePath, Path keyPath, char[] keyPassword) throws IOException,
+        GeneralSecurityException {
         final PrivateKey key = PemUtils.readPrivateKey(keyPath, () -> keyPassword);
         final Certificate[] certificates = readCertificates(Collections.singletonList(certificatePath));
         return getKeyStore(certificates, key, keyPassword);
@@ -208,7 +225,7 @@ public class CertParsingUtils {
     static KeyConfig createKeyConfig(X509KeyPairSettings keyPair, Settings settings, String trustStoreAlgorithm) {
         String keyPath = keyPair.keyPath.get(settings).orElse(null);
         String keyStorePath = keyPair.keystorePath.get(settings).orElse(null);
-        String keyStoreType = getKeyStoreType(keyPair.keystoreType, settings, keyStorePath);
+        String keyStoreType = SSLConfigurationSettings.getKeyStoreType(keyPair.keystoreType, settings, keyStorePath);
 
         if (keyPath != null && keyStorePath != null) {
             throw new IllegalArgumentException("you cannot specify a keystore and key file");

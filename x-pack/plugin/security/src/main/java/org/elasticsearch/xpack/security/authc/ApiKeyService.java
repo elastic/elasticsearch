@@ -71,8 +71,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -85,12 +83,14 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
@@ -181,7 +181,6 @@ public class ApiKeyService {
 
     private final Clock clock;
     private final Client client;
-    private final XPackLicenseState licenseState;
     private final SecurityIndexManager securityIndex;
     private final ClusterService clusterService;
     private final Hasher hasher;
@@ -202,11 +201,10 @@ public class ApiKeyService {
     private final AtomicLong lastEvictionCheckedAt = new AtomicLong(0);
     private final LongAdder evictionCounter = new LongAdder();
 
-    public ApiKeyService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex,
+    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex,
                          ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry, ThreadPool threadPool) {
         this.clock = clock;
         this.client = client;
-        this.licenseState = licenseState;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
@@ -787,13 +785,10 @@ public class ApiKeyService {
     }
 
     private boolean isEnabled() {
-        return enabled && licenseState.isSecurityEnabled();
+        return enabled;
     }
 
     public void ensureEnabled() {
-        if (licenseState.isSecurityEnabled() == false) {
-            throw LicenseUtils.newComplianceException("security is not enabled");
-        }
         if (enabled == false) {
             throw new FeatureNotEnabledException(Feature.API_KEY_SERVICE, "api keys are not enabled");
         }
@@ -899,7 +894,7 @@ public class ApiKeyService {
         }
         if (filterOutExpiredKeys) {
             final BoolQueryBuilder expiredQuery = QueryBuilders.boolQuery();
-            expiredQuery.should(QueryBuilders.rangeQuery("expiration_time").lte(Instant.now().toEpochMilli()));
+            expiredQuery.should(QueryBuilders.rangeQuery("expiration_time").gt(Instant.now().toEpochMilli()));
             expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
             boolQuery.filter(expiredQuery);
         }
@@ -1128,6 +1123,27 @@ public class ApiKeyService {
                     listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
                 }
             }, listener::onFailure));
+    }
+
+    public void queryApiKeys(ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder, ActionListener<QueryApiKeyResponse> listener) {
+        ensureEnabled();
+        final ActionListener<Collection<ApiKey>> wrappedListener = ActionListener.wrap(apiKeyInfos -> {
+            if (apiKeyInfos.isEmpty()) {
+                logger.debug("No active api keys found for query [{}]", apiKeyBoolQueryBuilder);
+                listener.onResponse(QueryApiKeyResponse.emptyResponse());
+            } else {
+                listener.onResponse(new QueryApiKeyResponse(apiKeyInfos));
+            }
+        }, listener::onFailure);
+
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
+            wrappedListener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            wrappedListener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            findApiKeys(apiKeyBoolQueryBuilder, true, true, wrappedListener);
+        }
     }
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {

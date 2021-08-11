@@ -480,7 +480,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // package-private for test visibility
     static <T> T createExtension(Class<? extends T> extensionClass, Class<T> extensionPointType, Plugin plugin) {
-        //noinspection unchecked
+        @SuppressWarnings("unchecked")
         Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
         if (constructors.length == 0) {
             throw new IllegalStateException("no public " + extensionConstructorMessage(extensionClass, extensionPointType));
@@ -567,8 +567,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Set<URL> union = new HashSet<>(classpath);
             union.addAll(bundle.urls);
             JarHell.checkJarHell(union, logger::debug);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", e);
+        } catch (final IllegalStateException ise) {
+            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", ise);
+        } catch (final Exception e) {
+            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " while checking for jar hell", e);
         }
     }
 

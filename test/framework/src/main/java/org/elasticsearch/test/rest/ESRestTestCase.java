@@ -739,7 +739,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * If any nodes are registered for shutdown, removes their metadata.
      */
     @SuppressWarnings("unchecked")
-    private static void deleteAllNodeShutdownMetadata() throws IOException {
+    protected void deleteAllNodeShutdownMetadata() throws IOException {
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
         if (statusResponse.containsKey("_nodes") && statusResponse.containsKey("cluster_name")) {
@@ -1717,48 +1717,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         assertNotNull(minVersion);
         return minVersion;
-    }
-
-    protected void syncedFlush(String indexName) throws Exception {
-        final List<String> deprecationMessages = List.of(
-            "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.");
-        final List<String> fixedDeprecationMessages = List.of(
-            "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.");
-        final List<String> transitionMessages = List.of(
-            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
-        final WarningsHandler warningsHandler;
-        if (minimumNodeVersion().onOrAfter(Version.V_8_0_0)) {
-            warningsHandler = warnings -> warnings.equals(transitionMessages) == false;
-        } else if (minimumNodeVersion().onOrAfter(Version.V_7_6_0)) {
-            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false &&
-                warnings.equals(fixedDeprecationMessages) == false;
-        } else if (nodeVersions.stream().anyMatch(n -> n.onOrAfter(Version.V_8_0_0))) {
-            warningsHandler = warnings -> warnings.isEmpty() == false && warnings.equals(transitionMessages) == false;
-        } else {
-            warningsHandler = warnings -> warnings.isEmpty() == false;
-        }
-        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-        assertBusy(() -> {
-            try {
-                final Request request = new Request("POST", indexName + "/_flush/synced");
-                request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warningsHandler));
-                Response resp = client().performRequest(request);
-                if (nodeVersions.stream().allMatch(v -> v.before(Version.V_8_0_0))) {
-                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                    assertThat(result.get("failed"), equalTo(0));
-                }
-            } catch (ResponseException ex) {
-                if (ex.getResponse().getStatusLine().getStatusCode() == RestStatus.CONFLICT.getStatus()
-                    && ex.getResponse().getWarnings().equals(transitionMessages)) {
-                    logger.info("a normal flush was performed instead");
-                } else {
-                    throw new AssertionError(ex); // cause assert busy to retry
-                }
-            }
-        });
-        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
-        ensureGlobalCheckpointSynced(indexName);
     }
 
     @SuppressWarnings("unchecked")

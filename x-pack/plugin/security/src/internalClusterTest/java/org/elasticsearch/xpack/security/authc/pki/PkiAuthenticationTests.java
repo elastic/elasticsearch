@@ -13,13 +13,13 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
-import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -48,7 +48,9 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        SSLClientAuth sslClientAuth = randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL;
+        SslClientAuthenticationMode sslClientAuth = randomBoolean()
+            ? SslClientAuthenticationMode.REQUIRED
+            : SslClientAuthenticationMode.OPTIONAL;
 
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings());

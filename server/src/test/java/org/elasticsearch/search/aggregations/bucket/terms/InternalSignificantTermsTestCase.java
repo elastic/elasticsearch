@@ -36,7 +36,7 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
     }
 
     @Override
-    protected final InternalSignificantTerms createTestInstance(String name,
+    protected final InternalSignificantTerms<?, ?> createTestInstance(String name,
                                                           Map<String, Object> metadata,
                                                           InternalAggregations aggregations) {
         final int requiredSize = randomIntBetween(1, 5);
@@ -62,7 +62,7 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
                 supersetSize, supersetDfs, significanceHeuristic);
     }
 
-    protected abstract InternalSignificantTerms createTestInstance(String name,
+    protected abstract InternalSignificantTerms<?, ?> createTestInstance(String name,
                                                                    Map<String, Object> metadata,
                                                                    InternalAggregations aggregations,
                                                                    int requiredSize, int numBuckets,
@@ -71,7 +71,7 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
                                                                    SignificanceHeuristic significanceHeuristic);
 
     @Override
-    protected InternalSignificantTerms createUnmappedInstance(String name,
+    protected InternalSignificantTerms<?, ?> createUnmappedInstance(String name,
                                                               Map<String, Object> metadata) {
         InternalSignificantTerms<?, ?> testInstance = createTestInstance(name, metadata);
         return new UnmappedSignificantTerms(name, testInstance.requiredSize, testInstance.minDocCount, metadata);
@@ -105,7 +105,7 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
         assertTrue(expected instanceof InternalSignificantTerms);
         assertTrue(actual instanceof ParsedSignificantTerms);
 
-        InternalSignificantTerms expectedSigTerms = (InternalSignificantTerms) expected;
+        InternalSignificantTerms<?, ?> expectedSigTerms = (InternalSignificantTerms<?, ?>) expected;
         ParsedSignificantTerms actualSigTerms = (ParsedSignificantTerms) actual;
         assertEquals(expectedSigTerms.getSubsetSize(), actualSigTerms.getSubsetSize());
         assertEquals(expectedSigTerms.getSupersetSize(), actualSigTerms.getSupersetSize());

@@ -129,6 +129,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertThat(context.buildAnonymousFieldType("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testToQueryFails() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         Exception exc = expectThrows(Exception.class,

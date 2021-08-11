@@ -30,7 +30,6 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,7 +53,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         if (useMultipleUnknownRepositories) {
             GetShardSnapshotResponse response = responseFuture.get();
-            assertThat(response.getRepositoryShardSnapshots(), is(anEmptyMap()));
+            assertThat(response.getLatestShardSnapshot().isPresent(), is(equalTo(false)));
 
             final Map<String, RepositoryException> failures = response.getRepositoryFailures();
             for (String repository : repositories) {
@@ -209,9 +208,11 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         final String indexName = "test-idx";
         createIndexWithContent(indexName);
 
-        createSnapshot(failingRepoName, "empty-snap", Collections.singletonList(indexName));
+        int snapshotIdx = 0;
+        createSnapshot(failingRepoName, "empty-snap-" + snapshotIdx++, Collections.singletonList(indexName));
+        SnapshotInfo latestSnapshot = null;
         for (String workingRepoName : workingRepoNames) {
-            createSnapshot(workingRepoName, "empty-snap", Collections.singletonList(indexName));
+            latestSnapshot = createSnapshot(workingRepoName, "empty-snap-" + snapshotIdx++, Collections.singletonList(indexName));
         }
 
         final MockRepository repository = getRepositoryOnMaster(failingRepoName);
@@ -240,11 +241,17 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         for (String workingRepoName : workingRepoNames) {
             assertThat(response.getFailureForRepository(workingRepoName).isPresent(), is(equalTo(false)));
-            assertThat(response.getIndexShardSnapshotInfoForRepository(workingRepoName).isPresent(), equalTo(true));
         }
+
+        Optional<ShardSnapshotInfo> shardSnapshotInfoOpt = response.getLatestShardSnapshot();
+
+        assertThat(shardSnapshotInfoOpt.isPresent(), equalTo(true));
+        ShardSnapshotInfo shardSnapshotInfo = shardSnapshotInfoOpt.get();
+        assertThat(shardSnapshotInfo.getSnapshot(), equalTo(latestSnapshot.snapshot()));
+        assertThat(shardSnapshotInfo.getRepository(), equalTo(latestSnapshot.repository()));
     }
 
-    public void testGetShardSnapshotInMultipleRepositories() {
+    public void testGetShardSnapshotInMultipleRepositoriesReturnsTheLatestSnapshot() {
         int repoCount = randomIntBetween(2, 10);
         List<String> repositories = new ArrayList<>();
         for (int i = 0; i < repoCount; i++) {
@@ -256,21 +263,21 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         final String indexName = "test-idx";
         createIndexWithContent(indexName);
 
-        Map<String, SnapshotInfo> repositorySnapshots = new HashMap<>();
+        int snapshotIdx = 0;
+        SnapshotInfo expectedLatestSnapshot = null;
         for (String repository : repositories) {
-            repositorySnapshots.put(repository, createSnapshot(repository, "snap-1", Collections.singletonList(indexName)));
+            expectedLatestSnapshot = createSnapshot(repository, "snap-" + snapshotIdx++, Collections.singletonList(indexName));
         }
 
         GetShardSnapshotResponse response = getLatestSnapshotForShardFuture(repositories, indexName, 0).actionGet();
 
-        for (String repository : repositories) {
-            assertThat(response.getFailureForRepository(repository).isPresent(), is(equalTo(false)));
-            Optional<ShardSnapshotInfo> shardSnapshotInfoOpt = response.getIndexShardSnapshotInfoForRepository(repository);
-            assertThat(shardSnapshotInfoOpt.isPresent(), equalTo(true));
+        assertThat(response.getRepositoryFailures(), is(anEmptyMap()));
+        Optional<ShardSnapshotInfo> shardSnapshotInfoOpt = response.getLatestShardSnapshot();
 
-            ShardSnapshotInfo shardSnapshotInfo = shardSnapshotInfoOpt.get();
-            assertThat(shardSnapshotInfo.getSnapshot(), equalTo(repositorySnapshots.get(repository).snapshot()));
-        }
+        assertThat(shardSnapshotInfoOpt.isPresent(), equalTo(true));
+        ShardSnapshotInfo shardSnapshotInfo = shardSnapshotInfoOpt.get();
+        assertThat(shardSnapshotInfo.getSnapshot(), equalTo(expectedLatestSnapshot.snapshot()));
+        assertThat(shardSnapshotInfo.getRepository(), equalTo(expectedLatestSnapshot.repository()));
     }
 
     public void testFailedSnapshotsAreNotReturned() throws Exception {
@@ -308,12 +315,13 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         Optional<ShardSnapshotInfo> latestSnapshotForShard = getLatestSnapshotForShard(repoName, indexName, 0);
         assertThat(latestSnapshotForShard.isPresent(), equalTo(true));
         assertThat(latestSnapshotForShard.get().getSnapshot(), equalTo(snapshotInfo.snapshot()));
+        assertThat(latestSnapshotForShard.get().getRepository(), equalTo(snapshotInfo.repository()));
     }
 
     private Optional<ShardSnapshotInfo> getLatestSnapshotForShard(String repository, String indexName, int shard) {
         final GetShardSnapshotResponse response = getLatestSnapshotForShardFuture(Collections.singletonList(repository), indexName, shard)
             .actionGet();
-        return response.getIndexShardSnapshotInfoForRepository(repository);
+        return response.getLatestShardSnapshot();
     }
 
     private PlainActionFuture<GetShardSnapshotResponse> getLatestSnapshotForShardFuture(

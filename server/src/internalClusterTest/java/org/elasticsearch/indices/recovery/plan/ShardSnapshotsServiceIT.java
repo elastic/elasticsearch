@@ -47,9 +47,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -137,8 +137,8 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
         ShardId shardId = getShardIdForIndex(indexName);
 
-        List<ShardSnapshot> shardSnapshotData = getShardSnapshotShard(shardId);
-        assertThat(shardSnapshotData, is(empty()));
+        Optional<ShardSnapshot> shardSnapshot = getLatestShardSnapshot(shardId);
+        assertThat(shardSnapshot.isPresent(), is(equalTo(false)));
     }
 
     public void testOnlyFetchesSnapshotFromEnabledRepositories() throws Exception {
@@ -171,18 +171,22 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             createSnapshot(repositoryName, snapshotName, indexName);
         }
 
-        List<ShardSnapshot> shardSnapshotDataForShard = getShardSnapshotShard(shardId);
+        Optional<ShardSnapshot> latestShardSnapshot = getLatestShardSnapshot(shardId);
 
-        assertThat(shardSnapshotDataForShard.size(), is(equalTo(numberOfRecoveryEnabledRepositories)));
-        for (ShardSnapshot shardSnapshotData : shardSnapshotDataForShard) {
-            assertThat(recoveryEnabledRepos.contains(shardSnapshotData.getRepository()), is(equalTo(true)));
-            assertThat(shardSnapshotData.getMetadataSnapshot().size(), is(greaterThan(0)));
+        if (numberOfRecoveryEnabledRepositories == 0) {
+            assertThat(latestShardSnapshot.isPresent(), is(equalTo(false)));
+        } else {
+            assertThat(latestShardSnapshot.isPresent(), is(equalTo(true)));
 
+            ShardSnapshot shardSnapshotData = latestShardSnapshot.get();
             ShardSnapshotInfo shardSnapshotInfo = shardSnapshotData.getShardSnapshotInfo();
-            assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
-            assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));
             assertThat(recoveryEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(true)));
             assertThat(nonEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(false)));
+
+            assertThat(shardSnapshotData.getMetadataSnapshot().size(), is(greaterThan(0)));
+
+            assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
+            assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));
         }
     }
 
@@ -199,12 +203,14 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
 
         int numberOfFailingRepos = randomIntBetween(1, 3);
         List<Tuple<String, Path>> failingRepos = new ArrayList<>();
+        List<String> failingRepoNames = new ArrayList<>();
         for (int i = 0; i < numberOfFailingRepos; i++) {
             String repositoryName = "failing-repo-" + i;
             Path repoPath = randomRepoPath();
             createRepository(repositoryName, FailingRepoPlugin.TYPE, repoPath, true);
             createSnapshot(repositoryName, snapshotName, indexName);
             failingRepos.add(Tuple.tuple(repositoryName, repoPath));
+            failingRepoNames.add(repositoryName);
         }
 
         int numberOfWorkingRepositories = randomIntBetween(0, 4);
@@ -227,20 +233,25 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             assertAcked(client().admin().cluster().preparePutRepository(failingRepo.v1())
                 .setType(FailingRepoPlugin.TYPE)
                 .setVerify(false)
-                .setSettings(Settings.builder().put(repoFailureType, true).put("location", randomRepoPath()))
+                .setSettings(Settings.builder().put(repoFailureType, true).put("location", failingRepo.v2()))
             );
         }
 
-        List<ShardSnapshot> shardSnapshotDataForShard = getShardSnapshotShard(shardId);
+        Optional<ShardSnapshot> latestShardSnapshot = getLatestShardSnapshot(shardId);
 
-        assertThat(shardSnapshotDataForShard.size(), is(equalTo(numberOfWorkingRepositories)));
-        for (ShardSnapshot shardSnapshotData : shardSnapshotDataForShard) {
-            assertThat(workingRepos.contains(shardSnapshotData.getRepository()), is(equalTo(true)));
+        if (numberOfWorkingRepositories == 0) {
+            assertThat(latestShardSnapshot.isPresent(), is(equalTo(false)));
+        } else {
+            assertThat(latestShardSnapshot.isPresent(), is(equalTo(true)));
+            ShardSnapshot shardSnapshotData = latestShardSnapshot.get();
+            ShardSnapshotInfo shardSnapshotInfo = shardSnapshotData.getShardSnapshotInfo();
+            assertThat(workingRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(true)));
+            assertThat(failingRepoNames.contains(shardSnapshotInfo.getRepository()), is(equalTo(false)));
+
             assertThat(shardSnapshotData.getMetadataSnapshot().size(), is(greaterThan(0)));
 
-            ShardSnapshotInfo shardSnapshotInfo = shardSnapshotData.getShardSnapshotInfo();
-            assertThat(shardSnapshotInfo.getShardId(), equalTo(shardId));
-            assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), equalTo(snapshotName));
+            assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
+            assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));
         }
     }
 
@@ -268,15 +279,15 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             }
         };
 
-        PlainActionFuture<List<ShardSnapshot>> latestSnapshots = PlainActionFuture.newFuture();
+        PlainActionFuture<Optional<ShardSnapshot>> latestSnapshots = PlainActionFuture.newFuture();
         shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, latestSnapshots);
-        assertThat(latestSnapshots.actionGet(), is(empty()));
+        assertThat(latestSnapshots.actionGet().isPresent(), is(equalTo(false)));
     }
 
-    private List<ShardSnapshot> getShardSnapshotShard(ShardId shardId) throws Exception {
+    private Optional<ShardSnapshot> getLatestShardSnapshot(ShardId shardId) throws Exception {
         ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
 
-        PlainActionFuture<List<ShardSnapshot>> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Optional<ShardSnapshot>> future = PlainActionFuture.newFuture();
         shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, future);
         return future.get();
     }

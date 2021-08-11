@@ -315,6 +315,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         assertTrue(mappingSource.containsKey("properties"));
 
         for (String fieldName : fieldNames) {
+            @SuppressWarnings("unchecked")
             Map<String, Object> mappingProperties = (Map<String, Object>) mappingSource.get("properties");
             if (fieldName.indexOf('.') != -1) {
                 fieldName = fieldName.replace(".", ".properties.");

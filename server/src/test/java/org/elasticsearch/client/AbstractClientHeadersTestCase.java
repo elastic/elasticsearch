@@ -45,7 +45,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .put(ThreadContext.PREFIX + ".key2", "val 2")
             .build();
 
-    private static final ActionType<?>[] ACTIONS = new ActionType[] {
+    private static final ActionType<?>[] ACTIONS = new ActionType<?>[] {
                 // client actions
                 GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteStoredScriptAction.INSTANCE,
                 IndexAction.INSTANCE,

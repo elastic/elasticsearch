@@ -198,7 +198,7 @@ public class ScopedSettingsTests extends ESTestCase {
             new Setting.AffixSettingDependency() {
 
                 @Override
-                public Setting.AffixSetting getSetting() {
+                public Setting.AffixSetting<String> getSetting() {
                     return stringSetting;
                 }
 
@@ -690,7 +690,7 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testGet() {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         // affix setting - complex matcher
-        Setting setting = settings.get("cluster.routing.allocation.require.value");
+        Setting<?> setting = settings.get("cluster.routing.allocation.require.value");
         assertEquals(setting,
             FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSetting("cluster.routing.allocation.require.value"));
 

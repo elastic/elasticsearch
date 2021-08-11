@@ -123,10 +123,6 @@ dependencies {
   }
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-}
-
 // Until this project is always being formatted with spotless, we need to
 // guard against `spotless()` not existing.
 try {
@@ -383,7 +379,7 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.cli.LoggingAwareMultiCommand',
 
     // these should be temporary, query needs package private access to TermScorer though
-   'org.apache.lucene.search.XCombinedFieldQuery', 
-   'org.apache.lucene.search.XMultiNormsLeafSimScorer' 
+   'org.apache.lucene.search.XCombinedFieldQuery',
+   'org.apache.lucene.search.XMultiNormsLeafSimScorer'
 
 }

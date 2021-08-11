@@ -128,8 +128,10 @@ Large shards may make a cluster less likely to recover from failure. When a node
 fails, {es} rebalances the node's shards across the data tier's remaining nodes.
 Large shards can be harder to move across a network and may tax node resources.
 
-While not a hard limit, shards between 10GB and 50GB tend to work well. You may
-be able to use larger shards depending on your network and use case.
+While not a hard limit, shards between 10GB and 50GB tend to work well for logs
+and similar time series data. You may be able to use larger shards depending on
+your network and use case. Smaller shards may be appropriate for
+{enterprise-search-ref}/index.html[Enterprise Search] and similar use cases.
 
 If you use {ilm-init}, set the <<ilm-rollover,rollover action>>'s
 `max_primary_shard_size` threshold to `50gb` to avoid shards larger than 50GB.
@@ -159,11 +161,13 @@ index                                 prirep shard store
 [[shard-count-recommendation]]
 ==== Aim for 20 shards or fewer per GB of heap memory
 
-The number of shards a node can hold is proportional to the node's
-heap memory. For example, a node with 30GB of heap memory should
-have at most 600 shards. The further below this limit you can keep your nodes,
-the better. If you find your nodes exceeding more than 20 shards per GB,
-consider adding another node.
+The number of shards a node can hold is proportional to the node's heap memory.
+However, {es} doesn't enforce a fixed limit. If your shards are consistently
+between 10GB–50GB, we recommend limiting nodes to 20 shards or fewer per GB of
+heap memory. For example, a node with 30GB of heap memory should have at most
+600 shards. The further below this limit you can keep your nodes, the better. If
+you find your nodes exceeding more than 20 shards per GB, consider adding
+another node.
 
 To check the current size of each node's heap, use the <<cat-nodes,cat nodes
 API>>.

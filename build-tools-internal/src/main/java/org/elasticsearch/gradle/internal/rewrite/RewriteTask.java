@@ -23,6 +23,7 @@ import org.gradle.workers.WorkerExecutor;
 import javax.inject.Inject;
 import java.io.File;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
 
@@ -93,7 +94,7 @@ public abstract class RewriteTask extends DefaultTask {
             .collect(toList());
 
         if (javaPaths.size() > 0) {
-            List<File> dependencyPaths = getDependencyFiles().getFiles().stream().collect(toList());
+            Set<File> dependencyPaths = getDependencyFiles().getFiles();
 
             workQueue.submit(RewriteWorker.class, parameters -> {
                 parameters.getAllJavaPaths().addAll(javaPaths);

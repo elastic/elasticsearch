@@ -69,6 +69,7 @@ public class TransportPutDataFrameAnalyticsAction
     private final Client client;
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
+    private final Settings settings;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
 
@@ -86,6 +87,7 @@ public class TransportPutDataFrameAnalyticsAction
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.client = client;
         this.auditor = Objects.requireNonNull(auditor);
+        this.settings = settings;
 
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
@@ -133,7 +135,7 @@ public class TransportPutDataFrameAnalyticsAction
                 .setVersion(Version.CURRENT)
                 .build();
 
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String username = securityContext.getUser().principal();
                 RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()

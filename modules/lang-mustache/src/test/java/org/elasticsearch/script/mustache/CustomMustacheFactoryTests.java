@@ -59,7 +59,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
 
         TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
 
-        TemplateScript executable = compiled.newInstance(singletonMap("value", "a \"value\""));
+        TemplateScript executable = compiled.newInstance(() -> singletonMap("value", "a \"value\""));
         assertThat(executable.execute(), equalTo("{\"field\": \"a \\\"value\\\"\"}"));
     }
 
@@ -69,7 +69,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
 
         TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
 
-        TemplateScript executable = compiled.newInstance(singletonMap("value", "a \"value\""));
+        TemplateScript executable = compiled.newInstance(() -> singletonMap("value", "a \"value\""));
         assertThat(executable.execute(), equalTo("{\"field\": \"a \"value\"\"}"));
     }
 
@@ -79,7 +79,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
 
         TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
 
-        TemplateScript executable = compiled.newInstance(singletonMap("value", "tilde~ AND date:[2016 FROM*]"));
+        TemplateScript executable = compiled.newInstance(() -> singletonMap("value", "tilde~ AND date:[2016 FROM*]"));
         assertThat(executable.execute(), equalTo("{\"field\": \"tilde%7E+AND+date%3A%5B2016+FROM*%5D\"}"));
     }
 }

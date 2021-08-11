@@ -232,10 +232,10 @@ public class FactoryTests extends ScriptTestCase {
     public void testTemplate() {
         TemplateScript.Factory factory =
             scriptEngine.compile("template_test", "params['test']", TemplateScript.CONTEXT, Collections.emptyMap());
-        TemplateScript script = factory.newInstance(Collections.singletonMap("test", "abc"));
+        TemplateScript script = factory.newInstance(() -> Collections.singletonMap("test", "abc"));
         assertEquals("abc", script.execute());
         assertEquals("abc", script.execute());
-        script = factory.newInstance(Collections.singletonMap("test", "def"));
+        script = factory.newInstance(() -> Collections.singletonMap("test", "def"));
         assertEquals("def", script.execute());
         assertEquals("def", script.execute());
     }

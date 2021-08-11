@@ -66,11 +66,11 @@ public final class DateProcessor extends AbstractProcessor {
     }
 
     private ZoneId newDateTimeZone(Map<String, Object> params) {
-        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone.newInstance(params).execute());
+        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone.newInstance(() -> params).execute());
     }
 
     private Locale newLocale(Map<String, Object> params) {
-        return (locale == null) ? Locale.ROOT : LocaleUtils.parse(locale.newInstance(params).execute());
+        return (locale == null) ? Locale.ROOT : LocaleUtils.parse(locale.newInstance(() -> params).execute());
     }
 
     @Override

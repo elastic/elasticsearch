@@ -77,7 +77,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         Script script = new Script(searchTemplateRequest.getScriptType(),
             searchTemplateRequest.getScriptType() == ScriptType.STORED ? null : TEMPLATE_LANG, searchTemplateRequest.getScript(),
                 searchTemplateRequest.getScriptParams() == null ? Collections.emptyMap() : searchTemplateRequest.getScriptParams());
-        TemplateScript compiledScript = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
+        TemplateScript compiledScript = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(() -> script.getParams());
         String source = compiledScript.execute();
         response.setSource(new BytesArray(source));
 

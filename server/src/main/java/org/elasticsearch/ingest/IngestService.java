@@ -609,7 +609,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         sb.append(processor.getType());
 
         if(processor instanceof PipelineProcessor){
-            String pipelineName = ((PipelineProcessor) processor).getPipelineTemplate().newInstance(Map.of()).execute();
+            String pipelineName = ((PipelineProcessor) processor).getPipelineTemplate().newInstance(Map::of).execute();
             sb.append(":");
             sb.append(pipelineName);
         }

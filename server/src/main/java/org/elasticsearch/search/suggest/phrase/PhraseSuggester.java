@@ -107,7 +107,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
                     SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
-                    final String querySource = scriptFactory.newInstance(vars).execute();
+                    final String querySource = scriptFactory.newInstance(() -> vars).execute();
                     try (XContentParser parser = XContentFactory.xContent(querySource)
                             .createParser(searchExecutionContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, querySource)) {
                         QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);

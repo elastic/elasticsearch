@@ -167,12 +167,12 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
     String getField() {
         // used for testing only:
-        return field.newInstance(Map.of()).execute();
+        return field.newInstance(Map::of).execute();
     }
 
     String getTargetField() {
         // used for testing only:
-        return targetField.newInstance(Map.of()).execute();
+        return targetField.newInstance(Map::of).execute();
     }
 
     boolean isIgnoreMissing() {

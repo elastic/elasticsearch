@@ -17,6 +17,7 @@ import org.elasticsearch.script.TemplateScript;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
@@ -51,7 +52,6 @@ public class TestTemplateService extends ScriptService {
         private final String expected;
 
         MockTemplateScript(String expected) {
-            super(Collections.emptyMap());
             this.expected = expected;
         }
 
@@ -69,7 +69,7 @@ public class TestTemplateService extends ScriptService {
             }
 
             @Override
-            public TemplateScript newInstance(Map<String, Object> params) {
+            public TemplateScript newInstance(Supplier<Map<String, Object>> params) {
                 return new MockTemplateScript(expected);
             }
         }

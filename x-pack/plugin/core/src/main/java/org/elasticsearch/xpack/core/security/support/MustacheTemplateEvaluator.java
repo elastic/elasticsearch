@@ -42,7 +42,7 @@ public final class MustacheTemplateEvaluator {
 
     public static String evaluate(ScriptService scriptService, XContentParser parser, Map<String, Object> extraParams) throws IOException {
         Script script = parseForScript(parser, extraParams);
-        TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
+        TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(() -> script.getParams());
         return compiledTemplate.execute();
     }
 }

@@ -48,7 +48,7 @@ public class MustacheTests extends ESTestCase {
         Map<String, Object> params = singletonMap("boost_val", "0.2");
 
         TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
-        TemplateScript result = factory.newInstance(params);
+        TemplateScript result = factory.newInstance(() -> params);
         assertEquals(
                 "Mustache templating broken",
                 "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
@@ -65,14 +65,14 @@ public class MustacheTests extends ESTestCase {
             new String[] { "foo", "bar" },
             Arrays.asList("foo", "bar"));
         vars.put("data", data);
-        assertThat(factory.newInstance(vars).execute(), equalTo("foo bar"));
+        assertThat(factory.newInstance(() -> vars).execute(), equalTo("foo bar"));
 
         // Sets can come out in any order
         Set<String> setData = new HashSet<>();
         setData.add("foo");
         setData.add("bar");
         vars.put("data", setData);
-        String output = factory.newInstance(vars).execute();
+        String output = factory.newInstance(() -> vars).execute();
         assertThat(output, both(containsString("foo")).and(containsString("bar")));
     }
 
@@ -86,7 +86,7 @@ public class MustacheTests extends ESTestCase {
             singleton(new String[] { "foo", "bar" })
         );
         vars.put("data", data);
-        assertThat(factory.newInstance(vars).execute(), equalTo("foo bar"));
+        assertThat(factory.newInstance(() -> vars).execute(), equalTo("foo bar"));
     }
 
     public void testMapInArrayAccess() throws Exception {
@@ -97,14 +97,14 @@ public class MustacheTests extends ESTestCase {
             new Object[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
             Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar")));
         vars.put("data", data);
-        assertThat(factory.newInstance(vars).execute(), equalTo("foo bar"));
+        assertThat(factory.newInstance(() -> vars).execute(), equalTo("foo bar"));
 
         // HashSet iteration order isn't fixed
         Set<Object> setData = new HashSet<>();
         setData.add(singletonMap("key", "foo"));
         setData.add(singletonMap("key", "bar"));
         vars.put("data", setData);
-        String output = factory.newInstance(vars).execute();
+        String output = factory.newInstance(() -> vars).execute();
         assertThat(output, both(containsString("foo")).and(containsString("bar")));
     }
 
@@ -121,7 +121,7 @@ public class MustacheTests extends ESTestCase {
         Map<String, Object> vars = new HashMap<>();
         vars.put("data", data);
         String expectedString = String.format(Locale.ROOT, "%s %s", randomArrayValues.length, randomList.size());
-        assertThat(factory.newInstance(vars).execute(), equalTo(expectedString));
+        assertThat(factory.newInstance(() -> vars).execute(), equalTo(expectedString));
     }
 
     public void testPrimitiveToJSON() throws Exception {
@@ -368,7 +368,7 @@ public class MustacheTests extends ESTestCase {
     }
 
     private void assertScript(String script, Map<String, Object> vars, Matcher<String> matcher) {
-        String result = compile(script).newInstance(vars).execute();
+        String result = compile(script).newInstance(() -> vars).execute();
         assertThat(result, matcher);
     }
 

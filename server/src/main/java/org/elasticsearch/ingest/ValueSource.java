@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
@@ -27,15 +28,7 @@ import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
  */
 public interface ValueSource {
 
-    /**
-     * Returns a copy of the value this ValueSource holds and resolves templates if there're any.
-     *
-     * For immutable values only a copy of the reference to the value is made.
-     *
-     * @param model The model to be used when resolving any templates
-     * @return copy of the wrapped value
-     */
-    Object copyAndResolve(Map<String, Object> model);
+    Object copyAndResolve(Supplier<Map<String, Object>> modelSupplier);
 
     static ValueSource wrap(Object value, ScriptService scriptService) {
         return wrap(value, scriptService, Map.of());
@@ -87,7 +80,7 @@ public interface ValueSource {
         }
 
         @Override
-        public Object copyAndResolve(Map<String, Object> model) {
+        public Object copyAndResolve(Supplier<Map<String, Object>> model) {
             Map<Object, Object> copy = new HashMap<>();
             for (Map.Entry<ValueSource, ValueSource> entry : this.map.entrySet()) {
                 copy.put(entry.getKey().copyAndResolve(model), entry.getValue().copyAndResolve(model));
@@ -120,7 +113,7 @@ public interface ValueSource {
         }
 
         @Override
-        public Object copyAndResolve(Map<String, Object> model) {
+        public Object copyAndResolve(Supplier<Map<String, Object>> model) {
             List<Object> copy = new ArrayList<>(values.size());
             for (ValueSource value : values) {
                 copy.add(value.copyAndResolve(model));
@@ -153,7 +146,7 @@ public interface ValueSource {
         }
 
         @Override
-        public Object copyAndResolve(Map<String, Object> model) {
+        public Object copyAndResolve(Supplier<Map<String, Object>> model) {
             return value;
         }
 
@@ -181,7 +174,7 @@ public interface ValueSource {
         }
 
         @Override
-        public Object copyAndResolve(Map<String, Object> model) {
+        public Object copyAndResolve(Supplier<Map<String, Object>> model) {
             return value;
         }
 
@@ -210,7 +203,7 @@ public interface ValueSource {
         }
 
         @Override
-        public Object copyAndResolve(Map<String, Object> model) {
+        public Object copyAndResolve(Supplier<Map<String, Object>> model) {
             return template.newInstance(model).execute();
         }
 

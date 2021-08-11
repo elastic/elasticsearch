@@ -65,7 +65,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
         Reader reader = new StringReader(templateSource);
         try {
             Mustache template = factory.compile(reader, "query-template");
-            TemplateScript.Factory compiled = params -> new MustacheExecutableScript(template, params);
+            TemplateScript.Factory compiled = params -> new MustacheExecutableScript(template, params.get());
             return context.factoryClazz.cast(compiled);
         } catch (MustacheException ex) {
             throw new ScriptException(ex.getMessage(), ex, Collections.emptyList(), templateSource, NAME);
@@ -103,7 +103,6 @@ public final class MustacheScriptEngine implements ScriptEngine {
          * @param template the compiled template object wrapper
          **/
         MustacheExecutableScript(Mustache template, Map<String, Object> params) {
-            super(params);
             this.template = template;
             this.params = params;
         }

@@ -35,8 +35,8 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RenameProcessor renameProcessor = factory.create(null, processorTag, null, config);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
-        assertThat(renameProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("old_field"));
-        assertThat(renameProcessor.getTargetField().newInstance(Collections.emptyMap()).execute(), equalTo("new_field"));
+        assertThat(renameProcessor.getField().newInstance(Collections::emptyMap).execute(), equalTo("old_field"));
+        assertThat(renameProcessor.getTargetField().newInstance(Collections::emptyMap).execute(), equalTo("new_field"));
         assertThat(renameProcessor.isIgnoreMissing(), equalTo(false));
     }
 
@@ -48,8 +48,8 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RenameProcessor renameProcessor = factory.create(null, processorTag, null, config);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
-        assertThat(renameProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("old_field"));
-        assertThat(renameProcessor.getTargetField().newInstance(Collections.emptyMap()).execute(), equalTo("new_field"));
+        assertThat(renameProcessor.getField().newInstance(Collections::emptyMap).execute(), equalTo("old_field"));
+        assertThat(renameProcessor.getTargetField().newInstance(Collections::emptyMap).execute(), equalTo("new_field"));
         assertThat(renameProcessor.isIgnoreMissing(), equalTo(true));
     }
 

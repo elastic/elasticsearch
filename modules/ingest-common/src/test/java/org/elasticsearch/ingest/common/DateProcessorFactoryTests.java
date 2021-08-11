@@ -85,7 +85,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("locale", locale.toLanguageTag());
 
         DateProcessor processor = factory.create(null, null, null, config);
-        assertThat(processor.getLocale().newInstance(Collections.emptyMap()).execute(), equalTo(locale.toLanguageTag()));
+        assertThat(processor.getLocale().newInstance(Collections::emptyMap).execute(), equalTo(locale.toLanguageTag()));
     }
 
     public void testParseTimezone() throws Exception {
@@ -97,7 +97,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         ZoneId timezone = randomZone();
         config.put("timezone", timezone.getId());
         DateProcessor processor = factory.create(null, null, null, config);
-        assertThat(processor.getTimezone().newInstance(Collections.emptyMap()).execute(), equalTo(timezone.getId()));
+        assertThat(processor.getTimezone().newInstance(Collections::emptyMap).execute(), equalTo(timezone.getId()));
     }
 
     public void testParseMatchFormats() throws Exception {

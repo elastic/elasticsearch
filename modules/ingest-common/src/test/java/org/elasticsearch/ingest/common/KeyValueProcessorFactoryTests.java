@@ -41,7 +41,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+        assertThat(processor.getField().newInstance(Collections::emptyMap).execute(), equalTo("field1"));
         assertThat(processor.getFieldSplit(), equalTo("&"));
         assertThat(processor.getValueSplit(), equalTo("="));
         assertThat(processor.getIncludeKeys(), is(nullValue()));
@@ -61,12 +61,12 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+        assertThat(processor.getField().newInstance(Collections::emptyMap).execute(), equalTo("field1"));
         assertThat(processor.getFieldSplit(), equalTo("&"));
         assertThat(processor.getValueSplit(), equalTo("="));
         assertThat(processor.getIncludeKeys(), equalTo(Sets.newHashSet("a", "b")));
         assertThat(processor.getExcludeKeys(), equalTo(Collections.emptySet()));
-        assertThat(processor.getTargetField().newInstance(Collections.emptyMap()).execute(), equalTo("target"));
+        assertThat(processor.getTargetField().newInstance(Collections::emptyMap).execute(), equalTo("target"));
         assertTrue(processor.isIgnoreMissing());
     }
 

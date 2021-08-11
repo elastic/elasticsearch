@@ -60,7 +60,7 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
 
         TemplateScript.Factory compiledTemplate = templateParams ->
-                new TemplateScript(templateParams) {
+                new TemplateScript() {
                     @Override
                     public String execute() {
                         return "rendered_text";
@@ -82,7 +82,7 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
 
         TemplateScript.Factory compiledTemplate = templateParams ->
-            new TemplateScript(templateParams) {
+            new TemplateScript() {
                 @Override
                 public String execute() {
                     return "rendered_text";
@@ -102,7 +102,7 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
 
         TemplateScript.Factory compiledTemplate = templateParams ->
-            new TemplateScript(templateParams) {
+            new TemplateScript() {
                 @Override
                 public String execute() {
                     return "rendered_text";
@@ -134,7 +134,7 @@ public class TextTemplateTests extends ESTestCase {
         TextTemplateEngine e = new TextTemplateEngine(scriptService);
 
         TemplateScript.Factory compiledTemplate = templateParams ->
-            new TemplateScript(templateParams) {
+            new TemplateScript() {
                 @Override
                 public String execute() {
                     return input.toUpperCase(Locale.ROOT);

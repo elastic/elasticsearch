@@ -90,7 +90,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 Map<String, Object> params = ratedRequest.getParams();
                 String templateId = ratedRequest.getTemplateId();
                 TemplateScript.Factory templateScript = scriptsWithoutParams.get(templateId);
-                String resolvedRequest = templateScript.newInstance(params).execute();
+                String resolvedRequest = templateScript.newInstance(() -> params).execute();
                 try (XContentParser subParser = createParser(namedXContentRegistry,
                     LoggingDeprecationHandler.INSTANCE, new BytesArray(resolvedRequest), XContentType.JSON)) {
                     evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);

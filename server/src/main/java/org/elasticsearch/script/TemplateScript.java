@@ -11,29 +11,19 @@ package org.elasticsearch.script;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A string template rendered as a script.
  */
 public abstract class TemplateScript {
 
-    private final Map<String, Object> params;
-
-    public TemplateScript(Map<String, Object> params) {
-        this.params = params;
-    }
-
-    /** Return the parameters for this script. */
-    public Map<String, Object> getParams() {
-        return params;
-    }
-
     public static final String[] PARAMETERS = {};
     /** Run a template and return the resulting string, encoded in utf8 bytes. */
     public abstract String execute();
 
     public interface Factory {
-        TemplateScript newInstance(Map<String, Object> params);
+        TemplateScript newInstance(Supplier<Map<String, Object>> params);
     }
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("template", Factory.class);

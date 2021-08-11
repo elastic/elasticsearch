@@ -17,19 +17,23 @@ import java.util.function.Supplier;
  */
 public final class CachedSupplier<T> implements Supplier<T> {
 
-    private Supplier<T> supplier;
-    private T result;
-    private boolean resultSet;
+    private final Supplier<T> supplier;
+    private volatile T result;
+    private volatile boolean resultSet;
 
     public CachedSupplier(Supplier<T> supplier) {
         this.supplier = supplier;
     }
 
     @Override
-    public synchronized T get() {
+    public T get() {
         if (resultSet == false) {
-            result = supplier.get();
-            resultSet = true;
+            synchronized (this) {
+                if (resultSet == false) {
+                    result = supplier.get();
+                    resultSet = true;
+                }
+            }
         }
         return result;
     }

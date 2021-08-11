@@ -29,12 +29,12 @@ public class ValueSourceMustacheIT extends AbstractScriptTestCase {
 
         ValueSource valueSource = ValueSource.wrap("{{field1}}/{{field2}}/{{field2.field3}}", scriptService);
         assertThat(valueSource, instanceOf(ValueSource.TemplatedValue.class));
-        assertThat(valueSource.copyAndResolve(model), equalTo("value1/{field3=value3}/value3"));
+        assertThat(valueSource.copyAndResolve(() -> model), equalTo("value1/{field3=value3}/value3"));
 
         valueSource = ValueSource.wrap(Arrays.asList("_value", "{{field1}}"), scriptService);
         assertThat(valueSource, instanceOf(ValueSource.ListValue.class));
         @SuppressWarnings("unchecked")
-        List<String> result = (List<String>) valueSource.copyAndResolve(model);
+        List<String> result = (List<String>) valueSource.copyAndResolve(() -> model);
         assertThat(result.size(), equalTo(2));
         assertThat(result.get(0), equalTo("_value"));
         assertThat(result.get(1), equalTo("value1"));
@@ -46,7 +46,7 @@ public class ValueSourceMustacheIT extends AbstractScriptTestCase {
         valueSource = ValueSource.wrap(map, scriptService);
         assertThat(valueSource, instanceOf(ValueSource.MapValue.class));
         @SuppressWarnings("unchecked")
-        Map<String, Object> resultMap = (Map<String, Object>) valueSource.copyAndResolve(model);
+        Map<String, Object> resultMap = (Map<String, Object>) valueSource.copyAndResolve(() -> model);
         assertThat(resultMap.size(), equalTo(3));
         assertThat(resultMap.get("field1"), equalTo("value1"));
         assertThat(((Map) resultMap.get("field2")).size(), equalTo(1));
@@ -69,20 +69,20 @@ public class ValueSourceMustacheIT extends AbstractScriptTestCase {
 
         // default encoder should be application/json
         ValueSource valueSource = ValueSource.wrap("{{log_line}}", scriptService);
-        Object result = valueSource.copyAndResolve(model);
+        Object result = valueSource.copyAndResolve(() -> model);
         assertThat(result,
             equalTo("10.10.1.1 - - [17/Nov/2020:04:59:43 +0000] \\\"GET /info HTTP/1.1\\\" 200 6229 \\\"-\\\" \\\"-\\\"  2"));
 
         // text/plain encoder
         var scriptOptions = Map.of(Script.CONTENT_TYPE_OPTION, "text/plain");
         valueSource = ValueSource.wrap("{{log_line}}", scriptService, scriptOptions);
-        result = valueSource.copyAndResolve(model);
+        result = valueSource.copyAndResolve(() -> model);
         assertThat(result, equalTo("10.10.1.1 - - [17/Nov/2020:04:59:43 +0000] \"GET /info HTTP/1.1\" 200 6229 \"-\" \"-\"  2"));
 
         // application/x-www-form-urlencoded encoder
         scriptOptions = Map.of(Script.CONTENT_TYPE_OPTION, "application/x-www-form-urlencoded");
         valueSource = ValueSource.wrap("{{log_line}}", scriptService, scriptOptions);
-        result = valueSource.copyAndResolve(model);
+        result = valueSource.copyAndResolve(() -> model);
         assertThat(result, equalTo("10.10.1.1+-+-+%5B17%2FNov%2F2020%3A04%3A59%3A43+%2B0000%5D+%22GET+%2Finfo+HTTP%2F1.1%22+200" +
             "+6229+%22-%22+%22-%22++2"));
     }

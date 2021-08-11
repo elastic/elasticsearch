@@ -53,7 +53,7 @@ public class WatcherSearchTemplateService {
         Script template = new Script(source.getType(), source.getType() == ScriptType.STORED ? null : "mustache",
                 source.getIdOrCode(), source.getOptions(), watcherContextParams);
         TemplateScript.Factory compiledTemplate = scriptService.compile(template, Watcher.SCRIPT_TEMPLATE_CONTEXT);
-        return compiledTemplate.newInstance(template.getParams()).execute();
+        return compiledTemplate.newInstance(() -> template.getParams()).execute();
     }
 
     public SearchRequest toSearchRequest(WatcherSearchTemplateRequest request) throws IOException {

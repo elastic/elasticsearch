@@ -400,7 +400,7 @@ public final class ConfigurationUtils {
                 Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, propertyValue, Collections.emptyMap());
                 return scriptService.compile(script, TemplateScript.CONTEXT);
             } else {
-                return (params) -> new TemplateScript(params) {
+                return (params) -> new TemplateScript() {
                     @Override
                     public String execute() {
                         return propertyValue;

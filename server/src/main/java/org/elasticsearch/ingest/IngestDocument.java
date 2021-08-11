@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -400,7 +402,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        Map<String, Object> model = createTemplateModel();
+        Supplier<Map<String, Object>> model = new CachedSupplier<>(this::createTemplateModel);
         appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model));
     }
 
@@ -418,7 +420,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean allowDuplicates) {
-        Map<String, Object> model = createTemplateModel();
+        Supplier<Map<String, Object>> model = new CachedSupplier<>(this::createTemplateModel);
         appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), allowDuplicates);
     }
 
@@ -446,7 +448,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        Map<String, Object> model = createTemplateModel();
+        Supplier<Map<String, Object>> model = new CachedSupplier<>(this::createTemplateModel);
         setFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), false);
     }
 
@@ -461,7 +463,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean ignoreEmptyValue) {
-        Map<String, Object> model = createTemplateModel();
+        Supplier<Map<String, Object>> model = new CachedSupplier<>(this::createTemplateModel);
         Object value = valueSource.copyAndResolve(model);
         if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
             if (value == null) {
@@ -487,7 +489,6 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, Object value, boolean ignoreEmptyValue) {
-        Map<String, Object> model = createTemplateModel();
         if (ignoreEmptyValue) {
             if (value == null) {
                 return;
@@ -500,7 +501,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
+        setFieldValue(fieldPathTemplate.newInstance(this::createTemplateModel).execute(), value, false);
     }
 
     private void setFieldValue(String path, Object value, boolean append) {
@@ -656,7 +657,7 @@ public final class IngestDocument {
     }
 
     public String renderTemplate(TemplateScript.Factory template) {
-        return template.newInstance(createTemplateModel()).execute();
+        return template.newInstance(this::createTemplateModel).execute();
     }
 
     private Map<String, Object> createTemplateModel() {

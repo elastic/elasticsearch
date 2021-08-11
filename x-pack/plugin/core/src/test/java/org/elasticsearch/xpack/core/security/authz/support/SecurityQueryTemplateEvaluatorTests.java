@@ -49,7 +49,7 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         User user = new User("_username", new String[] { "role1", "role2" }, "_full_name", "_email",
                 Map.of("key", "value"), true);
 
-        TemplateScript.Factory compiledTemplate = templateParams -> new TemplateScript(templateParams) {
+        TemplateScript.Factory compiledTemplate = templateParams -> new TemplateScript() {
             @Override
             public String execute() {
                 return "rendered_text";

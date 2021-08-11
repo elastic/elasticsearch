@@ -540,6 +540,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         ZenDiscovery.validateIncomingState(logger, state, higherVersionState);
     }
 
+    @SuppressWarnings("unchecked")
     public void testNotEnoughMasterNodesAfterRemove() throws Exception {
         final ElectMasterService electMasterService = mock(ElectMasterService.class);
         when(electMasterService.hasEnoughMasterNodes(any(Iterable.class))).thenReturn(false);

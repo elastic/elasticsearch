@@ -84,6 +84,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         for (Map.Entry<String, Object> entry : parts.entrySet()) {
             final String indexName = entry.getKey();
             assert entry.getValue() instanceof Map : "expected a map as type mapping, but got: " + entry.getValue().getClass();
+            @SuppressWarnings("unchecked")
             final Map<String, Object> mapping = (Map<String, Object>) ((Map) entry.getValue()).get(MAPPINGS.getPreferredName());
 
             ImmutableOpenMap.Builder<String, MappingMetadata> typeBuilder = new ImmutableOpenMap.Builder<>();
@@ -91,6 +92,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                 final String typeName = typeEntry.getKey();
                 assert typeEntry.getValue() instanceof Map : "expected a map as inner type mapping, but got: " +
                     typeEntry.getValue().getClass();
+                @SuppressWarnings("unchecked")
                 final Map<String, Object> fieldMappings = (Map<String, Object>) typeEntry.getValue();
                 MappingMetadata mmd = new MappingMetadata(typeName, fieldMappings);
                 typeBuilder.put(typeName, mmd);

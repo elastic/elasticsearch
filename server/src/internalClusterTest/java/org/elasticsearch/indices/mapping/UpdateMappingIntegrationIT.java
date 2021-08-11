@@ -234,7 +234,10 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
                         ImmutableOpenMap<String, MappingMetadata> mappings = getMappingResponse.getMappings().get(indexName);
                         assertThat(mappings.containsKey(typeName), equalTo(true));
-                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(),
+                        @SuppressWarnings("unchecked")
+                        final Set<String> properties = ((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties"))
+                            .keySet();
+                        assertThat(properties,
                             Matchers.hasItem(fieldName));
                     }
                 } catch (Exception e) {

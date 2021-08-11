@@ -117,7 +117,7 @@ public class IteratorsTests extends ESTestCase {
 
     @SafeVarargs
     @SuppressWarnings({"unchecked", "varargs"})
-    private <T> void assertSingleton(T value, Iterator<T>... iterators) {
+    private final <T> void assertSingleton(T value, Iterator<T>... iterators) {
         Iterator<T> concat = Iterators.concat(iterators);
         assertContainsInOrder(concat, value);
     }
@@ -138,7 +138,7 @@ public class IteratorsTests extends ESTestCase {
 
     @SafeVarargs
     @SuppressWarnings({"varargs"})
-    private <T> void assertContainsInOrder(Iterator<T> iterator, T... values) {
+    private final <T> void assertContainsInOrder(Iterator<T> iterator, T... values) {
         for (T value : values) {
             assertTrue(iterator.hasNext());
             assertEquals(value, iterator.next());

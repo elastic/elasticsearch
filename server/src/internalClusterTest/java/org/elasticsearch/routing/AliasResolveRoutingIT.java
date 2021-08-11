@@ -175,7 +175,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
 
     @SafeVarargs
     @SuppressWarnings("varargs")
-    private <T> Set<T> newSet(T... elements) {
+    private final <T> Set<T> newSet(T... elements) {
         return newHashSet(elements);
     }
 

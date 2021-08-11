@@ -449,6 +449,7 @@ public final class QueryBuilders {
      *
      * @param function The function builder used to custom score
      */
+    @SuppressWarnings("rawtypes")
     public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function) {
         return new FunctionScoreQueryBuilder(function);
     }
@@ -459,6 +460,7 @@ public final class QueryBuilders {
      * @param queryBuilder The query to custom score
      * @param function     The function builder used to custom score
      */
+    @SuppressWarnings("rawtypes")
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
         return (new FunctionScoreQueryBuilder(queryBuilder, function));
     }

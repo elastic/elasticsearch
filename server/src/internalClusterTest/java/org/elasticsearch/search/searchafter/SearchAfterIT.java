@@ -294,7 +294,8 @@ public class SearchAfterIT extends ESIntegTestCase {
     }
     private ListComparator LST_COMPARATOR = new ListComparator();
 
-    private void assertSearchFromWithSortValues(String indexName, String typeName, List<List<Object>> documents, int reqSize) throws Exception {
+    private void assertSearchFromWithSortValues(String indexName, String typeName, List<List<Object>> documents, int reqSize)
+        throws Exception {
         int numFields = documents.get(0).size();
         {
             createIndexMappingsFromObjectType(indexName, typeName, documents.get(0));

@@ -330,6 +330,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
             }
         }
 
+        @SuppressWarnings("rawtypes")
         @Override
         public void onResponseReceived(long requestId, Transport.ResponseContext context) {
             if (MasterFaultDetection.MASTER_PING_ACTION_NAME.equals(context.action())) {

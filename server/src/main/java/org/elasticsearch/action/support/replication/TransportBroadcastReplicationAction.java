@@ -38,6 +38,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Base class for requests that should be executed on all shards of an index or several indices.
  * This action sends shard requests to all primary shards of the indices and they are then replicated like write requests
  */
+@SuppressWarnings("rawtypes")
 public abstract class TransportBroadcastReplicationAction<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse,
         ShardRequest extends ReplicationRequest<ShardRequest>, ShardResponse extends ReplicationResponse>
         extends HandledTransportAction<Request, Response> {
@@ -101,6 +102,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         }
     }
 
+    @SuppressWarnings("unchecked")
     protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
         ShardRequest shardRequest = newShardRequest(request, shardId);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());

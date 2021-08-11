@@ -67,7 +67,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
     }
 
     @Override
-    protected Client buildClient(Settings headersSettings, ActionType[] testedActions) {
+    protected Client buildClient(Settings headersSettings, @SuppressWarnings("rawtypes") ActionType[] testedActions) {
         transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -147,6 +147,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         @Override
         public AsyncSender interceptSender(AsyncSender sender) {
             return new AsyncSender() {
+                @SuppressWarnings("unchecked")
                 @Override
                 public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
                                                                       TransportRequest request,
@@ -159,14 +160,13 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                             new LivenessResponse(clusterName, connection.getNode()));
                     } else if (ClusterStateAction.NAME.equals(action)) {
                         assertHeaders(threadPool);
-                        ClusterName cluster1 = clusterName;
-                        ClusterState.Builder builder = ClusterState.builder(cluster1);
+                        ClusterState.Builder builder = ClusterState.builder(clusterName);
                         //the sniffer detects only data nodes
                         builder.nodes(DiscoveryNodes.builder().add(new DiscoveryNode("node_id", "someId", "some_ephemeralId_id",
                             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
                                 Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT)));
                         ((TransportResponseHandler<ClusterStateResponse>) handler)
-                                .handleResponse(new ClusterStateResponse(cluster1, builder.build(), false));
+                                .handleResponse(new ClusterStateResponse(clusterName, builder.build(), false));
                         clusterStateLatch.countDown();
                     } else if (TransportService.HANDSHAKE_ACTION_NAME .equals(action)) {
                         ((TransportResponseHandler<TransportService.HandshakeResponse>) handler).handleResponse(

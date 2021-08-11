@@ -705,6 +705,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             throw new IllegalStateException(signatureMessage(pluginClass));
         }
 
+        @SuppressWarnings("rawtypes")
         final Class[] parameterTypes = constructor.getParameterTypes();
         try {
             if (constructor.getParameterCount() == 2 && parameterTypes[0] == Settings.class && parameterTypes[1] == Path.class) {
@@ -731,6 +732,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 "()");
     }
 
+    @SuppressWarnings("unchecked")
     public <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass()))
             .map(p -> ((T)p.v2())).collect(Collectors.toList());

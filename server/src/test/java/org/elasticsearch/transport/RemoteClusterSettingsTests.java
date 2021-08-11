@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
+@SuppressWarnings("rawtypes")
 public class RemoteClusterSettingsTests extends ESTestCase {
 
     public void testConnectionsPerClusterFallback() {

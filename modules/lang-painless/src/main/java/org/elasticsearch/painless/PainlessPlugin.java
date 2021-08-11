@@ -38,6 +38,8 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.NumberSortScript;
@@ -46,6 +48,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.StringSortScript;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -140,6 +143,24 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         filter.add(filterWhitelist);
         map.put(FilterScript.CONTEXT, filter);
 
+        List<Whitelist> aggregation = new ArrayList<>();
+        Whitelist aggregationWhitelist =
+                WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.aggregation.txt");
+        aggregation.add(aggregationWhitelist);
+        map.put(AggregationScript.CONTEXT, aggregation);
+
+        List<Whitelist> aggmap = new ArrayList<>();
+        Whitelist aggmapWhitelist =
+                WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.aggmap.txt");
+        aggmap.add(aggmapWhitelist);
+        map.put(ScriptedMetricAggContexts.MapScript.CONTEXT, aggmap);
+
+        List<Whitelist> field = new ArrayList<>();
+        Whitelist fieldWhitelist =
+                WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.field.txt");
+        field.add(fieldWhitelist);
+        map.put(FieldScript.CONTEXT, field);
+
         // Execute context gets everything
         List<Whitelist> test = new ArrayList<>();
         test.add(movFnWhitelist);
@@ -200,8 +221,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         loader.loadExtensions(PainlessExtension.class).stream()
             .flatMap(extension -> extension.getContextWhitelists().entrySet().stream())
             .forEach(entry -> {
-                List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(),
-                    c -> new ArrayList<>(BASE_WHITELISTS));
+                List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(), c -> new ArrayList<>());
                 existing.addAll(entry.getValue());
             });
     }

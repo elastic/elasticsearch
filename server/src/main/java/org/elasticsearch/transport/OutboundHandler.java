@@ -90,7 +90,7 @@ final class OutboundHandler {
      * @see #sendErrorResponse(Version, TcpChannel, long, String, Exception) for sending error responses
      */
     void sendResponse(final Version nodeVersion, final TcpChannel channel, final long requestId, final String action,
-                      final TransportResponse response, Compression.Scheme compressionScheme, final boolean isHandshake)
+                      final TransportResponse response, final Compression.Scheme compressionScheme, final boolean isHandshake)
         throws IOException {
         Version version = Version.min(this.version, nodeVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), response, version,

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -24,6 +25,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+/**
+ * Mapper for {@code _tsid} field included generated when the index is
+ * {@link IndexMode#organizeIntoTimeSeries() organized into time series}.
+ */
 public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_tsid";

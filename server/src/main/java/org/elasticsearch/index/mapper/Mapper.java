@@ -67,6 +67,13 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract void validate(MappingLookup mappers);
 
+    /**
+     * Build a stand alone class that can generate the time series id for this
+     * field. This is a stand alone class because we need one of these for every
+     * index on every node in the cluster. And every node doesn't have the mapping
+     * parsed and in memory on every node on the cluster. But it can have this
+     * "little" thing in memory.
+     */
     protected TimeSeriesIdGenerator.Component selectTimeSeriesIdComponents() {
         return null;
     }

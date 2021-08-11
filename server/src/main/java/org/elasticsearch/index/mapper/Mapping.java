@@ -202,6 +202,9 @@ public final class Mapping implements ToXContentFragment {
         }
     }
 
+    /**
+     * Generate the time series id if the index is organized by time series.
+     */
     public BytesReference generateTimeSeriesIdIfNeeded(BytesReference source, XContentType xContentType) {
         if (timeSeriesIdGenerator == null) {
             return null;
@@ -209,6 +212,10 @@ public final class Mapping implements ToXContentFragment {
         return timeSeriesIdGenerator.generate(source, xContentType);
     }
 
+    /**
+     * Get the time series is generator or {@code null} if the index
+     * isn't organized by time series.
+     */
     public TimeSeriesIdGenerator getTimeSeriesIdGenerator() {
         return timeSeriesIdGenerator;
     }

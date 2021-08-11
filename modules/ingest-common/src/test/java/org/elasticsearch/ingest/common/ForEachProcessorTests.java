@@ -129,7 +129,7 @@ public class ForEachProcessorTests extends ESTestCase {
         ForEachProcessor processor = new ForEachProcessor(
             "_tag", null, "values", new SetProcessor("_tag",
             null, new TestTemplateService.MockTemplateScript.Factory("_ingest._value.new_field"),
-            (model) -> model.get("other"), null), false);
+            (model) -> model.get().get("other"), null), false);
         processor.execute(ingestDocument, (result, e) -> {});
 
         assertThat(ingestDocument.getFieldValue("values.0.new_field", String.class), equalTo("value"));

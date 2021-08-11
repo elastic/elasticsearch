@@ -105,7 +105,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     public void testCalculateStatsNoTiers() {
-        // Nodes: 0 Tiered Nodes
+        // Nodes: 0 Tiered Nodes, 1 Data Node
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(0, DiscoveryNodeRole.MASTER_ROLE);
         discoBuilder.masterNodeId(leader.getId());
@@ -150,7 +150,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     public void testCalculateStatsTieredNodesOnly() {
-        // Nodes: 0 Tiered Nodes
+        // Nodes: 1 Data, 1 Hot, 1 Warm, 1 Cold, 1 Frozen
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(0, DiscoveryNodeRole.MASTER_ROLE);
         discoBuilder.masterNodeId(leader.getId());

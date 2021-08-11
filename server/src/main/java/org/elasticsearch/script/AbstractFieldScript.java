@@ -10,8 +10,6 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -69,25 +67,19 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     );
 
     protected final String fieldName;
+    protected final SourceLookup sourceLookup;
     private final Map<String, Object> params;
-    protected final LeafSearchLookup leafSearchLookup;
 
     public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(new DocValuesDocReader(searchLookup, ctx));
 
         this.fieldName = fieldName;
-        this.leafSearchLookup = searchLookup.getLeafSearchLookup(ctx);
+        Map<String, Object> docAsMap = docAsMap();
+        this.sourceLookup = (SourceLookup)docAsMap.get("_source");
         params = new HashMap<>(params);
-        params.put("_source", leafSearchLookup.source());
-        params.put("_fields", leafSearchLookup.fields());
+        params.put("_source", sourceLookup);
+        params.put("_fields", docAsMap.get("_fields"));
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
-    }
-
-    /**
-     * Set the document to run the script against.
-     */
-    public void setDocument(int docId) {
-        this.leafSearchLookup.setDocument(docId);
     }
 
     /**
@@ -97,15 +89,8 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         return params;
     }
 
-    /**
-     * Expose field data to the script as {@code doc}.
-     */
-    public final Map<String, ScriptDocValues<?>> getDoc() {
-        return leafSearchLookup.doc();
-    }
-
     protected List<Object> extractFromSource(String path) {
-        return XContentMapValues.extractRawValues(path, leafSearchLookup.source().source());
+        return XContentMapValues.extractRawValues(path, sourceLookup.source());
     }
 
     protected final void emitFromCompositeScript(CompositeFieldScript compositeFieldScript) {

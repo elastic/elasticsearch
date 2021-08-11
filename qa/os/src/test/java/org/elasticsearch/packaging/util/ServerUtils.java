@@ -272,6 +272,13 @@ public class ServerUtils {
         makeRequest(Request.Delete("http://localhost:9200/library"), username, password, null);
     }
 
+    public static void validateCredentials(String username, String password, Path caCert) throws Exception {
+        final HttpResponse response = execute(Request.Get("http://localhost:9200/"), username, password, caCert);
+        if (response.getStatusLine().getStatusCode() == 401) {
+            throw new RuntimeException("Failed to authenticate as [" + username + ":" + password + "]");
+        }
+    }
+
     public static String makeRequest(Request request) throws Exception {
         return makeRequest(request, null, null, null);
     }

@@ -808,8 +808,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    // The watcher index may be recreated between when we reset system features and when
-    // we call a wildcard deletion
+    /**
+     * The watcher index may be recreated between when we reset system features and when
+     * we call a wildcard deletion. We believe this happens when the Monitoring plugin
+     * uses its local exporter, which will check whether the watches it uses exist and
+     * create them if not.
+     *
+     * Once system indices are fully protected, the wildcard expansion won't resolve to
+     * the watcher index, and we can stop catching this warning.
+     */
     private static WarningsHandler handleWatcherSystemIndexWarnings() {
         return warnings -> {
             if (warnings.size() == 0) {

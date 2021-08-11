@@ -348,7 +348,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     indices = List.copyOf(indexNames);
                 }
 
-                // need feature state data streams...
                 final List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
                     currentState,
                     request.indicesOptions(),

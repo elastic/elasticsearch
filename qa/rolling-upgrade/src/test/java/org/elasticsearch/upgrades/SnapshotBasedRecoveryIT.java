@@ -59,7 +59,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
 
                 createSnapshot(repositoryName, "snap", true);
 
-                updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2));
+                updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
                 ensureGreen(indexName);
                 break;
             case MIXED:
@@ -68,14 +68,10 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0));
                 ensureGreen(indexName);
 
-                // Add replicas 1 by 1
-                for (int replicas = 1; replicas <= 2; replicas++) {
-                    updateIndexSettings(indexName,
-                        Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), replicas));
-                    ensureGreen(indexName);
-                    for (int i = 0; i < 4; i++) {
-                        assertSearchResultsAreCorrect(indexName, numDocs);
-                    }
+                updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
+                ensureGreen(indexName);
+                for (int i = 0; i < 4; i++) {
+                    assertSearchResultsAreCorrect(indexName, numDocs);
                 }
                 break;
             default:

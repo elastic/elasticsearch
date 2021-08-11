@@ -36,7 +36,7 @@ public class PackageSecurityAutoconfigurationTests extends PackagingTestCase {
         assertThat(keystoreListResult.stdout, containsString("keystore.seed"));
         // With future changes merged, this would be automatically populated on installation. For now, add it manually
         installation.executables().keystoreTool.
-            // $2a$10$R2oFwbHR/9x9.e/bQpJ6IeHKUVP08KHQ9LcZPMlWeyuQuYboR82fm is the hash of thisisalongenoughpassword
+        // $2a$10$R2oFwbHR/9x9.e/bQpJ6IeHKUVP08KHQ9LcZPMlWeyuQuYboR82fm is the hash of thisisalongenoughpassword
             run("add -x autoconfiguration.password_hash", "$2a$10$R2oFwbHR/9x9.e/bQpJ6IeHKUVP08KHQ9LcZPMlWeyuQuYboR82fm");
         startElasticsearch();
         validateCredentials("elastic", "thisisalongenoughpassword", null);

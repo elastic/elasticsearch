@@ -78,15 +78,23 @@ public class DeploymentManager {
         doStartDeployment(task, listener);
     }
 
-    private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> listener) {
+    private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
         logger.debug("[{}] Starting model deployment", task.getModelId());
 
-        ProcessContext processContext = new ProcessContext(task.getModelId(), task.getIndex(), executorServiceForProcess);
+        ProcessContext processContext = new ProcessContext(task.getModelId(), task.getIndex(), executorServiceForProcess, task.getId());
 
         if (processContextByAllocation.putIfAbsent(task.getId(), processContext) != null) {
-            listener.onFailure(ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId()));
+            finalListener.onFailure(ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId()));
             return;
         }
+
+        ActionListener<TrainedModelDeploymentTask> listener = ActionListener.wrap(
+            finalListener::onResponse,
+            failure -> {
+                processContextByAllocation.remove(task.getId());
+                finalListener.onFailure(failure);
+            }
+        );
 
         String taskConfigDocId = NlpTaskConfig.documentId(task.getModelId());
 
@@ -116,7 +124,7 @@ public class DeploymentManager {
                 // here, we are being called back on the searching thread, which MAY be a network thread
                 // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
                 // executor.
-                executorServiceForProcess.execute(() -> startAndLoad(processContext, modelLoadedListener));
+                executorServiceForDeployment.execute(() -> startAndLoad(processContext, modelLoadedListener));
             },
             listener::onFailure
         );
@@ -170,8 +178,19 @@ public class DeploymentManager {
     public void infer(TrainedModelDeploymentTask task,
                       String input, TimeValue timeout,
                       ActionListener<InferenceResults> listener) {
-        ProcessContext processContext = processContextByAllocation.get(task.getId());
+        if (task.isStopped()) {
+            listener.onFailure(
+                new IllegalStateException("["
+                    + task.getModelId()
+                    + "] is stopping or stopped due to ["
+                    + task.stoppedReason().orElse("")
+                    + "]"
+                )
+            );
+            return;
+        }
 
+        ProcessContext processContext = processContextByAllocation.get(task.getId());
         if (processContext == null) {
             listener.onFailure(new IllegalStateException("[" + task.getModelId() + "] process context missing"));
             return;
@@ -243,16 +262,18 @@ public class DeploymentManager {
 
         private final String modelId;
         private final String index;
+        private final long taskId;
         private final SetOnce<NativePyTorchProcess> process = new SetOnce<>();
         private final SetOnce<NlpTask.Processor> nlpTaskProcessor = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
 
-        ProcessContext(String modelId, String index, ExecutorService executorService) {
+        ProcessContext(String modelId, String index, ExecutorService executorService, long taskId) {
             this.modelId = Objects.requireNonNull(modelId);
             this.index = Objects.requireNonNull(index);
             resultProcessor = new PyTorchResultProcessor(modelId);
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
+            this.taskId = taskId;
         }
 
         synchronized void startProcess() {
@@ -267,13 +288,17 @@ public class DeploymentManager {
             try {
                 stateStreamer.cancel();
                 process.get().kill(true);
+                processContextByAllocation.remove(taskId);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Failed to kill process", modelId), e);
             }
         }
 
         private Consumer<String> onProcessCrash() {
-            return reason -> logger.error("[{}] process crashed due to reason [{}]", modelId, reason);
+            return reason -> {
+                logger.error("[{}] process crashed due to reason [{}]", modelId, reason);
+                processContextByAllocation.remove(taskId);
+            };
         }
 
         void loadModel(ActionListener<Boolean> listener) {

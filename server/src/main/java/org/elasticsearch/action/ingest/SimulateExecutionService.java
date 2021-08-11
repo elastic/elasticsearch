@@ -38,7 +38,7 @@ class SimulateExecutionService {
             List<SimulateProcessorResult> processorResultList = new CopyOnWriteArrayList<>();
             CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), null, processorResultList);
             Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
-                verbosePipelineProcessor);
+                pipeline.getMetadata(), verbosePipelineProcessor);
             ingestDocument.executePipeline(verbosePipeline, (result, e) -> {
                 handler.accept(new SimulateDocumentVerboseResult(processorResultList), e);
             });

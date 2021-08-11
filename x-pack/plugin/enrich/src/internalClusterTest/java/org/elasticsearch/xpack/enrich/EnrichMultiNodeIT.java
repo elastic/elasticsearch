@@ -72,36 +72,33 @@ public class EnrichMultiNodeIT extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed =
-                new String(getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
-        return super.configUsers() +
-                "enrich_user:" + usersPasswdHashed + "\n" +
-                "ingest_user:" + usersPasswdHashed + "\n";
+        final String usersPasswdHashed = new String(
+            getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
+        return super.configUsers() + "enrich_user:" + usersPasswdHashed + "\n" + "ingest_user:" + usersPasswdHashed + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles() +
-                "enrich_user:enrich_user\n" +
-                "read_users_index_role:enrich_user\n" +
-                "ingest_role:ingest_user\n";
+        return super.configUsersRoles() + "enrich_user:enrich_user\n" + "read_users_index_role:enrich_user\n" + "ingest_role:ingest_user\n";
     }
 
     @Override
     protected String configRoles() {
-        return super.configRoles() +
-                "\nread_users_index_role:\n" +
-                "  indices:\n" +
-                "    - names: '" + SOURCE_INDEX_NAME + "'\n" +
-                "      privileges: [ read, view_index_metadata ]\n" +
-                "\ningest_role:\n" +
-                "  indices:\n" +
-                "    - names: 'my-index'\n" +
-                "      privileges: [ write, auto_configure ]\n";
+        return super.configRoles()
+            + "\nread_users_index_role:\n"
+            + "  indices:\n"
+            + "    - names: '"
+            + SOURCE_INDEX_NAME
+            + "'\n"
+            + "      privileges: [ read, view_index_metadata ]\n"
+            + "\ningest_role:\n"
+            + "  indices:\n"
+            + "    - names: 'my-index'\n"
+            + "      privileges: [ write, auto_configure ]\n";
     }
 
-    protected void doAssertXPackIsInstalled() {
-    }
+    protected void doAssertXPackIsInstalled() {}
 
     public void testEnrichAPIs() {
         final int numPolicies = randomIntBetween(2, 4);
@@ -285,14 +282,18 @@ public class EnrichMultiNodeIT extends SecurityIntegTestCase {
     }
 
     private static Client enrichClient() {
-        Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue("enrich_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        Map<String, String> headers = Collections.singletonMap(
+            "Authorization",
+            basicAuthHeaderValue("enrich_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
         return client().filterWithHeader(headers);
     }
 
     private static Client ingestClient(@Nullable String node) {
-        Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue("ingest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        Map<String, String> headers = Collections.singletonMap(
+            "Authorization",
+            basicAuthHeaderValue("ingest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
         return client(node).filterWithHeader(headers);
     }
 }

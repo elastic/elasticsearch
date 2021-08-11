@@ -6,32 +6,21 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
-import org.elasticsearch.xpack.security.LocalStateSecurity;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.enrich.AbstractEnrichTestCase.createSourceIndices;
@@ -40,7 +29,6 @@ import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.MATCH_FIELD;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.POLICY_NAME;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.SOURCE_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -53,30 +41,29 @@ public class EnrichRestartIT extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed =
-                new String(getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
-        return super.configUsers() +
-                "enrich_user:" + usersPasswdHashed + "\n";
+        final String usersPasswdHashed = new String(
+            getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
+        return super.configUsers() + "enrich_user:" + usersPasswdHashed + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles() +
-                "enrich_user:enrich_user\n" +
-                "read_index_role:enrich_user\n";
+        return super.configUsersRoles() + "enrich_user:enrich_user\n" + "read_index_role:enrich_user\n";
     }
 
     @Override
     protected String configRoles() {
-        return super.configRoles() +
-                "\nread_index_role:\n" +
-                "  indices:\n" +
-                "    - names: '" + SOURCE_INDEX_NAME + "'\n" +
-                "      privileges: [ read ]\n";
+        return super.configRoles()
+            + "\nread_index_role:\n"
+            + "  indices:\n"
+            + "    - names: '"
+            + SOURCE_INDEX_NAME
+            + "'\n"
+            + "      privileges: [ read ]\n";
     }
 
-    protected void doAssertXPackIsInstalled() {
-    }
+    protected void doAssertXPackIsInstalled() {}
 
     public void testRestart() throws Exception {
         final int numPolicies = randomIntBetween(2, 4);
@@ -103,8 +90,10 @@ public class EnrichRestartIT extends SecurityIntegTestCase {
     }
 
     private static void verifyPolicies(int numPolicies, EnrichPolicy enrichPolicy) {
-        GetEnrichPolicyAction.Response response = enrichClient().execute(GetEnrichPolicyAction.INSTANCE,
-                new GetEnrichPolicyAction.Request()).actionGet();
+        GetEnrichPolicyAction.Response response = enrichClient().execute(
+            GetEnrichPolicyAction.INSTANCE,
+            new GetEnrichPolicyAction.Request()
+        ).actionGet();
         assertThat(response.getPolicies().size(), equalTo(numPolicies));
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
@@ -118,8 +107,10 @@ public class EnrichRestartIT extends SecurityIntegTestCase {
     }
 
     private static Client enrichClient() {
-        Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue("enrich_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        Map<String, String> headers = Collections.singletonMap(
+            "Authorization",
+            basicAuthHeaderValue("enrich_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
         return client().filterWithHeader(headers);
     }
 }

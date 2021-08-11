@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
 
 public class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
@@ -40,10 +39,14 @@ public class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
 
         plugins.add(new Security(settings, configPath) {
             @Override
-            protected SSLService getSslService() { return LocalStateEnrich.this.getSslService(); }
+            protected SSLService getSslService() {
+                return LocalStateEnrich.this.getSslService();
+            }
 
             @Override
-            protected XPackLicenseState getLicenseState() { return LocalStateEnrich.this.getLicenseState(); }
+            protected XPackLicenseState getLicenseState() {
+                return LocalStateEnrich.this.getLicenseState();
+            }
         });
     }
 

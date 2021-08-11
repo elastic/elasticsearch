@@ -71,7 +71,7 @@ final class RemoteClusterConnection implements Closeable {
     /**
      * Updates the skipUnavailable flag that can be dynamically set for each remote cluster
      */
-    void updateSkipUnavailable(boolean skipUnavailable) {
+    void setSkipUnavailable(boolean skipUnavailable) {
         this.skipUnavailable = skipUnavailable;
     }
 

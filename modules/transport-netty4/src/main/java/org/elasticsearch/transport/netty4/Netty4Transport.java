@@ -114,7 +114,7 @@ public class Netty4Transport extends TcpTransport {
             sharedGroup = sharedGroupFactory.getTransportGroup();
             clientBootstrap = createClientBootstrap(sharedGroup);
             if (NetworkService.NETWORK_SERVER.get(settings)) {
-                for (ProfileSettings profileSettings : profileSettings) {
+                for (ProfileSettings profileSettings : profileSettingsSet) {
                     createServerBootstrap(profileSettings, sharedGroup);
                     bindServer(profileSettings);
                 }

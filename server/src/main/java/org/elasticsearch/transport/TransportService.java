@@ -1185,8 +1185,8 @@ public class TransportService extends AbstractLifecycleComponent
             return getClass().getName() + "/" + delegate.toString();
         }
 
-        void setTimeoutHandler(TimeoutHandler handler) {
-            this.handler = handler;
+        void setTimeoutHandler(TimeoutHandler timeoutHandler) {
+            this.handler = timeoutHandler;
         }
 
     }

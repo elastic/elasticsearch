@@ -32,8 +32,8 @@ public class SearchBenchmarkTask implements BenchmarkTask {
     }
 
     @Override
-    public void setUp(SampleRecorder sampleRecorder) throws Exception {
-        this.sampleRecorder = sampleRecorder;
+    public void setUp(SampleRecorder recorder) throws Exception {
+        this.sampleRecorder = recorder;
     }
 
     @Override

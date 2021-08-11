@@ -270,10 +270,10 @@ public class RestClient implements Closeable {
         return performRequest(nextNodes(), internalRequest, null);
     }
 
-    private Response performRequest(final NodeTuple<Iterator<Node>> nodeTuple,
+    private Response performRequest(final NodeTuple<Iterator<Node>> tuple,
                                     final InternalRequest request,
                                     Exception previousException) throws IOException {
-        RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
+        RequestContext context = request.createContextForNextAttempt(tuple.nodes.next(), tuple.authCache);
         HttpResponse httpResponse;
         try {
             httpResponse = client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, null).get();
@@ -282,8 +282,8 @@ public class RestClient implements Closeable {
             onFailure(context.node);
             Exception cause = extractAndWrapCause(e);
             addSuppressedException(previousException, cause);
-            if (nodeTuple.nodes.hasNext()) {
-                return performRequest(nodeTuple, request, cause);
+            if (tuple.nodes.hasNext()) {
+                return performRequest(tuple, request, cause);
             }
             if (cause instanceof IOException) {
                 throw (IOException) cause;
@@ -298,8 +298,8 @@ public class RestClient implements Closeable {
             return responseOrResponseException.response;
         }
         addSuppressedException(previousException, responseOrResponseException.responseException);
-        if (nodeTuple.nodes.hasNext()) {
-            return performRequest(nodeTuple, request, responseOrResponseException.responseException);
+        if (tuple.nodes.hasNext()) {
+            return performRequest(tuple, request, responseOrResponseException.responseException);
         }
         throw responseOrResponseException.responseException;
     }
@@ -366,11 +366,11 @@ public class RestClient implements Closeable {
         }
     }
 
-    private void performRequestAsync(final NodeTuple<Iterator<Node>> nodeTuple,
+    private void performRequestAsync(final NodeTuple<Iterator<Node>> tuple,
                                      final InternalRequest request,
                                      final FailureTrackingResponseListener listener) {
         request.cancellable.runIfNotCancelled(() -> {
-            final RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
+            final RequestContext context = request.createContextForNextAttempt(tuple.nodes.next(), tuple.authCache);
             client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, new FutureCallback<HttpResponse>() {
                 @Override
                 public void completed(HttpResponse httpResponse) {
@@ -379,9 +379,9 @@ public class RestClient implements Closeable {
                         if (responseOrResponseException.responseException == null) {
                             listener.onSuccess(responseOrResponseException.response);
                         } else {
-                            if (nodeTuple.nodes.hasNext()) {
+                            if (tuple.nodes.hasNext()) {
                                 listener.trackFailure(responseOrResponseException.responseException);
-                                performRequestAsync(nodeTuple, request, listener);
+                                performRequestAsync(tuple, request, listener);
                             } else {
                                 listener.onDefinitiveFailure(responseOrResponseException.responseException);
                             }
@@ -396,9 +396,9 @@ public class RestClient implements Closeable {
                     try {
                         RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
                         onFailure(context.node);
-                        if (nodeTuple.nodes.hasNext()) {
+                        if (tuple.nodes.hasNext()) {
                             listener.trackFailure(failure);
-                            performRequestAsync(nodeTuple, request, listener);
+                            performRequestAsync(tuple, request, listener);
                         } else {
                             listener.onDefinitiveFailure(failure);
                         }
@@ -425,9 +425,9 @@ public class RestClient implements Closeable {
      * @throws IOException if no nodes are available
      */
     private NodeTuple<Iterator<Node>> nextNodes() throws IOException {
-        NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
-        Iterable<Node> hosts = selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector);
-        return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
+        NodeTuple<List<Node>> tuple = this.nodeTuple;
+        Iterable<Node> hosts = selectNodes(tuple, blacklist, lastNodeIndex, nodeSelector);
+        return new NodeTuple<>(hosts.iterator(), tuple.authCache);
     }
 
     /**
@@ -643,17 +643,17 @@ public class RestClient implements Closeable {
         /**
          * Tracks one last definitive failure and returns to the caller by notifying the wrapped listener
          */
-        void onDefinitiveFailure(Exception exception) {
-            trackFailure(exception);
+        void onDefinitiveFailure(Exception e) {
+            trackFailure(e);
             responseListener.onFailure(this.exception);
         }
 
         /**
          * Tracks an exception, which caused a retry hence we should not return yet to the caller
          */
-        void trackFailure(Exception exception) {
-            addSuppressedException(this.exception, exception);
-            this.exception = exception;
+        void trackFailure(Exception e) {
+            addSuppressedException(this.exception, e);
+            this.exception = e;
         }
     }
 
@@ -756,26 +756,26 @@ public class RestClient implements Closeable {
                 RestClient.this.warningsHandler : request.getOptions().getWarningsHandler();
         }
 
-        private void setHeaders(HttpRequest httpRequest, Collection<Header> requestHeaders) {
+        private void setHeaders(HttpRequest req, Collection<Header> requestHeaders) {
             // request headers override default headers, so we don't add default headers if they exist as request headers
             final Set<String> requestNames = new HashSet<>(requestHeaders.size());
             for (Header requestHeader : requestHeaders) {
-                httpRequest.addHeader(requestHeader);
+                req.addHeader(requestHeader);
                 requestNames.add(requestHeader.getName());
             }
             for (Header defaultHeader : defaultHeaders) {
                 if (requestNames.contains(defaultHeader.getName()) == false) {
-                    httpRequest.addHeader(defaultHeader);
+                    req.addHeader(defaultHeader);
                 }
             }
             if (compressionEnabled) {
-                httpRequest.addHeader("Accept-Encoding", "gzip");
+                req.addHeader("Accept-Encoding", "gzip");
             }
         }
 
-        private void setRequestConfig(HttpRequestBase httpRequest, RequestConfig requestConfig) {
+        private void setRequestConfig(HttpRequestBase requestBase, RequestConfig requestConfig) {
             if (requestConfig != null) {
-                httpRequest.setConfig(requestConfig);
+                requestBase.setConfig(requestConfig);
             }
         }
 

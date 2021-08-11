@@ -87,7 +87,7 @@ public class NioTransport extends TcpTransport {
 
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 // loop through all profiles and start them up, special handling for default one
-                for (ProfileSettings profileSettings : profileSettings) {
+                for (ProfileSettings profileSettings : profileSettingsSet) {
                     String profileName = profileSettings.profileName;
                     TcpChannelFactory factory = serverChannelFactory(profileSettings);
                     profileToChannelFactory.putIfAbsent(profileName, factory);

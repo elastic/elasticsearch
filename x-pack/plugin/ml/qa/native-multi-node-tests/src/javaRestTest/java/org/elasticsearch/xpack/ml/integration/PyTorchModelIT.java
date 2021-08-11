@@ -123,7 +123,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             "    }" +
             "}");
         client().performRequest(loggingSettings);
-        
+
         new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
         waitForPendingTasks(adminClient());
     }

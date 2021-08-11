@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -22,9 +20,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
+import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
-import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.deployment.ModelStats;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 
@@ -32,8 +31,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -41,16 +43,12 @@ import java.util.stream.Collectors;
 public class TransportGetDeploymentStatsAction extends TransportTasksAction<TrainedModelDeploymentTask,
     GetDeploymentStatsAction.Request, GetDeploymentStatsAction.Response, GetDeploymentStatsAction.Response.AllocationStats> {
 
-    private final DeploymentManager deploymentManager;
-    private static final Logger logger = LogManager.getLogger(TransportGetDeploymentStatsAction.class);
-
     @Inject
-    public TransportGetDeploymentStatsAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
-                                             DeploymentManager deploymentManager) {
+    public TransportGetDeploymentStatsAction(TransportService transportService,
+                                             ActionFilters actionFilters,
+                                             ClusterService clusterService) {
         super(GetDeploymentStatsAction.NAME, clusterService, transportService, actionFilters, GetDeploymentStatsAction.Request::new,
             GetDeploymentStatsAction.Response::new, GetDeploymentStatsAction.Response.AllocationStats::new, ThreadPool.Names.MANAGEMENT);
-
-        this.deploymentManager = deploymentManager;
     }
 
     @Override
@@ -89,14 +87,20 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
         TrainedModelAllocationMetadata allocation = TrainedModelAllocationMetadata.fromState(clusterService.state());
         List<String> matchedDeploymentIds = new ArrayList<>();
         Set<String> taskNodes = new HashSet<>();
+        Map<String, Map<String, RoutingStateAndReason>> nonStartedAllocationsForModel = new HashMap<>();
+        for (var allocationEntry : allocation.modelAllocations().entrySet()) {
+            String modelId = allocationEntry.getKey();
+            if (idsMatcher.idMatches(modelId)) {
+                matchedDeploymentIds.add(modelId);
 
-        for (var routingEntry : allocation.modelAllocations().entrySet()) {
-            if (idsMatcher.idMatches(routingEntry.getKey())) {
-                matchedDeploymentIds.add(routingEntry.getKey());
+                taskNodes.addAll(Arrays.asList(allocationEntry.getValue().getStartedNodes()));
 
-                taskNodes.addAll(Arrays.asList(routingEntry.getValue().getStartedNodes()));  // TODO: limited to started nodes
-                logger.warn("Routing table " + Strings.toString(routingEntry.getValue()));
-                logger.warn("getting stats on nodes: " + taskNodes);
+                Map<String, RoutingStateAndReason> routings = allocationEntry.getValue().getNodeRoutingTable().entrySet()
+                    .stream()
+                    .filter(routingEntry -> RoutingState.STARTED.equals(routingEntry.getValue().getState()) == false)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+                nonStartedAllocationsForModel.put(modelId, routings);
             }
         }
 
@@ -116,20 +120,40 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
         request.setNodes(taskNodes.toArray(String[]::new));
         request.setExpandedIds(matchedDeploymentIds);
 
-        super.doExecute(task, request, listener);
+        ActionListener<GetDeploymentStatsAction.Response> addFailedListener = listener.delegateFailure(
+            (l, response) -> {
+                var updatedResponse =
+                    GetDeploymentStatsAction.Response.addFailedRoutes(response,
+                        nonStartedAllocationsForModel,
+                        clusterService.state().nodes());
+                l.onResponse(updatedResponse);
+            }
+        );
+
+        super.doExecute(task, request, addFailedListener);
     }
 
     @Override
     protected void taskOperation(GetDeploymentStatsAction.Request request, TrainedModelDeploymentTask task,
                                  ActionListener<GetDeploymentStatsAction.Response.AllocationStats> listener) {
-        ModelStats stats = deploymentManager.getStats(task);
+        Optional<ModelStats> stats = task.modelStats();
 
         List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> nodeStats = new ArrayList<>();
-        nodeStats.add(new GetDeploymentStatsAction.Response.AllocationStats.NodeStats(this.clusterService.localNode(),
-            stats.getTimingStats().getCount(),
-            stats.getTimingStats().getAverage(),
-            stats.getLastUsed()));
 
-        listener.onResponse(new GetDeploymentStatsAction.Response.AllocationStats(task.getModelId(), stats.getModelSize(), nodeStats));
+        if (stats.isPresent()) {
+            nodeStats.add(GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                clusterService.localNode(),
+                stats.get().getTimingStats().getCount(),
+                stats.get().getTimingStats().getAverage(),
+                stats.get().getLastUsed()));
+        } else {
+            // if there are no stats the process is missing.
+            // Either because it is starting or stopped
+            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(clusterService.localNode(),
+                RoutingState.STOPPED, "");
+        }
+
+        var modelSize = stats.map(ModelStats::getModelSize).orElse(null);
+        listener.onResponse(new GetDeploymentStatsAction.Response.AllocationStats(task.getModelId(), modelSize, nodeStats));
     }
 }

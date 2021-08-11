@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -85,16 +86,16 @@ public class DeploymentManager {
         doStartDeployment(task, listener);
     }
 
-    public ModelStats getStats(TrainedModelDeploymentTask task) {
+    public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
         ProcessContext processContext = processContextByAllocation.get(task.getId());
         if (processContext == null) {
-            throw new IllegalStateException("[" + task.getModelId() + "] process context missing for stats");
+            return Optional.empty();
         }
 
         Long modelSizeBytes = processContext.getModelSizeBytes() < 0 ? null : (long) processContext.getModelSizeBytes();
-        return new ModelStats(processContext.resultProcessor.getTimingStats(),
+        return Optional.of(new ModelStats(processContext.resultProcessor.getTimingStats(),
             processContext.resultProcessor.getLastUsed(),
-            modelSizeBytes);
+            modelSizeBytes));
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {

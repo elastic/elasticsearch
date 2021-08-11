@@ -120,23 +120,11 @@ public final class IndexSortConfig {
         this.indexName = indexSettings.getIndex().getName();
         this.indexMode = indexSettings.mode();
 
-        List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
         if (indexMode.organizeIntoTimeSeries()) {
-            if (false == fields.isEmpty()) {
-                throw new IllegalArgumentException("Can't set [" + INDEX_SORT_FIELD_SETTING.getKey() + "] in time series mode");
-            }
-            if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("Can't set [" + INDEX_SORT_ORDER_SETTING.getKey() + "] in time series mode");
-            }
-            if (INDEX_SORT_MODE_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("Can't set [" + INDEX_SORT_MODE_SETTING.getKey() + "] in time series mode");
-            }
-            if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("Can't set [" + INDEX_SORT_MISSING_SETTING.getKey() + "] in time series mode");
-            }
             this.sortSpecs = new FieldSortSpec[] { new FieldSortSpec("_tsid"), new FieldSortSpec("@timestamp") };
             return;
         }
+        List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
         this.sortSpecs = fields.stream()
             .map((name) -> new FieldSortSpec(name))
             .toArray(FieldSortSpec[]::new);

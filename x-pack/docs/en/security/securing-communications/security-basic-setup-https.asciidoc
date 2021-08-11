@@ -488,8 +488,9 @@ separate monitoring cluster prevents production cluster outages from impacting
 your ability to access your monitoring data. It also prevents monitoring
 activities from impacting the performance of your production cluster.
 
-. On any single node, navigate to the `/kibana` directory that you created when
-<<encrypt-http-communication,encrypting HTTP client communications for {es}>>.
+. On the node where you
+<<encrypt-http-communication,generated certificates for the HTTP layer>>,
+navigate to the `/kibana` directory.
 
 . Copy the `elasticsearch-ca.pem` certificate to the directory where you
 installed {metricbeat}.

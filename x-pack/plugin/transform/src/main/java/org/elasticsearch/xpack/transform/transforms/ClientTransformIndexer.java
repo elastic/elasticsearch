@@ -65,7 +65,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
 
-    protected ClientTransformIndexer(
+    ClientTransformIndexer(
         ThreadPool threadPool,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,

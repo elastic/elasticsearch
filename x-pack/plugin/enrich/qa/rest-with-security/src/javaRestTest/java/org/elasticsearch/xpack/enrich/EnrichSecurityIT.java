@@ -7,14 +7,20 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import java.util.List;
+import java.util.Map;
+
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 public class EnrichSecurityIT extends CommonEnrichRestTestCase {
 
@@ -40,8 +46,51 @@ public class EnrichSecurityIT extends CommonEnrichRestTestCase {
         putPolicyRequest.setJsonEntity(generatePolicySource("some-other-index"));
         ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));
         assertThat(
-            exc.getMessage(),
-            containsString("unable to store policy because no indices match with the specified index patterns [some-other-index]")
+                exc.getMessage(),
+                containsString("unable to store policy because no indices match with the specified index patterns [some-other-index]")
         );
+    }
+
+    public void testEnrichRoleCannotAccessEnrichIndices() throws Exception {
+        testBasicFlow();
+        // enrich_user cannot read the .enrich* indices
+        {
+            Request request = new Request("GET", "/.enrich*/_search?allow_no_indices=false&expand_wildcards=all");
+            if (randomBoolean()) {
+                RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder()
+                        .addHeader("X-elastic-product-origin", "dummy");
+                request.setOptions(builder.build());
+            }
+            ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(
+                    exc.getMessage(),
+                    containsString("no such index [.enrich*]")
+            );
+        }
+
+        // admin does see them
+        {
+            Request request = new Request("GET", "/.enrich*/_search?allow_no_indices=false&expand_wildcards=all");
+            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+            builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            request.setOptions(builder.build());
+            Map<String, Object> response = entityAsMap(adminClient().performRequest(request));
+            Map<?, ?> hits = (Map<?, ?>) response.get("hits");
+            assertThat((Integer) ((Map<?, ?>) hits.get("total")).get("value"), greaterThanOrEqualTo(1));
+        }
+
+        // enrich_user cannot see the .enrich* indices
+        {
+            Request request = new Request("GET", "/_resolve/index/.enrich-my_policy*?expand_wildcards=all");
+            if (randomBoolean()) {
+                RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder()
+                        .addHeader("X-elastic-product-origin", "dummy");
+                request.setOptions(builder.build());
+            }
+            Map<String, Object> response = toMap(client().performRequest(request));
+            assertThat(((List<?>) response.get("indices")).isEmpty(), is(true));
+            assertThat(((List<?>) response.get("aliases")).isEmpty(), is(true));
+            assertThat(((List<?>) response.get("data_streams")).isEmpty(), is(true));
+        }
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 import org.junit.Before;
@@ -33,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -171,7 +173,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         refreshModelStoreAndVocabIndex();
         createTrainedModel(modelA);
         Response startDeploymentResponse = startDeployment(modelA);
-        logger.info("Started deployment:" + EntityUtils.toString(startDeploymentResponse.getEntity()));
+        logger.debug("Started deployment:" + EntityUtils.toString(startDeploymentResponse.getEntity()));
         infer("once", modelA);
         infer("twice", modelA);
         Response response = getDeploymentStats(modelA);
@@ -253,6 +255,66 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(EntityUtils.toString(e.getResponse().getEntity()),
                 containsString("No known trained model with deployment with id [c*]"));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetDeploymentStats_WithStartedStoppedDeployments() throws IOException {
+        String modelFoo = "foo";
+        putTaskConfig(modelFoo, List.of("once", "twice"));
+        putModelDefinition(modelFoo);
+        createTrainedModel(modelFoo);
+
+        String modelBar = "bar";
+        putTaskConfig(modelBar, List.of("once", "twice"));
+        putModelDefinition(modelBar);
+        createTrainedModel(modelBar);
+
+        refreshModelStoreIndex();
+
+        startDeployment(modelFoo);
+        startDeployment(modelBar);
+        infer("once", modelFoo);
+        infer("once", modelBar);
+
+        Response response = getDeploymentStats("*");
+        Map<String, Object> map = entityAsMap(response);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("deployment_stats");
+        assertThat(stats, hasSize(2));
+
+        // check all nodes are started
+        for (int i : new int[]{0, 1}) {
+            List<Map<String, Object>> nodes = (List<Map<String, Object>>) stats.get(i).get("nodes");
+            // 2 ml nodes
+            assertThat(nodes, hasSize(2));
+            for (int j : new int[]{0, 1}) {
+                Object state = MapHelper.dig("routing_state.routing_state", nodes.get(j));
+                assertEquals("started", state);
+            }
+        }
+
+        stopDeployment(modelFoo);
+
+        response = getDeploymentStats("*");
+        map = entityAsMap(response);
+        stats = (List<Map<String, Object>>) map.get("deployment_stats");
+
+        assertThat(stats, hasSize(1));
+
+        // check all nodes are started
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) stats.get(0).get("nodes");
+        // 2 ml nodes
+        assertThat(nodes, hasSize(2));
+        for (int j : new int[]{0, 1}) {
+            Object state = MapHelper.dig("routing_state.routing_state", nodes.get(j));
+            assertEquals("started", state);
+        }
+
+        stopDeployment(modelBar);
+
+        response = getDeploymentStats("*");
+        map = entityAsMap(response);
+        stats = (List<Map<String, Object>>) map.get("deployment_stats");
+        assertThat(stats, empty());
     }
 
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {

@@ -80,12 +80,7 @@ public class EnrollmentTokenGenerator {
         final String fingerprint = getCaFingerprint();
         final String apiKey = getApiKeyCredentials(user, password, action);
         final Tuple<List<String>, String> httpInfo = getNodeInfo(user, password);
-        try {
-            return new EnrollmentToken(apiKey, fingerprint, httpInfo.v2(), httpInfo.v1());
-        } catch (Exception e) {
-            logger.error(("Error generating enrollment token"), e);
-            throw new IllegalStateException("Error generating enrollment token: " + e.getMessage());
-        }
+        return new EnrollmentToken(apiKey, fingerprint, httpInfo.v2(), httpInfo.v1());
     }
 
     private HttpResponse.HttpResponseBuilder responseBuilder(InputStream is) throws IOException {

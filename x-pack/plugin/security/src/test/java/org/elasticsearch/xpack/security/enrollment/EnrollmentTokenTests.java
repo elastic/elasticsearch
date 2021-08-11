@@ -32,7 +32,7 @@ public class EnrollmentTokenTests extends ESTestCase {
         final String apiKey = enrollmentToken.getApiKey();
         final String fingerprint = enrollmentToken.getFingerprint();
         final String version = enrollmentToken.getVersion();
-        final List<String> boundAddresses = enrollmentToken.getBound_address();
+        final List<String> boundAddresses = enrollmentToken.getBoundAddress();
         final String jsonString = enrollmentToken.getRaw();
         final String encoded = enrollmentToken.encode();
         final Map<String, String> enrollmentMap;

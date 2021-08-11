@@ -50,6 +50,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
     private URL checkClusterHealthUrl;
     private URL setElasticUserPasswordUrl;
     private Path confDir;
+    private Path tempDir;
     private Settings settings;
 
     @Override
@@ -62,8 +63,8 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
                 return password.toCharArray();
             }
             @Override
-            protected SecureString readBootstrapPassword(Environment env, SecureString password) {
-                return new SecureString("password".toCharArray());
+            protected Environment readBootstrapPassword(Environment env, SecureString password) {
+                return new Environment(settings, tempDir);
             }
             @Override
             protected Environment createEnv(Map<String, String> settings) {
@@ -104,7 +105,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
             .thenReturn(kibanaToken);
         when(enrollmentTokenGenerator.createNodeEnrollmentToken(anyString(), any(SecureString.class)))
             .thenReturn(nodeToken);
-        final Path tempDir = createTempDir();
+        tempDir = createTempDir();
         confDir = tempDir.resolve("config");
         final Path httpCaPath = tempDir.resolve("httpCa.p12");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
@@ -127,7 +128,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
 
     public void testGenerateNewPasswordSuccess() throws Exception {
         terminal.addSecretInput("password");
-        String docker = randomBoolean() ? "--docker" : "";
+        String docker = randomBoolean() ? "--include-node-enrollment-token" : "";
         String output = execute(docker);
         assertThat(output, containsString("elastic user password: Aljngvodjb94j8HSY803"));
         assertThat(output, containsString("CA fingerprint: ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428" +
@@ -135,7 +136,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
         assertThat(output, containsString("Kibana enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wL" +
             "jE6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWUyNmI0ZDQyOGY4YTkxMzYyZC" +
             "IsImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
-        if (docker.equals("--docker")) {
+        if (docker.equals("--include-node-enrollment-token")) {
             assertThat(output, containsString("Node enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wLj" +
                 "E6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWUyNmI0ZDQyOGY4YTkxMzYyZCI" +
                 "sImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOjRCaFVrLW1rRm0tQXd2UkZnOTBLSiJ9"));
@@ -155,7 +156,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
             .put("path.home", tempDir)
             .build();
         terminal.addSecretInput("password");
-        String docker = randomBoolean() ? "--docker" : "";
+        String docker = randomBoolean() ? "--include-node-enrollment-token" : "";
         String output = execute(docker);
         assertFalse(terminal.getOutput().contains("elastic user password:"));
         assertThat(terminal.getOutput(), containsString("CA fingerprint: ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428" +
@@ -163,7 +164,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
         assertThat(output, containsString("Kibana enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wL" +
             "jE6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWUyNmI0ZDQyOGY4YTkxMzYyZC" +
             "IsImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
-        if (docker.equals("--docker")) {
+        if (docker.equals("--include-node-enrollment-token")) {
             assertThat(output, containsString("Node enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wLj" +
                 "E6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWUyNmI0ZDQyOGY4YTkxMzYyZCI" +
                 "sImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOjRCaFVrLW1rRm0tQXd2UkZnOTBLSiJ9"));

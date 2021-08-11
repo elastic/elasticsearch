@@ -40,12 +40,11 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.security.tool.CommandLineHttpClient.createURL;
 
 public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreAwareCommand {
-    private static final String ELASTIC_USER = ElasticUser.NAME;
     private final CheckedFunction<Environment, EnrollmentTokenGenerator, Exception> createEnrollmentTokenFunction;
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
     private final OptionSpec<Void> docker;
-    final SecureRandom secureRandom = new SecureRandom();
+    private final SecureRandom secureRandom = new SecureRandom();
 
     BootstrapPasswordAndEnrollmentTokenForInitialNode() {
         this(
@@ -63,7 +62,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         this.clientFunction = clientFunction;
         this.keyStoreFunction = keyStoreFunction;
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
-        docker = parser.accepts("docker", "determine that we are running in docker");
+        docker = parser.accepts("include-node-enrollment-token", "determine that we are running in docker");
     }
 
     public static void main(String[] args) throws Exception {
@@ -82,30 +81,25 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         final SecureString keystorePassword = new SecureString(keyStorePassword);
         final CommandLineHttpClient client = clientFunction.apply(env);
         final EnrollmentTokenGenerator enrollmentTokenGenerator = createEnrollmentTokenFunction.apply(env);
-        final SecureString bootstrapPassword = readBootstrapPassword(env, keystorePassword);
+        final Environment newEnvironment = readBootstrapPassword(env, keystorePassword);
+        final SecureString bootstrapPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(newEnvironment.settings());
+        String output;
         try {
-            client.checkClusterHealthWithRetriesWaitingForCluster(ELASTIC_USER, bootstrapPassword, 5, false);
-        } catch (Exception e) {
-            throw new UserException(ExitCodes.UNAVAILABLE, null);
-        }
-        try {
-            final EnrollmentToken kibanaToken = enrollmentTokenGenerator.createKibanaEnrollmentToken(ELASTIC_USER, bootstrapPassword);
-            terminal.println("Kibana enrollment token: " + kibanaToken.encode());
-            terminal.println("CA fingerprint: " + kibanaToken.getFingerprint());
-        } catch (Exception e) {
-            throw new UserException(ExitCodes.UNAVAILABLE, null);
-        }
-        if (options.has(docker)) {
-            try {
-                final EnrollmentToken nodeToken = enrollmentTokenGenerator.createNodeEnrollmentToken(ELASTIC_USER, bootstrapPassword);
-                terminal.println("Node enrollment token: " + nodeToken.encode());
-            } catch (Exception e) {
-                throw new UserException(ExitCodes.UNAVAILABLE, null);
+            client.checkClusterHealthWithRetriesWaitingForCluster(ElasticUser.NAME, bootstrapPassword, 5, false);
+            final EnrollmentToken kibanaToken = enrollmentTokenGenerator.createKibanaEnrollmentToken(ElasticUser.NAME, bootstrapPassword);
+            output = "Kibana enrollment token: " + kibanaToken.encode() + "\n";
+            output = output.concat("CA fingerprint: " + kibanaToken.getFingerprint() + "\n");
+            if (options.has(docker)) {
+                final EnrollmentToken nodeToken = enrollmentTokenGenerator.createNodeEnrollmentToken(ElasticUser.NAME, bootstrapPassword);
+                output = output.concat("Node enrollment token: " + nodeToken.encode() + "\n");
             }
+        } catch (Exception e) {
+            throw new UserException(ExitCodes.UNAVAILABLE, null);
         }
-        if (ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.exists(env.settings()) == false) {
-            terminal.println("elastic user password: " + setElasticUserPassword(client, bootstrapPassword));
+        if (ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.exists(newEnvironment.settings()) == false) {
+            output = output.concat("elastic user password: " + setElasticUserPassword(client, bootstrapPassword));
         }
+        terminal.println(output);
     }
 
     protected SecureString setElasticUserPassword(CommandLineHttpClient client, SecureString bootstrapPassword) throws Exception {
@@ -113,7 +107,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         final HttpResponse response;
         SecureString password = new SecureString(generatePassword(20));
         try {
-            response = client.execute("POST", passwordSetUrl, ELASTIC_USER, bootstrapPassword,
+            response = client.execute("POST", passwordSetUrl, ElasticUser.NAME, bootstrapPassword,
                 () -> {
                     XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
                     xContentBuilder.startObject().field("password", password).endObject();
@@ -128,7 +122,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         return password;
     }
 
-    SecureString readBootstrapPassword(Environment env, SecureString keystorePassword) throws Exception {
+    Environment readBootstrapPassword(Environment env, SecureString keystorePassword) throws Exception {
         final KeyStoreWrapper keyStoreWrapper = keyStoreFunction.apply(env);
         keyStoreWrapper.decrypt(keystorePassword.getChars());
         Settings.Builder settingsBuilder = Settings.builder();
@@ -137,7 +131,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
             settingsBuilder.setSecureSettings(keyStoreWrapper);
         }
         final Settings settings = settingsBuilder.build();
-        return ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(settings);
+        return new Environment(settings, env.configFile());
     }
 
     public static URL checkClusterHealthUrl(CommandLineHttpClient client) throws MalformedURLException, URISyntaxException {
@@ -145,7 +139,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
     }
 
     public static URL setElasticUserPasswordUrl(CommandLineHttpClient client) throws MalformedURLException, URISyntaxException {
-        return createURL(new URL(client.getDefaultURL()), "/_security/user/" + ELASTIC_USER + "/_password",
+        return createURL(new URL(client.getDefaultURL()), "/_security/user/" + ElasticUser.NAME + "/_password",
             "?pretty");
     }
 

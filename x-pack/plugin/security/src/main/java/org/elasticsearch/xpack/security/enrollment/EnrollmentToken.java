@@ -20,18 +20,26 @@ public class EnrollmentToken {
     private final String apiKey;
     private final String fingerprint;
     private final String version;
-    private final List<String > bound_address;
+    private final List<String > boundAddress;
 
     public String getApiKey() { return apiKey; }
     public String getFingerprint() { return fingerprint; }
     public String getVersion() { return version; }
-    public List<String> getBound_address() { return bound_address; }
+    public List<String> getBoundAddress() { return boundAddress; }
 
-    public EnrollmentToken(String apiKey, String fingerprint, String version, List<String> bound_address) {
+    /**
+     * Create an EnrollmentToken
+     *
+     * @param apiKey         API Key credential in the form apiKeyId:ApiKeySecret to be used for enroll calls
+     * @param fingerprint    hex encoded SHA256 fingerprint of the HTTP CA cert
+     * @param version        node version number
+     * @param boundAddress   IP Addresses and port numbers for the interface where the Elasticsearch node is listening on
+     */
+    public EnrollmentToken(String apiKey, String fingerprint, String version, List<String> boundAddress) {
         this.apiKey = Objects.requireNonNull(apiKey);
         this.fingerprint = Objects.requireNonNull(fingerprint);
         this.version = Objects.requireNonNull(version);
-        this.bound_address = Objects.requireNonNull(bound_address);
+        this.boundAddress = Objects.requireNonNull(boundAddress);
     }
 
     public String getRaw() throws Exception {
@@ -39,7 +47,7 @@ public class EnrollmentToken {
         builder.startObject();
         builder.field("ver", version);
         builder.startArray("adr");
-        for (String bound_address : bound_address) {
+        for (String bound_address : boundAddress) {
             builder.value(bound_address);
         }
         builder.endArray();

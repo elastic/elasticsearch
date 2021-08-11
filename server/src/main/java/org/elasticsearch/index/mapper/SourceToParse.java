@@ -18,6 +18,11 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public class SourceToParse {
+    /**
+     * Create a Function that will return a {@link SourceToParse} that parses
+     * the {@link #timeSeriesId()} from the {@code _source} of the document
+     * once the {@link DocumentMapper} has been resolved.
+     */
     public static Function<DocumentMapper, SourceToParse> parseTimeSeriesIdFromSource(
         String index,
         String id,
@@ -37,6 +42,10 @@ public class SourceToParse {
         );
     }
 
+    /**
+     * Create a {@link SourceToParse} that parses the {@link #timeSeriesId()} from
+     * the {@code _source}.
+     */
     public static SourceToParse parseTimeSeriesIdFromSource(
         String index,
         String id,

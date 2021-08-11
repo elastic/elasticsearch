@@ -698,7 +698,7 @@ public class MockScriptEngine implements ScriptEngine {
                 @Override
                 public Object execute() {
                     Map<String, Object> vars = createVars(parameters);
-                    vars.putAll(getLeafLookup().asMap());
+                    vars.putAll(docAsMap());
                     return script.apply(vars);
 
                 }

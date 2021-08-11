@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -46,6 +47,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -64,15 +66,18 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase {
@@ -241,7 +246,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         ensureGreen();
 
-        RecoveryState recoveryState = getRecoveryStateForShard(indexName, 0);
+        RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
         assertPeerRecoveryWasSuccessful(recoveryState, sourceNode, targetNode);
 
         RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, targetNode);
@@ -292,7 +297,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         ensureGreen();
 
-        RecoveryState recoveryState = getRecoveryStateForShard(indexName, 0);
+        RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
         assertPeerRecoveryWasSuccessful(recoveryState, sourceNode, targetNode);
 
         assertDocumentsAreEqual(indexName, numDocs);
@@ -328,7 +333,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             ensureGreen();
 
-            RecoveryState recoveryState = getRecoveryStateForShard(indexName, 0);
+            RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
             assertPeerRecoveryWasSuccessful(recoveryState, sourceNode, targetNode);
 
             assertDocumentsAreEqual(indexName, numDocs);
@@ -381,7 +386,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         ensureGreen();
 
-        RecoveryState recoveryState = getRecoveryStateForShard(indexName, 0);
+        RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
         assertPeerRecoveryWasSuccessful(recoveryState, sourceNode, targetNode);
 
         InstrumentedRepo repository = getRepositoryOnNode(repoName, targetNode);
@@ -423,7 +428,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         ensureGreen();
 
-        RecoveryState recoveryState = getRecoveryStateForShard(indexName, 0);
+        RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
         assertPeerRecoveryWasSuccessful(recoveryState, sourceNode, targetNode);
 
         InstrumentedRepo repository = getRepositoryOnNode(repoName, targetNode);
@@ -487,6 +492,61 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         } finally {
             updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), null);
         }
+    }
+
+    public void testRecoveryAfterRestoreUsesSnapshots() throws Exception {
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                .build()
+        );
+
+        int numDocs = randomIntBetween(3000, 5000);
+        indexDocs(indexName, 0, numDocs);
+
+        String repoName = "repo";
+        createRepo(repoName, TestRepositoryPlugin.INSTRUMENTED_TYPE);
+        createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+        assertAcked(client().admin().indices().prepareDelete(indexName).get());
+
+        List<String> restoredIndexDataNodes = internalCluster().startDataOnlyNodes(2);
+        RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster()
+            .prepareRestoreSnapshot(repoName, "snap")
+            .setIndices(indexName)
+            .setIndexSettings(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.routing.allocation.include._name", String.join(",", restoredIndexDataNodes))
+            ).setWaitForCompletion(true)
+            .get();
+
+        RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
+        assertThat(restoreInfo.successfulShards(), is(equalTo(restoreInfo.totalShards())));
+
+        ensureGreen(indexName);
+        assertDocumentsAreEqual(indexName, numDocs);
+
+        RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
+        String sourceNode = recoveryState.getSourceNode().getName();
+        String targetNode = recoveryState.getTargetNode().getName();
+
+        assertThat(restoredIndexDataNodes.contains(sourceNode), is(equalTo(true)));
+        assertThat(restoredIndexDataNodes.contains(targetNode), is(equalTo(true)));
+        assertPeerRecoveryWasSuccessful(recoveryState, sourceNode, targetNode);
+
+        // Since we did a restore first, and the index is static the data retrieved by the target node
+        // via repository should be equal to the amount of data that the source node retrieved from the repo
+        InstrumentedRepo sourceRepo = getRepositoryOnNode(repoName, sourceNode);
+        InstrumentedRepo targetRepo = getRepositoryOnNode(repoName, targetNode);
+        assertThat(sourceRepo.totalBytesRead.get(), is(equalTo(targetRepo.totalBytesRead.get())));
+
+        long snapshotSizeForIndex = getSnapshotSizeForIndex(repoName, "snap", indexName);
+
+        assertThat(sourceRepo.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
     }
 
     private long getSnapshotSizeForIndex(String repository, String snapshot, String index) {
@@ -600,15 +660,19 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         });
     }
 
-    private RecoveryState getRecoveryStateForShard(String indexName, int shardId) {
+    private RecoveryState getLatestPeerRecoveryStateForShard(String indexName, int shardId) {
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
         assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-        List<RecoveryState> shardRecoveries = recoveryResponse.shardRecoveryStates().get(indexName);
-        assertThat(shardRecoveries, notNullValue());
+        List<RecoveryState> indexRecoveries = recoveryResponse.shardRecoveryStates().get(indexName);
+        assertThat(indexRecoveries, notNullValue());
 
-        RecoveryState recoveryState = shardRecoveries.get(shardId);
-        assertThat(recoveryState, notNullValue());
-        return recoveryState;
+        List<RecoveryState> peerRecoveries = indexRecoveries.stream()
+            .filter(recoveryState -> recoveryState.getRecoverySource().equals(RecoverySource.PeerRecoverySource.INSTANCE))
+            .filter(recoveryState -> recoveryState.getShardId().getId() == shardId)
+            .collect(Collectors.toList());
+
+        assertThat(peerRecoveries, is(not(empty())));
+        return peerRecoveries.get(peerRecoveries.size() - 1);
     }
 
     private void updateSetting(String key, String value) {

@@ -120,6 +120,7 @@ public class InboundPipeline implements Releasable {
                 assert aggregator.isAggregating() == false;
                 aggregator.headerReceived((Header) fragment);
             } else if (fragment instanceof Compression.Scheme) {
+                assert aggregator.isAggregating();
                 aggregator.updateCompressionScheme((Compression.Scheme) fragment);
             } else if (fragment == InboundDecoder.PING) {
                 assert aggregator.isAggregating() == false;

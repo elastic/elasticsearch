@@ -163,7 +163,7 @@ index                                 prirep shard store
 
 The number of shards a node can hold is proportional to the node's heap memory.
 However, {es} doesn't enforce a fixed limit. If your shards are consistently
-between 10GB–50GB, we recommend limiting nodes to 20 shards or fewer per GB of
+between 10–50GB, we recommend limiting nodes to 20 shards or fewer per GB of
 heap memory. For example, a node with 30GB of heap memory should have at most
 600 shards. The further below this limit you can keep your nodes, the better. If
 you find your nodes exceeding more than 20 shards per GB, consider adding

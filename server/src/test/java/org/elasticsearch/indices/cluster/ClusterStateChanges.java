@@ -352,9 +352,4 @@ public class ClusterStateChanges {
         assertThat(result[0], notNullValue());
         return result[0];
     }
-
-    @SuppressWarnings("unchecked")
-    private static <T, R, E extends Exception> CheckedFunction<T, R, E> anyCheckedFunction() {
-        return any(CheckedFunction.class);
-    }
 }

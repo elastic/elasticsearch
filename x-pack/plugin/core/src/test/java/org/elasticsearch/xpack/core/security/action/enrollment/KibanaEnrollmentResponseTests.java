@@ -21,7 +21,7 @@ public class KibanaEnrollmentResponseTests extends AbstractXContentTestCase<Kiba
 
     @Override protected KibanaEnrollmentResponse createTestInstance() {
         return new KibanaEnrollmentResponse(
-            new SecureString(randomAlphaOfLength(14).toCharArray()),
+            new SecureString(randomAlphaOfLengthBetween(30, 40).toCharArray()),
             randomAlphaOfLength(50));
     }
 

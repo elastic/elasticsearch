@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 
 final class ElasticServiceAccounts {
 
-    public static final String NAMESPACE = "elastic";
+    static final String NAMESPACE = "elastic";
 
     private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount("fleet-server",
         new RoleDescriptor(

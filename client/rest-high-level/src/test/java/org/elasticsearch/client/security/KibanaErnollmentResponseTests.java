@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class KibanaErnollmentResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        final String token = randomAlphaOfLength(14);
+        final String token = randomAlphaOfLengthBetween(30, 40);
         final String httpCa = randomAlphaOfLength(50);
         final List<String> nodesAddresses = randomList(2, 10, () -> buildNewFakeTransportAddress().toString());
 
@@ -39,7 +39,7 @@ public class KibanaErnollmentResponseTests extends ESTestCase {
     }
 
     public void testEqualsHashCode() {
-        final SecureString password = new SecureString(randomAlphaOfLength(14).toCharArray());
+        final SecureString password = new SecureString(randomAlphaOfLengthBetween(30, 40).toCharArray());
         final String httpCa = randomAlphaOfLength(50);
         KibanaEnrollmentResponse kibanaEnrollmentResponse = new KibanaEnrollmentResponse(password, httpCa);
 
@@ -54,7 +54,7 @@ public class KibanaErnollmentResponseTests extends ESTestCase {
     private static KibanaEnrollmentResponse mutateTestItem(KibanaEnrollmentResponse original) {
         switch (randomIntBetween(0, 1)) {
             case 0:
-                return new KibanaEnrollmentResponse(new SecureString(randomAlphaOfLength(14).toCharArray()),
+                return new KibanaEnrollmentResponse(new SecureString(randomAlphaOfLengthBetween(30, 40).toCharArray()),
                     original.getHttpCa());
             case 1:
                 return new KibanaEnrollmentResponse(original.getToken(), randomAlphaOfLength(51));

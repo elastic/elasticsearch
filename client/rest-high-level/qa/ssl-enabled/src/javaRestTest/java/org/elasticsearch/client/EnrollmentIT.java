@@ -25,7 +25,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
     private static Path httpTrustStore;

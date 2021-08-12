@@ -11,6 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
 
 import java.io.IOException;
 import java.util.Map;
@@ -50,7 +51,7 @@ public class IndexFieldCapabilities implements Writeable {
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.type = in.readString().intern();
+        this.type = StringLiteralDeduplicator.INSTANCE.deduplicate(in.readString());
         this.isMetadatafield = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();

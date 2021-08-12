@@ -308,25 +308,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
 
-                final List<SnapshotFeatureInfo> featureStates = new ArrayList<>();
-                final List<String> systemDataStreamNames = new ArrayList<>();
+                final Set<SnapshotFeatureInfo> featureStates = new HashSet<>();
+                final Set<String> systemDataStreamNames = new HashSet<>();
                 // if we have any feature states in the snapshot, we add their required indices to the snapshot indices if they haven't
                 // been requested by the request directly
                 final Set<String> indexNames = new HashSet<>(indices);
                 for (String featureName : featureStatesSet) {
                     SystemIndices.Feature feature = systemIndexDescriptorMap.get(featureName);
 
-                    List<String> featureSystemIndices = feature.getIndexDescriptors()
+                    Set<String> featureSystemIndices = feature.getIndexDescriptors()
                         .stream()
                         .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
-                        .collect(Collectors.toList());
-                    List<String> featureAssociatedIndices = feature.getAssociatedIndexDescriptors()
+                        .collect(Collectors.toSet());
+                    Set<String> featureAssociatedIndices = feature.getAssociatedIndexDescriptors()
                         .stream()
                         .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
-                        .collect(Collectors.toList());
+                        .collect(Collectors.toSet());
 
-                    List<String> featureSystemDataStreams = new ArrayList<>();
-                    List<String> featureDataStreamBackingIndices = new ArrayList<>();
+                    Set<String> featureSystemDataStreams = new HashSet<>();
+                    Set<String> featureDataStreamBackingIndices = new HashSet<>();
                     for (SystemDataStreamDescriptor sdd : feature.getDataStreamDescriptors()) {
                         List<String> backingIndexNames = sdd.getBackingIndexNames(currentState.metadata());
                         if (backingIndexNames.size() > 0) {
@@ -339,7 +339,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         || featureAssociatedIndices.size() > 0
                         || featureDataStreamBackingIndices.size() > 0) {
 
-                        featureStates.add(new SnapshotFeatureInfo(featureName, featureSystemIndices));
+                        featureStates.add(new SnapshotFeatureInfo(featureName, new ArrayList<>(featureSystemIndices)));
                         indexNames.addAll(featureSystemIndices);
                         indexNames.addAll(featureAssociatedIndices);
                         indexNames.addAll(featureDataStreamBackingIndices);
@@ -396,7 +396,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     shards,
                     userMeta,
                     version,
-                    featureStates
+                    new ArrayList<>(featureStates)
                 );
                 return ClusterState.builder(currentState)
                     .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(CollectionUtils.appendToCopy(runningSnapshots, newEntry)))

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
@@ -24,14 +25,15 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
                     return MIXED;
                 case "upgraded_cluster":
                     return UPGRADED;
-                    default:
-                        throw new AssertionError("unknown cluster type: " + value);
+                default:
+                    throw new AssertionError("unknown cluster type: " + value);
             }
         }
     }
 
     protected static final ClusterType CLUSTER_TYPE = ClusterType.parse(System.getProperty("tests.rest.suite"));
-    protected static final boolean firstMixedRound = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
+    protected static final boolean FIRST_MIXED_ROUND = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
+    protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     @Override
     protected final boolean preserveFeatureStatesUponCompletion() {

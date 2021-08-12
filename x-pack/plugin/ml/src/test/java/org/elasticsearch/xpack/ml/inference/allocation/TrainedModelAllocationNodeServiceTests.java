@@ -264,7 +264,6 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76347")
     public void testClusterChanged() throws Exception {
         final TrainedModelAllocationNodeService trainedModelAllocationNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder()
@@ -391,7 +390,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, "any-index", randomNonNegativeLong());
+        return new StartTrainedModelDeploymentAction.TaskParams(modelId, randomNonNegativeLong());
     }
 
     private TrainedModelAllocationNodeService createService() {

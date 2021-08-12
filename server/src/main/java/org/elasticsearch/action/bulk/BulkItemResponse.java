@@ -354,6 +354,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         opType = OpType.fromId(in.readByte());
         response = readResponse(shardId, in);
         failure = in.readBoolean() ? new Failure(in) : null;
+        assertConsistent();
     }
 
     BulkItemResponse(StreamInput in) throws IOException {
@@ -361,6 +362,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         opType = OpType.fromId(in.readByte());
         response = readResponse(in);
         failure = in.readBoolean() ? new Failure(in) : null;
+        assertConsistent();
     }
 
     private BulkItemResponse(int id, OpType opType, DocWriteResponse response, Failure failure) {
@@ -368,6 +370,11 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         this.response = response;
         this.opType = opType;
         this.failure = failure;
+        assertConsistent();
+    }
+
+    private void assertConsistent() {
+        assert (response == null) ^ (failure == null) : "only one of response or failure may be set";
     }
 
     public static BulkItemResponse success(int id, OpType opType, DocWriteResponse response) {

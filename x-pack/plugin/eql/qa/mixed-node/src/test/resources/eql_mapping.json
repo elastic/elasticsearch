@@ -46,5 +46,8 @@
     },
     "ppid" : {
       "type" : "long"
+    },
+    "source_address" : {
+      "type" : "ip"
     }
   }

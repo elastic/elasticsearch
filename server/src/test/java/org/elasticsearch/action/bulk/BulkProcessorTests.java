@@ -14,7 +14,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -22,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -183,7 +186,7 @@ public class BulkProcessorTests extends ESTestCase {
         }
         assumeTrue("failed to find random values that allows test to run quickly", runTest);
         BulkResponse bulkResponse = new BulkResponse(
-            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), null) },
+            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), mockResponse()) },
             0
         );
         AtomicInteger failureCount = new AtomicInteger(0);
@@ -273,7 +276,7 @@ public class BulkProcessorTests extends ESTestCase {
         final int concurrentBulkRequests = randomIntBetween(0, 20);
         final int simulateWorkTimeInMillis = 5;
         BulkResponse bulkResponse = new BulkResponse(
-            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), null) },
+            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), mockResponse()) },
             0
         );
         AtomicInteger failureCount = new AtomicInteger(0);
@@ -420,5 +423,9 @@ public class BulkProcessorTests extends ESTestCase {
                 }
             }
         };
+    }
+
+    private DocWriteResponse mockResponse() {
+        return new IndexResponse(new ShardId("index", "uid", 0), "id", 1, 1, 1, true);
     }
 }

@@ -132,12 +132,12 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
         assertThat(output, containsString("CA fingerprint: ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428" +
             "f8a91362d"));
         assertThat(output, containsString("Kibana enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wL" +
-            "jE6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWUyNmI0ZDQyOGY4YTkxMzYyZC" +
-            "IsImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
+            "jE6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWUyN" +
+            "mI0ZDQyOGY4YTkxMzYyZCIsImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
         if (includeNodeEnrollmentToken.equals("--include-node-enrollment-token")) {
             assertThat(output, containsString("Node enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wLj" +
-                "E6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWUyNmI0ZDQyOGY4YTkxMzYyZCI" +
-                "sImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOjRCaFVrLW1rRm0tQXd2UkZnOTBLSiJ9"));
+                "E6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWUy" +
+                "NmI0ZDQyOGY4YTkxMzYyZCIsImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOjRCaFVrLW1rRm0tQXd2UkZnOTBLSiJ9"));
         } else {
             assertFalse(output.contains("Node enrollment token: "));
         }
@@ -160,12 +160,12 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
         assertThat(terminal.getOutput(), containsString("CA fingerprint: ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428" +
             "f8a91362d"));
         assertThat(output, containsString("Kibana enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wL" +
-            "jE6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWUyNmI0ZDQyOGY4YTkxMzYyZC" +
-            "IsImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
+            "jE6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWUy" +
+            "NmI0ZDQyOGY4YTkxMzYyZCIsImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
         if (includeNodeEnrollmentToken.equals("--include-node-enrollment-token")) {
             assertThat(output, containsString("Node enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wLj" +
-                "E6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWUyNmI0ZDQyOGY4YTkxMzYyZCI" +
-                "sImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOjRCaFVrLW1rRm0tQXd2UkZnOTBLSiJ9"));
+                "E6OTIwMSwgMTcyLjE2LjI1NC4xOjkyMDIiXSwiZmdyIjoiY2U0ODBkNTM3Mjg2MDU2NzRmY2ZkOGZmYjUxMDAwZDhhMzNiZjMyZGU3YzdmMWU" +
+                "yNmI0ZDQyOGY4YTkxMzYyZCIsImtleSI6IkRSNkN6WGtCRGY4YW1WXzQ4eVlYOjRCaFVrLW1rRm0tQXd2UkZnOTBLSiJ9"));
         } else {
             assertFalse(output.contains("Node enrollment token: "));
         }

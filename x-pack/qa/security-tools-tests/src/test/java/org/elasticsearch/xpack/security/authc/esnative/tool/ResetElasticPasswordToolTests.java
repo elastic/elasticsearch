@@ -46,10 +46,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -165,8 +163,11 @@ public class ResetElasticPasswordToolTests extends CommandTestCase {
     }
 
     public void testFailureClusterUnhealthy() throws Exception {
-        doThrow(new IllegalStateException("Failed to determine the health of the cluster. Cluster health is currently RED."))
-            .when(client).checkClusterHealthWithRetriesWaitingForCluster(anyString(), any(SecureString.class), anyInt());
+        final URL url = new URL(client.getDefaultURL());
+        HttpResponse healthResponse =
+            new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("red")));
+        when(client.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
+            any(CheckedFunction.class))).thenReturn(healthResponse);
         UserException e = expectThrows(UserException.class, () -> {
             execute(randomFrom("-i", "-a"));
         });

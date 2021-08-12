@@ -35,6 +35,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
     public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
+    public static final ParseField NODE_SEEN_FIELD = new ParseField("node_seen");
 
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
@@ -42,7 +43,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             (String) a[0],
             Type.valueOf((String) a[1]),
             (String) a[2],
-            (long) a[3]
+            (long) a[3],
+            (boolean) a[4]
         )
     );
 
@@ -51,6 +53,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), NODE_SEEN_FIELD);
     }
 
     public static SingleNodeShutdownMetadata parse(XContentParser parser) {
@@ -61,6 +64,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     private final Type type;
     private final String reason;
     private final long startedAtMillis;
+    private final boolean nodeSeen;
 
     /**
      * @param nodeId The node ID that this shutdown metadata refers to.
@@ -72,12 +76,14 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         String nodeId,
         Type type,
         String reason,
-        long startedAtMillis
+        long startedAtMillis,
+        boolean nodeSeen
     ) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
         this.startedAtMillis = startedAtMillis;
+        this.nodeSeen = nodeSeen;
     }
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
@@ -85,6 +91,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         this.type = in.readEnum(Type.class);
         this.reason = in.readString();
         this.startedAtMillis = in.readVLong();
+        this.nodeSeen = in.readBoolean();
     }
 
     /**
@@ -115,12 +122,20 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         return startedAtMillis;
     }
 
+    /**
+     * @return A boolean indicated whether this node has been seen in the cluster since the shutdown was registered.
+     */
+    public boolean getNodeSeen() {
+        return nodeSeen;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
         out.writeEnum(type);
         out.writeString(reason);
         out.writeVLong(startedAtMillis);
+        out.writeBoolean(nodeSeen);
     }
 
     @Override
@@ -131,6 +146,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
             builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtMillis);
+            builder.field(NODE_SEEN_FIELD.getPreferredName(), nodeSeen);
         }
         builder.endObject();
 
@@ -145,7 +161,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         return getStartedAtMillis() == that.getStartedAtMillis()
             && getNodeId().equals(that.getNodeId())
             && getType() == that.getType()
-            && getReason().equals(that.getReason());
+            && getReason().equals(that.getReason())
+            && getNodeSeen() == that.getNodeSeen();
     }
 
     @Override
@@ -154,7 +171,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             getNodeId(),
             getType(),
             getReason(),
-            getStartedAtMillis()
+            getStartedAtMillis(),
+            getNodeSeen()
         );
     }
 
@@ -170,7 +188,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             .setNodeId(original.getNodeId())
             .setType(original.getType())
             .setReason(original.getReason())
-            .setStartedAtMillis(original.getStartedAtMillis());
+            .setStartedAtMillis(original.getStartedAtMillis())
+            .setNodeSeen(original.getNodeSeen());
     }
 
     public static class Builder {
@@ -178,6 +197,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         private Type type;
         private String reason;
         private long startedAtMillis = -1;
+        private boolean nodeSeen = false;
 
         private Builder() {}
 
@@ -217,6 +237,15 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             return this;
         }
 
+        /**
+         * @param nodeSeen Whether or not the node has been seen since the shutdown was registered.
+         * @return This builder.
+         */
+        public Builder setNodeSeen(boolean nodeSeen) {
+            this.nodeSeen = nodeSeen;
+            return this;
+        }
+
         public SingleNodeShutdownMetadata build() {
             if (startedAtMillis == -1) {
                 throw new IllegalArgumentException("start timestamp must be set");
@@ -225,7 +254,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
                 nodeId,
                 type,
                 reason,
-                startedAtMillis
+                startedAtMillis,
+                nodeSeen
             );
         }
     }

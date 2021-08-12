@@ -112,10 +112,11 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                             state,
                             ns.getNodeId(),
                             ns.getType(),
-                            allocationDeciders,
+                            ns.getNodeSeen(),
                             clusterInfoService,
                             snapshotsInfoService,
-                            allocationService
+                            allocationService,
+                            allocationDeciders
                         ),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
@@ -136,10 +137,11 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                             state,
                             ns.getNodeId(),
                             ns.getType(),
-                            allocationDeciders,
+                            ns.getNodeSeen(),
                             clusterInfoService,
                             snapshotsInfoService,
-                            allocationService
+                            allocationService,
+                            allocationDeciders
                         ),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
@@ -158,10 +160,11 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         ClusterState currentState,
         String nodeId,
         SingleNodeShutdownMetadata.Type shutdownType,
-        AllocationDeciders allocationDeciders,
+        boolean nodeSeen,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        AllocationService allocationService
+        AllocationService allocationService,
+        AllocationDeciders allocationDeciders
     ) {
         // Only REMOVE-type shutdowns will try to move shards, so RESTART-type shutdowns should immediately complete
         if (SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownType)) {
@@ -172,7 +175,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             );
         }
 
-        if (currentState.nodes().get(nodeId) == null) {
+        if (currentState.nodes().get(nodeId) == null && nodeSeen == false) {
             // The node isn't in the cluster
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.NOT_STARTED,

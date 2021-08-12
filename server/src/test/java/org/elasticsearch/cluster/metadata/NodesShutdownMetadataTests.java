@@ -82,6 +82,7 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
             .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
             .setReason(randomAlphaOfLength(5))
             .setStartedAtMillis(randomNonNegativeLong())
+            .setNodeSeen(randomBoolean())
             .build();
     }
 

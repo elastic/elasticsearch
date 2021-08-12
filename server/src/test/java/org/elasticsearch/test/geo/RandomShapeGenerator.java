@@ -21,7 +21,6 @@ import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.search.geo.GeoShapeQueryTests;
 import org.junit.Assert;
 import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
 import org.locationtech.spatial4j.distance.DistanceUtils;
@@ -53,27 +52,27 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         }
     }
 
-    public static ShapeBuilder createShape(Random r) throws InvalidShapeException {
+    public static ShapeBuilder<?, ?, ?> createShape(Random r) throws InvalidShapeException {
         return createShapeNear(r, null);
     }
 
-    public static ShapeBuilder createShape(Random r, ShapeType st) {
+    public static ShapeBuilder<?, ?, ?> createShape(Random r, ShapeType st) {
         return createShapeNear(r, null, st);
     }
 
-    public static ShapeBuilder createShapeNear(Random r, Point nearPoint) throws InvalidShapeException {
+    public static ShapeBuilder<?, ?, ?> createShapeNear(Random r, Point nearPoint) throws InvalidShapeException {
         return createShape(r, nearPoint, null, null);
     }
 
-    public static ShapeBuilder createShapeNear(Random r, Point nearPoint, ShapeType st) throws InvalidShapeException {
+    public static ShapeBuilder<?, ?, ?> createShapeNear(Random r, Point nearPoint, ShapeType st) throws InvalidShapeException {
         return createShape(r, nearPoint, null, st);
     }
 
-    public static ShapeBuilder createShapeWithin(Random r, Rectangle bbox) throws InvalidShapeException {
+    public static ShapeBuilder<?, ?, ?> createShapeWithin(Random r, Rectangle bbox) throws InvalidShapeException {
         return createShape(r, null, bbox, null);
     }
 
-    public static ShapeBuilder createShapeWithin(Random r, Rectangle bbox, ShapeType st) throws InvalidShapeException {
+    public static ShapeBuilder<?, ?, ?> createShapeWithin(Random r, Rectangle bbox, ShapeType st) throws InvalidShapeException {
         return createShape(r, null, bbox, st);
     }
 
@@ -116,7 +115,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
 
         GeometryCollectionBuilder gcb = new GeometryCollectionBuilder();
         for (int i=0; i<numGeometries;) {
-            ShapeBuilder builder = createShapeWithin(r, bounds);
+            ShapeBuilder<?, ?, ?> builder = createShapeWithin(r, bounds);
             // due to world wrapping, and the possibility for ambiguous polygons, the random shape generation could bail with
             // a null shape. We catch that situation here, and only increment the counter when a valid shape is returned.
             // Not the most efficient but its the lesser of the evil alternatives
@@ -128,8 +127,9 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         return gcb;
     }
 
-    private static ShapeBuilder createShape(Random r, Point nearPoint, Rectangle within, ShapeType st) throws InvalidShapeException {
-        ShapeBuilder shape;
+    private static ShapeBuilder<?, ?, ?> createShape(Random r, Point nearPoint, Rectangle within, ShapeType st)
+        throws InvalidShapeException {
+        ShapeBuilder<?, ?, ?> shape;
         short i=0;
         do {
             shape = createShape(r, nearPoint, within, st, ST_VALIDATE);
@@ -143,7 +143,6 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
     /**
      * Creates a random shape useful for randomized testing, NOTE: exercise caution when using this to build random GeometryCollections
      * as creating a large random number of random shapes can result in massive resource consumption
-     * see: {@link GeoShapeQueryTests#testQueryRandomGeoCollection()}
      *
      * The following options are included
      * @param nearPoint Create a shape near a provided point
@@ -151,7 +150,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
      * @param st Create a random shape of the provided type
      * @return the ShapeBuilder for a random shape
      */
-    private static ShapeBuilder createShape(Random r, Point nearPoint, Rectangle within, ShapeType st, boolean validate) throws
+    private static ShapeBuilder<?, ?, ?> createShape(Random r, Point nearPoint, Rectangle within, ShapeType st, boolean validate) throws
             InvalidShapeException {
 
         if (st == null) {
@@ -181,7 +180,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                     p = xRandomPointIn(r, within);
                     coordinatesBuilder.coordinate(p.getX(), p.getY());
                 }
-                ShapeBuilder pcb = (st == ShapeType.MULTIPOINT)
+                ShapeBuilder<?, ?, ?> pcb = (st == ShapeType.MULTIPOINT)
                     ? new MultiPointBuilder(coordinatesBuilder.build())
                     : new LineStringBuilder(coordinatesBuilder);
                 return pcb;

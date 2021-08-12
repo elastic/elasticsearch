@@ -69,7 +69,7 @@ tasks.register('configureIdeCheckstyle') {
 }
 
 // Applying this stuff, particularly the idea-ext plugin, has a cost so avoid it unless we're running in the IDE
-if (System.getProperty('idea.active') == 'true') {
+if (providers.systemProperty('idea.active').forUseAtConfigurationTime().getOrNull() == 'true') {
   project.apply(plugin: org.jetbrains.gradle.ext.IdeaExtPlugin)
 
   tasks.register('configureIdeaGradleJvm') {
@@ -118,7 +118,19 @@ if (System.getProperty('idea.active') == 'true') {
         }
         runConfigurations {
           defaults(JUnit) {
-            vmParameters = '-ea -Djava.locale.providers=SPI,COMPAT'
+            vmParameters = [
+              '-ea',
+              '-Djava.locale.providers=SPI,COMPAT',
+              "--illegal-access=deny",
+              // TODO: only open these for mockito when it is modularized
+              '--add-opens=java.base/java.security.cert=ALL-UNNAMED',
+              '--add-opens=java.base/java.nio.channels=ALL-UNNAMED',
+              '--add-opens=java.base/java.net=ALL-UNNAMED',
+              '--add-opens=java.base/javax.net.ssl=ALL-UNNAMED',
+              '--add-opens=java.base/java.nio.file=ALL-UNNAMED',
+              '--add-opens=java.base/java.time=ALL-UNNAMED',
+              '--add-opens=java.base/java.lang=ALL-UNNAMED'
+            ].join(' ')
           }
         }
         copyright {

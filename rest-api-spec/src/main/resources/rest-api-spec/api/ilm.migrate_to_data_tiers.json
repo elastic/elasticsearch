@@ -1,0 +1,34 @@
+{
+  "ilm.migrate_to_data_tiers":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-migrate-to-data-tiers.html",
+      "description": "Migrates the indices and ILM policies away from custom node attribute allocation routing to data tiers routing"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ilm/migrate_to_data_tiers",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "dry_run": {
+        "type": "boolean",
+        "description": "If set to true it will simulate the migration, providing a way to retrieve the ILM policies and indices that need to be migrated. The default is false"
+      }
+    },
+    "body":{
+      "description":"Optionally specify a legacy index template name to delete and optionally specify a node attribute name used for index shard routing (defaults to \"data\")",
+      "required":false
+    }
+  }
+}

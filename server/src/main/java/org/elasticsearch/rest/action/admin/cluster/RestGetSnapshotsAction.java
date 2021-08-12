@@ -58,17 +58,13 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.sort(sort);
         final int size = request.paramAsInt("size", getSnapshotsRequest.size());
         getSnapshotsRequest.size(size);
-        final String[] afterString = request.paramAsStringArray("after", Strings.EMPTY_ARRAY);
-        final GetSnapshotsRequest.After after;
-        if (afterString.length == 0) {
-            after = null;
-        } else if (afterString.length == 2) {
-            after = new GetSnapshotsRequest.After(afterString[0], afterString[1]);
-        } else {
-            throw new IllegalArgumentException("illegal ?after value [" + Strings.arrayToCommaDelimitedString(afterString) +
-                    "] must be of the form '${sort_value},${snapshot_name}'");
+        final int offset = request.paramAsInt("offset", getSnapshotsRequest.offset());
+        getSnapshotsRequest.offset(offset);
+        final String afterString = request.param("after");
+        if (afterString != null) {
+            getSnapshotsRequest.after(GetSnapshotsRequest.After.fromQueryParam(afterString));
         }
-        getSnapshotsRequest.after(after);
+
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));

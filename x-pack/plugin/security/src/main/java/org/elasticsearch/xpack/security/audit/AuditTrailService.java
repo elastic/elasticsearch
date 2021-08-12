@@ -42,7 +42,7 @@ public class AuditTrailService {
     }
 
     public AuditTrail get() {
-        if (compositeAuditTrail.isEmpty() == false && licenseState.isSecurityEnabled()) {
+        if (compositeAuditTrail.isEmpty() == false) {
             if (licenseState.checkFeature(Feature.SECURITY_AUDITING)) {
                 return compositeAuditTrail;
             } else {

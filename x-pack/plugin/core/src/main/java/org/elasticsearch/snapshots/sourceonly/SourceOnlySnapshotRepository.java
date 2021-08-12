@@ -17,10 +17,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -40,12 +37,10 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.SnapshotShardContext;
-import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -90,15 +85,23 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata metadata,
-                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
-                                 Function<ClusterState, ClusterState> stateTransformer,
-                                 ActionListener<RepositoryData> listener) {
+    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
         // we process the index metadata at snapshot time. This means if somebody tries to restore
         // a _source only snapshot with a plain repository it will be just fine since we already set the
         // required engine, that the index is read-only and the mapping to a default mapping
-        super.finalizeSnapshot(shardGenerations, repositoryStateId, metadataToSnapshot(shardGenerations.indices(), metadata),
-            snapshotInfo, repositoryMetaVersion, stateTransformer, listener);
+        super.finalizeSnapshot(
+            new FinalizeSnapshotContext(
+                finalizeSnapshotContext.updatedShardGenerations(),
+                finalizeSnapshotContext.repositoryStateId(),
+                metadataToSnapshot(
+                    finalizeSnapshotContext.updatedShardGenerations().indices(),
+                    finalizeSnapshotContext.clusterMetadata()
+                ),
+                finalizeSnapshotContext.snapshotInfo(),
+                finalizeSnapshotContext.repositoryMetaVersion(),
+                finalizeSnapshotContext
+            )
+        );
     }
 
     private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) {
@@ -146,7 +149,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         final List<Closeable> toClose = new ArrayList<>(3);
         try {
             SourceOnlySnapshot.LinkedFilesDirectory overlayDir = new SourceOnlySnapshot.LinkedFilesDirectory(
-                new SimpleFSDirectory(snapPath));
+                new NIOFSDirectory(snapPath));
             toClose.add(overlayDir);
             Store tempStore = new Store(store.shardId(), store.indexSettings(), overlayDir, new ShardLock(store.shardId()) {
                 @Override

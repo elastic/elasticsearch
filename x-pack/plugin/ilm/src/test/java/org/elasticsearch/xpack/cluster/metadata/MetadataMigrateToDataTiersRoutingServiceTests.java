@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
@@ -89,8 +90,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
     public void testMigrateIlmPolicyForIndexWithoutILMMetadata() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
-        AllocateAction warmAllocateAction = new AllocateAction(null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
-        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, Map.of("data", "cold"));
+        AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
+        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, null, Map.of("data", "cold"));
         SetPriorityAction warmSetPriority = new SetPriorityAction(100);
         LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(warmSetPriority, shrinkAction, warmAllocateAction,
             coldAllocateAction);
@@ -122,11 +123,45 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         assertThat(migratedColdAllocateAction.getRequire().size(), is(0));
     }
 
+    public void testMigrateIlmPolicyFOrPhaseWithDeactivatedMigrateAction() {
+        ShrinkAction shrinkAction = new ShrinkAction(2, null);
+        AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
+        MigrateAction deactivatedMigrateAction = new MigrateAction(false);
+
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName,
+            Map.of("warm",
+                new Phase("warm", TimeValue.ZERO, Map.of(shrinkAction.getWriteableName(), shrinkAction,
+                    warmAllocateAction.getWriteableName(), warmAllocateAction, deactivatedMigrateAction.getWriteableName(),
+                    deactivatedMigrateAction))
+            ));
+        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
+            randomNonNegativeLong(), randomNonNegativeLong());
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
+                Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
+            .put(IndexMetadata.builder(indexName).settings(getBaseIndexSettings())).build())
+            .build();
+
+        Metadata.Builder newMetadata = Metadata.builder(state.metadata());
+        List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+        assertThat(migratedPolicies.size(), is(1));
+        assertThat(migratedPolicies.get(0), is(lifecycleName));
+
+        ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+        IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
+        Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
+        assertThat("allocate action in the warm phase didn't specify any number of replicas so it must be removed, together with the " +
+                "deactivated migrate action", warmActions.size(), is(1));
+        assertThat(warmActions.get(shrinkAction.getWriteableName()), is(shrinkAction));
+    }
+
     @SuppressWarnings("unchecked")
     public void testMigrateIlmPolicyRefreshesCachedPhase() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
-        AllocateAction warmAllocateAction = new AllocateAction(null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
-        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, Map.of("data", "cold"));
+        AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
+        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, null, Map.of("data", "cold"));
         SetPriorityAction warmSetPriority = new SetPriorityAction(100);
         LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(warmSetPriority, shrinkAction, warmAllocateAction,
             coldAllocateAction);
@@ -302,11 +337,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testAllocateActionDefinesRoutingRules() {
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, Map.of("data", "cold"), null, null)), is(true));
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, Map.of("data", "cold"), null)), is(true));
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, Map.of("another_attribute", "rack1"), null,
+        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, Map.of("data", "cold"), null, null)), is(true));
+        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null, Map.of("data", "cold"), null)), is(true));
+        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, Map.of("another_attribute", "rack1"), null,
             Map.of("data", "cold"))), is(true));
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null, Map.of("another_attribute", "cold"))),
+        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null, null, Map.of("another_attribute",
+            "cold"))),
             is(false));
         assertThat(allocateActionDefinesRoutingRules("data", null), is(false));
     }
@@ -512,8 +548,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testMigrateToDataTiersRouting() {
-        AllocateAction allocateActionWithDataAttribute = new AllocateAction(null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
-        AllocateAction allocateActionWithOtherAttribute = new AllocateAction(0, null, null, Map.of("other", "cold"));
+        AllocateAction allocateActionWithDataAttribute = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack",
+            "rack1"));
+        AllocateAction allocateActionWithOtherAttribute = new AllocateAction(0, null, null, null, Map.of("other", "cold"));
 
         LifecyclePolicy policyToMigrate = new LifecyclePolicy(lifecycleName,
             Map.of("warm",

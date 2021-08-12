@@ -37,7 +37,7 @@ that query. The query can either
 be provided using a simple query string as a parameter, or using the
 <<query-dsl,Query DSL>> defined within the request body.
 
-The count API supports <<multi-index,multi-target syntax>>. You can run a single
+The count API supports <<api-multi-index,multi-target syntax>>. You can run a single
 count API search across multiple data streams and indices.
 
 The operation is broadcast across all shards. For each shard id group, a replica

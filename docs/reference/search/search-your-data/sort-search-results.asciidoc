@@ -591,6 +591,7 @@ The final distance for a document will then be `min`/`max`/`avg` (defined via `m
 
 
 [discrete]
+[[script-based-sorting]]
 === Script Based Sorting
 
 Allow to sort based on custom scripts, here is an example:

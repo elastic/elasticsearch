@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -29,6 +31,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -39,15 +43,24 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     public static class TestAsyncResponse implements AsyncResponse<TestAsyncResponse> {
         public final String test;
         public final long expirationTimeMillis;
+        public String failure;
 
         public TestAsyncResponse(String test, long expirationTimeMillis) {
             this.test = test;
             this.expirationTimeMillis = expirationTimeMillis;
         }
 
+        public TestAsyncResponse(String test, long expirationTimeMillis, String failure) {
+            this.test = test;
+            this.expirationTimeMillis = expirationTimeMillis;
+            this.failure = failure;
+        }
+
+
         public TestAsyncResponse(StreamInput input) throws IOException {
             test = input.readOptionalString();
             this.expirationTimeMillis = input.readLong();
+            failure = input.readOptionalString();
         }
 
         @Override
@@ -57,13 +70,14 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public TestAsyncResponse withExpirationTime(long expirationTime) {
-            return new TestAsyncResponse(test, expirationTime);
+            return new TestAsyncResponse(test, expirationTime, failure);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(test);
             out.writeLong(expirationTimeMillis);
+            out.writeOptionalString(failure);
         }
 
         @Override
@@ -72,20 +86,26 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             if (o == null || getClass() != o.getClass()) return false;
             TestAsyncResponse that = (TestAsyncResponse) o;
             return expirationTimeMillis == that.expirationTimeMillis &&
-                Objects.equals(test, that.test);
+                Objects.equals(test, that.test) && Objects.equals(failure, that.failure);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(test, expirationTimeMillis);
+            return Objects.hash(test, expirationTimeMillis, failure);
         }
 
         @Override
         public String toString() {
             return "TestAsyncResponse{" +
                 "test='" + test + '\'' +
+                "failure='" + failure + '\'' +
                 ", expirationTimeMillis=" + expirationTimeMillis +
                 '}';
+        }
+
+        @Override
+        public TestAsyncResponse convertToFailure(Exception exc) {
+            return new TestAsyncResponse(test, expirationTimeMillis, exc.getMessage());
         }
     }
 
@@ -221,7 +241,8 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             TestAsyncResponse initialResponse = new TestAsyncResponse(testMessage, expirationTime);
             PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
             indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
-            expectThrows(CircuitBreakingException.class, createFuture::actionGet);
+            CircuitBreakingException e = expectThrows(CircuitBreakingException.class, createFuture::actionGet);
+            assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
             assertThat(circuitBreaker.getUsed(), equalTo(0L));
         }
         {
@@ -235,6 +256,14 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
                 indexService.getResponse(executionId, randomBoolean(), getFuture);
                 assertThat(getFuture.actionGet(), equalTo(initialResponse));
+                assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(0L)));
+            }
+            if (randomBoolean()) {
+                circuitBreaker.adjustLimit(between(1, 16));
+                PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
+                indexService.getResponse(executionId, randomBoolean(), getFuture);
+                expectThrows(CircuitBreakingException.class, getFuture::actionGet);
+                assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(0L)));
             }
         }
 
@@ -253,15 +282,71 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
                 TestAsyncResponse updateResponse = new TestAsyncResponse(randomAlphaOfLength(100), randomLong());
                 indexService.updateResponse(executionId.getDocId(), Map.of(), updateResponse, updateFuture);
-                expectThrows(CircuitBreakingException.class, updateFuture::actionGet);
+                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, updateFuture::actionGet);
+                assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
                 assertThat(circuitBreaker.getUsed(), equalTo(0L));
             }
             if (randomBoolean()) {
+                circuitBreaker.adjustLimit(randomIntBetween(16 * 1024, 1024 * 1024)); // small limit
                 PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
                 indexService.getResponse(executionId, randomBoolean(), getFuture);
                 assertThat(getFuture.actionGet().test, equalTo(testMessage));
                 assertThat(getFuture.actionGet().expirationTimeMillis, equalTo(expirationTime));
+                assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(0L)));
+            }
+            if (randomBoolean()) {
+                circuitBreaker.adjustLimit(randomIntBetween(1, 16)); // small limit
+                PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
+                indexService.getResponse(executionId, randomBoolean(), getFuture);
+                expectThrows(CircuitBreakingException.class, getFuture::actionGet);
+                assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(0L)));
             }
         }
     }
+
+    public void testMaxAsyncSearchResponseSize() throws Exception {
+        try {
+            // successfully create an initial response
+            AsyncExecutionId executionId1 = new AsyncExecutionId(Long.toString(randomNonNegativeLong()),
+                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+            TestAsyncResponse initialResponse = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
+            PlainActionFuture<IndexResponse> createFuture1 = new PlainActionFuture<>();
+            indexService.createResponse(executionId1.getDocId(), Map.of(), initialResponse, createFuture1);
+            createFuture1.actionGet();
+
+            // setting very small limit for the max size of async search response
+            int limit = randomIntBetween(1, 125);
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            String expectedErrMsg = "Can't store an async search response larger than [" + limit + "] bytes. " +
+                "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.";
+
+            // test that an update operation of the initial response fails
+            PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
+            TestAsyncResponse updateResponse = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
+            indexService.updateResponse(executionId1.getDocId(), Map.of(), updateResponse, updateFuture);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, updateFuture::actionGet);
+            assertEquals(expectedErrMsg, e.getMessage());
+            // test that the inital response is overwritten with a failure
+            PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
+            indexService.getResponse(executionId1, randomBoolean(), getFuture);
+            assertEquals(expectedErrMsg, getFuture.actionGet().failure);
+
+            // test that a create operation fails
+            AsyncExecutionId executionId2 = new AsyncExecutionId(Long.toString(randomNonNegativeLong()),
+                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+            PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+            TestAsyncResponse initialResponse2 = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
+            indexService.createResponse(executionId2.getDocId(), Map.of(), initialResponse2, createFuture);
+            IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
+            assertEquals(expectedErrMsg, e2.getMessage());
+        } finally {
+            // restoring limit
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        }
+    }
+
 }

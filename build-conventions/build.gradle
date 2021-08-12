@@ -60,7 +60,7 @@ dependencies {
     compileOnly "com.puppycrawl.tools:checkstyle:8.42"
 }
 
-project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
+project.getPlugins().withType(JavaBasePlugin.class) {
     java.getModularity().getInferModulePath().set(false);
     eclipse.getClasspath().getFile().whenMerged { classpath ->
         /*
@@ -69,9 +69,8 @@ project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
          * in the usual build folder because eclipse becomes *very* sad
          * if we delete it. Which `gradlew clean` does all the time.
          */
-        int i = 0;
-        classpath.getEntries().stream().filter(e -> e instanceof SourceFolder).forEachOrdered(s ->
-                s.setOutput("out/eclipse"+i++)
-        )
+        classpath.getEntries().findAll{ s -> s instanceof SourceFolder }.eachWithIndex { s, i ->
+            s.setOutput("out/eclipse" + i)
+        }
     }
-})
+}

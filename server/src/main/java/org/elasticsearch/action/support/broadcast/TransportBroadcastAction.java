@@ -100,7 +100,8 @@ public abstract class TransportBroadcastAction<
         final GroupShardsIterator<ShardIterator> shardsIts;
         final int expectedOps;
         final AtomicInteger counterOps = new AtomicInteger();
-        protected final AtomicReferenceArray shardsResponses;
+        // ShardResponse or Exception
+        protected final AtomicReferenceArray<Object> shardsResponses;
 
         protected AsyncBroadcastAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
@@ -132,7 +133,7 @@ public abstract class TransportBroadcastAction<
             if (shardsIts.size() == 0) {
                 // no shards
                 try {
-                    listener.onResponse(newResponse(request, new AtomicReferenceArray(0), clusterState));
+                    listener.onResponse(newResponse(request, new AtomicReferenceArray<ShardResponse>(0), clusterState));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }
@@ -189,7 +190,6 @@ public abstract class TransportBroadcastAction<
             }
         }
 
-        @SuppressWarnings({"unchecked"})
         protected void onOperation(ShardRouting shard, int shardIndex, ShardResponse response) {
             logger.trace("received response for {}", shard);
             shardsResponses.set(shardIndex, response);
@@ -228,7 +228,7 @@ public abstract class TransportBroadcastAction<
             }
         }
 
-        protected AtomicReferenceArray shardsResponses() {
+        protected AtomicReferenceArray<Object> shardsResponses() {
             return shardsResponses;
         }
 

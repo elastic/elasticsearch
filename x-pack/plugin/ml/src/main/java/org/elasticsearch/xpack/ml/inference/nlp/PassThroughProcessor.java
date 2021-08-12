@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
+import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 /**
@@ -20,8 +21,8 @@ public class PassThroughProcessor implements NlpTask.Processor {
 
     private final BertRequestBuilder bertRequestBuilder;
 
-    PassThroughProcessor(BertTokenizer tokenizer) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer);
+    PassThroughProcessor(BertTokenizer tokenizer, BertPassThroughConfig config) {
+        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config.getTokenizationParams().maxSequenceLength());
     }
 
     @Override

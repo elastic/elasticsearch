@@ -89,8 +89,9 @@ public class AutodetectBuilderTests extends ESTestCase {
 
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));
         assertTrue(command.contains(AutodetectBuilder.maxAnomalyRecordsArg(settings)));
+        assertTrue(command.contains(AutodetectBuilder.LICENSE_KEY_VALIDATED_ARG + true));
 
-        assertEquals(3, command.size());
+        assertEquals(4, command.size());
     }
 
     private AutodetectBuilder autodetectBuilder(Job job) {

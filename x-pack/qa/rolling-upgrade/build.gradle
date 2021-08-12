@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -93,6 +93,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
   }
 
+  String oldVersion = bwcVersion.toString()
+
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${baseName}"
     mustRunAfter("precommit")
@@ -103,13 +105,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
 
     systemProperty 'tests.rest.suite', 'old_cluster'
-    systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
+    systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  String oldVersion = bwcVersion.toString().replace('-SNAPSHOT', '')
   tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
     useCluster testClusters."${baseName}"

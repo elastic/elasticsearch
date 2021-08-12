@@ -40,7 +40,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -48,10 +50,10 @@ import static org.mockito.Mockito.when;
 
 public class ResizeRequestInterceptorTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testResizeRequestInterceptorThrowsWhenFLSDLSEnabled() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -89,8 +91,8 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
             ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
             listener.onResponse(AuthorizationResult.deny());
             return null;
-        }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
-            any(ActionListener.class));
+        }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), anyMap(),
+            anyActionListener());
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
                 () -> {
                     resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
@@ -100,10 +102,10 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
                 securityException.getMessage());
     }
 
+    @SuppressWarnings("unchecked")
     public void testResizeRequestInterceptorThrowsWhenTargetHasGreaterPermissions() throws Exception {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -130,7 +132,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
                 listener.onResponse(AuthorizationResult.deny());
                 return null;
             }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
-                any(ActionListener.class));
+                anyActionListener());
             ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
                 () -> {
                     resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
@@ -149,7 +151,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
                 listener.onResponse(AuthorizationResult.granted());
                 return null;
             }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
-                any(ActionListener.class));
+                anyActionListener());
             resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
             plainActionFuture.actionGet();
         }

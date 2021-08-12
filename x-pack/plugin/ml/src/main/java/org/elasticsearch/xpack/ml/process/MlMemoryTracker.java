@@ -16,19 +16,22 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
@@ -39,6 +42,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -215,6 +219,24 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     }
 
     /**
+     * Get the memory requirement for a trained model task.
+     * This method only works on the master node.
+     * @param modelId The model ID.
+     * @return The memory requirement of the trained model task specified by {@code modelId},
+     *         or <code>null</code> if it cannot be found.
+     */
+    public Long getTrainedModelAllocationMemoryRequirement(String modelId) {
+        if (isMaster == false) {
+            return null;
+        }
+
+        return Optional.ofNullable(TrainedModelAllocationMetadata.fromState(clusterService.state()).modelAllocations().get(modelId))
+            .map(TrainedModelAllocation::getTaskParams)
+            .map(StartTrainedModelDeploymentAction.TaskParams::estimateMemoryUsageBytes)
+            .orElse(null);
+    }
+
+    /**
      * Get the memory requirement for the type of job corresponding to a specified persistent task name.
      * This method only works on the master node.
      * @param taskName The persistent task name.
@@ -230,9 +252,9 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         Map<String, Long> memoryRequirementByJob = memoryRequirementByTaskName.get(taskName);
         if (memoryRequirementByJob == null) {
+            assert false: "Unknown taskName type [" + taskName +"]";
             return null;
         }
-
         return memoryRequirementByJob.get(id);
     }
 
@@ -327,7 +349,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * to a race where a job was opened part way through the refresh.  (Instead, entries are removed when
      * jobs are deleted.)
      */
-    void refresh(PersistentTasksCustomMetadata persistentTasks, ActionListener<Void> onCompletion) {
+    public void refresh(PersistentTasksCustomMetadata persistentTasks, ActionListener<Void> onCompletion) {
 
         synchronized (fullRefreshCompletionListeners) {
             fullRefreshCompletionListeners.add(onCompletion);

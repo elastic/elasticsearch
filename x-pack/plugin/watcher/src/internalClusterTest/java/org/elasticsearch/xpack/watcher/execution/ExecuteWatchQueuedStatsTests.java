@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.Client;
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.empty;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66392")
 public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override

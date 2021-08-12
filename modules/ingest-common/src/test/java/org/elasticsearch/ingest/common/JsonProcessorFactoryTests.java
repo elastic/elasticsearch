@@ -77,4 +77,42 @@ public class JsonProcessorFactoryTests extends ESTestCase {
             () -> FACTORY.create(null, randomAlphaOfLength(10), null, config));
         assertThat(exception.getMessage(), equalTo("[target_field] Cannot set a target field while also setting `add_to_root` to true"));
     }
+
+    public void testReplaceMergeStrategy() throws Exception {
+        JsonProcessor jsonProcessor = getJsonProcessorWithMergeStrategy(null, true);
+        assertThat(jsonProcessor.getAddToRootConflictStrategy(), equalTo(JsonProcessor.ConflictStrategy.REPLACE));
+
+        jsonProcessor = getJsonProcessorWithMergeStrategy("replace", true);
+        assertThat(jsonProcessor.getAddToRootConflictStrategy(), equalTo(JsonProcessor.ConflictStrategy.REPLACE));
+    }
+
+    public void testRecursiveMergeStrategy() throws Exception {
+        JsonProcessor jsonProcessor = getJsonProcessorWithMergeStrategy("merge", true);
+        assertThat(jsonProcessor.getAddToRootConflictStrategy(), equalTo(JsonProcessor.ConflictStrategy.MERGE));
+    }
+
+    public void testMergeStrategyWithoutAddToRoot() throws Exception {
+        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
+            () -> getJsonProcessorWithMergeStrategy("replace", false));
+        assertThat(exception.getMessage(),
+            equalTo("[add_to_root_conflict_strategy] Cannot set `add_to_root_conflict_strategy` if `add_to_root` is false"));
+    }
+
+    public void testUnknownMergeStrategy() throws Exception {
+        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
+            () -> getJsonProcessorWithMergeStrategy("foo", true));
+        assertThat(exception.getMessage(),
+            equalTo("[add_to_root_conflict_strategy] conflict strategy [foo] not supported, cannot convert field."));
+    }
+
+    private JsonProcessor getJsonProcessorWithMergeStrategy(String mergeStrategy, boolean addToRoot) throws Exception {
+        String randomField = randomAlphaOfLength(10);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", randomField);
+        config.put("add_to_root", addToRoot);
+        if (mergeStrategy != null) {
+            config.put("add_to_root_conflict_strategy", mergeStrategy);
+        }
+        return FACTORY.create(null, randomAlphaOfLength(10), null, config);
+    }
 }

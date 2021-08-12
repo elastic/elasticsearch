@@ -104,6 +104,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     private TransportSamlLogoutAction action;
     private Client client;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setup() throws Exception {
         final RealmIdentifier realmIdentifier = new RealmIdentifier("saml", REALM_NAME);
@@ -207,7 +208,6 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);

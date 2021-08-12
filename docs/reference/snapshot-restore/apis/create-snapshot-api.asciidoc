@@ -124,7 +124,7 @@ The cluster state includes:
 IMPORTANT: By default, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<create-snapshot-api-partial,`partial`>> to `true`.
 
 `metadata`::
-(Optional, string)
+(Optional, object)
 Attaches arbitrary metadata to the snapshot, such as a record of who took the snapshot, why it was taken, or any other useful data. Metadata must be less than 1024 bytes.
 
 [[create-snapshot-api-partial]]

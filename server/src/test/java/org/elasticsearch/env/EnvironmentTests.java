@@ -72,6 +72,15 @@ public class EnvironmentTests extends ESTestCase {
         assertFalse(Environment.PATH_DATA_SETTING.exists(environment.settings()));
     }
 
+    public void testPathDataLegacyCommaList() {
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir().toAbsolutePath())
+            .put("path.data", createTempDir().toAbsolutePath() + "," + createTempDir().toAbsolutePath())
+            .build();
+        final Environment environment = new Environment(settings, null);
+        assertThat(environment.dataFiles(), arrayWithSize(2));
+    }
+
     public void testPathLogsWhenNotSet() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
@@ -171,6 +180,11 @@ public class EnvironmentTests extends ESTestCase {
         {
             final Settings settings = Settings.builder()
                 .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString() + "," + createTempDir().toString()).build();
             assertThat(Environment.dataPathUsesList(settings), is(true));
         }
     }

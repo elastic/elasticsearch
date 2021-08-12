@@ -30,7 +30,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         return Arrays.asList(ShutdownPlugin.class);
     }
 
-    public void testReproduceNotStartedBug() throws Exception {
+    public void testShardStatusStaysCompleteAfterNodeLeaves() throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
         final String nodeToRestartId = getNodeId(nodeToRestartName);
@@ -58,7 +58,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
     }
 
-    public void testNotStartedBugOnDedicatedMaster() throws Exception {
+    public void testShardStatusIsCompleteOnNonDataNodes() throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         final String nodeToShutDownName = internalCluster().startMasterOnlyNode();
         internalCluster().startMasterOnlyNode(); // Just to have at least one other node

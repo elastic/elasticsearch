@@ -184,10 +184,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         // The node is in `DiscoveryNodes`, but not `RoutingNodes` - so there are no shards assigned to it. We're done.
         if (currentState.getRoutingNodes().node(nodeId) == null) {
             // We don't know about that node
-            return new ShutdownShardMigrationStatus(
-                SingleNodeShutdownMetadata.Status.COMPLETE,
-                0
-            );
+            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0);
         }
 
         // First, check if there are any shards currently on this node, and if there are any relocating shards

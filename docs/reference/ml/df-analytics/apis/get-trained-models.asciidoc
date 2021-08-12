@@ -222,7 +222,7 @@ List of the available hyperparameters optimized during the
 .Properties of hyperparameters
 [%collapsible%open]
 ======
-`absolute_importance`::::g
+`absolute_importance`::::
 (double)
 A positive number showing how much the parameter influences the variation of the 
 // {ml-docs}/dfa-regression-lossfunction.html[loss function]. 

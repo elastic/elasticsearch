@@ -13,8 +13,10 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -44,6 +46,41 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
+
+        internalCluster().stopNode(nodeToRestartName);
+
+        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
+        assertThat(nodes.getNodes().size(), equalTo(1));
+
+        GetShutdownStatusAction.Response getResp = client().execute(
+            GetShutdownStatusAction.INSTANCE,
+            new GetShutdownStatusAction.Request(nodeToRestartId)
+        ).get();
+
+        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+    }
+
+    public void testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
+        final String nodeToRestartName = internalCluster().startNode();
+        final String nodeToRestartId = getNodeId(nodeToRestartName);
+        internalCluster().startNode();
+
+        // Stop the node we're going to shut down and mark it as shutting down while it's offline. This checks that the cluster state
+        // listener is working correctly.
+        internalCluster().restartNode(nodeToRestartName, new InternalTestCluster.RestartCallback() {
+            @Override public Settings onNodeStopped(String nodeName) throws Exception {
+                PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+                    nodeToRestartId,
+                    SingleNodeShutdownMetadata.Type.REMOVE,
+                    "testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline"
+                );
+                AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
+                assertTrue(putShutdownResponse.isAcknowledged());
+
+                return super.onNodeStopped(nodeName);
+            }
+        });
 
         internalCluster().stopNode(nodeToRestartName);
 

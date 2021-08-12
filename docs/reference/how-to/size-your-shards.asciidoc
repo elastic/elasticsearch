@@ -169,7 +169,7 @@ consider adding another node.
 
 Some system indices for {enterprise-search-ref}/index.html[Enterprise Search]
 are nearly empty and rarely used. Due to their low overhead, you shouldn't count
-shards for these indices toward a node's limit.
+shards for these indices toward a node's shard limit.
 
 To check the current size of each node's heap, use the <<cat-nodes,cat nodes
 API>>.

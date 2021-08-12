@@ -54,10 +54,6 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params.getModelId();
     }
 
-    public String getIndex() {
-        return params.getIndex();
-    }
-
     public long estimateMemoryUsageBytes() {
         return params.estimateMemoryUsageBytes();
     }

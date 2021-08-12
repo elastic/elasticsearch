@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -17,16 +18,15 @@ import java.io.IOException;
 
 public class NlpTask {
 
-    private final NlpTaskConfig config;
+    private final NlpConfig config;
     private final BertTokenizer tokenizer;
 
-    public static NlpTask fromConfig(NlpTaskConfig config) {
-        return new NlpTask(config);
-    }
-
-    private NlpTask(NlpTaskConfig config) {
+    public NlpTask(NlpConfig config, Vocabulary vocabulary) {
         this.config = config;
-        this.tokenizer = config.buildTokenizer();
+        this.tokenizer = BertTokenizer.builder(vocabulary.get())
+            .setWithSpecialTokens(config.getTokenizationParams().withSpecialTokens())
+            .setDoLowerCase(config.getTokenizationParams().doLowerCase())
+            .build();
     }
 
     /**
@@ -35,7 +35,7 @@ public class NlpTask {
      * @throws ValidationException if the validation fails
      */
     public Processor createProcessor() throws ValidationException {
-        return config.getTaskType().createProcessor(tokenizer, config);
+        return TaskType.fromString(config.getName()).createProcessor(tokenizer, config);
     }
 
     public interface RequestBuilder {

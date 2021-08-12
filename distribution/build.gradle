@@ -9,10 +9,10 @@
 
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoTask
 import org.elasticsearch.gradle.internal.NoticeTask
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files
@@ -486,6 +486,7 @@ subprojects {
     Map<String, Object> expansions = [
       'project.name': project.name,
       'project.version': version,
+      'project.minor.version': "${VersionProperties.elasticsearchVersion.major}.${VersionProperties.elasticsearchVersion.minor}",
 
       'path.conf': [
         'deb': '/etc/elasticsearch',

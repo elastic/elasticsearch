@@ -340,7 +340,7 @@ public abstract class AbstractInternalTerms<
 
     protected static XContentBuilder doXContentCommon(XContentBuilder builder,
                                                       Params params,
-                                                      long docCountError,
+                                                      Long docCountError,
                                                       long otherDocCount,
                                                       List<? extends AbstractTermsBucket> buckets) throws IOException {
         builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), docCountError);

@@ -7,12 +7,21 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
@@ -20,21 +29,111 @@ import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
+import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
+import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
+import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
+import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
+import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
+import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
+import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
+import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
+import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
+import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
+import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
+import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
+import org.elasticsearch.xpack.core.ml.action.PostDataAction;
+import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
+import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
+import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
+import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
+import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ElasticServiceAccount;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -45,6 +144,280 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ElasticServiceAccountsTests extends ESTestCase {
+
+    public void testKibanaSystemPrivileges() {
+        final String readCrossClusterName = "internal:transport/proxy/indices:data/read/query";
+        final Role role = Role.builder(ElasticServiceAccounts.ACCOUNTS.get("elastic/kibana-system").roleDescriptor(), null).build();
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = mock(Authentication.class);
+        assertThat(role.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(true));
+
+        // ILM
+        assertThat(role.cluster().check(GetLifecycleAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutLifecycleAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteLifecycleAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(StartILMAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(StopILMAction.NAME, request, authentication), is(false));
+
+        // SAML and token
+        assertThat(role.cluster().check(SamlPrepareAuthenticationAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(SamlAuthenticateAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(InvalidateTokenAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(CreateTokenAction.NAME, request, authentication), is(true));
+
+        // API keys
+        assertThat(role.cluster().check(InvalidateApiKeyAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GrantApiKeyAction.NAME, request, authentication), is(true));
+
+        // ML
+        assertRoleHasManageMl(role);
+
+        // Text Structure
+        assertThat(role.cluster().check(FindStructureAction.NAME, request, authentication), is(true));
+
+        // Application Privileges
+        DeletePrivilegesRequest deleteKibanaPrivileges = new DeletePrivilegesRequest("kibana-.kibana", new String[]{ "all", "read" });
+        DeletePrivilegesRequest deleteLogstashPrivileges = new DeletePrivilegesRequest("logstash", new String[]{ "all", "read" });
+        assertThat(role.cluster().check(DeletePrivilegesAction.NAME, deleteKibanaPrivileges, authentication), is(true));
+        assertThat(role.cluster().check(DeletePrivilegesAction.NAME, deleteLogstashPrivileges, authentication), is(false));
+
+        GetPrivilegesRequest getKibanaPrivileges = new GetPrivilegesRequest();
+        getKibanaPrivileges.application("kibana-.kibana-sales");
+        GetPrivilegesRequest getApmPrivileges = new GetPrivilegesRequest();
+        getApmPrivileges.application("apm");
+        assertThat(role.cluster().check(GetPrivilegesAction.NAME, getKibanaPrivileges, authentication), is(true));
+        assertThat(role.cluster().check(GetPrivilegesAction.NAME, getApmPrivileges, authentication), is(false));
+
+        PutPrivilegesRequest putKibanaPrivileges = new PutPrivilegesRequest();
+        putKibanaPrivileges.setPrivileges(Collections.singletonList(new ApplicationPrivilegeDescriptor(
+            "kibana-.kibana-" + randomAlphaOfLengthBetween(2,6), "all", Collections.emptySet(), Collections.emptyMap())));
+        PutPrivilegesRequest putSwiftypePrivileges = new PutPrivilegesRequest();
+        putSwiftypePrivileges.setPrivileges(Collections.singletonList(new ApplicationPrivilegeDescriptor(
+            "swiftype-kibana" , "all", Collections.emptySet(), Collections.emptyMap())));
+        assertThat(role.cluster().check(PutPrivilegesAction.NAME, putKibanaPrivileges, authentication), is(true));
+        assertThat(role.cluster().check(PutPrivilegesAction.NAME, putSwiftypePrivileges, authentication), is(false));
+
+        assertThat(role.cluster().check(GetBuiltinPrivilegesAction.NAME, request, authentication), is(true));
+
+        // Everything else
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
+        assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(true));
+
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(".reporting")), is(false));
+        assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false));
+
+        Arrays.asList(
+            ".kibana",
+            ".kibana-devnull",
+            ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ".apm-agent-configuration",
+            ".apm-custom-link",
+            ReservedRolesStore.LEGACY_ALERTS_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ReservedRolesStore.ALERTS_INDEX + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach((index) -> {
+            logger.info("index name [{}]", index);
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            // inherits from 'all'
+            assertThat(role.indices().allowedIndicesMatcher(readCrossClusterName).test(mockIndexAbstraction(index)), is(true));
+        });
+
+        // read-only index access, including cross cluster
+        Arrays.asList(".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+            logger.info("index name [{}]", index);
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(readCrossClusterName).test(mockIndexAbstraction(index)), is(true));
+        });
+
+        // read-only index access, excluding cross cluster
+        Arrays.asList(
+            ".ml-anomalies-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ".ml-stats-" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach((index) -> {
+            logger.trace("index name [{}]", index);
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(readCrossClusterName).test(mockIndexAbstraction(index)), is(false));
+        });
+
+        // read/write index access, excluding cross cluster
+        Arrays.asList(
+            ".ml-annotations-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ".ml-notifications-" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach((index) -> {
+            logger.trace("index name [{}]", index);
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(readCrossClusterName).test(mockIndexAbstraction(index)), is(false));
+        });
+
+        // read-only indices for APM telemetry
+        Arrays.asList("apm-*").forEach((index) -> {
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(readCrossClusterName).test(mockIndexAbstraction(index)), is(true));
+        });
+
+        // read-only indices for Endpoint diagnostic information
+        Arrays.asList(".logs-endpoint.diagnostic.collection-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(readCrossClusterName).test(mockIndexAbstraction(index)), is(false));
+        });
+
+        Arrays.asList(
+            ".fleet",
+            ".fleet-agents",
+            ".fleet-actions",
+            ".fleet-enrollment-api-keys",
+            ".fleet-policies",
+            ".fleet-actions-results",
+            ".fleet-servers"
+        ).forEach((index) -> {
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(readCrossClusterName).test(mockIndexAbstraction(index)), is(true));
+        });
+
+
+        // Data telemetry reads mappings, metadata and stats of indices
+        Arrays.asList(randomAlphaOfLengthBetween(8, 24), "packetbeat-*", "logs-*").forEach((index) -> {
+            logger.info("index name [{}]", index);
+            assertThat(role.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetMappingsAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(readCrossClusterName).test(mockIndexAbstraction(index)), is(false));
+        });
+
+        // read-only datastream for Endpoint policy responses
+        Arrays.asList("metrics-endpoint.policy-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(readCrossClusterName).test(mockIndexAbstraction(index)), is(false));
+        });
+
+        // read-only datastream for Endpoint metrics
+        Arrays.asList("metrics-endpoint.metrics-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(readCrossClusterName).test(mockIndexAbstraction(index)), is(false));
+        });
+
+        // Beats management index
+        final String index = ".management-beats";
+        assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(readCrossClusterName).test(mockIndexAbstraction(index)), is(false));
+
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+
+    }
 
     public void testElasticFleetPrivileges() {
         final Role role = Role.builder(ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(), null).build();
@@ -129,5 +502,91 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
             IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
         return mock;
+    }
+
+    private void assertNoAccessAllowed(Role role, Collection<String> indices) {
+        for (String index : indices) {
+            assertNoAccessAllowed(role, index);
+        }
+    }
+
+    private void assertNoAccessAllowed(Role role, String index) {
+        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(mockIndexAbstraction(index)), is(false));
+    }
+
+    private void assertRoleHasManageMl(Role role) {
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = mock(Authentication.class);
+
+        assertThat(role.cluster().check(CloseJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteCalendarAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteCalendarEventAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteExpiredDataAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteFilterAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteForecastAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteTrainedModelAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(EstimateModelMemoryAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(EvaluateDataFrameAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ExplainDataFrameAnalyticsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(FlushJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ForecastJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetBucketsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetCalendarEventsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetCalendarsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetCategoriesAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetDatafeedsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetDatafeedsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetDataFrameAnalyticsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetDataFrameAnalyticsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetFiltersAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetInfluencersAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetJobsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetJobsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetModelSnapshotsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetOverallBucketsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetRecordsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTrainedModelsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTrainedModelsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(InternalInferModelAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(IsolateDatafeedAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(KillProcessAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(MlInfoAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(OpenJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PersistJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PostCalendarEventsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PostDataAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PreviewDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutCalendarAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutDataFrameAnalyticsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutFilterAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutTrainedModelAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(SetUpgradeModeAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StartDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StartDataFrameAnalyticsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StopDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StopDataFrameAnalyticsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateCalendarJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateFilterAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateModelSnapshotAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateProcessAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(ValidateDetectorAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ValidateJobConfigAction.NAME, request, authentication), is(true));
     }
 }

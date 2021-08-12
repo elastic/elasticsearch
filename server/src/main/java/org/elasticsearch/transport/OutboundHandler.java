@@ -109,7 +109,13 @@ final class OutboundHandler {
         }
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), response, version,
             requestId, isHandshake, compressionScheme);
-        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
+        ActionListener<Void> listener = ActionListener.wrap(() -> {
+                try {
+                    messageListener.onResponseSent(requestId, action, response);
+                } finally {
+                    response.decRef();
+                }
+        });
         sendMessage(channel, message, listener);
     }
 

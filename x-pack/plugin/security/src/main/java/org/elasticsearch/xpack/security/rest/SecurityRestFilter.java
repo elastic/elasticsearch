@@ -46,6 +46,17 @@ public class SecurityRestFilter implements RestHandler {
     private final ThreadContext threadContext;
     private final boolean extractClientCertificate;
 
+    public enum ActionType {
+        Authentication("Authentication"),
+        SecondaryAuthentication("Secondary authentication"),
+        RequestHandling("Request handling");
+
+        private final String name;
+        ActionType(String name) { this.name = name; }
+        @Override
+        public String toString() { return name; }
+    }
+
     public SecurityRestFilter(Settings settings, ThreadContext threadContext, AuthenticationService authenticationService,
                               SecondaryAuthenticator secondaryAuthenticator, RestHandler restHandler, boolean extractClientCertificate) {
         this.settings = settings;
@@ -89,17 +100,21 @@ public class SecurityRestFilter implements RestHandler {
                                 logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
                             }
                             RemoteHostHeader.process(request, threadContext);
-                            restHandler.handleRequest(request, channel, client);
+                            try {
+                                restHandler.handleRequest(request, channel, client);
+                            } catch (Exception e) {
+                                handleException(ActionType.RequestHandling, request, channel, e);
+                            }
                         },
-                        e -> handleException("Secondary authentication", request, channel, e)));
-                }, e -> handleException("Authentication", request, channel, e)));
+                        e -> handleException(ActionType.SecondaryAuthentication, request, channel, e)));
+                }, e -> handleException(ActionType.Authentication, request, channel, e)));
         } else {
             restHandler.handleRequest(request, channel, client);
         }
     }
 
-    private void handleException(String actionType, RestRequest request, RestChannel channel, Exception e) {
-        logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
+    protected void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
+        logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType.name(), request.uri()), e);
         final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
             channel.sendResponse(new BytesRestResponse(channel, restStatus, e) {
@@ -109,11 +124,14 @@ public class SecurityRestFilter implements RestHandler {
 
                 @Override
                 public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
-                    if (headers.containsKey("Warning")) {
-                        headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
-                    }
-                    if (headers.containsKey("X-elastic-product")) {
-                        headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
+                    if (actionType != ActionType.RequestHandling
+                        || (restStatus == RestStatus.UNAUTHORIZED || restStatus == RestStatus.FORBIDDEN)) {
+                        if (headers.containsKey("Warning")) {
+                            headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
+                        }
+                        if (headers.containsKey("X-elastic-product")) {
+                            headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
+                        }
                     }
                     return headers;
                 }

@@ -24,12 +24,8 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         return ParserUtils.visit(super::visit, tree);
     }
 
-    protected <T> T typedParsing(ParseTree ctx, Class<T> type) {
-        return ParserUtils.typedParsing(this, ctx, type);
-    }
-
     protected LogicalPlan plan(ParseTree ctx) {
-        return typedParsing(ctx, LogicalPlan.class);
+        return ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
     }
 
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {

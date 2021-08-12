@@ -244,8 +244,13 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
             createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
-        assertThat(ex.getMessage(), Matchers.equalTo("Unable to create an enrollment token. Elasticsearch node HTTP layer " +
-            "SSL configuration Keystore doesn't contain any PrivateKey entries where the associated certificate is a CA certificate"));
+        assertThat(
+            ex.getMessage(),
+            Matchers.equalTo(
+                "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration Keystore doesn't "
+                    + "contain any PrivateKey entries where the associated certificate is a CA certificate"
+            )
+        );
     }
 
     public void testFailedManyCaInKeystore() throws Exception {

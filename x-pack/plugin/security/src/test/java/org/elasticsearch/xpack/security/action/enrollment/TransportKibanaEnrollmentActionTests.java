@@ -102,9 +102,16 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         final PlainActionFuture<KibanaEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         final KibanaEnrollmentResponse response = future.actionGet();
-        assertThat(response.getHttpCa(), startsWith("MIIDSjCCAjKgAwIBAgIVALCgZXvbceUrjJaQMheDCX0kXnRJMA0GCSqGSIb3DQEBCwUAMDQxMjAw" +
-            "BgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMB4XDTIxMDQyODEyNTY0MVoXDTI0MDQyNzEyNTY0MVowNDEyMDAGA1UEA" +
-            "xMpRWxhc3RpYyBDZXJ0aWZpY2F0ZSBUb29sIEF1dG9nZW5lcmF0ZWQgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCCJbOU4JvxDD/F"));
+        assertThat(
+            response.getHttpCa(),
+            startsWith(
+                "MIIDSjCCAjKgAwIBAgIVALCgZXvbceUrjJaQMheDCX0kXnRJMA0GCSqGSIb3DQEBCwUAMDQxMjAw"
+                    + "BgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMB4XDT"
+                    + "IxMDQyODEyNTY0MVoXDTI0MDQyNzEyNTY0MVowNDEyMDAGA1UEAxMpRWxhc3RpYyBDZXJ0"
+                    + "aWZpY2F0ZSBUb29sIEF1dG9nZW5lcmF0ZWQgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDw"
+                    + "AwggEKAoIBAQCCJbOU4JvxDD/F"
+            )
+        );
         assertNotNull(response.getPassword());
         assertThat(changePasswordRequests.size(), equalTo(1));
     }

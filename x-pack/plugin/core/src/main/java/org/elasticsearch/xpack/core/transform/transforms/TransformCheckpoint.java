@@ -231,10 +231,12 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
         }
 
         return Objects.equals(this.transformId, that.transformId)
-                && this.indicesCheckpoints.size() == that.indicesCheckpoints.size() // quick check
-                // do the expensive deep equal operation last
-                && this.indicesCheckpoints.entrySet().stream()
-                        .allMatch(e -> Arrays.equals(e.getValue(), that.indicesCheckpoints.get(e.getKey())));
+            // quick check
+            && this.indicesCheckpoints.size() == that.indicesCheckpoints.size()
+            // do the expensive deep equal operation last
+            && this.indicesCheckpoints.entrySet()
+                .stream()
+                .allMatch(e -> Arrays.equals(e.getValue(), that.indicesCheckpoints.get(e.getKey())));
     }
 
     @Override

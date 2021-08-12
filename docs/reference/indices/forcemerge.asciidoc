@@ -118,6 +118,18 @@ Defaults to checking if a merge needs to execute.
 If so, executes it.
 --
 
+`shard_id`::
++
+--
+(Optional, integer)
+The Id of shard to merge to.
+To fully merge a specific shard of indices,
+set it to `Shard Id`.
+
+Defaults to force merge all shard of indices.
+If so, executes it.
+--
+
 `only_expunge_deletes`::
 +
 --

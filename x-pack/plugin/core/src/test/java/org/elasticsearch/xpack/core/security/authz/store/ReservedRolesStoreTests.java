@@ -292,34 +292,68 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(snapshotUserRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
-    public void testIngestAdminRole() {
+    public void testEnrichUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = mock(Authentication.class);
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("ingest_admin");
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("enrich_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role ingestAdminRole = Role.builder(roleDescriptor, null).build();
-        assertThat(ingestAdminRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(true));
-        assertThat(ingestAdminRole.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(true));
-        assertThat(ingestAdminRole.cluster().check(DeleteIndexTemplateAction.NAME, request, authentication), is(true));
-        assertThat(ingestAdminRole.cluster().check(PutPipelineAction.NAME, request, authentication), is(true));
-        assertThat(ingestAdminRole.cluster().check(GetPipelineAction.NAME, request, authentication), is(true));
-        assertThat(ingestAdminRole.cluster().check(DeletePipelineAction.NAME, request, authentication), is(true));
-        assertThat(ingestAdminRole.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
-        assertThat(ingestAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
-        assertThat(ingestAdminRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
-        assertThat(ingestAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        Role enrichUserRole = Role.builder(roleDescriptor, null).build();
+        assertThat(enrichUserRole.cluster().check(PutPipelineAction.NAME, request, authentication), is(true));
+        assertThat(enrichUserRole.cluster().check(GetPipelineAction.NAME, request, authentication), is(true));
+        assertThat(enrichUserRole.cluster().check(DeletePipelineAction.NAME, request, authentication), is(true));
+        assertThat(enrichUserRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(false));
+        assertThat(enrichUserRole.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(false));
+        assertThat(enrichUserRole.cluster().check(DeleteIndexTemplateAction.NAME, request, authentication), is(false));
+        assertThat(enrichUserRole.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
+        assertThat(enrichUserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
+        assertThat(enrichUserRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
+        assertThat(enrichUserRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(enrichUserRole.cluster().check(MainAction.NAME, request, authentication), is(true));
+        assertThat(enrichUserRole.cluster().check(XPackInfoAction.NAME, request, authentication), is(true));
+        assertThat(enrichUserRole.cluster().check(RemoteInfoAction.NAME, request, authentication), is(true));
+        // has monitor
+        assertThat(enrichUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
+        assertThat(enrichUserRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
+        assertThat(enrichUserRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
+        assertThat(enrichUserRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(false));
+        assertThat(enrichUserRole.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
 
-        assertThat(ingestAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(ingestAdminRole.indices().allowedIndicesMatcher("indices:foo").test(
+        assertThat(enrichUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
+
+        final String index = "enrich-." + randomAlphaOfLength(randomIntBetween(0, 13));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME)
+                .test(mockIndexAbstraction(index)), is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(false));
+
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("foo")), is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".reporting")),
+                is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".kibana")),
+                is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction("foo")),
+                is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(".reporting")),
+                is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(".kibana")),
+                is(false));
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher("indices:foo").test(
                 mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
-        assertThat(ingestAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(
+        assertThat(enrichUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(
                 mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
 
-        assertNoAccessAllowed(ingestAdminRole, RestrictedIndicesNames.RESTRICTED_NAMES);
-        assertNoAccessAllowed(ingestAdminRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+        assertNoAccessAllowed(enrichUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
+        assertNoAccessAllowed(enrichUserRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testIngestAdminRole() {

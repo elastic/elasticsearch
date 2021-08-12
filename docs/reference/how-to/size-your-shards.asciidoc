@@ -167,10 +167,9 @@ have at most 600 shards. The further below this limit you can keep your nodes,
 the better. If you find your nodes exceeding more than 20 shards per GB,
 consider adding another node.
 
-This recommendation is not a hard limit. Enterprise Search and similar use cases
-may be able to safely exceed the recommended shard count. For example, some
-Enterprise Search indices are nearly empty and rarely used. Due to their low
-overhead, shards for these indices shouldn't count toward a node's shard limit.
+For [Enterprise Search], shards for nearly empty and rarely used systems indices
+don't count toward a node's shard limit. Due to their size and low usage, these
+shards have very low overhead.
 
 To check the current size of each node's heap, use the <<cat-nodes,cat nodes
 API>>.

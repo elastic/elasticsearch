@@ -27,7 +27,7 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
 
     public static TrainedModelAllocation randomInstance() {
         TrainedModelAllocation.Builder builder = TrainedModelAllocation.Builder.empty(
-            new StartTrainedModelDeploymentAction.TaskParams(randomAlphaOfLength(10), randomAlphaOfLength(10), randomNonNegativeLong())
+            new StartTrainedModelDeploymentAction.TaskParams(randomAlphaOfLength(10), randomNonNegativeLong())
         );
         List<String> nodes = Stream.generate(() -> randomAlphaOfLength(10)).limit(randomInt(5)).collect(Collectors.toList());
         for (String node : nodes) {
@@ -106,7 +106,7 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
         String nodeInAnotherState1 = "another-state-node-1";
         String nodeInAnotherState2 = "another-state-node-2";
         TrainedModelAllocation allocation = TrainedModelAllocation.Builder.empty(
-            new StartTrainedModelDeploymentAction.TaskParams(randomAlphaOfLength(10), randomAlphaOfLength(10), randomNonNegativeLong())
+            new StartTrainedModelDeploymentAction.TaskParams(randomAlphaOfLength(10), randomNonNegativeLong())
         )
             .addNewRoutingEntry(startedNode1)
             .addNewRoutingEntry(startedNode2)

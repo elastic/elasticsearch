@@ -54,9 +54,7 @@ buildscript {
   // Be aware that it seems the redline project hasnt been active for a while
   configurations.all {
     resolutionStrategy {
-        dependencySubstitution {
-          substitute module('org.redline-rpm:redline') using module('com.github.breskeby:redline:9c85270')
-        }
+      force 'org.redline-rpm:redline:1.2.10'
     }
   }
 

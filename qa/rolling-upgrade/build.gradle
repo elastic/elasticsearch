@@ -52,7 +52,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     doFirst {
       delete("${buildDir}/cluster/shared/repo/${baseName}")
     }
-    systemProperty 'tests.upgrade_from_version', bwcVersionStr
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")

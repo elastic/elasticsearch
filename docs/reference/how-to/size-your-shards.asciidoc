@@ -161,13 +161,16 @@ index                                 prirep shard store
 [[shard-count-recommendation]]
 ==== Aim for 20 shards or fewer per GB of heap memory
 
-The number of shards a node can hold is proportional to the node's heap memory.
-However, {es} doesn't enforce a fixed limit. If your shards are consistently
-between 10–50GB, we recommend limiting nodes to 20 shards or fewer per GB of
-heap memory. For example, a node with 30GB of heap memory should have at most
-600 shards. The further below this limit you can keep your nodes, the better. If
-you find your nodes exceeding more than 20 shards per GB, consider adding
-another node.
+The number of shards a node can hold is proportional to the node's
+heap memory. For example, a node with 30GB of heap memory should
+have at most 600 shards. The further below this limit you can keep your nodes,
+the better. If you find your nodes exceeding more than 20 shards per GB,
+consider adding another node.
+
+This recommendation is not a hard limit. Enterprise Search and similar use cases
+may be able to safely exceed the recommended shard count. For example, some
+Enterprise Search indices are nearly empty and rarely used. Due to their low
+overhead, shards for these indices shouldn't count toward a node's shard limit.
 
 To check the current size of each node's heap, use the <<cat-nodes,cat nodes
 API>>.

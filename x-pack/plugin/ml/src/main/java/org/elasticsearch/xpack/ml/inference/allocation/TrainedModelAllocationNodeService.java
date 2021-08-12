@@ -50,6 +50,8 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_T
 
 public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
+    private static final String NODE_NO_LONGER_REFERENCED = "node no longer referenced in model routing table";
+    private static final String ALLOCATION_NO_LONGER_EXISTS = "model allocation no longer exists";
     private static final TimeValue MODEL_LOADING_CHECK_INTERVAL = TimeValue.timeValueSeconds(1);
     private static final Logger logger = LogManager.getLogger(TrainedModelAllocationNodeService.class);
     private final TrainedModelAllocationService trainedModelAllocationService;
@@ -253,8 +255,6 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
             final boolean isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
             TrainedModelAllocationMetadata modelAllocationMetadata = TrainedModelAllocationMetadata.fromState(event.state());
             final String currentNode = event.state().nodes().getLocalNodeId();
-            final String nodeNoLongerReferenced = "node no longer referenced in model routing table";
-            final String modelAllocationNoLongExists = "model allocation no longer exists";
             for (TrainedModelAllocation trainedModelAllocation : modelAllocationMetadata.modelAllocations().values()) {
                 RoutingStateAndReason routingStateAndReason = trainedModelAllocation.getNodeRoutingTable().get(currentNode);
                 // Add new models to start loading
@@ -273,7 +273,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                     if (task != null) {
                         stopDeploymentAsync(
                             task,
-                            nodeNoLongerReferenced,
+                            NODE_NO_LONGER_REFERENCED,
                             ActionListener.wrap(
                                 r -> logger.trace(() -> new ParameterizedMessage("[{}] stopped deployment", task.getModelId())),
                                 e -> logger.warn(
@@ -293,7 +293,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
             for (TrainedModelDeploymentTask t : toCancel) {
                 stopDeploymentAsync(
                     t,
-                    modelAllocationNoLongExists,
+                    ALLOCATION_NO_LONGER_EXISTS,
                     ActionListener.wrap(
                         r -> logger.trace(() -> new ParameterizedMessage("[{}] stopped deployment", t.getModelId())),
                         e -> logger.warn(() -> new ParameterizedMessage("[{}] failed to fully stop deployment", t.getModelId()), e)

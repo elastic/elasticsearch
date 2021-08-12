@@ -12,7 +12,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -21,12 +23,19 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
+import org.elasticsearch.xpack.core.security.support.CacheKey;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
@@ -36,9 +45,13 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
  * The document level permissions may be limited by another set of queries in that case the limited
  * queries are used as an additional filter.
  */
-public final class DocumentPermissions {
-    private final Set<BytesReference> queries;
-    private final Set<BytesReference> limitedByQueries;
+public final class DocumentPermissions implements CacheKey {
+    // SortedSet because orders are important when they get serialised for request cache key
+    private final SortedSet<BytesReference> queries;
+    private final SortedSet<BytesReference> limitedByQueries;
+    private List<String> evaluatedQueries;
+    private List<String> evaluatedLimitedByQueries;
+
 
     private static DocumentPermissions ALLOW_ALL = new DocumentPermissions();
 
@@ -55,16 +68,16 @@ public final class DocumentPermissions {
         if (queries == null && scopedByQueries == null) {
             throw new IllegalArgumentException("one of the queries or scoped queries must be provided");
         }
-        this.queries = (queries != null) ? Collections.unmodifiableSet(queries) : queries;
-        this.limitedByQueries = (scopedByQueries != null) ? Collections.unmodifiableSet(scopedByQueries) : scopedByQueries;
+        this.queries = (queries != null) ? new TreeSet<>(queries) : null;
+        this.limitedByQueries = (scopedByQueries != null) ? new TreeSet<>(scopedByQueries) : null;
     }
 
     public Set<BytesReference> getQueries() {
-        return queries;
+        return queries == null ? null : Set.copyOf(queries);
     }
 
     public Set<BytesReference> getLimitedByQueries() {
-        return limitedByQueries;
+        return limitedByQueries == null ? null : Set.copyOf(limitedByQueries);
     }
 
     /**
@@ -72,6 +85,24 @@ public final class DocumentPermissions {
      */
     public boolean hasDocumentLevelPermissions() {
         return queries != null || limitedByQueries != null;
+    }
+
+    public boolean hasStoredScript() throws IOException {
+        if (queries != null) {
+            for (BytesReference q : queries) {
+                if (DLSRoleQueryValidator.hasStoredScript(q, NamedXContentRegistry.EMPTY)) {
+                    return true;
+                }
+            }
+        }
+        if (limitedByQueries != null) {
+            for (BytesReference q : limitedByQueries) {
+                if (DLSRoleQueryValidator.hasStoredScript(q, NamedXContentRegistry.EMPTY)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -88,23 +119,25 @@ public final class DocumentPermissions {
      * @throws IOException thrown if there is an exception during parsing
      */
     public BooleanQuery filter(User user, ScriptService scriptService, ShardId shardId,
-                                      Function<ShardId, SearchExecutionContext> searchExecutionContextProvider) throws IOException {
+                               Function<ShardId, SearchExecutionContext> searchExecutionContextProvider) throws IOException {
         if (hasDocumentLevelPermissions()) {
+            evaluateQueries(SecurityQueryTemplateEvaluator.wrap(user, scriptService));
             BooleanQuery.Builder filter;
-            if (queries != null && limitedByQueries != null) {
+            if (evaluatedQueries != null && evaluatedLimitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
                 BooleanQuery.Builder scopedFilter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, limitedByQueries, scopedFilter);
+                buildRoleQuery(shardId, searchExecutionContextProvider, evaluatedLimitedByQueries, scopedFilter);
                 filter.add(scopedFilter.build(), FILTER);
 
-                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, queries, filter);
-            } else if (queries != null) {
+                buildRoleQuery(shardId, searchExecutionContextProvider, evaluatedQueries, filter);
+            } else if (evaluatedQueries != null) {
                 filter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, queries, filter);
-            } else if (limitedByQueries != null) {
+                buildRoleQuery(shardId, searchExecutionContextProvider, evaluatedQueries, filter);
+            } else if (evaluatedLimitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, limitedByQueries, filter);
+                buildRoleQuery(shardId, searchExecutionContextProvider, evaluatedLimitedByQueries, filter);
             } else {
+                assert false : "one of queries and limited-by queries must be non-null";
                 return null;
             }
             return filter.build();
@@ -112,14 +145,22 @@ public final class DocumentPermissions {
         return null;
     }
 
-    private static void buildRoleQuery(User user, ScriptService scriptService, ShardId shardId,
+    private void evaluateQueries(DlsQueryEvaluationContext context) {
+        if (queries != null && evaluatedQueries == null) {
+            evaluatedQueries = queries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
+        }
+        if (limitedByQueries != null && evaluatedLimitedByQueries == null) {
+            evaluatedLimitedByQueries = limitedByQueries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
+        }
+    }
+
+    private static void buildRoleQuery(ShardId shardId,
                                        Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
-                                       Set<BytesReference> queries,
+                                       List<String> queries,
                                        BooleanQuery.Builder filter) throws IOException {
-        for (BytesReference bytesReference : queries) {
+        for (String query : queries) {
             SearchExecutionContext context = searchExecutionContextProvider.apply(shardId);
-            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(bytesReference, scriptService,
-                context.getXContentRegistry(), user);
+            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(query, context.getXContentRegistry());
             if (queryBuilder != null) {
                 failIfQueryUsesClient(queryBuilder, context);
                 Query roleQuery = context.toQuery(queryBuilder).query();
@@ -196,6 +237,8 @@ public final class DocumentPermissions {
         if (queries == null && limitedByDocumentPermissions.queries == null) {
             return DocumentPermissions.allowAll();
         }
+        // TODO: should we apply the same logic here as FieldPermissions#limitFieldPermissions,
+        //       i.e. treat limited-by as queries if original queries is null?
         return new DocumentPermissions(queries, limitedByDocumentPermissions.queries);
     }
 
@@ -204,4 +247,36 @@ public final class DocumentPermissions {
         return "DocumentPermissions [queries=" + queries + ", scopedByQueries=" + limitedByQueries + "]";
     }
 
+    @Override
+    public void buildCacheKey(StreamOutput out, DlsQueryEvaluationContext context) throws IOException {
+        assert false == (queries == null && limitedByQueries == null) : "one of queries and limited-by queries must be non-null";
+        evaluateQueries(context);
+        if (evaluatedQueries != null) {
+            out.writeBoolean(true);
+            out.writeCollection(evaluatedQueries, StreamOutput::writeString);
+        } else {
+            out.writeBoolean(false);
+        }
+        if (evaluatedLimitedByQueries != null) {
+            out.writeBoolean(true);
+            out.writeCollection(evaluatedLimitedByQueries, StreamOutput::writeString);
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        DocumentPermissions that = (DocumentPermissions) o;
+        return Objects.equals(queries, that.queries) && Objects.equals(limitedByQueries, that.limitedByQueries);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(queries, limitedByQueries);
+    }
 }

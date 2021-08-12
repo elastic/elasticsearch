@@ -48,8 +48,8 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -680,7 +680,7 @@ public class LuceneTests extends ESTestCase {
         switch(randomIntBetween(0, 3)) {
             case 0:
                 comparatorSource = new LongValuesComparatorSource(null, randomBoolean() ? randomLong() : null,
-                    randomFrom(MultiValueMode.values()), null);
+                    randomFrom(MultiValueMode.values()), null, null);
                 break;
             case 1:
                 comparatorSource = new DoubleValuesComparatorSource(null, randomBoolean() ? randomDouble() : null,

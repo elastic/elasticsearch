@@ -76,6 +76,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1252,7 +1253,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     private static class NoOpHistoryStore extends ILMHistoryStore {
         private static final Logger logger = LogManager.getLogger(NoOpHistoryStore.class);
 
-        private final List<ILMHistoryItem> items = new ArrayList<>();
+        private final List<ILMHistoryItem> items = new CopyOnWriteArrayList<>();
 
         NoOpHistoryStore(Client noopClient) {
             super(Settings.EMPTY, noopClient, null, null);

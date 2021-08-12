@@ -78,7 +78,6 @@ public class RealmsTests extends ESTestCase {
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         threadContext = new ThreadContext(Settings.EMPTY);
         reservedRealm = mock(ReservedRealm.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         allowAllRealms();
         when(reservedRealm.type()).thenReturn(ReservedRealm.TYPE);
         when(reservedRealm.name()).thenReturn("reserved");
@@ -481,20 +480,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.getUnlicensedRealms(), hasSize(orderToIndex.size()));
     }
 
-    public void testAuthcAuthzDisabled() throws Exception {
-        Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".realm_1.order", 0)
-                .build();
-        Environment env = TestEnvironment.newEnvironment(settings);
-        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
-
-        assertThat(realms.iterator().hasNext(), is(true));
-
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
-        assertThat(realms.iterator().hasNext(), is(false));
-    }
-
+    @SuppressWarnings("unchecked")
     public void testUsageStats() throws Exception {
         // test realms with duplicate values
         Settings.Builder builder = Settings.builder()
@@ -544,7 +530,6 @@ public class RealmsTests extends ESTestCase {
         }
 
         // check standard realms include native
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         allowOnlyStandardRealms();
         future = new PlainActionFuture<>();
         realms.usageStats(future);

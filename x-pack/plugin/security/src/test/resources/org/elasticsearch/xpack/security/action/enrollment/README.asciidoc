@@ -17,13 +17,13 @@ $ES_HOME/bin/elasticsearch-certutil ca --out ca.p12 --pass "password"
 === Generate the transport layer keystore
 [source,shell]
 -----------------------------------------------------------------------------------------------------------
-$ES_HOME/bin/elasticsearch-certutil cert --out transport.p12 --ca ca.p12 --ca-pass "password"
+$ES_HOME/bin/elasticsearch-certutil cert --out transport.p12 --ca ca.p12 --ca-pass "password" --pass "password"
 -----------------------------------------------------------------------------------------------------------
 
 === Generate the HTTP layer keystore
 [source,shell]
 -----------------------------------------------------------------------------------------------------------
-$ES_HOME/bin/elasticsearch-certutil cert --out httpCa.p12 --ca ca.p12 --ca-pass password \
+$ES_HOME/bin/elasticsearch-certutil cert --out httpCa.p12 --ca ca.p12 --ca-pass password --pass "password" \
   --dns=localhost --dns=localhost.localdomain --dns=localhost4 --dns=localhost4.localdomain4 \
   --dns=localhost6 --dns=localhost6.localdomain6 \
   --ip=127.0.0.1 --ip=0:0:0:0:0:0:0:1

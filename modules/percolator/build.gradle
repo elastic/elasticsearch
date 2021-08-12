@@ -24,3 +24,7 @@ restResources {
     include '_common', 'indices', 'index', 'search', 'msearch'
   }
 }
+
+tasks.named("transformV7RestTests").configure({ task ->
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+})

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -74,6 +75,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static final String INGEST_ORIGIN = "ingest";
 
     private static final Logger logger = LogManager.getLogger(IngestService.class);
+    private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_EXPRESSION_RESOLVER =
+        new IndexNameExpressionResolver.DateMathExpressionResolver();
 
     private final ClusterService clusterService;
     private final ScriptService scriptService;
@@ -122,7 +125,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     public static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest,
-                                           final Metadata metadata) {
+        final Metadata metadata) {
+        return resolvePipelines(originalRequest, indexRequest, metadata, System.currentTimeMillis());
+    }
+
+    public static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest,
+                                           final Metadata metadata, final long epochMillis) {
         if (indexRequest.isPipelineResolved() == false) {
             final String requestPipeline = indexRequest.getPipeline();
             indexRequest.setPipeline(NOOP_PIPELINE_NAME);
@@ -132,7 +140,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             IndexMetadata indexMetadata = null;
             // start to look for default or final pipelines via settings found in the index meta data
             if (originalRequest != null) {
-                indexMetadata = metadata.indices().get(originalRequest.index());
+                indexMetadata = metadata.indices().get(resolveIndexName(originalRequest.index(), epochMillis));
             }
             // check the alias for the index request (this is how normal index requests are modeled)
             if (indexMetadata == null && indexRequest.index() != null) {
@@ -218,10 +226,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             indexRequest.isPipelineResolved(true);
         }
 
-
         // return whether this index request has a pipeline
         return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
+    }
+
+    private static String resolveIndexName(final String unresolvedIndexName, final long epochMillis) {
+        List<String> resolvedNames = DATE_MATH_EXPRESSION_RESOLVER.resolve(
+            new IndexNameExpressionResolver.ResolverContext(epochMillis),
+            List.of(unresolvedIndexName)
+        );
+        assert resolvedNames.size() == 1;
+        return resolvedNames.get(0);
     }
 
     public ClusterService getClusterService() {
@@ -654,7 +670,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
                 if (metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES) != null) {
                     Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
-                    mergedDynamicTemplates.putAll((Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES));
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> map = (Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES);
+                    mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }
                 handler.accept(null);
@@ -831,7 +849,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
         };
         String description = "this is a place holder pipeline, because pipeline with id [" +  id + "] could not be loaded";
-        return new Pipeline(id, description, null, new CompoundProcessor(failureProcessor));
+        return new Pipeline(id, description, null, null, new CompoundProcessor(failureProcessor));
     }
 
     static class PipelineHolder {

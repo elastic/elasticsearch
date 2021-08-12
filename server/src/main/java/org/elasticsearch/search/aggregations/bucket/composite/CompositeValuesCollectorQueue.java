@@ -18,8 +18,12 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
  * A specialized {@link PriorityQueue} implementation for composite buckets.
@@ -56,6 +60,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
 
     private LongArray docCounts;
     private boolean afterKeyIsSet = false;
+    private int leafReaderOrd = -1; // current LeafReaderContext ordinal
 
     /**
      * Constructs a composite queue with the specified size and sources.
@@ -111,14 +116,14 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     /**
      * Returns the lowest value (exclusive) of the leading source.
      */
-    Comparable getLowerValueLeadSource() {
+    Comparable<?> getLowerValueLeadSource() {
         return afterKeyIsSet ? arrays[0].getAfter() : null;
     }
 
     /**
      * Returns the upper value (inclusive) of the leading source.
      */
-    Comparable getUpperValueLeadSource() throws IOException {
+    Comparable<?> getUpperValueLeadSource() throws IOException {
         return size() >= maxSize ? arrays[0].toComparable(top()) : null;
     }
     /**
@@ -206,7 +211,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      */
     CompositeKey toCompositeKey(int slot) throws IOException {
         assert slot < maxSize;
-        Comparable[] values = new Comparable[arrays.length];
+        Comparable<?>[] values = new Comparable<?>[arrays.length];
         for (int i = 0; i < values.length; i++) {
             values[i] = arrays[i].toComparable(slot);
         }
@@ -226,18 +231,30 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * for each document.
      * The provided collector <code>in</code> is called on each composite bucket.
      */
-    LeafBucketCollector getLeafCollector(Comparable forceLeadSourceValue,
+    LeafBucketCollector getLeafCollector(Comparable<?> forceLeadSourceValue,
                                          LeafReaderContext context, LeafBucketCollector in) throws IOException {
         int last = arrays.length - 1;
         LeafBucketCollector collector = in;
+        boolean requiresRehashingWhenSwitchingLeafReaders = false;
         while (last > 0) {
-            collector = arrays[last--].getLeafCollector(context, collector);
+            SingleDimensionValuesSource<?> valuesSource = arrays[last--];
+            requiresRehashingWhenSwitchingLeafReaders |= valuesSource.requiresRehashingWhenSwitchingLeafReaders();
+            collector = valuesSource.getLeafCollector(context, collector);
         }
+        SingleDimensionValuesSource<?> valuesSource = arrays[last];
+        requiresRehashingWhenSwitchingLeafReaders |= valuesSource.requiresRehashingWhenSwitchingLeafReaders();
         if (forceLeadSourceValue != null) {
-            collector = arrays[last].getLeafCollector(forceLeadSourceValue, context, collector);
+            collector = valuesSource.getLeafCollector(forciblyCast(forceLeadSourceValue), context, collector);
         } else {
-            collector = arrays[last].getLeafCollector(context, collector);
+            collector = valuesSource.getLeafCollector(context, collector);
         }
+        boolean switchedLeafReaders = context.ord != leafReaderOrd;
+        if (map.isEmpty() == false && requiresRehashingWhenSwitchingLeafReaders && switchedLeafReaders) {
+            List<Map.Entry<Slot, Integer>> entries = new ArrayList<>(map.entrySet());
+            map.clear();
+            entries.forEach(e -> map.put(e.getKey(), e.getValue()));
+        }
+        leafReaderOrd = context.ord;
         return collector;
     }
 

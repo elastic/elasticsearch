@@ -10,10 +10,6 @@ package org.elasticsearch.repositories.encrypted;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
@@ -33,21 +29,22 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.security.GeneralSecurityException;
@@ -201,34 +198,45 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
-    public void finalizeSnapshot(
-        ShardGenerations shardGenerations,
-        long repositoryStateId,
-        Metadata clusterMetadata,
-        SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
-        Function<ClusterState, ClusterState> stateTransformer,
-        ActionListener<RepositoryData> listener
-    ) {
+    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+        final SnapshotInfo snapshotInfo = finalizeSnapshotContext.snapshotInfo();
         try {
             validateLocalRepositorySecret(snapshotInfo.userMetadata());
         } catch (RepositoryException passwordValidationException) {
-            listener.onFailure(passwordValidationException);
+            finalizeSnapshotContext.onFailure(passwordValidationException);
             return;
-        } finally {
-            // remove the repository password hash (and salt) from the snapshot metadata so that it is not displayed in the API response
-            // to the user
-            snapshotInfo.userMetadata().remove(PASSWORD_HASH_USER_METADATA_KEY);
-            snapshotInfo.userMetadata().remove(PASSWORD_SALT_USER_METADATA_KEY);
         }
+        // remove the repository password hash (and salt) from the snapshot metadata so that it is not displayed in the API response
+        // to the user
+        final Map<String, Object> updatedUserMetadata = new HashMap<>(snapshotInfo.userMetadata());
+        updatedUserMetadata.remove(PASSWORD_HASH_USER_METADATA_KEY);
+        updatedUserMetadata.remove(PASSWORD_SALT_USER_METADATA_KEY);
+        final SnapshotInfo updatedSnapshotInfo = new SnapshotInfo(
+            snapshotInfo.snapshot(),
+            snapshotInfo.indices(),
+            snapshotInfo.dataStreams(),
+            snapshotInfo.featureStates(),
+            snapshotInfo.reason(),
+            snapshotInfo.version(),
+            snapshotInfo.startTime(),
+            snapshotInfo.endTime(),
+            snapshotInfo.totalShards(),
+            snapshotInfo.successfulShards(),
+            snapshotInfo.shardFailures(),
+            snapshotInfo.includeGlobalState(),
+            updatedUserMetadata,
+            snapshotInfo.state(),
+            snapshotInfo.indexSnapshotDetails()
+        );
         super.finalizeSnapshot(
-            shardGenerations,
-            repositoryStateId,
-            clusterMetadata,
-            snapshotInfo,
-            repositoryMetaVersion,
-            stateTransformer,
-            listener
+            new FinalizeSnapshotContext(
+                finalizeSnapshotContext.updatedShardGenerations(),
+                finalizeSnapshotContext.repositoryStateId(),
+                finalizeSnapshotContext.clusterMetadata(),
+                updatedSnapshotInfo,
+                finalizeSnapshotContext.repositoryMetaVersion(),
+                finalizeSnapshotContext
+            )
         );
     }
 
@@ -619,6 +627,24 @@ public class EncryptedRepository extends BlobStoreRepository {
                     org.elasticsearch.core.internal.io.Streams.copy(encryptedInputStream, tmp, false);
                 }
                 delegatedBlobContainer.writeBlob(blobName, tmp.bytes(), failIfAlreadyExists);
+            }
+        }
+
+        @Override
+        public void writeBlob(
+            String blobName,
+            boolean failIfAlreadyExists,
+            boolean atomic,
+            CheckedConsumer<OutputStream, IOException> writer
+        ) throws IOException {
+            // TODO: this is just a stop-gap solution for until we have an encrypted output stream wrapper
+            try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
+                writer.accept(out);
+                if (atomic) {
+                    writeBlobAtomic(blobName, out.bytes(), failIfAlreadyExists);
+                } else {
+                    writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+                }
             }
         }
 

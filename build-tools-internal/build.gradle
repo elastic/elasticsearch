@@ -26,7 +26,7 @@ group = 'org.elasticsearch.gradle'
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'), project.getProviders())
 version = props.getProperty("elasticsearch")
 
 gradlePlugin {
@@ -110,6 +110,10 @@ gradlePlugin {
       id = 'elasticsearch.jdk-download'
       implementationClass = 'org.elasticsearch.gradle.internal.JdkDownloadPlugin'
     }
+    releaseTools {
+      id = 'elasticsearch.release-tools'
+      implementationClass = 'org.elasticsearch.gradle.internal.release.ReleaseToolsPlugin'
+    }
     repositories {
       id = 'elasticsearch.repositories'
       implementationClass = 'org.elasticsearch.gradle.internal.RepositoriesSetupPlugin'
@@ -165,13 +169,13 @@ gradlePlugin {
  *         Java version                                                      *
  *****************************************************************************/
 
-if (JavaVersion.current() < JavaVersion.VERSION_11) {
-  throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
-}
-
 def minCompilerJava = JavaVersion.toVersion(file('src/main/resources/minimumCompilerVersion').text)
 targetCompatibility = minCompilerJava
 sourceCompatibility = minCompilerJava
+
+if (JavaVersion.current() < JavaVersion.toVersion(minCompilerJava)) {
+  throw new GradleException("Java ${minCompilerJava} is required to build Elasticsearch but current Java is version ${JavaVersion.current()}.")
+}
 
 sourceSets {
   integTest {
@@ -205,7 +209,7 @@ dependencies {
   api gradleApi()
 
   api "org.elasticsearch:build-conventions:$version"
-  api "org.elasticsearch:build-tools:$version"
+  api "org.elasticsearch.gradle:build-tools:$version"
 
   api 'commons-codec:commons-codec:1.12'
   api 'org.apache.commons:commons-compress:1.19'
@@ -228,13 +232,14 @@ dependencies {
   api "org.apache.httpcomponents:httpclient:${props.getProperty('httpclient')}"
   api "org.apache.httpcomponents:httpcore:${props.getProperty('httpcore')}"
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
+  runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testImplementation "junit:junit:${props.getProperty('junit')}"
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
   testImplementation 'org.mockito:mockito-core:1.9.5'
   testImplementation "org.hamcrest:hamcrest:${props.getProperty('hamcrest')}"
 
-  testImplementation testFixtures("org.elasticsearch:build-tools:$version")
+  testImplementation testFixtures("org.elasticsearch.gradle:build-tools:$version")
 
   integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
   integTestImplementation("org.junit.jupiter:junit-jupiter") {

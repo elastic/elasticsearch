@@ -1,9 +1,6 @@
 [role="xpack"]
 [[security-api-delete-service-token]]
 === Delete service account tokens API
-
-beta::[]
-
 ++++
 <titleabbrev>Delete service account token</titleabbrev>
 ++++

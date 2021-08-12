@@ -101,20 +101,22 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
                 for (NodeInfo nodeInfo : response.getNodes()) {
                     nodeList.add(nodeInfo.getInfo(TransportInfo.class).getAddress().publishAddress().toString());
                 }
+                try {
+                    final String httpCaKey = Base64.getEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v1().getEncoded());
+                    final String httpCaCert = Base64.getEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v2().getEncoded());
+                    final String transportKey =
+                        Base64.getEncoder().encodeToString(transportKeysAndCertificates.get(0).v1().getEncoded());
+                    final String transportCert =
+                        Base64.getEncoder().encodeToString(transportKeysAndCertificates.get(0).v2().getEncoded());
+                    listener.onResponse(new NodeEnrollmentResponse(httpCaKey,
+                        httpCaCert,
+                        transportKey,
+                        transportCert,
+                        nodeList));
+                } catch (CertificateEncodingException e) {
+                    listener.onFailure(new ElasticsearchException("Unable to enroll node", e));
+                }
             }, listener::onFailure
         ));
-        try {
-            final String httpCaKey = Base64.getUrlEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v1().getEncoded());
-            final String httpCaCert = Base64.getUrlEncoder().encodeToString(httpCaKeysAndCertificates.get(0).v2().getEncoded());
-            final String transportKey = Base64.getUrlEncoder().encodeToString(transportKeysAndCertificates.get(0).v1().getEncoded());
-            final String transportCert = Base64.getUrlEncoder().encodeToString(transportKeysAndCertificates.get(0).v2().getEncoded());
-            listener.onResponse(new NodeEnrollmentResponse(httpCaKey,
-                httpCaCert,
-                transportKey,
-                transportCert,
-                nodeList));
-        } catch (CertificateEncodingException e) {
-            listener.onFailure(new ElasticsearchException("Unable to enroll node", e));
-        }
     }
 }

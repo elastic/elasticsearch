@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
@@ -21,6 +20,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithFunctionProcessor.doProcess;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -46,12 +47,12 @@ public abstract class StartsWith extends CaseInsensitiveScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution fieldResolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution fieldResolution = isStringAndExact(input, sourceText(), FIRST);
         if (fieldResolution.unresolved()) {
             return fieldResolution;
         }
 
-        return isStringAndExact(pattern, sourceText(), ParamOrdinal.SECOND);
+        return isStringAndExact(pattern, sourceText(), SECOND);
     }
 
     public Expression input() {

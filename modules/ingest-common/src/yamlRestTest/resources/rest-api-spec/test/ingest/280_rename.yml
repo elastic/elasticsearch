@@ -1,0 +1,40 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test Rename Processor with template snippets and ignore_missing":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "{{foo}}",
+                  "target_field": "bar",
+                  "ignore_missing": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          message: "test"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.message: "test" }

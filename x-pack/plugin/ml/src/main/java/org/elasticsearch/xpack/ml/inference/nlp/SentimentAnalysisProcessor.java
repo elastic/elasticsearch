@@ -11,10 +11,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SentimentAnalysisResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SentimentAnalysisConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
@@ -28,8 +28,9 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
     private final BertTokenizer tokenizer;
     private final List<String> classLabels;
 
-    SentimentAnalysisProcessor(BertTokenizer tokenizer, @Nullable List<String> classLabels) {
+    SentimentAnalysisProcessor(BertTokenizer tokenizer, SentimentAnalysisConfig config) {
         this.tokenizer = tokenizer;
+        List<String> classLabels = config.getClassificationLabels();
         if (classLabels == null || classLabels.isEmpty()) {
             this.classLabels = List.of("negative", "positive");
         } else {
@@ -43,7 +44,7 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
         if (classLabels.size() != 2) {
             throw new ValidationException().addValidationError(
                 String.format(Locale.ROOT, "Sentiment analysis requires exactly 2 [%s]. Invalid labels %s",
-                    NlpTaskConfig.CLASSIFICATION_LABELS, classLabels)
+                    SentimentAnalysisConfig.CLASSIFICATION_LABELS, classLabels)
             );
         }
     }

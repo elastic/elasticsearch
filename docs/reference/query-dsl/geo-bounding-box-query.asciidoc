@@ -169,16 +169,13 @@ GET my_locations,my_geoshapes/_search
 accept geo points with invalid latitude or longitude, set to
 `COERCE` to also try to infer correct latitude or longitude. (default is `STRICT`).
 
-|`type` |Set to one of `indexed` or `memory` to defines whether this filter will
-be executed in memory or indexed. See <<geo-bbox-type,Type>> below for further details
-Default is `memory`.
 |=======================================================================
 
 [[query-dsl-geo-bounding-box-query-accepted-formats]]
 [discrete]
 ==== Accepted Formats
 
-In much the same way the geo_point type can accept different
+In much the same way the `geo_point` type can accept different
 representations of the geo point, the filter can accept it as well:
 
 [discrete]
@@ -387,47 +384,6 @@ GET my_locations/_search
 The filter can work with multiple locations / points per document. Once
 a single location / point matches the filter, the document will be
 included in the filter
-
-[discrete]
-[[geo-bbox-type]]
-==== Type
-
-The type of the bounding box execution by default is set to `memory`,
-which means in memory checks if the doc falls within the bounding box
-range. In some cases, an `indexed` option will perform faster (but note
-that the `geo_point` type must have lat and lon indexed in this case).
-Note, when using the indexed option, multi locations per document field
-are not supported. Here is an example:
-
-[source,console]
---------------------------------------------------
-GET my_locations/_search
-{
-  "query": {
-    "bool": {
-      "must": {
-        "match_all": {}
-      },
-      "filter": {
-        "geo_bounding_box": {
-          "pin.location": {
-            "top_left": {
-              "lat": 40.73,
-              "lon": -74.1
-            },
-            "bottom_right": {
-              "lat": 40.10,
-              "lon": -71.12
-            }
-          },
-          "type": "indexed"
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[warning:Deprecated field [type] used, this field is unused and will be removed entirely]
 
 [discrete]
 ==== Ignore Unmapped

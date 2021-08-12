@@ -33,6 +33,11 @@ public class GetSnapshotsRequestTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("can't use size limit with verbose=false"));
         }
         {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false).offset(randomIntBetween(1, 500));
+            final ActionRequestValidationException e = request.validate();
+            assertThat(e.getMessage(), containsString("can't use offset with verbose=false"));
+        }
+        {
             final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false)
                 .sort(GetSnapshotsRequest.SortBy.INDICES);
             final ActionRequestValidationException e = request.validate();
@@ -45,9 +50,16 @@ public class GetSnapshotsRequestTests extends ESTestCase {
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false)
-                .after(new GetSnapshotsRequest.After("foo", "bar"));
+                .after(new GetSnapshotsRequest.After("foo", "repo", "bar"));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after with verbose=false"));
+        }
+        {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").after(
+                new GetSnapshotsRequest.After("foo", "repo", "bar")
+            ).offset(randomIntBetween(1, 500));
+            final ActionRequestValidationException e = request.validate();
+            assertThat(e.getMessage(), containsString("can't use after and offset simultaneously"));
         }
     }
 }

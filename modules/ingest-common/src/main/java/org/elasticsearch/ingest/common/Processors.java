@@ -59,7 +59,7 @@ public final class Processors {
      * @return structured JSON object
      */
     public static Object json(Object fieldValue) {
-        return JsonProcessor.apply(fieldValue);
+        return JsonProcessor.apply(fieldValue, false);
     }
 
     /**
@@ -72,7 +72,7 @@ public final class Processors {
      *             contains the JSON string
      */
     public static void json(Map<String, Object> map, String field) {
-        JsonProcessor.apply(map, field);
+        JsonProcessor.apply(map, field, false, JsonProcessor.ConflictStrategy.REPLACE);
     }
 
     /**

@@ -8,12 +8,13 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
+import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -22,25 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Definition of a runtime field that can be defined as part of the runtime section of the index mappings
  */
 public interface RuntimeField extends ToXContentFragment {
-
-    @Override
-    default XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name());
-        builder.field("type", typeName());
-        doXContentBody(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    /**
-     * Prints out the parameters that subclasses expose
-     */
-    void doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     /**
      * Exposes the name of the runtime field
@@ -49,18 +37,12 @@ public interface RuntimeField extends ToXContentFragment {
     String name();
 
     /**
-     * Exposes the type of the runtime field
-     * @return type of the field
-     */
-    String typeName();
-
-    /**
      * Exposes the {@link MappedFieldType}s backing this runtime field, used to execute queries, run aggs etc.
      * @return the {@link MappedFieldType}s backing this runtime field
      */
-    Collection<MappedFieldType> asMappedFieldTypes();
+    Stream<MappedFieldType> asMappedFieldTypes();
 
-    abstract class Builder implements ToXContent {
+    abstract class Builder {
         final String name;
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -78,14 +60,11 @@ public interface RuntimeField extends ToXContentFragment {
 
         protected abstract RuntimeField createRuntimeField(MappingParserContext parserContext);
 
-        @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-            for (Parameter<?> parameter : getParameters()) {
-                parameter.toXContent(builder, includeDefaults);
-            }
-            return builder;
-        }
+        protected abstract RuntimeField createChildRuntimeField(
+            MappingParserContext parserContext,
+            String parentName,
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        );
 
         public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();
@@ -110,6 +89,9 @@ public interface RuntimeField extends ToXContentFragment {
                 parameter.parse(name, parserContext, propNode);
                 iterator.remove();
             }
+            for (Parameter<?> parameter : getParameters()) {
+                parameter.validate();
+            }
         }
     }
 
@@ -124,12 +106,14 @@ public interface RuntimeField extends ToXContentFragment {
             this.builderFunction = builderFunction;
         }
 
-        RuntimeField parse(String name, Map<String, Object> node, MappingParserContext parserContext)
+        RuntimeField.Builder parse(String name,
+                           Map<String, Object> node,
+                           MappingParserContext parserContext)
             throws MapperParsingException {
 
             RuntimeField.Builder builder = builderFunction.apply(name);
             builder.parse(name, parserContext, node);
-            return builder.createRuntimeField(parserContext);
+            return builder;
         }
     }
 
@@ -143,6 +127,27 @@ public interface RuntimeField extends ToXContentFragment {
      */
     static Map<String, RuntimeField> parseRuntimeFields(Map<String, Object> node,
                                                         MappingParserContext parserContext,
+                                                        boolean supportsRemoval) {
+        return parseRuntimeFields(node, parserContext, b -> b.createRuntimeField(parserContext), supportsRemoval);
+    }
+
+    /**
+     * Parse runtime fields from the provided map, using the provided parser context.
+     *
+     * This method also allows you to define how the runtime field will be created from its
+     * builder, so that it can be used by composite fields to build child fields using
+     * parent factory parameters.
+     *
+     * @param node the map that holds the runtime fields configuration
+     * @param parserContext the parser context that holds info needed when parsing mappings
+     * @param builder a function to convert a RuntimeField.Builder into a RuntimeField
+     * @param supportsRemoval whether a null value for a runtime field should be properly parsed and
+     *                        translated to the removal of such runtime field
+     * @return the parsed runtime fields
+     */
+    static Map<String, RuntimeField> parseRuntimeFields(Map<String, Object> node,
+                                                        MappingParserContext parserContext,
+                                                        Function<RuntimeField.Builder, RuntimeField> builder,
                                                         boolean supportsRemoval) {
         Map<String, RuntimeField> runtimeFields = new HashMap<>();
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
@@ -171,7 +176,7 @@ public interface RuntimeField extends ToXContentFragment {
                     throw new MapperParsingException("No handler for type [" + type +
                         "] declared on runtime field [" + fieldName + "]");
                 }
-                runtimeFields.put(fieldName, typeParser.parse(fieldName, propNode, parserContext));
+                runtimeFields.put(fieldName, builder.apply(typeParser.parse(fieldName, propNode, parserContext)));
                 propNode.remove("type");
                 MappingParser.checkNoRemainingFields(fieldName, propNode);
                 iterator.remove();
@@ -193,7 +198,7 @@ public interface RuntimeField extends ToXContentFragment {
     static Map<String, MappedFieldType> collectFieldTypes(Collection<RuntimeField> runtimeFields) {
         return runtimeFields.stream()
             .flatMap(runtimeField -> {
-                List<String> names = runtimeField.asMappedFieldTypes().stream().map(MappedFieldType::name)
+                List<String> names = runtimeField.asMappedFieldTypes().map(MappedFieldType::name)
                     .filter(name -> name.equals(runtimeField.name()) == false
                         && (name.startsWith(runtimeField.name() + ".") == false
                         || name.length() > runtimeField.name().length() + 1 == false))
@@ -202,11 +207,23 @@ public interface RuntimeField extends ToXContentFragment {
                     throw new IllegalStateException("Found sub-fields with name not belonging to the parent field they are part of "
                         + names);
                 }
-                return runtimeField.asMappedFieldTypes().stream();
+                return runtimeField.asMappedFieldTypes();
             })
             .collect(Collectors.toUnmodifiableMap(MappedFieldType::name, mappedFieldType -> mappedFieldType,
                 (t, t2) -> {
                     throw new IllegalArgumentException("Found two runtime fields with same name [" + t.name() + "]");
                 }));
+    }
+
+    static <T> Function<FieldMapper, T> initializerNotSupported() {
+        return mapper -> { throw new UnsupportedOperationException(); };
+    }
+
+    static Script parseScript(String name, MappingParserContext parserContext, Object scriptObject) {
+        Script script = Script.parse(scriptObject);
+        if (script.getType() == ScriptType.STORED) {
+            throw new IllegalArgumentException("stored scripts are not supported for runtime field [" + name + "]");
+        }
+        return script;
     }
 }

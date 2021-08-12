@@ -151,7 +151,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return true;
     }
 
-    protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
+    public TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
         return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
     }
 

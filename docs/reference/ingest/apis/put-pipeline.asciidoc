@@ -47,7 +47,7 @@ PUT _ingest/pipeline/my-pipeline-id
 [[put-pipeline-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[put-pipeline-api-request-body]]

@@ -141,7 +141,7 @@ By default, all available feature states will be included in the snapshot if
 is `false`.
 
 `metadata`::
-(Optional, string)
+(Optional, object)
 Attaches arbitrary metadata to the snapshot, such as a record of who took the snapshot, why it was taken, or any other useful data. Metadata must be less than 1024 bytes.
 
 [[create-snapshot-api-partial]]

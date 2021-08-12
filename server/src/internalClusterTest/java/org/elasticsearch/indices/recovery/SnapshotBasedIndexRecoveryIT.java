@@ -319,8 +319,10 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     .build()
             );
 
-            // We're setting the rate limiting at 50kb/s, meaning that
-            // we need an index with size > 50kb
+            //we theoretically only need more than 256 bytes, since SimpleRateLimiter.MIN_PAUSE_CHECK_MSEC=5.
+            // We do need a bit more though to ensure we have enough time to handle if network and CI is generally slow,
+            // since if the experienced download rate is less than 50KB there will be no throttling.
+            // I would at least 4x that to be on a somewhat safe side against things like a single GC.
             int numDocs = randomIntBetween(1000, 2000);
             indexDocs(indexName, 0, numDocs);
 

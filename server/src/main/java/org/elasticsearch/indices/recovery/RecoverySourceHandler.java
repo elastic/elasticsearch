@@ -727,10 +727,12 @@ public class RecoverySourceHandler {
         }
 
         private void trackOutstandingRequest(ListenableFuture<Void> future) {
-            boolean cancelled = false;
+            boolean cancelled;
             synchronized (outstandingRequests) {
-                outstandingRequests.add(future);
                 cancelled = cancellableThreads.isCancelled();
+                if (cancelled == false) {
+                    outstandingRequests.add(future);
+                }
             }
             if (cancelled) {
                 cancellableThreads.checkForCancel();

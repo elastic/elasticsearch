@@ -42,7 +42,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
   }
 
-  String oldVersion = bwcVersion.toString().replace('-SNAPSHOT', '')
+  String oldVersion = bwcVersion.toString()
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "processTestResources"

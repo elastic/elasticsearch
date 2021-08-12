@@ -628,14 +628,14 @@ public class RecoverySourceHandler {
         new SnapshotRecoverFileRequestsSender(shardRecoveryPlan, listener).start();
     }
 
-    class SnapshotRecoverFileRequestsSender {
+    private class SnapshotRecoverFileRequestsSender {
         private final ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover;
-        final ActionListener<List<StoreFileMetadata>> listener;
-        final CountDown countDown;
-        final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> pendingSnapshotFilesToRecover;
-        final AtomicBoolean cancelled = new AtomicBoolean();
-        final Set<ListenableFuture<Void>> outstandingRequests = new HashSet<>(maxConcurrentSnapshotFileDownloads);
-        List<StoreFileMetadata> filesFailedToDownloadFromSnapshot;
+        private final ActionListener<List<StoreFileMetadata>> listener;
+        private final CountDown countDown;
+        private final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> pendingSnapshotFilesToRecover;
+        private final AtomicBoolean cancelled = new AtomicBoolean();
+        private final Set<ListenableFuture<Void>> outstandingRequests = new HashSet<>(maxConcurrentSnapshotFileDownloads);
+        private List<StoreFileMetadata> filesFailedToDownloadFromSnapshot;
 
         SnapshotRecoverFileRequestsSender(ShardRecoveryPlan shardRecoveryPlan, ActionListener<List<StoreFileMetadata>> listener) {
             this.snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover();
@@ -727,8 +727,13 @@ public class RecoverySourceHandler {
         }
 
         private void trackOutstandingRequest(ListenableFuture<Void> future) {
+            boolean cancelled = false;
             synchronized (outstandingRequests) {
                 outstandingRequests.add(future);
+                cancelled = cancellableThreads.isCancelled();
+            }
+            if (cancelled) {
+                cancellableThreads.checkForCancel();
             }
         }
 
@@ -743,7 +748,7 @@ public class RecoverySourceHandler {
 
             final Set<ListenableFuture<Void>> pendingRequests;
             synchronized (outstandingRequests) {
-                pendingRequests = outstandingRequests;
+                pendingRequests = new HashSet<>(outstandingRequests);
             }
 
             if (pendingRequests.isEmpty()) {

@@ -24,6 +24,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.IntStream;
 
 /**
@@ -50,7 +51,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          * @param partSize     size of the single chunk
          */
         public FileInfo(String name, StoreFileMetadata metadata, ByteSizeValue partSize) {
-            this.name = name;
+            this.name = Objects.requireNonNull(name);
             this.metadata = metadata;
 
             long partBytes = Long.MAX_VALUE;
@@ -74,14 +75,14 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         }
 
         public FileInfo(StreamInput in) throws IOException {
-            this(in.readString(), new StoreFileMetadata(in), new ByteSizeValue(in));
+            this(in.readString(), new StoreFileMetadata(in), in.readOptionalWriteable(ByteSizeValue::new));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             metadata.writeTo(out);
-            partSize.writeTo(out);
+            out.writeOptionalWriteable(partSize);
         }
 
         /**

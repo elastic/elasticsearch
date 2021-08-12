@@ -46,6 +46,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -77,6 +78,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase {
 
     @Override
@@ -612,6 +614,49 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             InstrumentedRepo newReplicaRepo = getRepositoryOnNode(repoName, newReplica);
             assertThat(newReplicaRepo.totalBytesRead.get(), is(greaterThan(0L)));
             assertThat(newReplicaRepo.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
+        }
+    }
+
+    public void testDisabledSnapshotBasedRecoveryUsesSourceFiles() throws Exception {
+        updateSetting(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), "false");
+
+        try {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+            createIndex(indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                    .build()
+            );
+
+            int numDocs = randomIntBetween(300, 1000);
+            indexDocs(indexName, 0, numDocs);
+
+            String repoName = "repo";
+            createRepo(repoName, TestRepositoryPlugin.INSTRUMENTED_TYPE);
+            createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+            assertAcked(
+                client().admin().indices().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            );
+
+            ensureGreen(indexName);
+            assertDocumentsAreEqual(indexName, numDocs);
+
+            RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
+            String currentPrimary = recoveryState.getSourceNode().getName();
+            String replica = recoveryState.getTargetNode().getName();
+            assertPeerRecoveryWasSuccessful(recoveryState, currentPrimary, replica);
+
+            InstrumentedRepo replicaRepo = getRepositoryOnNode(repoName, replica);
+            assertThat(replicaRepo.totalBytesRead.get(), is(equalTo(0L)));
+        } finally {
+            updateSetting(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), null);
         }
     }
 

@@ -58,6 +58,8 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 
 public class ExpressionBuilder extends IdentifierBuilder {
@@ -73,7 +75,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
-        return visitList(contexts, Expression.class);
+        return visitList(this, contexts, Expression.class);
     }
 
     @Override
@@ -84,7 +86,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public List<Attribute> visitJoinKeys(JoinKeysContext ctx) {
         try {
-            return ctx != null ? visitList(ctx.expression(), Attribute.class) : emptyList();
+            return ctx != null ? visitList(this, ctx.expression(), Attribute.class) : emptyList();
         } catch (ClassCastException ex) {
             Source source = source(ctx);
             throw new ParsingException(source, "Unsupported join key ", source.text());
@@ -203,7 +205,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
         List<? extends ParserRuleContext> expressions,
         java.util.function.Function<Expression, Expression> mapper
     ) {
-        return Predicates.combineOr(expressions(expressions).stream().map(mapper::apply).collect(toList()));
+        return Predicates.combineOr(expressions(expressions).stream().map(mapper).collect(toList()));
     }
 
     @Override

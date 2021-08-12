@@ -157,6 +157,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             builder.endObject();
             Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
             assertThat(map.get("doc"), is(instanceOf(Map.class)));
+            @SuppressWarnings("unchecked")
             Map<String, Object> source = (Map<String, Object>) ((Map) map.get("doc")).get("_source");
             assertThat(source.get("key"), is(Arrays.asList("value")));
         }

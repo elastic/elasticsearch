@@ -103,6 +103,7 @@ public class MetadataIT extends ESIntegTestCase {
         Object nestedObject = returnedMetadata.get("complex");
         assertNotNull(nestedObject);
 
+        @SuppressWarnings("unchecked")
         Map<String, Object> nestedMap = (Map<String, Object>)nestedObject;
         assertEquals("value", nestedMap.get("nested"));
     }

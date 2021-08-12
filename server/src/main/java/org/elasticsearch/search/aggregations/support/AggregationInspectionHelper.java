@@ -134,7 +134,7 @@ public class AggregationInspectionHelper {
         return agg.getDocCount() > 0;
     }
 
-    public static <B extends InternalRange.Bucket, R extends InternalRange<B, R>> boolean hasValue(InternalRange<B, R> agg) {
+    public static boolean hasValue(InternalRange<?, ?> agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 
@@ -142,8 +142,7 @@ public class AggregationInspectionHelper {
         return agg.getDocCount() > 0;
     }
 
-    public static <A extends InternalSignificantTerms<A, B>,
-        B extends InternalSignificantTerms.Bucket<B>> boolean hasValue(InternalSignificantTerms<A, B> agg) {
+    public static boolean hasValue(InternalSignificantTerms<?, ?> agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 

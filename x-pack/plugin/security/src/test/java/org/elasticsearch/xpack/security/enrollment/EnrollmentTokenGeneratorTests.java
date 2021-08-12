@@ -129,7 +129,8 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
             anyCheckedSupplier(), anyCheckedFunction()))
             .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getHttpInfoResponseBody));
 
-        final String tokenNode = enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic")).encode();
+        final String tokenNode = enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray()))
+            .getEncoded();
 
         Map<String, String> infoNode = getDecoded(tokenNode);
         assertEquals("8.0.0", infoNode.get("ver"));
@@ -137,8 +138,8 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
         assertEquals("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", infoNode.get("fgr"));
         assertEquals("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg", infoNode.get("key"));
 
-        final String tokenKibana = enrollmentTokenGenerator.createKibanaEnrollmentToken("elastic", new SecureString("elastic"))
-            .encode();
+        final String tokenKibana = enrollmentTokenGenerator.createKibanaEnrollmentToken("elastic",
+            new SecureString("elastic".toCharArray())).getEncoded();
 
         Map<String, String> infoKibana = getDecoded(tokenKibana);
         assertEquals("8.0.0", infoKibana.get("ver"));
@@ -158,7 +159,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
             anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic")).encode());
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling POST "));
     }
 
@@ -192,7 +193,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
             anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic")).encode());
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling GET "));
     }
 
@@ -244,7 +245,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
             anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic")).encode());
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.equalTo("Unable to create an enrollment token. Elasticsearch node HTTP layer " +
             "SSL configuration Keystore doesn't contain any PrivateKey entries where the associated certificate is a CA certificate"));
     }
@@ -297,7 +298,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
             anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic")).encode());
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.equalTo("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL " +
             "configuration Keystore contains multiple PrivateKey entries where the associated certificate is a CA certificate"));
     }
@@ -315,7 +316,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
         final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment_no_keystore, client);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic")).encode());
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.containsString("Elasticsearch node HTTP layer SSL configuration is not configured " +
             "with a keystore"));
     }
@@ -343,7 +344,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
         final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment_not_enabled, client);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic")).encode());
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.equalTo("[xpack.security.enrollment.enabled] must be set to `true` to " +
             "create an enrollment token"));
     }

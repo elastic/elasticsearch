@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.tool;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpecBuilder;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
 
 import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -189,28 +190,42 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     private void checkClusterHealthWithRetries(Environment env, Terminal terminal, String username, SecureString password, int retries,
                                                boolean force) throws Exception {
         CommandLineHttpClient client = clientFunction.apply(env);
+        final URL clusterHealthUrl = CommandLineHttpClient.createURL(new URL(client.getDefaultURL()), "_cluster/health", "?pretty");
+        final HttpResponse response;
         try {
-            client.checkClusterHealthWithRetriesWaitingForCluster(username, password, 0, force);
+            response = client.execute("GET", clusterHealthUrl, username, password, () -> null, CommandLineHttpClient::responseBuilder);
         } catch (Exception e) {
-            if ((e instanceof ElasticsearchStatusException) &&
-                (((ElasticsearchStatusException) e).status().getStatus() == HttpURLConnection.HTTP_UNAUTHORIZED ||
-                ((ElasticsearchStatusException) e).status().getStatus() == HttpURLConnection.HTTP_FORBIDDEN)) {
-                // We try to write the roles file first and then the users one, but theoretically we could have loaded the users
-                // before we have actually loaded the roles so we also retry on 403 ( temp user is found but has no roles )
-                if ( retries > 0 ) {
-                    terminal.println(
-                        Terminal.Verbosity.VERBOSE,
-                        "Unexpected http status [" + ((ElasticsearchStatusException) e).status().getStatus()
-                            + "] while attempting to determine cluster health. Will retry at most " + retries + " more times."
-                    );
-                    Thread.sleep(1000);
-                    retries -= 1;
-                    checkClusterHealthWithRetries(env, terminal, username, password, retries, force);
-                } else {
-                    throw new UserException(
-                        ExitCodes.DATA_ERROR, "Failed to determine the health of the cluster. Unexpected http status.");
-                }
+            throw new UserException(ExitCodes.UNAVAILABLE, "Failed to determine the health of the cluster. ", e);
+        }
+        final int responseStatus = response.getHttpStatus();
+        if (responseStatus != HttpURLConnection.HTTP_OK) {
+            // We try to write the roles file first and then the users one, but theoretically we could have loaded the users
+            // before we have actually loaded the roles so we also retry on 403 ( temp user is found but has no roles )
+            if ((responseStatus == HttpURLConnection.HTTP_UNAUTHORIZED || responseStatus == HttpURLConnection.HTTP_FORBIDDEN)
+                && retries > 0 ) {
+                terminal.println(
+                    Terminal.Verbosity.VERBOSE,
+                    "Unexpected http status [" + responseStatus + "] while attempting to determine cluster health. Will retry at most "
+                        + retries
+                        + " more times."
+                );
+                Thread.sleep(1000);
+                retries -= 1;
+                checkClusterHealthWithRetries(env, terminal, username, password, retries, force);
             } else {
+                throw new UserException(
+                    ExitCodes.DATA_ERROR,
+                    "Failed to determine the health of the cluster. Unexpected http status [" + responseStatus + "]"
+                );
+            }
+        } else {
+            final String clusterStatus = Objects.toString(response.getResponseBody().get("status"), "");
+            if (clusterStatus.isEmpty()) {
+                throw new UserException(
+                    ExitCodes.DATA_ERROR,
+                    "Failed to determine the health of the cluster. Cluster health API did not return a status value."
+                );
+            } else if ("red".equalsIgnoreCase(clusterStatus) && force == false) {
                 terminal.errorPrintln("Failed to determine the health of the cluster. Cluster health is currently RED.");
                 terminal.errorPrintln("This means that some cluster data is unavailable and your cluster is not fully functional.");
                 terminal.errorPrintln("The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/"
@@ -225,7 +240,17 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
                 throw new UserException(ExitCodes.UNAVAILABLE,
                     "Failed to determine the health of the cluster. Cluster health is currently RED.");
             }
+            // else it is yellow or green so we can continue
         }
+    }
+
+    protected char[] generatePassword(int passwordLength) {
+        final char[] passwordChars = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~!@#$%^&*-_=+?").toCharArray();
+        char[] characters = new char[passwordLength];
+        for (int i = 0; i < passwordLength; ++i) {
+            characters[i] = passwordChars[secureRandom.nextInt(passwordChars.length)];
+        }
+        return characters;
     }
 
     private String generateUsername() {
@@ -236,15 +261,6 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             characters[i] = usernameChars[secureRandom.nextInt(usernameChars.length)];
         }
         return "enrollment_autogenerated_" + new String(characters);
-    }
-
-    protected char[] generatePassword(int passwordLength) {
-        final char[] passwordChars = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~!@#$%^&*-_=+?").toCharArray();
-        char[] characters = new char[passwordLength];
-        for (int i = 0; i < passwordLength; ++i) {
-            characters[i] = passwordChars[secureRandom.nextInt(passwordChars.length)];
-        }
-        return characters;
     }
 
     /**

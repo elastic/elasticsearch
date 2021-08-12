@@ -33,7 +33,7 @@ public class EnrollmentToken {
      * @param apiKey         API Key credential in the form apiKeyId:ApiKeySecret to be used for enroll calls
      * @param fingerprint    hex encoded SHA256 fingerprint of the HTTP CA cert
      * @param version        node version number
-     * @param boundAddress   IP Addresses and port numbers for the interface where the Elasticsearch node is listening on
+     * @param boundAddress   IP Addresses and port numbers for the interfaces where the Elasticsearch node is listening on
      */
     public EnrollmentToken(String apiKey, String fingerprint, String version, List<String> boundAddress) {
         this.apiKey = Objects.requireNonNull(apiKey);
@@ -57,7 +57,7 @@ public class EnrollmentToken {
         return Strings.toString(builder);
     }
 
-    public String encode() throws Exception {
+    public String getEncoded() throws Exception {
         final String jsonString = getRaw();
         return Base64.getUrlEncoder().encodeToString(jsonString.getBytes(StandardCharsets.UTF_8));
     }

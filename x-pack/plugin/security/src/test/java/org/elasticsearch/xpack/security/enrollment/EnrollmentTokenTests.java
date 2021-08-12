@@ -34,7 +34,7 @@ public class EnrollmentTokenTests extends ESTestCase {
         final String version = enrollmentToken.getVersion();
         final List<String> boundAddresses = enrollmentToken.getBoundAddress();
         final String jsonString = enrollmentToken.getRaw();
-        final String encoded = enrollmentToken.encode();
+        final String encoded = enrollmentToken.getEncoded();
         final Map<String, String> enrollmentMap;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             final Map<String, Object> info = parser.map();

@@ -77,9 +77,9 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
         try {
             EnrollmentTokenGenerator enrollmentTokenGenerator = createEnrollmentTokenFunction.apply(env);
             if (tokenScope.equals("node")) {
-                terminal.println(enrollmentTokenGenerator.createNodeEnrollmentToken(username, password).encode());
+                terminal.println(enrollmentTokenGenerator.createNodeEnrollmentToken(username, password).getEncoded());
             } else {
-                terminal.println(enrollmentTokenGenerator.createKibanaEnrollmentToken(username, password).encode());
+                terminal.println(enrollmentTokenGenerator.createKibanaEnrollmentToken(username, password).getEncoded());
             }
         } catch (Exception e) {
             terminal.errorPrintln("Unable to create enrollment token for scope [" + tokenScope + "]");

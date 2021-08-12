@@ -6,10 +6,7 @@
  */
 package org.elasticsearch.xpack.security.tool;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
@@ -202,7 +199,7 @@ public class CommandLineHttpClient {
     /**
      * If cluster is not up yet (connection refused or cluster still Red), we will retry @retries number of times
      */
-    public void checkClusterHealthWithRetriesWaitingForCluster(String username, SecureString password, int retries, boolean force)
+    public void checkClusterHealthWithRetriesWaitingForCluster(String username, SecureString password, int retries)
         throws Exception {
         final URL clusterHealthUrl = createURL(new URL(getDefaultURL()), "_cluster/health", "?pretty");
         HttpResponse response = null;
@@ -212,7 +209,7 @@ public class CommandLineHttpClient {
             if (retries > 0) {
                 Thread.sleep(1000);
                 retries -= 1;
-                checkClusterHealthWithRetriesWaitingForCluster(username, password, retries ,force);
+                checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
             } else {
                 throw new IllegalStateException("Failed to determine the health of the cluster. ", e);
             }
@@ -228,11 +225,11 @@ public class CommandLineHttpClient {
                 throw new IllegalStateException(
                     "Failed to determine the health of the cluster. Cluster health API did not return a status value."
                 );
-            } else if ("red".equalsIgnoreCase(clusterStatus) && force == false) {
+            } else if ("red".equalsIgnoreCase(clusterStatus)) {
                 if (retries > 0) {
                     Thread.sleep(1000);
                     retries -= 1;
-                    checkClusterHealthWithRetriesWaitingForCluster(username, password, retries, force);
+                    checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
                 } else {
                     throw new IllegalStateException(
                         "Failed to determine the health of the cluster. Cluster health is currently RED.");

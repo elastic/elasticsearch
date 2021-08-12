@@ -47,7 +47,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -162,7 +161,7 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
     public void testUnhealthyCluster() throws Exception {
         String scope = randomBoolean() ? "node" : "kibana";
         doThrow(new IllegalStateException("Failed to determine the health of the cluster. Cluster health is currently RED."))
-            .when(client).checkClusterHealthWithRetriesWaitingForCluster(anyString(), any(SecureString.class), anyInt(), anyBoolean());
+            .when(client).checkClusterHealthWithRetriesWaitingForCluster(anyString(), any(SecureString.class), anyInt());
         UserException e = expectThrows(UserException.class, () -> {
             execute(randomFrom("-s", "--s"), scope);
         });

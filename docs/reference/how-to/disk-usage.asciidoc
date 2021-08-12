@@ -27,64 +27,9 @@ PUT index
 
 <<text,`text`>> fields store normalization factors in the index in order to be
 able to score documents. If you only need matching capabilities on a `text`
-field but do not care about the produced scores, you can configure Elasticsearch
-to not write norms to the index:
-
-[source,console]
---------------------------------------------------
-PUT index
-{
-  "mappings": {
-    "properties": {
-      "foo": {
-        "type": "text",
-        "norms": false
-      }
-    }
-  }
-}
---------------------------------------------------
-
-<<text,`text`>> fields also store frequencies and positions in the index by
-default. Frequencies are used to compute scores and positions are used to run
-phrase queries. If you do not need to run phrase queries, you can tell
-Elasticsearch to not index positions:
-
-[source,console]
---------------------------------------------------
-PUT index
-{
-  "mappings": {
-    "properties": {
-      "foo": {
-        "type": "text",
-        "index_options": "freqs"
-      }
-    }
-  }
-}
---------------------------------------------------
-
-Furthermore if you do not care about scoring either, you can configure
-Elasticsearch to just index matching documents for every term. You will
-still be able to search on this field, but phrase queries will raise errors
-and scoring will assume that terms appear only once in every document.
-
-[source,console]
---------------------------------------------------
-PUT index
-{
-  "mappings": {
-    "properties": {
-      "foo": {
-        "type": "text",
-        "norms": false,
-        "index_options": "freqs"
-      }
-    }
-  }
-}
---------------------------------------------------
+field but do not care about the produced scores, you can use the
+<<match-only-text-field-type,`match_only_text`>> type instead. This field type
+saves significant space by dropping scoring and positional information.
 
 [discrete]
 [[default-dynamic-string-mapping]]

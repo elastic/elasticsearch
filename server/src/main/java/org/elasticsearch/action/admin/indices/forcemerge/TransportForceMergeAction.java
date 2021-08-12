@@ -73,7 +73,7 @@ public class TransportForceMergeAction
         assert (task instanceof CancellableTask) == false; // TODO: add cancellation handling here once the task supports it
         threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(listener,
             () -> {
-                if ( request.shardNumber() == -1 || request.shardNumber() == shardRouting.shardId().id() ) {
+                if ( request.shardId() == -1 || request.shardId() == shardRouting.shardId().id() ) {
                     IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
                         .getShard(shardRouting.shardId().id());
                     indexShard.forceMerge(request);

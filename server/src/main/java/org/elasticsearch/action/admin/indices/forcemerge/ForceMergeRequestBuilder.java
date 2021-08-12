@@ -40,8 +40,8 @@ public class ForceMergeRequestBuilder
      * cause the merge process to merge down to half the configured number of
      * segments.
      */
-    public ForceMergeRequestBuilder setShardNumber(int shardNumber) {
-        request.shardNumber(shardNumber);
+    public ForceMergeRequestBuilder setShardId(int shardId) {
+        request.shardId(shardId);
         return this;
     }
 

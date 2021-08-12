@@ -293,27 +293,6 @@ public class CollectionUtils {
         return new ArrayList<>(Arrays.asList(elements));
     }
 
-    public static <E> ArrayList<E> asArrayList(E first, E... other) {
-        if (other == null) {
-            throw new NullPointerException("other");
-        }
-        ArrayList<E> list = new ArrayList<>(1 + other.length);
-        list.add(first);
-        list.addAll(Arrays.asList(other));
-        return list;
-    }
-
-    public static<E> ArrayList<E> asArrayList(E first, E second, E... other) {
-        if (other == null) {
-            throw new NullPointerException("other");
-        }
-        ArrayList<E> list = new ArrayList<>(1 + 1 + other.length);
-        list.add(first);
-        list.add(second);
-        list.addAll(Arrays.asList(other));
-        return list;
-    }
-
     /**
      * Creates a copy of the given collection with the given element appended.
      *

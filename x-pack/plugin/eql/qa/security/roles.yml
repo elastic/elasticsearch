@@ -7,7 +7,6 @@ test-admin:
   indices:
     - names: '*'
       privileges: [ all ]
-      allow_restricted_indices: true
   run_as:
     - '*'
 

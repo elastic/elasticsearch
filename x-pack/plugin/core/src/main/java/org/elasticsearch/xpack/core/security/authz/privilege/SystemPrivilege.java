@@ -36,7 +36,19 @@ public final class SystemPrivilege extends Privilege {
         RetentionLeaseActions.Remove.ACTION_NAME + "*", // needed for CCR to remove retention leases
         RetentionLeaseActions.Renew.ACTION_NAME + "*", // needed for CCR to renew retention leases
         "indices:admin/settings/update", // needed for DiskThresholdMonitor.markIndicesReadOnly
-        CompletionPersistentTaskAction.NAME // needed for ShardFollowTaskCleaner
+        CompletionPersistentTaskAction.NAME, // needed for ShardFollowTaskCleaner
+
+        // needed for feature reset with system user
+        // TODO[wrb]: This seems better than allowing restricted indices in test user roles, but is there an even better approach?
+        "cluster:internal/xpack/transform/reset_mode",
+        "indices:admin/data_stream/delete",
+        "cluster:internal/xpack/ml/reset_mode",
+        "cluster:admin/transform/stop",
+        "cluster:admin/xpack/ml/datafeed/stop",
+        "cluster:internal/xpack/ml/job/kill/process",
+        "cluster:admin/xpack/ml/job/close",
+        "cluster:admin/xpack/ml/data_frame/analytics/stop",
+        "indices:admin/delete"
     );
 
     private static final Predicate<String> PREDICATE = (action) -> {

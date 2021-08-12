@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -81,7 +82,12 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
         );
 
         for (SystemIndices.Feature feature : systemIndices.getFeatures().values()) {
-            feature.getCleanUpFunction().apply(clusterService, client, groupedActionListener);
+            // we have verified admin privileges, so issue deletions in system context, not user context
+            final ThreadContext threadContext = threadPool.getThreadContext();
+            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+                threadContext.markAsSystemContext();
+                feature.getCleanUpFunction().apply(clusterService, client, groupedActionListener);
+            }
         }
     }
 

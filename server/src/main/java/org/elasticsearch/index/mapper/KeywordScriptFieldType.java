@@ -16,6 +16,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -33,6 +34,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.toSet;
@@ -43,7 +45,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     private static class Builder extends AbstractScriptFieldType.Builder<StringFieldScript.Factory> {
         Builder(String name) {
-            super(name, StringFieldScript.CONTEXT, StringFieldScript.PARSE_FROM_SOURCE);
+            super(name, StringFieldScript.CONTEXT);
         }
 
         @Override
@@ -52,6 +54,16 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
                                                    Script script,
                                                    Map<String, String> meta) {
             return new KeywordScriptFieldType(name, factory, script, meta);
+        }
+
+        @Override
+        StringFieldScript.Factory getParseFromSourceFactory() {
+            return StringFieldScript.PARSE_FROM_SOURCE;
+        }
+
+        @Override
+        StringFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return StringFieldScript.leafAdapter(parentScriptFactory);
         }
     }
 

@@ -28,10 +28,11 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -207,11 +208,9 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 "    }}"
         ).get();
         client().prepareIndex(indexname)
-            .setId(TRAINED_MODEL_ID + "_task_config")
+            .setId(TRAINED_MODEL_ID + "_vocab")
             .setSource(
                 "{  " +
-                    "\"task_type\": \"bert_pass_through\",\n" +
-                    "\"with_special_tokens\": false," +
                     "\"vocab\": [\"these\", \"are\", \"my\", \"words\"]\n" +
                     "}",
                 XContentType.JSON
@@ -239,8 +238,12 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 new PutTrainedModelAction.Request(
                     TrainedModelConfig.builder()
                         .setModelType(TrainedModelType.PYTORCH)
-                        .setInferenceConfig(new ClassificationConfig(1))
-                        .setInput(new TrainedModelInput(Arrays.asList("text_field")))
+                        .setInferenceConfig(
+                            new BertPassThroughConfig(
+                                new VocabularyConfig(indexname, TRAINED_MODEL_ID + "_vocab"),
+                                new TokenizationParams(null, false, null)
+                            )
+                        )
                         .setLocation(new IndexLocation(indexname))
                         .setModelId(TRAINED_MODEL_ID)
                         .build()

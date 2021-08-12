@@ -42,16 +42,16 @@ SELECT first_name FROM test_emp WHERE hire_date > CURRENT_DATE() - INTERVAL 45 Y
 
     first_name
 -----------------
-Alejandro      
-Amabile        
-Anneke         
-Anoosh         
-Arumugam       
-Basil          
-Berhard        
-Berni          
-Bezalel        
-Bojan          
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+Basil
+Berhard
+Berni
+Bezalel
+Bojan
 ;
 
 currentDateFilterScript
@@ -169,9 +169,9 @@ selectDateParse
 schema::date1:date
 SELECT DATE_PARSE('07/04/2020', 'dd/MM/uuuu') AS date1;
 
-   date1       
+   date1
 ------------
-2020-04-07 
+2020-04-07
 ;
 
 
@@ -265,4 +265,78 @@ HAVING DATE_PARSE(DATETIME_FORMAT(MAX(birth_date), 'dd/MM/uuuu'), 'dd/MM/uuuu') 
 1963-03-21 00:00:00.000Z | 03
 1962-12-29 00:00:00.000Z | 12
 null                     | null
+;
+
+filterDateMath
+SELECT emp_no FROM test_emp WHERE hire_date = '2021-02-03||-27y/y';
+
+    emp_no
+---------------
+10008
+10030
+10044
+10085
+;
+
+filterDateMathDisjunction
+SELECT emp_no FROM test_emp WHERE hire_date = '2021-02-03||-27y/y' OR hire_date = '2021-02-03||-28y/y';
+
+    emp_no
+---------------
+10008
+10017
+10030
+10040
+10042
+10044
+10085
+;
+
+filterDateMathDisjunctionWithExactDate
+SELECT emp_no FROM test_emp WHERE hire_date = '2021-02-03||-27y/y' OR hire_date = '1993-08-03'::datetime;
+
+    emp_no
+---------------
+10008
+10017
+10030
+10044
+10085
+;
+
+filterDateMathDisjunctionWithIn
+SELECT emp_no FROM test_emp WHERE hire_date = '2021-02-03||-27y/y' OR hire_date = '1992-12-18'::datetime
+    OR hire_date IN ('2021-02-03||-28y/y', '1992-01-03T00:00:00.000Z'::datetime);
+
+    emp_no
+---------------
+10008
+10012
+10017
+10030
+10036
+10040
+10042
+10044
+10085
+;
+
+filterDateMathConjunction
+SELECT emp_no FROM test_emp WHERE hire_date = '2021-09-03||-27y/y' AND hire_date = '2021-09-03||-27y/M';
+
+    emp_no
+---------------
+10008
+;
+
+// currently not supported
+filterDateMathDerivedValue-Ignore
+SELECT emp_no FROM test_emp WHERE DATE_ADD('day', 1, hire_date) = '2021-02-03||-27y/y';
+
+    emp_no
+---------------
+10008
+10030
+10044
+10085
 ;

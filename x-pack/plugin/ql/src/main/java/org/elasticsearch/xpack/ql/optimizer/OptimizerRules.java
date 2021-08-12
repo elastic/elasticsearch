@@ -344,7 +344,8 @@ public final class OptimizerRules {
                 } else if (ex instanceof Equals || ex instanceof NullEquals) {
                     BinaryComparison otherEq = (BinaryComparison) ex;
                     // equals on different values evaluate to FALSE
-                    if (otherEq.right().foldable()) {
+                    // ignore date/time fields as equality comparison might actually be a range check
+                    if (otherEq.right().foldable() && DataTypes.isDateTime(otherEq.left().dataType()) == false) {
                         for (BinaryComparison eq : equals) {
                             if (otherEq.left().semanticEquals(eq.left())) {
                                     Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());

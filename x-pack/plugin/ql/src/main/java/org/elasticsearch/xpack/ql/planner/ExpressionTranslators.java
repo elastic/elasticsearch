@@ -50,15 +50,14 @@ import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -274,7 +273,9 @@ public final class ExpressionTranslators {
             return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
         }
 
-        private static Query translate(BinaryComparison bc, TranslatorHandler handler) {
+        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
+            assert bc.left() instanceof FieldAttribute;
+
             Source source = bc.source();
             String name = handler.nameOf(bc.left());
             Object value = valueOf(bc.right());
@@ -316,11 +317,10 @@ public final class ExpressionTranslators {
                 return new RangeQuery(source, name, null, false, value, true, format, zoneId);
             }
             if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
-                if (bc.left() instanceof FieldAttribute) {
-                    // equality should always be against an exact match
-                    // (which is important for strings)
-                    name = ((FieldAttribute) bc.left()).exactAttribute().name();
-                }
+                // equality should always be against an exact match
+                // (which is important for strings)
+                name = ((FieldAttribute) bc.left()).exactAttribute().name();
+
                 Query query;
                 if (isDateLiteralComparison) {
                     // dates equality uses a range query because it's the one that has a "format" parameter
@@ -346,11 +346,11 @@ public final class ExpressionTranslators {
             return doTranslate(r, handler);
         }
 
-        public static Query doTranslate(Range r, TranslatorHandler handler) {            
+        public static Query doTranslate(Range r, TranslatorHandler handler) {
             return handler.wrapFunctionQuery(r, r.value(), () -> translate(r, handler));
         }
 
-        private static RangeQuery translate(Range r, TranslatorHandler handler) {            
+        private static RangeQuery translate(Range r, TranslatorHandler handler) {
             Object lower = valueOf(r.lower());
             Object upper = valueOf(r.upper());
             String format = null;
@@ -392,41 +392,31 @@ public final class ExpressionTranslators {
         }
 
         private static Query translate(In in, TranslatorHandler handler) {
-            Query q;
-            if (in.value() instanceof FieldAttribute) {
-                // equality should always be against an exact match (which is important for strings)
-                FieldAttribute fa = (FieldAttribute) in.value();
-                DataType dt = fa.dataType();
+            assert in.value() instanceof FieldAttribute;
 
-                List<Expression> list = in.list();
-                Set<Object> set = new LinkedHashSet<>(CollectionUtils.mapSize(list.size()));
-                list.forEach(e -> {
-                    // TODO: this needs to be handled inside the optimizer
-                    if (DataTypes.isNull(e.dataType()) == false) {
-                        set.add(handler.convert(valueOf(e), dt));
+            Set<Object> terms = new LinkedHashSet<>();
+            List<Query> queries = new ArrayList<>();
+
+            for (Expression rhs : in.list()) {
+                if (DataTypes.isNull(rhs.dataType()) == false) {
+                    // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
+                    Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), handler);
+
+                    if (query instanceof TermQuery) {
+                        terms.add(((TermQuery) query).value());
+                    } else {
+                        queries.add(query);
                     }
-                });
-
-                if (DataTypes.isDateTime(dt)) {
-                    DateFormatter formatter = DateFormatter.forPattern(DATE_FORMAT);
-
-                    q = null;
-                    for (Object o : set) {
-                        assert o instanceof ZonedDateTime : "expected a ZonedDateTime, but got: " + o.getClass().getName();
-                        // see comment in Ranges#doTranslate() as to why formatting as String is required
-                        String zdt = formatter.format((ZonedDateTime) o);
-                        RangeQuery right = new RangeQuery(
-                            in.source(), fa.exactAttribute().name(),
-                            zdt, true, zdt, true, formatter.pattern(), in.zoneId());
-                        q = q == null ? right : new BoolQuery(in.source(), false, q, right);
-                    }
-                } else {
-                    q = new TermsQuery(in.source(), fa.exactAttribute().name(), set);
                 }
-            } else {
-                q = new ScriptQuery(in.source(), in.asScript());
             }
-            return q;
+
+            String fieldName = ((FieldAttribute) in.value()).exactAttribute().name();
+            if (terms.isEmpty() == false) {
+                queries.add(new TermsQuery(in.source(), fieldName, terms));
+            }
+
+            return queries.stream()
+                .reduce((q1, q2) -> new BoolQuery(in.source(), false, q1, q2)).get();
         }
     }
 

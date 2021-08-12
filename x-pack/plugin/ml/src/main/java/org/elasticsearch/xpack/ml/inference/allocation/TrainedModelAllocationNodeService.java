@@ -50,6 +50,8 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_T
 
 public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
+    private static final String NODE_NO_LONGER_REFERENCED = "node no longer referenced in model routing table";
+    private static final String ALLOCATION_NO_LONGER_EXISTS = "model allocation no longer exists";
     private static final TimeValue MODEL_LOADING_CHECK_INTERVAL = TimeValue.timeValueSeconds(1);
     private static final Logger logger = LogManager.getLogger(TrainedModelAllocationNodeService.class);
     private final TrainedModelAllocationService trainedModelAllocationService;
@@ -117,20 +119,16 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         });
     }
 
-    void stopDeployment(TrainedModelDeploymentTask task, String reason) {
+    void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<Void> listener) {
         if (stopped) {
             return;
         }
         task.stopWithoutNotification(reason);
-        deploymentManager.stopDeployment(task);
-        taskManager.unregister(task);
-        modelIdToTask.remove(task.getModelId());
-    }
-
-    void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<Void> listener) {
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                stopDeployment(task, reason);
+                deploymentManager.stopDeployment(task);
+                taskManager.unregister(task);
+                modelIdToTask.remove(task.getModelId());
                 listener.onResponse(null);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -273,8 +271,16 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                 if (routingStateAndReason == null) {
                     TrainedModelDeploymentTask task = modelIdToTask.remove(trainedModelAllocation.getTaskParams().getModelId());
                     if (task != null) {
-                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
-                            () -> stopDeployment(task, "node no longer referenced in model routing table")
+                        stopDeploymentAsync(
+                            task,
+                            NODE_NO_LONGER_REFERENCED,
+                            ActionListener.wrap(
+                                r -> logger.trace(() -> new ParameterizedMessage("[{}] stopped deployment", task.getModelId())),
+                                e -> logger.warn(
+                                    () -> new ParameterizedMessage("[{}] failed to fully stop deployment", task.getModelId()),
+                                    e
+                                )
+                            )
                         );
                     }
                 }
@@ -285,8 +291,13 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
             }
             // should all be stopped in the same executor thread?
             for (TrainedModelDeploymentTask t : toCancel) {
-                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
-                    () -> stopDeployment(t, "model allocation no longer exists")
+                stopDeploymentAsync(
+                    t,
+                    ALLOCATION_NO_LONGER_EXISTS,
+                    ActionListener.wrap(
+                        r -> logger.trace(() -> new ParameterizedMessage("[{}] stopped deployment", t.getModelId())),
+                        e -> logger.warn(() -> new ParameterizedMessage("[{}] failed to fully stop deployment", t.getModelId()), e)
+                    )
                 );
             }
         }

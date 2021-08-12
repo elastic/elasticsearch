@@ -44,9 +44,9 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
@@ -376,7 +376,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest<?> request,
                                                      String index, Exception e) {
         if (index.equals(request.index())) {
-            responses.set(idx, new BulkItemResponse(idx, request.opType(), new BulkItemResponse.Failure(request.index(), request.type(),
+            responses.set(idx, BulkItemResponse.failure(idx, request.opType(), new BulkItemResponse.Failure(request.index(), request.type(),
                 request.id(), e)));
             return true;
         }
@@ -479,7 +479,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException e) {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.type(),
                         docWriteRequest.id(), e);
-                    BulkItemResponse bulkItemResponse = new BulkItemResponse(i, docWriteRequest.opType(), failure);
+                    BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
                     // make sure the request gets never processed again
                     bulkRequest.requests.set(i, null);
@@ -526,8 +526,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         for (BulkItemRequest request : requests) {
                             final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
                             DocWriteRequest<?> docWriteRequest = request.request();
-                            responses.set(request.id(), new BulkItemResponse(request.id(), docWriteRequest.opType(),
-                                    new BulkItemResponse.Failure(indexName, docWriteRequest.type(), docWriteRequest.id(), e)));
+                            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
+                                indexName,
+                                docWriteRequest.type(),
+                                docWriteRequest.id(),
+                                e
+                            );
+                            responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
                         }
                         if (counter.decrementAndGet() == 0) {
                             finishHim();
@@ -624,7 +629,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         private void addFailure(DocWriteRequest<?> request, int idx, Exception unavailableException) {
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.type(), request.id(),
                     unavailableException);
-            BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, request.opType(), failure);
+            BulkItemResponse bulkItemResponse = BulkItemResponse.failure(idx, request.opType(), failure);
             responses.set(idx, bulkItemResponse);
             // make sure the request gets never processed again
             bulkRequest.requests.set(idx, null);
@@ -796,7 +801,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             failedSlots.set(slot);
             final String id = indexRequest.id() == null ? DROPPED_ITEM_WITH_AUTO_GENERATED_ID : indexRequest.id();
             itemResponses.add(
-                new BulkItemResponse(slot, indexRequest.opType(),
+                BulkItemResponse.success(slot, indexRequest.opType(),
                     new UpdateResponse(
                         new ShardId(indexRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
                         indexRequest.type(), id, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
@@ -818,7 +823,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             failedSlots.set(slot);
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(),
                 indexRequest.id(), e);
-            itemResponses.add(new BulkItemResponse(slot, indexRequest.opType(), failure));
+            itemResponses.add(BulkItemResponse.failure(slot, indexRequest.opType(), failure));
         }
 
     }

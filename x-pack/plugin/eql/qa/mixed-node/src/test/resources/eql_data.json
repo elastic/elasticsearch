@@ -28,3 +28,17 @@
 {"@timestamp":"12345678914","event_type":"success","sequence":44,"correlation_success1":"C","correlation_success2":"D"}
 {"index":{"_id":15}}
 {"@timestamp":"12345678999","event_type":"failure","sequence":44,"correlation_failure1":"C","correlation_failure2":"D"}
+{"index":{"_id":116}}
+{"@timestamp":"123456789116","event_type":"PROCESS","file_name":["x","f","g"],"process_name":["oo","abc"],"pid":[12,13,14],"ppid":1}
+{"index":{"_id":117}}
+{"@timestamp":"123456789117","event_type":"PROCESS","file_name":["a.exe","f.txt"],"process_name":"oo","pid":[12,13,14],"ppid":[89,1,2,3]}
+{"index":{"_id":118}}
+{"@timestamp":"123456789118","event_type":"PROCESS","file_name":"a","process_name":"oo","pid":12}
+{"index":{"_id":119}}
+{"@timestamp":"123456789119","event_type":"PROCESS","process_name":["oo","foo"],"pid":[121,12]}
+{"index":{"_id":120}}
+{"@timestamp":"123456789120","event_type":"PROCESS","file_name":["f","g","f"],"process_name":["oo","pp"],"pid":[12,1,2,333],"ppid":121}
+{"index":{"_id":121}}
+{"@timestamp":"123456789121","event_type":"PROCESS","file_name":"f","pid":1,"ppid":[100,1000]}
+{"index":{"_id":122}}
+{"@timestamp":"123456789122","event_type":"PROCESS","pid":[1,2,3,4,5,6,12],"ppid":[66,67,68,69,99,100]}

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -46,6 +47,7 @@ import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.SWITCH
 public final class RuntimeUtils {
 
     static final Logger QUERY_LOG = LogManager.getLogger(QueryClient.class);
+    public static final Version SWITH_TO_MULTI_VALUE_FIELDS_VERSION = Version.V_7_15_0;
 
     private RuntimeUtils() {}
 

@@ -94,6 +94,34 @@ public class EqlSearchIT extends ESRestTestCase {
         assertSequncesQueryOnNodes(newNodes);
     }
 
+    public void testMultiValueFields() throws Exception {
+        final String bulkEntries = readResource(EqlSearchIT.class.getResourceAsStream("/eql_data.json"));
+        Request bulkRequst = new Request("POST", index + "/_bulk?refresh");
+        bulkRequst.setJsonEntity(bulkEntries);
+        assertOK(client().performRequest(bulkRequst));
+
+        List<Map<String, Object>> sourceEvents = new ArrayList<Map<String, Object>>();
+        Map<String, Object> expectedResponse = singletonMap("hits", singletonMap("events", sourceEvents));
+        sourceEvents.add(singletonMap("_id", "116"));
+        sourceEvents.add(singletonMap("_id", "117"));
+        sourceEvents.add(singletonMap("_id", "120"));
+        sourceEvents.add(singletonMap("_id", "121"));
+        sourceEvents.add(singletonMap("_id", "122"));
+
+        try (
+            RestClient client = buildClient(restClientSettings(),
+                newNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
+        ) {
+            // filter only the relevant bits of the response
+            String filterPath = "filter_path=hits.events._id";
+
+            Request request = new Request("POST", index + "/_eql/search?" + filterPath);
+            request.setJsonEntity("{\"query\":\"PROCESS where concat(file_name, process_name) == \\\"foo\\\" or add(pid, ppid) > 100\"}");
+            System.out.println("{\"query\":\"PROCESS where concat(file_name, process_name) == \\\"foo\\\" or add(pid, ppid) > 100\"}");
+            assertBusy(() -> { assertResponse(expectedResponse, runEql(client, request)); });
+        }
+    }
+
     private void assertEventsQueryOnNodes(List<TestNode> nodesList) throws Exception {
         final String event = randomEvent();
         Map<String, Object> expectedResponse = prepareEventsTestData(event);

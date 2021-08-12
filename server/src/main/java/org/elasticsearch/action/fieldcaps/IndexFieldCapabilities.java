@@ -50,7 +50,7 @@ public class IndexFieldCapabilities implements Writeable {
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.type = in.readString();
+        this.type = in.readString().intern();
         this.isMetadatafield = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();

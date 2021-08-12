@@ -230,12 +230,14 @@ public class ChunkedDataExtractor implements DataExtractor {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
 
-            long totalHits = searchResponse.getHits().getTotalHits().value;
-            if (totalHits == 0) {
-                // This can happen if all the indices the datafeed is searching are deleted after it started
+            Aggregations aggregations = searchResponse.getAggregations();
+            // This can happen if all the indices the datafeed is searching are deleted after it started.
+            // Note that unlike the scrolled data summary method above we cannot check for this situation
+            // by checking for zero hits, because aggregations that work on rollups return zero hits even
+            // when they retrieve data.
+            if (aggregations == null) {
                 return AggregatedDataSummary.noDataSummary(context.histogramInterval);
             }
-            Aggregations aggregations = searchResponse.getAggregations();
             Min min = aggregations.get(EARLIEST_TIME);
             Max max = aggregations.get(LATEST_TIME);
             return new AggregatedDataSummary(min.getValue(), max.getValue(), context.histogramInterval);

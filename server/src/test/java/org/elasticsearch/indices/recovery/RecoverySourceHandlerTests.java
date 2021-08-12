@@ -118,7 +118,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -983,9 +982,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             );
             future.actionGet();
 
-            filesRecoveredFromSource.removeAll(sourceFilesToRecover);
-            filesRecoveredFromSource.removeAll(filesFailedToDownload);
-            assertThat(filesRecoveredFromSource, is(empty()));
+
+            Set<String> expectedFilesRecoveredFromSource = new HashSet<>();
+            expectedFilesRecoveredFromSource.addAll(sourceFilesToRecover);
+            expectedFilesRecoveredFromSource.addAll(filesFailedToDownload);
+            assertThat(filesRecoveredFromSource, is(equalTo(expectedFilesRecoveredFromSource)));
 
             assertThat(fileNamesToBeRecoveredFromSnapshot.containsAll(filesRecoveredFromSnapshot), is(equalTo(true)));
         }
@@ -1132,12 +1133,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
             handler.cancel("test");
 
-            RecoverSnapshotFileResponse recoverSnapshotFileResponse = unrespondedRecoverSnapshotFiles.remove(0);
+            RecoverSnapshotFileResponse recoverSnapshotFileResponse = unrespondedRecoverSnapshotFiles.get(0);
             recoverSnapshotFileResponse.listener.onResponse(null);
 
             expectThrows(Exception.class, future::get);
 
-            assertThat(unrespondedRecoverSnapshotFiles.isEmpty(), is(equalTo(true)));
+            assertThat(unrespondedRecoverSnapshotFiles.size(), is(equalTo(1)));
         }
     }
 

@@ -419,7 +419,6 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
 
         IndexShard shard = newShard(false);
-        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
 
@@ -447,7 +446,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                         System.arraycopy(fileData, 0, fileDataCopy, 0, fileData.length);
                         // Corrupt the file
                         for (int i = 0; i < randomIntBetween(1, fileDataCopy.length); i++) {
-                            fileDataCopy[i] = randomByte();
+                            fileDataCopy[i] ^= 0xFF;
                         }
                         return new ByteArrayInputStream(fileDataCopy);
                     case TRUNCATED_FILE:
@@ -528,7 +527,6 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
 
         IndexShard shard = newShard(false);
-        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
 

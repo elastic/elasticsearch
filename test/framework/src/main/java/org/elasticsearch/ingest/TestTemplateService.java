@@ -52,6 +52,7 @@ public class TestTemplateService extends ScriptService {
         private final String expected;
 
         MockTemplateScript(String expected) {
+            super(Collections::emptyMap);
             this.expected = expected;
         }
 

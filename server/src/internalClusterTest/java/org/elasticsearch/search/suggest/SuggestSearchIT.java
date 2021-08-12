@@ -1141,7 +1141,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
                 }
                 String result = script;
-                return new TemplateScript() {
+                return new TemplateScript(Collections::emptyMap) {
                     @Override
                     public String execute() {
                         return result;

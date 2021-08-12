@@ -210,11 +210,14 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         Method init;
 
-        if (scriptClassInfo.getBaseClass().getConstructors().length == 0) {
+        int constuctors = scriptClassInfo.getBaseClass().getConstructors().length;
+        if (constuctors == 0) {
             init = new Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
-        } else {
+        } else if (constuctors == 1) {
             init = new Method("<init>", MethodType.methodType(void.class,
                     scriptClassInfo.getBaseClass().getConstructors()[0].getParameterTypes()).toMethodDescriptorString());
+        } else {
+            throw new IllegalStateException("Multiple constructors are not supported");
         }
 
         // Write the constructor:

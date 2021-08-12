@@ -187,7 +187,7 @@ public class MockScriptEngine implements ScriptEngine {
                 if (vars != null) {
                     varsWithParams.put("params", vars);
                 }
-                return new TemplateScript(vars) {
+                return new TemplateScript(varsSupplier) {
                     @Override
                     public String execute() {
                         return (String) script.apply(varsWithParams);

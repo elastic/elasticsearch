@@ -48,7 +48,7 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
             throw new IllegalArgumentException("mock mustache only understands template scripts, not [" + context.name + "]");
         }
         return context.factoryClazz.cast((TemplateScript.Factory) vars ->
-            new TemplateScript() {
+            new TemplateScript(vars) {
                 @Override
                 public String execute() {
                     return script;

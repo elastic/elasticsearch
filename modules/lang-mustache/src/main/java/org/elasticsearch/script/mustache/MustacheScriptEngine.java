@@ -103,7 +103,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
          * @param template the compiled template object wrapper
          **/
         MustacheExecutableScript(Mustache template, Map<String, Object> params) {
-            super(params);
+            super(() -> params);
             this.template = template;
             this.params = params;
         }

@@ -11,7 +11,6 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -21,14 +20,6 @@ import java.util.function.Supplier;
 public abstract class TemplateScript {
 
     private final Supplier<Map<String, Object>> params;
-
-    public TemplateScript() {
-        this.params = Collections::emptyMap;
-    }
-
-    public TemplateScript(Map<String, Object> params) {
-        this.params = () -> params;
-    }
 
     public TemplateScript(Supplier<Map<String, Object>> params) {
         this.params = new CachedSupplier<>(params);

@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
+public class InternalRangeTests extends InternalRangeTestCase<InternalRange<InternalRange.Bucket, ?>> {
 
     private DocValueFormat format;
     private List<Tuple<Double, Double>> ranges;
@@ -63,7 +63,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
     }
 
     @Override
-    protected InternalRange createTestInstance(String name,
+    protected InternalRange<InternalRange.Bucket, ?> createTestInstance(String name,
                                                Map<String, Object> metadata,
                                                InternalAggregations aggregations,
                                                boolean keyed) {
@@ -94,7 +94,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
     }
 
     @Override
-    protected InternalRange mutateInstance(InternalRange instance) {
+    protected InternalRange<InternalRange.Bucket, ?> mutateInstance(InternalRange<InternalRange.Bucket, ?> instance) {
         String name = instance.getName();
         DocValueFormat format = instance.format;
         boolean keyed = instance.keyed;

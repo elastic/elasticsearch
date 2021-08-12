@@ -18,9 +18,8 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -48,14 +47,14 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         // Fallback to source only recovery if the target node is in an incompatible version
         boolean canUseSnapshots = useSnapshots && targetVersion.onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
 
-        fetchAvailableSnapshotsIgnoringErrors(shardId, canUseSnapshots, availableSnapshots ->
+        fetchLatestSnapshotsIgnoringErrors(shardId, canUseSnapshots, latestSnapshotOpt ->
             ActionListener.completeWith(listener, () ->
                 computeRecoveryPlanWithSnapshots(
                     sourceMetadata,
                     targetMetadata,
                     startingSeqNo,
                     translogOps,
-                    availableSnapshots
+                    latestSnapshotOpt
                 )
             )
         );
@@ -65,11 +64,11 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
                                                                Store.MetadataSnapshot targetMetadata,
                                                                long startingSeqNo,
                                                                int translogOps,
-                                                               List<ShardSnapshot> availableSnapshots) {
+                                                               Optional<ShardSnapshot> latestSnapshotOpt) {
         Store.RecoveryDiff sourceTargetDiff = sourceMetadata.recoveryDiff(targetMetadata);
         List<StoreFileMetadata> filesMissingInTarget = concatLists(sourceTargetDiff.missing, sourceTargetDiff.different);
 
-        if (availableSnapshots.isEmpty()) {
+        if (latestSnapshotOpt.isEmpty()) {
             // If we couldn't find any valid  snapshots, fallback to the source
             return new ShardRecoveryPlan(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY,
                 filesMissingInTarget,
@@ -80,9 +79,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
             );
         }
 
-        ShardSnapshot latestSnapshot = availableSnapshots.stream()
-            .max(Comparator.comparingLong(ShardSnapshot::getStartedAt))
-            .get();
+        ShardSnapshot latestSnapshot = latestSnapshotOpt.get();
 
         Store.MetadataSnapshot filesToRecoverFromSourceSnapshot = toMetadataSnapshot(filesMissingInTarget);
         Store.RecoveryDiff snapshotDiff = filesToRecoverFromSourceSnapshot.recoveryDiff(latestSnapshot.getMetadataSnapshot());
@@ -104,22 +101,22 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         );
     }
 
-    private void fetchAvailableSnapshotsIgnoringErrors(ShardId shardId, boolean useSnapshots, Consumer<List<ShardSnapshot>> listener) {
+    private void fetchLatestSnapshotsIgnoringErrors(ShardId shardId, boolean useSnapshots, Consumer<Optional<ShardSnapshot>> listener) {
         if (useSnapshots == false) {
-            listener.accept(Collections.emptyList());
+            listener.accept(Optional.empty());
             return;
         }
 
-        ActionListener<List<ShardSnapshot>> listenerIgnoringErrors = new ActionListener<>() {
+        ActionListener<Optional<ShardSnapshot>> listenerIgnoringErrors = new ActionListener<>() {
             @Override
-            public void onResponse(List<ShardSnapshot> shardSnapshotData) {
+            public void onResponse(Optional<ShardSnapshot> shardSnapshotData) {
                 listener.accept(shardSnapshotData);
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.warn(new ParameterizedMessage("Unable to fetch available snapshots for shard {}", shardId), e);
-                listener.accept(Collections.emptyList());
+                listener.accept(Optional.empty());
             }
         };
 

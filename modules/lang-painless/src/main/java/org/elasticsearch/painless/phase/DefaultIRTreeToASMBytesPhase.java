@@ -142,6 +142,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDShiftType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDSize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDStoreType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDSymbol;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDThisMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDTypeParameters;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDUnaryType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDValue;
@@ -1650,6 +1651,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeDebugInfo(irInvokeCallMemberNode.getLocation());
 
         LocalFunction localFunction = irInvokeCallMemberNode.getDecorationValue(IRDFunction.class);
+        PainlessMethod thisMethod = irInvokeCallMemberNode.getDecorationValue(IRDThisMethod.class);
         PainlessMethod importedMethod = irInvokeCallMemberNode.getDecorationValue(IRDMethod.class);
         PainlessClassBinding classBinding = irInvokeCallMemberNode.getDecorationValue(IRDClassBinding.class);
         PainlessInstanceBinding instanceBinding = irInvokeCallMemberNode.getDecorationValue(IRDInstanceBinding.class);
@@ -1669,6 +1671,16 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             } else {
                 methodWriter.invokeVirtual(CLASS_TYPE, localFunction.getAsmMethod());
             }
+        } else if (thisMethod != null) {
+            methodWriter.loadThis();
+
+            for (ExpressionNode irArgumentNode : irArgumentNodes) {
+                visit(irArgumentNode, writeScope);
+            }
+
+            Method asmMethod = new Method(thisMethod.javaMethod.getName(),
+                    thisMethod.methodType.dropParameterTypes(0, 1).toMethodDescriptorString());
+            methodWriter.invokeVirtual(CLASS_TYPE, asmMethod);
         } else if (importedMethod != null) {
             for (ExpressionNode irArgumentNode : irArgumentNodes) {
                 visit(irArgumentNode, writeScope);

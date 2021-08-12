@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.enrollment;
 
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -41,6 +39,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedFunction;
+import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedSupplier;
 import static org.elasticsearch.xpack.security.enrollment.CreateEnrollmentToken.getFilteredAddresses;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -391,15 +391,5 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         builder.withHttpStatus(httpStatus);
         builder.withResponseBody(responseJson);
         return builder.build();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T, E extends Exception> CheckedSupplier<T, E> anyCheckedSupplier() {
-        return any(CheckedSupplier.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T, R, E extends Exception> CheckedFunction<T, R, E> anyCheckedFunction() {
-        return any(CheckedFunction.class);
     }
 }

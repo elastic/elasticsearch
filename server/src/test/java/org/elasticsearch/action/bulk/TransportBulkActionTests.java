@@ -123,7 +123,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
         BulkResponse response = future.actionGet();
         assertFalse(bulkAction.indexCreated);
-        BulkItemResponse[] bulkResponses = ((BulkResponse) response).getItems();
+        BulkItemResponse[] bulkResponses = response.getItems();
         assertEquals(bulkResponses.length, 1);
         assertTrue(bulkResponses[0].isFailed());
         assertTrue(bulkResponses[0].getFailure().getCause() instanceof IndexNotFoundException);

@@ -70,6 +70,16 @@ Name of the repository to create a snapshot in.
 (Required, string)
 Name of the snapshot to create. This name must be unique in the snapshot repository.
 
+[[create-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request returns a response when the snapshot
+is complete. If `false`, the request returns a response when the snapshot
+initializes. Defaults to `false`.
+
 [role="child_attributes"]
 [[create-snapshot-api-request-body]]
 ==== {api-request-body-title}
@@ -106,8 +116,6 @@ The cluster state includes:
 +
 IMPORTANT: By default, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<create-snapshot-api-partial,`partial`>> to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
-
 `metadata`::
 (Optional, string)
 Attaches arbitrary metadata to the snapshot, such as a record of who took the snapshot, why it was taken, or any other useful data. Metadata must be less than 1024 bytes.
@@ -118,12 +126,6 @@ Attaches arbitrary metadata to the snapshot, such as a record of who took the sn
 If `false`, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. Defaults to `false`.
 +
 If `true`, allows taking a partial snapshot of indices with unavailable shards.
-
-`wait_for_completion`::
-(Optional, Boolean)
-If `true`, the request returns a response when the snapshot is complete.
-If `false`, the request returns a response when the snapshot initializes.
-Defaults to `false`.
 
 [[create-snapshot-api-example]]
 ==== {api-examples-title}

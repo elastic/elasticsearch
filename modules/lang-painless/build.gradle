@@ -28,7 +28,7 @@ configurations {
   compileOnlyApi.extendsFrom(spi)
   if (isEclipse) {
     // Eclipse buildship doesn't know about compileOnlyApi
-    compileOnly.extendsFrom(spi)
+    api.extendsFrom(spi)
   }
 }
 

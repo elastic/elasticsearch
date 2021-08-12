@@ -88,7 +88,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         assertThat(query, either(instanceOf(SpanMultiTermQueryWrapper.class))
                 .or(instanceOf(FieldMaskingSpanQuery.class)));
         if (query instanceof SpanMultiTermQueryWrapper) {
-            SpanMultiTermQueryWrapper wrapper = (SpanMultiTermQueryWrapper) query;
+            SpanMultiTermQueryWrapper<?> wrapper = (SpanMultiTermQueryWrapper<?>) query;
             Query innerQuery = queryBuilder.innerQuery().toQuery(context);
             if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
                 assertThat(innerQuery, instanceOf(BoostQuery.class));
@@ -201,7 +201,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         {
             Query query = new SpanMultiTermQueryBuilder(new PrefixQueryBuilder(fieldName, "f")).toQuery(context);
             assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
-            SpanMultiTermQueryWrapper wrapper = (SpanMultiTermQueryWrapper) query;
+            SpanMultiTermQueryWrapper<?> wrapper = (SpanMultiTermQueryWrapper<?>) query;
             assertThat(wrapper.getWrappedQuery(), instanceOf(PrefixQuery.class));
             assertThat(wrapper.getField(), equalTo("prefix_field"));
             PrefixQuery prefixQuery = (PrefixQuery) wrapper.getWrappedQuery();

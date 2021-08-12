@@ -772,7 +772,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(NESTED_AGG, nested.getName());
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
-                InternalTerms<?, LongTerms.Bucket> terms = (InternalTerms) nested.getProperty("terms");
+                @SuppressWarnings("unchecked")
+                InternalTerms<?, LongTerms.Bucket> terms = (InternalTerms<?, LongTerms.Bucket>) nested.getProperty("terms");
                 assertNotNull(terms);
 
                 for (LongTerms.Bucket bucket : terms.getBuckets()) {

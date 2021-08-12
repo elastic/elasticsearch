@@ -85,10 +85,6 @@ dependencies {
 
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-}
-
 // Until this project is always being formatted with spotless, we need to
 // guard against `spotless()` not existing.
 try {

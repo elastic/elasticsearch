@@ -43,7 +43,7 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
     }
 
     public void testBasicLookup() {
-        FieldLookup fieldLookup = (FieldLookup) fieldsLookup.get("field");
+        FieldLookup fieldLookup = fieldsLookup.get("field");
         assertEquals("field", fieldLookup.fieldType().name());
 
         List<Object> values = fieldLookup.getValues();
@@ -53,7 +53,7 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
     }
 
     public void testLookupWithFieldAlias() {
-        FieldLookup fieldLookup = (FieldLookup) fieldsLookup.get("alias");
+        FieldLookup fieldLookup = fieldsLookup.get("alias");
         assertEquals("field", fieldLookup.fieldType().name());
 
         List<Object> values = fieldLookup.getValues();

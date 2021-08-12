@@ -42,6 +42,7 @@ public class RestForceMergeAction extends BaseRestHandler {
         mergeRequest.maxNumSegments(request.paramAsInt("max_num_segments", mergeRequest.maxNumSegments()));
         mergeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", mergeRequest.onlyExpungeDeletes()));
         mergeRequest.flush(request.paramAsBoolean("flush", mergeRequest.flush()));
+        mergeRequest.shardNumber(request.paramAsInt("shard_number", mergeRequest.shardNumber()));
         return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<>(channel));
     }
 

@@ -38,11 +38,13 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         public static final int MAX_NUM_SEGMENTS = -1;
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
+        public static final int SHARD_NUMBER = -1;
     }
 
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
+    private int shardNumber = Defaults.SHARD_NUMBER;
 
     private static final Version FORCE_MERGE_UUID_SIMPLE_VERSION = Version.V_8_0_0;
 
@@ -67,6 +69,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
+        shardNumber = in.readInt();
         if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
             forceMergeUUID = in.readString();
         } else {
@@ -89,6 +92,23 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
      */
     public ForceMergeRequest maxNumSegments(int maxNumSegments) {
         this.maxNumSegments = maxNumSegments;
+        return this;
+    }
+
+    /**
+     * Will merge the specific shard of index down to &lt;= maxNumSegments. By default, will cause the merge
+     * process to merge down to half the configured number of segments.
+     */
+    public int shardNumber() {
+        return shardNumber;
+    }
+
+    /**
+     * Will merge the specific shard of index down to &lt;= maxNumSegments. By default, will cause the merge
+     * process to merge down to half the configured number of segments.
+     */
+    public ForceMergeRequest shardNumber(int shardNumber) {
+        this.shardNumber = shardNumber;
         return this;
     }
 
@@ -135,6 +155,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     public String getDescription() {
         return "Force-merge indices " + Arrays.toString(indices()) +
             ", maxSegments[" + maxNumSegments +
+            "], shardNumber[" + shardNumber +
             "], onlyExpungeDeletes[" + onlyExpungeDeletes +
             "], flush[" + flush + "]";
     }
@@ -145,6 +166,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
+        out.writeInt(shardNumber);
         if (out.getVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
             out.writeString(forceMergeUUID);
         } else {
@@ -166,6 +188,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     public String toString() {
         return "ForceMergeRequest{" +
                 "maxNumSegments=" + maxNumSegments +
+                ", shardNumber=" + shardNumber +
                 ", onlyExpungeDeletes=" + onlyExpungeDeletes +
                 ", flush=" + flush +
                 '}';

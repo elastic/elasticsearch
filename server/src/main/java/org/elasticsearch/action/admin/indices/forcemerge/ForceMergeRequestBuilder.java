@@ -36,6 +36,16 @@ public class ForceMergeRequestBuilder
     }
 
     /**
+     * Will force merge the specific shard of index down to &lt;= maxNumSegments. By default, will
+     * cause the merge process to merge down to half the configured number of
+     * segments.
+     */
+    public ForceMergeRequestBuilder setShardNumber(int shardNumber) {
+        request.shardNumber(shardNumber);
+        return this;
+    }
+
+    /**
      * Should the merge only expunge deletes from the index, without full merging.
      * Defaults to full merging ({@code false}).
      */

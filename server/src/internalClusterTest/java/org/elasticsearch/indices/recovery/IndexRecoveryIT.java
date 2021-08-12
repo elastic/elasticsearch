@@ -627,7 +627,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode();
 
         logger.info("--> create repository");
-        createRepository();
+        createRepository(randomBoolean());
 
         ensureGreen();
 
@@ -816,6 +816,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             ).get();
 
             ensureGreen();
+            if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
+                assertThat(handlingBehavior.blocksRemaining.get(), is(equalTo(0)));
+            }
             searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
             assertHitCount(searchResponse, numDocs);
         } finally {
@@ -1839,17 +1842,17 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         // Force merge to make sure that the resulting snapshot would contain the same index files as the safe commit
         ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(indexName).setFlush(randomBoolean()).get();
         assertThat(forceMergeResponse.getTotalShards(), equalTo(forceMergeResponse.getSuccessfulShards()));
-        createRepository();
+        createRepository(true);
         createSnapshot(indexName);
     }
 
-    private void createRepository() {
+    private void createRepository(boolean enableSnapshotPeerRecoveries) {
         assertAcked(
             client().admin().cluster().preparePutRepository(REPO_NAME)
                 .setType("fs")
                 .setSettings(Settings.builder()
                     .put("location", randomRepoPath())
-                    .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true)
+                    .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), enableSnapshotPeerRecoveries)
                     .put("compress", false)
                 ).get()
         );

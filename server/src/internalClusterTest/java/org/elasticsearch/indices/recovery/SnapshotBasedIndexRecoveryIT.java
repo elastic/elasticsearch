@@ -13,21 +13,15 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -220,7 +214,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 .build()
         );
 
-        int numDocs = randomIntBetween(3000, 5000);
+        int numDocs = randomIntBetween(300, 1000);
         indexDocs(indexName, 0, numDocs);
 
         String repoName = "repo";
@@ -235,7 +229,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         MockTransportService targetMockTransportService =
             (MockTransportService) internalCluster().getInstance(TransportService.class, targetNode);
 
-        AtomicInteger numberOfFileChunkRequests = new AtomicInteger();
         sourceMockTransportService.addSendBehavior(targetMockTransportService, (connection, requestId, action, request, options) -> {
             assertNotEquals(PeerRecoveryTargetService.Actions.FILE_CHUNK, action);
             connection.sendRequest(requestId, action, request, options);
@@ -267,8 +260,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertThat(repository.totalBytesRead.get(), is(equalTo(expectedRecoveredBytesFromRepo)));
 
         long snapshotSizeForIndex = getSnapshotSizeForIndex(repoName, snapshot, indexName);
+        assertThat(repository.totalBytesRead.get(), is(greaterThan(0L)));
         assertThat(repository.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
-        assertThat(numberOfFileChunkRequests.get(), is(equalTo(0)));
 
         assertDocumentsAreEqual(indexName, numDocs);
     }
@@ -286,7 +279,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 .build()
         );
 
-        int numDocs = randomIntBetween(3000, 5000);
+        int numDocs = randomIntBetween(300, 1000);
         indexDocs(indexName, 0, numDocs);
 
         String repoName = "repo";
@@ -324,7 +317,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     .build()
             );
 
-            int numDocs = randomIntBetween(3000, 5000);
+            // We're setting the rate limiting at 50kb/s, meaning that
+            // we need an index with size > 50kb
+            int numDocs = randomIntBetween(1000, 2000);
             indexDocs(indexName, 0, numDocs);
 
             String repoName = "repo";
@@ -375,7 +370,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 .build()
         );
 
-        int numDocs = randomIntBetween(3000, 5000);
+        int numDocs = randomIntBetween(300, 1000);
         indexDocs(indexName, 0, numDocs);
         forceMerge();
 
@@ -383,7 +378,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createRepo(repoName, TestRepositoryPlugin.INSTRUMENTED_TYPE);
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
-        int docsIndexedAfterSnapshot = randomIntBetween(1000, 2000);
+        int docsIndexedAfterSnapshot = randomIntBetween(1, 2000);
         indexDocs(indexName, numDocs, docsIndexedAfterSnapshot);
 
         String targetNode = internalCluster().startDataOnlyNode();
@@ -419,14 +414,14 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 .build()
         );
 
-        int numDocs = randomIntBetween(3000, 5000);
+        int numDocs = randomIntBetween(300, 1000);
         indexDocs(indexName, 0, numDocs);
 
         String repoName = "repo";
         createRepo(repoName, TestRepositoryPlugin.INSTRUMENTED_TYPE);
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
-        int docsIndexedAfterSnapshot = randomIntBetween(1000, 2000);
+        int docsIndexedAfterSnapshot = randomIntBetween(1, 2000);
         indexDocs(indexName, numDocs, docsIndexedAfterSnapshot);
         forceMerge();
 
@@ -465,7 +460,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     .build()
             );
 
-            int numDocs = randomIntBetween(3000, 5000);
+            int numDocs = randomIntBetween(300, 1000);
             indexDocs(indexName, numDocs, numDocs);
 
             String repoName = "repo";
@@ -487,7 +482,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             AtomicInteger numberOfRecoverSnapshotFileRequestsReceived = new AtomicInteger();
             targetMockTransportService.addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
                 (handler, request, channel, task) -> {
-                    numberOfRecoverSnapshotFileRequestsReceived.incrementAndGet();
+                    assertThat(numberOfRecoverSnapshotFileRequestsReceived.incrementAndGet(), is(equalTo(1)));
                     recoverSnapshotFileRequestReceived.countDown();
                     respondToRecoverSnapshotFile.await();
                     handler.messageReceived(request, channel, task);
@@ -501,7 +496,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             respondToRecoverSnapshotFile.countDown();
 
             assertThat(indexExists(indexName), is(equalTo(false)));
-            assertThat(numberOfRecoverSnapshotFileRequestsReceived.get(), is(equalTo(1)));
         } finally {
             updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), null);
         }
@@ -518,7 +512,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 .build()
         );
 
-        int numDocs = randomIntBetween(3000, 5000);
+        int numDocs = randomIntBetween(300, 1000);
         indexDocs(indexName, 0, numDocs);
 
         String repoName = "repo";
@@ -563,8 +557,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertThat(sourceRepo.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
     }
 
-    public void testPrimaryHandoverUsesSnapshots() throws Exception {
-        String sourceNode = internalCluster().startDataOnlyNode();
+    public void testReplicaRecoveryUsesSnapshots() throws Exception {
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(3);
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName,
             Settings.builder()
@@ -572,43 +566,53 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
-                .put("index.routing.allocation.require._name", sourceNode)
+                .put("index.routing.allocation.include._name", String.join(",", dataNodes))
                 .build()
         );
 
-        int numDocs = randomIntBetween(3000, 5000);
+        int numDocs = randomIntBetween(300, 1000);
         indexDocs(indexName, 0, numDocs);
 
         String repoName = "repo";
         createRepo(repoName, TestRepositoryPlugin.INSTRUMENTED_TYPE);
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
-        String targetNode = internalCluster().startDataOnlyNode();
         assertAcked(
             client().admin().indices().prepareUpdateSettings(indexName)
                 .setSettings(Settings.builder()
-                    .put("index.routing.allocation.require._name", targetNode)).get()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
-
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            DiscoveryNode targetDiscoveryNode = state.nodes().resolveNode(targetNode);
-            ShardRouting primaryShard = state.routingTable().index(indexName).shard(0).primaryShard();
-            assertThat(primaryShard.currentNodeId(), is(equalTo(targetDiscoveryNode.getId())));
-            assertThat(primaryShard.started(), is(equalTo(true)));
-        });
 
         ensureGreen(indexName);
         assertDocumentsAreEqual(indexName, numDocs);
 
         RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
-        assertPeerRecoveryWasSuccessful(recoveryState, sourceNode, targetNode);
+        String currentPrimary = recoveryState.getSourceNode().getName();
+        String replica = recoveryState.getTargetNode().getName();
+        assertPeerRecoveryWasSuccessful(recoveryState, currentPrimary, replica);
 
         long snapshotSizeForIndex = getSnapshotSizeForIndex(repoName, "snap", indexName);
 
-        InstrumentedRepo targetRepo = getRepositoryOnNode(repoName, targetNode);
-        assertThat(targetRepo.totalBytesRead.get(), is(greaterThan(0L)));
-        assertThat(targetRepo.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
+        InstrumentedRepo replicaRepo = getRepositoryOnNode(repoName, replica);
+        assertThat(replicaRepo.totalBytesRead.get(), is(greaterThan(0L)));
+        assertThat(replicaRepo.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
+
+        // Stop the current replica
+        if (randomBoolean()) {
+            internalCluster().stopNode(replica);
+
+            ensureGreen(indexName);
+            assertDocumentsAreEqual(indexName, numDocs);
+
+            RecoveryState recoveryStateAfterReplicaFailure = getLatestPeerRecoveryStateForShard(indexName, 0);
+            final String name = recoveryStateAfterReplicaFailure.getSourceNode().getName();
+            final String newReplica = recoveryStateAfterReplicaFailure.getTargetNode().getName();
+            assertPeerRecoveryWasSuccessful(recoveryStateAfterReplicaFailure, name, newReplica);
+
+            InstrumentedRepo newReplicaRepo = getRepositoryOnNode(repoName, newReplica);
+            assertThat(newReplicaRepo.totalBytesRead.get(), is(greaterThan(0L)));
+            assertThat(newReplicaRepo.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
+        }
     }
 
     private long getSnapshotSizeForIndex(String repository, String snapshot, String index) {
@@ -625,17 +629,13 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
     private void indexDocs(String indexName, int docIdOffset, int docCount) throws Exception {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[docCount];
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < builders.length; i++) {
             int docId = i + docIdOffset;
-            bulkRequestBuilder.add(
-                client().prepareIndex(indexName)
-                    .setId(Integer.toString(docId))
-                    .setSource("field", docId, "field2", "Some text " + docId)
-            );
+            builders[i] = client().prepareIndex(indexName)
+                .setId(Integer.toString(docId))
+                .setSource("field", docId, "field2", "Some text " + docId);
         }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        assertThat(bulkResponse.hasFailures(), is(equalTo(false)));
+        indexRandom(true, builders);
 
         // Ensure that the safe commit == latest commit
         assertBusy(() -> {
@@ -648,22 +648,16 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             assertThat(Strings.toString(stats.getSeqNoStats()),
                 stats.getSeqNoStats().getMaxSeqNo(), equalTo(stats.getSeqNoStats().getGlobalCheckpoint()));
         }, 60, TimeUnit.SECONDS);
-
-        FlushResponse flushResponse = client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
-        assertThat(flushResponse.getFailedShards(), is(equalTo(0)));
-        refresh(indexName);
     }
 
     private void assertDocumentsAreEqual(String indexName, int docCount) {
-        for (int i = 0; i < 5; i++) {
-            assertDocCount(indexName, docCount);
-
+        assertDocCount(indexName, docCount);
+        for (int testCase = 0; testCase < 3; testCase++) {
             final SearchRequestBuilder searchRequestBuilder = client().prepareSearch(indexName)
                 .addSort("field", SortOrder.ASC)
                 .setSize(10_000);
 
             SearchResponse searchResponse;
-            int testCase = randomIntBetween(0, 2);
             switch (testCase) {
                 case 0:
                     searchResponse = searchRequestBuilder.
@@ -707,19 +701,17 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     }
 
     private void assertPeerRecoveryWasSuccessful(RecoveryState recoveryState, String sourceNode, String targetNode) throws Exception {
-        assertBusy(() -> {
-            assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
-            assertThat(recoveryState.getRecoverySource(), equalTo(RecoverySource.PeerRecoverySource.INSTANCE));
+        assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
+        assertThat(recoveryState.getRecoverySource(), equalTo(RecoverySource.PeerRecoverySource.INSTANCE));
 
-            assertThat(recoveryState.getSourceNode(), notNullValue());
-            assertThat(recoveryState.getSourceNode().getName(), equalTo(sourceNode));
-            assertThat(recoveryState.getTargetNode(), notNullValue());
-            assertThat(recoveryState.getTargetNode().getName(), equalTo(targetNode));
+        assertThat(recoveryState.getSourceNode(), notNullValue());
+        assertThat(recoveryState.getSourceNode().getName(), equalTo(sourceNode));
+        assertThat(recoveryState.getTargetNode(), notNullValue());
+        assertThat(recoveryState.getTargetNode().getName(), equalTo(targetNode));
 
-            RecoveryState.Index indexState = recoveryState.getIndex();
-            assertThat(indexState.recoveredBytesPercent(), greaterThanOrEqualTo(0.0f));
-            assertThat(indexState.recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
-        });
+        RecoveryState.Index indexState = recoveryState.getIndex();
+        assertThat(indexState.recoveredBytesPercent(), greaterThanOrEqualTo(0.0f));
+        assertThat(indexState.recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
     }
 
     private RecoveryState getLatestPeerRecoveryStateForShard(String indexName, int shardId) {

@@ -70,30 +70,29 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
 
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
                 ensureGreen(indexName);
-                for (int i = 0; i < 4; i++) {
-                    assertSearchResultsAreCorrect(indexName, numDocs);
-                }
+                assertMatchAllReturnsAllDocuments(indexName, numDocs);
+                assertMatchQueryReturnsAllDocuments(indexName, numDocs);
                 break;
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
     }
 
-    private void assertSearchResultsAreCorrect(String indexName, int numDocs) throws IOException {
-        if (randomBoolean()) {
-            Map<String, Object> searchResults = search(indexName, QueryBuilders.matchAllQuery());
-            assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
-            List<Map<String, Object>> hits = extractValue(searchResults, "hits.hits");
-            for (Map<String, Object> hit : hits) {
-                String docId = extractValue(hit, "_id");
-                assertThat(Integer.parseInt(docId), allOf(greaterThanOrEqualTo(0), lessThan(numDocs)));
-                assertThat(extractValue(hit, "_source.field"), equalTo(Integer.parseInt(docId)));
-                assertThat(extractValue(hit, "_source.text"), equalTo("Some text " + docId));
-            }
-        } else {
-            Map<String, Object> searchResults = search(indexName, QueryBuilders.matchQuery("text", "some"));
-            assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
+    private void assertMatchAllReturnsAllDocuments(String indexName, int numDocs) throws IOException {
+        Map<String, Object> searchResults = search(indexName, QueryBuilders.matchAllQuery());
+        assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
+        List<Map<String, Object>> hits = extractValue(searchResults, "hits.hits");
+        for (Map<String, Object> hit : hits) {
+            String docId = extractValue(hit, "_id");
+            assertThat(Integer.parseInt(docId), allOf(greaterThanOrEqualTo(0), lessThan(numDocs)));
+            assertThat(extractValue(hit, "_source.field"), equalTo(Integer.parseInt(docId)));
+            assertThat(extractValue(hit, "_source.text"), equalTo("Some text " + docId));
         }
+    }
+
+    private void assertMatchQueryReturnsAllDocuments(String indexName, int numDocs) throws IOException {
+        Map<String, Object> searchResults = search(indexName, QueryBuilders.matchQuery("text", "some"));
+        assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
     }
 
     private static Map<String, Object> search(String index, QueryBuilder query) throws IOException {

@@ -70,7 +70,8 @@ public class ShutdownService implements ClusterStateListener {
                         .values()
                         .stream()
                         .map(singleNodeShutdownMetadata -> {
-                            if (nodesNotPreviouslySeen.contains(singleNodeShutdownMetadata.getNodeId())) {
+                            if (nodesNotPreviouslySeen.contains(singleNodeShutdownMetadata.getNodeId())
+                                || currentState.nodes().nodeExists(singleNodeShutdownMetadata.getNodeId())) {
                                 return SingleNodeShutdownMetadata.builder(singleNodeShutdownMetadata).setNodeSeen(true).build();
                             }
                             return singleNodeShutdownMetadata;

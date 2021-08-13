@@ -495,6 +495,11 @@ public class AllocationService {
                 // its a live node, continue
                 continue;
             }
+            final UnassignedInfo.Reason
+                unassignedReason =
+                nodesShutdownMetadata.containsKey(node.nodeId()) ?
+                    UnassignedInfo.Reason.NODE_RESTARTING :
+                    UnassignedInfo.Reason.NODE_LEFT;
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
                 final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
@@ -503,10 +508,9 @@ public class AllocationService {
                     .orElse(false);
                 boolean delayed = delayedDueToKnownRestart
                     || INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
+
                 UnassignedInfo unassignedInfo = new UnassignedInfo(
-                    nodesShutdownMetadata.containsKey(node.nodeId())
-                        ? UnassignedInfo.Reason.NODE_RESTARTING
-                        : UnassignedInfo.Reason.NODE_LEFT,
+                    unassignedReason,
                     "node_left [" + node.nodeId() + "]",
                     null,
                     0,

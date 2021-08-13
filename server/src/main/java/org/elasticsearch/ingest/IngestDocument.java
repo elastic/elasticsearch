@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -660,12 +661,14 @@ public final class IngestDocument {
     }
 
     private Map<String, Object> createTemplateModel() {
-        Map<String, Object> model = new HashMap<>(sourceAndMetadata);
-        model.put(SourceFieldMapper.NAME, sourceAndMetadata);
-        // If there is a field in the source with the name '_ingest' it gets overwritten here,
-        // if access to that field is required then it get accessed via '_source._ingest'
-        model.put(INGEST_KEY, ingestMetadata);
-        return model;
+        return new LazyMap<>(() -> {
+            Map<String, Object> model = new HashMap<>(sourceAndMetadata);
+            model.put(SourceFieldMapper.NAME, sourceAndMetadata);
+            // If there is a field in the source with the name '_ingest' it gets overwritten here,
+            // if access to that field is required then it get accessed via '_source._ingest'
+            model.put(INGEST_KEY, ingestMetadata);
+            return model;
+        });
     }
 
     /**

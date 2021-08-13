@@ -21,6 +21,7 @@ allprojects {
 
     repositories {
         mavenCentral()
+        maven { url 'https://jitpack.io' }
     }
 
     configurations {
@@ -36,6 +37,8 @@ allprojects {
 
     dependencies {
         rewrite "org.openrewrite:rewrite-java-11"
+        rewrite "com.github.breskeby:rewrite-rules:0dde6854d5"
+//        rewrite "com.breskeby.rewrite:java-rules:1.0"
     }
 
     if (gradle.getStartParameter().getTaskNames().any { it.endsWith(RewritePlugin.REWRITE_TASKNAME) }) {

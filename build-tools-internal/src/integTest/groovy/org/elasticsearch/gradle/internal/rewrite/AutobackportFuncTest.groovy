@@ -47,10 +47,12 @@ class SomeClass {
         
         repositories {
             mavenCentral()
+            maven { url 'https://jitpack.io' }
         }
         
         dependencies {
             rewrite "org.openrewrite:rewrite-java-11"
+            rewrite "com.github.breskeby:java-recipes:0dde6854d5"
         }
         """
 
@@ -60,19 +62,15 @@ class SomeClass {
         sourceFile.text == """
 package org.acme;
 
-import org.elasticsearch.core.Lists;
-import org.elasticsearch.core.Maps;
-import org.elasticsearch.core.Sets;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 class SomeClass {
     public void someMethod() {
-        List myList = Lists.of("some", "non", "java8", "code");
-        Set mySet = Sets.of("some", "non", "java8", "code");
-        Map myMap = Maps.of(Lists.of("some", "non"), Sets.of("java8", "code"));
+        List myList = org.elasticsearch.core.List.of("some", "non", "java8", "code");
+        Set mySet = org.elasticsearch.core.Set.of("some", "non", "java8", "code");
+        Map myMap = org.elasticsearch.core.Map.of(org.elasticsearch.core.List.of("some", "non"), org.elasticsearch.core.Set.of("java8", "code"));
     }
 }
 """
@@ -85,33 +83,36 @@ name: org.elasticsearch.java.backport.ListOfBackport
 displayName: Use `org.elasticsearch.core.Lists#of(..)` not java.util.List.of#(..)
 description: Java 8 does not support the `java.util.List#of(..)`.
 tags:
-  - jdk
+  - backport
 recipeList:
-  - org.openrewrite.java.ChangeMethodTargetToStatic:
-      methodPattern: java.util.List of(..)
-      fullyQualifiedTargetTypeName: org.elasticsearch.core.Lists
+  - com.breskeby.rewrite.java.backport.ChangeMethodOwnerRecipe:
+      originFullQualifiedClassname: java.util.List
+      targetFullQualifiedClassname: org.elasticsearch.core.List
+      methodName: of
 ---
 type: specs.openrewrite.org/v1beta/recipe
 name: org.elasticsearch.java.backport.MapOfBackport
 displayName: Use `org.elasticsearch.core.Maps#of(..)` not java.util.Map.of#(..)
 description: Java 8 does not support the `java.util.Map#of(..)`.
 tags:
-  - jdk
+  - backport
 recipeList:
-  - org.openrewrite.java.ChangeMethodTargetToStatic:
-      methodPattern: java.util.Map of(..)
-      fullyQualifiedTargetTypeName: org.elasticsearch.core.Maps
+  - com.breskeby.rewrite.java.backport.ChangeMethodOwnerRecipe:
+      originFullQualifiedClassname: java.util.Map
+      targetFullQualifiedClassname: org.elasticsearch.core.Map
+      methodName: of
 ---
 type: specs.openrewrite.org/v1beta/recipe
 name: org.elasticsearch.java.backport.SetOfBackport
 displayName: Use `org.elasticsearch.core.Sets#of(..)` not java.util.Set.of#(..)
 description: Java 8 does not support the `java.util.Set#of(..)`.
 tags:
-  - jdk
+  - backport
 recipeList:
-  - org.openrewrite.java.ChangeMethodTargetToStatic:
-      methodPattern: java.util.Set of(..)
-      fullyQualifiedTargetTypeName: org.elasticsearch.core.Sets
+  - com.breskeby.rewrite.java.backport.ChangeMethodOwnerRecipe:
+      originFullQualifiedClassname: java.util.Set
+      targetFullQualifiedClassname: org.elasticsearch.core.Set
+      methodName: of
 """
     }
 }

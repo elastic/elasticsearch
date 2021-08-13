@@ -80,8 +80,8 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
 
     private void assertMatchAllReturnsAllDocuments(String indexName, int numDocs) throws IOException {
         Map<String, Object> searchResults = search(indexName, QueryBuilders.matchAllQuery());
-        assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
         List<Map<String, Object>> hits = extractValue(searchResults, "hits.hits");
+        assertThat(hits.size(), equalTo(numDocs));
         for (Map<String, Object> hit : hits) {
             String docId = extractValue(hit, "_id");
             assertThat(Integer.parseInt(docId), allOf(greaterThanOrEqualTo(0), lessThan(numDocs)));
@@ -92,12 +92,19 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
 
     private void assertMatchQueryReturnsAllDocuments(String indexName, int numDocs) throws IOException {
         Map<String, Object> searchResults = search(indexName, QueryBuilders.matchQuery("text", "some"));
-        assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
+        List<Map<String, Object>> hits = extractValue(searchResults, "hits.hits");
+        assertThat(hits.size(), equalTo(numDocs));
+        for (Map<String, Object> hit : hits) {
+            String docId = extractValue(hit, "_id");
+            assertThat(Integer.parseInt(docId), allOf(greaterThanOrEqualTo(0), lessThan(numDocs)));
+            assertThat(extractValue(hit, "_source.field"), equalTo(Integer.parseInt(docId)));
+            assertThat(extractValue(hit, "_source.text"), equalTo("Some text " + docId));
+        }
     }
 
     private static Map<String, Object> search(String index, QueryBuilder query) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search");
-        request.setJsonEntity(new SearchSourceBuilder().trackTotalHits(true).query(query).toString());
+        request.setJsonEntity(new SearchSourceBuilder().size(1000).query(query).toString());
 
         final Response response = client().performRequest(request);
         assertOK(response);

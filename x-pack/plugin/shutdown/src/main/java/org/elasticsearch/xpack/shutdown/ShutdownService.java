@@ -64,9 +64,9 @@ public class ShutdownService implements ClusterStateListener {
             clusterService.submitStateUpdateTask("shutdown-seen-nodes-updater", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    NodesShutdownMetadata shutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
+                    NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
 
-                    final Map<String, SingleNodeShutdownMetadata> newShutdownMetadataMap = shutdownMetadata.getAllNodeMetadataMap()
+                    final Map<String, SingleNodeShutdownMetadata> newShutdownMetadataMap = currentShutdownMetadata.getAllNodeMetadataMap()
                         .values()
                         .stream()
                         .map(singleNodeShutdownMetadata -> {
@@ -78,12 +78,14 @@ public class ShutdownService implements ClusterStateListener {
                         })
                         .collect(Collectors.toUnmodifiableMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
 
+                    final NodesShutdownMetadata newNodesMetadata = new NodesShutdownMetadata(newShutdownMetadataMap);
+                    if (newNodesMetadata.equals(currentShutdownMetadata)) {
+                        // Turns out the update was a no-op
+                        return currentState;
+                    }
+
                     return ClusterState.builder(currentState)
-                        .metadata(
-                            Metadata.builder(currentState.metadata())
-                                .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(newShutdownMetadataMap))
-                                .build()
-                        )
+                        .metadata(Metadata.builder(currentState.metadata()).putCustom(NodesShutdownMetadata.TYPE, newNodesMetadata).build())
                         .build();
                 }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -126,6 +127,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
 
         final Request documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk");
         documents.addParameter("refresh", "true");
+        documents.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         documents.setJsonEntity(bulkBody.toString());
         assertOK(client().performRequest(documents));
     }

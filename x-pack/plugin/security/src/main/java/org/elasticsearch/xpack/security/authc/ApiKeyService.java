@@ -1130,12 +1130,16 @@ public class ApiKeyService {
                             listener.onResponse(QueryApiKeyResponse.emptyResponse());
                             return;
                         }
-                        final List<ApiKey> apiKeyInfos = Arrays.stream(searchResponse.getHits().getHits())
-                            .map(ApiKeyService::convertSearchHitToApiKeyInfo)
+                        final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
+                            .map(ApiKeyService::convertSearchHitToQueryItem)
                             .collect(Collectors.toUnmodifiableList());
-                        listener.onResponse(new QueryApiKeyResponse(searchResponse.getHits().getTotalHits().value, apiKeyInfos));
+                        listener.onResponse(new QueryApiKeyResponse(searchResponse.getHits().getTotalHits().value, apiKeyItem));
                     }, listener::onFailure)));
         }
+    }
+
+    private static QueryApiKeyResponse.Item convertSearchHitToQueryItem(SearchHit hit) {
+        return new QueryApiKeyResponse.Item(convertSearchHitToApiKeyInfo(hit), hit.getSortValues());
     }
 
     private static ApiKey convertSearchHitToApiKeyInfo(SearchHit hit) {
@@ -1151,12 +1155,18 @@ public class ApiKeyService {
         String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
         @SuppressWarnings("unchecked")
         Map<String, Object> metadata = (Map<String, Object>) source.get("metadata_flattened");
-        return new ApiKey(name, id, Instant.ofEpochMilli(creation),
+
+        return new ApiKey(
+            name,
+            id,
+            Instant.ofEpochMilli(creation),
             (expiration != null) ? Instant.ofEpochMilli(expiration) : null,
-            invalidated, username, realm, metadata);
+            invalidated,
+            username,
+            realm,
+            metadata
+        );
     }
-
-
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
         return notification -> {

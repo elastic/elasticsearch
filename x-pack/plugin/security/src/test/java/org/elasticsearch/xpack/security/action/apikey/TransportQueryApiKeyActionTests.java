@@ -15,6 +15,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -23,7 +24,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransportQueryApiKeyActionTests extends ESTestCase {
 
     public void testTranslateFieldSortBuilders() {
-        final List<String> fieldNames = List.of("username",
+        final List<String> fieldNames = List.of(
+            "_doc",
+            "username",
             "realm_name",
             "name",
             "creation",
@@ -40,7 +43,7 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
         IntStream.range(0, originals.size()).forEach(i -> {
             final FieldSortBuilder original = originals.get(i);
             final FieldSortBuilder translated = (FieldSortBuilder) searchSourceBuilder.sorts().get(i);
-            if ("name".equals(original.getFieldName())) {
+            if (Set.of("_doc", "name").contains(original.getFieldName())) {
                 assertThat(translated, equalTo(original));
             } else {
                 if ("username".equals(original.getFieldName())) {

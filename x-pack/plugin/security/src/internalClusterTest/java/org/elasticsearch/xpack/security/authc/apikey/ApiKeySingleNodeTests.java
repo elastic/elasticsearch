@@ -47,8 +47,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
                 .filter(QueryBuilders.idsQuery().addIds(id1, id2))
                 .filter(QueryBuilders.rangeQuery("expiration").from(Instant.now().toEpochMilli())));
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
-        assertThat(queryApiKeyResponse.getApiKeyInfos().length, equalTo(1));
-        assertThat(queryApiKeyResponse.getApiKeyInfos()[0].getId(), equalTo(id2));
-        assertThat(queryApiKeyResponse.getApiKeyInfos()[0].getName(), equalTo("long-lived"));
+        assertThat(queryApiKeyResponse.getItems().length, equalTo(1));
+        assertThat(queryApiKeyResponse.getItems()[0].getId(), equalTo(id2));
+        assertThat(queryApiKeyResponse.getItems()[0].getName(), equalTo("long-lived"));
     }
 }

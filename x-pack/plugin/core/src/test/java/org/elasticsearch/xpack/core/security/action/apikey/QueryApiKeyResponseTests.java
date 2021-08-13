@@ -29,36 +29,40 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
 
     @Override
     protected QueryApiKeyResponse createTestInstance() {
-        final List<ApiKey> apiKeys = randomList(0, 3, this::randomApiKeyInfo);
-        return new QueryApiKeyResponse(randomIntBetween(apiKeys.size(), 100), apiKeys);
+        final List<QueryApiKeyResponse.Item> items = randomList(0, 3, this::randomItem);
+        return new QueryApiKeyResponse(randomIntBetween(items.size(), 100), items);
     }
 
     @Override
     protected QueryApiKeyResponse mutateInstance(QueryApiKeyResponse instance) throws IOException {
-        final ArrayList<ApiKey> apiKeyInfos =
-            Arrays.stream(instance.getApiKeyInfos()).collect(Collectors.toCollection(ArrayList::new));
+        final List<QueryApiKeyResponse.Item> items =
+            Arrays.stream(instance.getItems()).collect(Collectors.toCollection(ArrayList::new));
         switch (randomIntBetween(0, 3)) {
             case 0:
-                apiKeyInfos.add(randomApiKeyInfo());
-                return new QueryApiKeyResponse(instance.getTotal(), apiKeyInfos);
+                items.add(randomItem());
+                return new QueryApiKeyResponse(instance.getTotal(), items);
             case 1:
-                if (false == apiKeyInfos.isEmpty()) {
-                    return new QueryApiKeyResponse(instance.getTotal(), apiKeyInfos.subList(1, apiKeyInfos.size()));
+                if (false == items.isEmpty()) {
+                    return new QueryApiKeyResponse(instance.getTotal(), items.subList(1, items.size()));
                 } else {
-                    apiKeyInfos.add(randomApiKeyInfo());
-                    return new QueryApiKeyResponse(instance.getTotal(), apiKeyInfos);
+                    items.add(randomItem());
+                    return new QueryApiKeyResponse(instance.getTotal(), items);
                 }
             case 2:
-                if (false == apiKeyInfos.isEmpty()) {
-                    final int index = randomIntBetween(0, apiKeyInfos.size() - 1);
-                    apiKeyInfos.set(index, randomApiKeyInfo());
+                if (false == items.isEmpty()) {
+                    final int index = randomIntBetween(0, items.size() - 1);
+                    items.set(index, randomItem());
                 } else {
-                    apiKeyInfos.add(randomApiKeyInfo());
+                    items.add(randomItem());
                 }
-                return new QueryApiKeyResponse(instance.getTotal(), apiKeyInfos);
+                return new QueryApiKeyResponse(instance.getTotal(), items);
             default:
-                return new QueryApiKeyResponse(instance.getTotal() + 1, apiKeyInfos);
+                return new QueryApiKeyResponse(instance.getTotal() + 1, items);
         }
+    }
+
+    private QueryApiKeyResponse.Item randomItem() {
+        return new QueryApiKeyResponse.Item(randomApiKeyInfo(), randomSortValues());
     }
 
     private ApiKey randomApiKeyInfo() {
@@ -70,5 +74,13 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
         final Instant expiration = randomBoolean() ? Instant.ofEpochMilli(randomMillisUpToYear9999()) : null;
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
         return new ApiKey(name, id, creation, expiration, false, username, realm_name, metadata);
+    }
+
+    private Object[] randomSortValues() {
+        if (randomBoolean()) {
+            return null;
+        } else {
+            return randomArray(1, 3, Object[]::new, () -> randomFrom(42, 42L, "key-1", "2021-01-01T00:00:00.177Z", randomBoolean()));
+        }
     }
 }

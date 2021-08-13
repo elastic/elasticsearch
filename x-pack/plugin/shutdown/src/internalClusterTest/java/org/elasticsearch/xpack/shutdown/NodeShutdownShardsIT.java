@@ -32,6 +32,10 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         return Arrays.asList(ShutdownPlugin.class);
     }
 
+    /**
+     * Verifies that a node that's removed from the cluster with zero shards stays in the `COMPLETE` status after it leaves, rather than
+     * reverting to `NOT_STARTED` (this was a bug in the initial implementation).
+     */
     public void testShardStatusStaysCompleteAfterNodeLeaves() throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
@@ -60,6 +64,10 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
     }
 
+    /**
+     * Similar to the previous test, but ensures that the status stays at `COMPLETE` when the node is offline when the shutdown is
+     * registered. This may happen if {@link ShutdownService} isn't working as expected.
+     */
     public void testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline() throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
@@ -95,6 +103,10 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
     }
 
+    /**
+     * Checks that non-data nodes that are registered for shutdown have a shard migration status of `COMPLETE` rather than `NOT_STARTED`.
+     * (this was a bug in the initial implementation).
+     */
     public void testShardStatusIsCompleteOnNonDataNodes() throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         final String nodeToShutDownName = internalCluster().startMasterOnlyNode();

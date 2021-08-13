@@ -157,6 +157,11 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
     }
 
     @Override
+    public Compression.Scheme getScheme() {
+        return Compression.Scheme.LZ4;
+    }
+
+    @Override
     public void close() {
         for (Recycler.V<byte[]> page : pages) {
             page.close();

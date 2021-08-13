@@ -113,7 +113,7 @@ public final class Messages {
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
     public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata {0}";
-    public static final String TASK_CONFIG_NOT_FOUND = "[{0}] Could not find task configuration document [{1}] for model ";
+    public static final String VOCABULARY_NOT_FOUND = "[{0}] Could not find vocabulary document [{1}] for model ";
     public static final String INFERENCE_CANNOT_DELETE_ML_MANAGED_MODEL =
         "Unable to delete model [{0}] as it is required by machine learning";
     public static final String MODEL_DEFINITION_TRUNCATED =

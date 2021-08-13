@@ -90,7 +90,6 @@ def v7compatibilityNotSupportedTests = {
           'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers', // #42809 the use nested path and filter sort throws an exception
           'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //#42654 cutoff_frequency, common terms are not supported. Throwing an exception
 
-
   ]
 }
 tasks.named("yamlRestCompatTest").configure {

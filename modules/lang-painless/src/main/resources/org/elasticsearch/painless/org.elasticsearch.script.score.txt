@@ -10,6 +10,8 @@
 
 class org.elasticsearch.script.ScoreScript @no_import {
 }
+class org.elasticsearch.script.ScoreScript$Factory @no_import {
+}
 
 static_import {
     double saturation(double, double) from_class org.elasticsearch.script.ScoreScriptUtils

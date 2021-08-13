@@ -31,6 +31,8 @@ import java.net.URL;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.security.tool.CommandLineHttpClient.createURL;
+
 public class ResetElasticPasswordTool extends BaseRunAsSuperuserCommand {
 
     private final Function<Environment, CommandLineHttpClient> clientFunction;
@@ -92,7 +94,7 @@ public class ResetElasticPasswordTool extends BaseRunAsSuperuserCommand {
                 username,
                 password,
                 () -> requestBodySupplier(elasticPassword),
-                this::responseBuilder
+                CommandLineHttpClient::responseBuilder
             );
             final int responseStatus = httpResponse.getHttpStatus();
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {

@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -86,6 +87,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.tasks.Task;
@@ -116,6 +118,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -648,11 +651,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode();
 
         logger.info("--> create repository");
-        assertAcked(client().admin().cluster().preparePutRepository(REPO_NAME)
-                .setType("fs").setSettings(Settings.builder()
-                                .put("location", randomRepoPath())
-                                .put("compress", false)
-                ).get());
+        createRepository(randomBoolean());
 
         ensureGreen();
 
@@ -660,14 +659,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(REPO_NAME, SNAP_NAME)
-                .setWaitForCompletion(true).setIndices(INDEX_NAME).get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-        assertThat(client().admin().cluster().prepareGetSnapshots(REPO_NAME).setSnapshots(SNAP_NAME).get()
-                .getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        CreateSnapshotResponse createSnapshotResponse = createSnapshot(INDEX_NAME);
 
         client().admin().indices().prepareClose(INDEX_NAME).execute().actionGet();
 
@@ -809,12 +801,17 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
             PeerRecoveryTargetService.Actions.TRANSLOG_OPS,
             PeerRecoveryTargetService.Actions.FILES_INFO,
+            PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
             PeerRecoveryTargetService.Actions.FILE_CHUNK,
             PeerRecoveryTargetService.Actions.CLEAN_FILES,
             PeerRecoveryTargetService.Actions.FINALIZE
         };
         final String recoveryActionToBlock = randomFrom(recoveryActions);
         logger.info("--> will temporarily interrupt recovery action between blue & red on [{}]", recoveryActionToBlock);
+
+        if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
+            createSnapshotThatCanBeUsedDuringRecovery(indexName);
+        }
 
         MockTransportService blueTransportService =
             (MockTransportService) internalCluster().getInstance(TransportService.class, blueNodeName);
@@ -852,6 +849,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             ).get();
 
             ensureGreen();
+            if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
+                assertThat(handlingBehavior.blocksRemaining.get(), is(equalTo(0)));
+            }
             searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
             assertHitCount(searchResponse, numDocs);
         } finally {
@@ -980,6 +980,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         String[] recoveryActions = new String[]{
                 PeerRecoverySourceService.Actions.START_RECOVERY,
                 PeerRecoveryTargetService.Actions.FILES_INFO,
+                PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
                 PeerRecoveryTargetService.Actions.FILE_CHUNK,
                 PeerRecoveryTargetService.Actions.CLEAN_FILES,
                 //RecoveryTarget.Actions.TRANSLOG_OPS, <-- may not be sent if already flushed
@@ -989,6 +990,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String recoveryActionToBlock = randomFrom(recoveryActions);
         final boolean dropRequests = randomBoolean();
         logger.info("--> will {} between blue & red on [{}]", dropRequests ? "drop requests" : "break connection", recoveryActionToBlock);
+
+        // Generate a snapshot to recover from it if the action that we're blocking is sending the request  snapshot files
+        if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
+            createSnapshotThatCanBeUsedDuringRecovery(indexName);
+        }
 
         MockTransportService blueMockTransportService =
             (MockTransportService) internalCluster().getInstance(TransportService.class, blueNodeName);
@@ -1082,6 +1088,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         indexRandom(true, dummyDocuments(), requests);
         ensureSearchable(indexName);
         assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+
+        if (randomBoolean()) {
+            createSnapshotThatCanBeUsedDuringRecovery(indexName);
+        }
 
         MockTransportService masterTransportService =
             (MockTransportService) internalCluster().getInstance(TransportService.class, masterNodeName);
@@ -1927,6 +1937,50 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             assertThat(nodeIndexShard.seqNoStats().getMaxSeqNo(), is(equalTo(maxSeqNo)));
             assertBusy(() -> assertThat(nodeIndexShard.getLastSyncedGlobalCheckpoint(), equalTo(maxSeqNo)));
         }
+    }
+
+    private void createSnapshotThatCanBeUsedDuringRecovery(String indexName) throws Exception {
+        // Ensure that the safe commit == latest commit
+        assertBusy(() -> {
+            ShardStats stats = client().admin().indices().prepareStats(indexName).clear().get()
+                .asMap().entrySet().stream().filter(e -> e.getKey().shardId().getId() == 0)
+                .map(Map.Entry::getValue).findFirst().orElse(null);
+            assertThat(stats, is(notNullValue()));
+            assertThat(stats.getSeqNoStats(), is(notNullValue()));
+
+            assertThat(Strings.toString(stats.getSeqNoStats()),
+                stats.getSeqNoStats().getMaxSeqNo(), equalTo(stats.getSeqNoStats().getGlobalCheckpoint()));
+        }, 60, TimeUnit.SECONDS);
+
+        // Force merge to make sure that the resulting snapshot would contain the same index files as the safe commit
+        ForceMergeResponse forceMergeResponse = client().admin().indices().prepareForceMerge(indexName).setFlush(randomBoolean()).get();
+        assertThat(forceMergeResponse.getTotalShards(), equalTo(forceMergeResponse.getSuccessfulShards()));
+        createRepository(true);
+        createSnapshot(indexName);
+    }
+
+    private void createRepository(boolean enableSnapshotPeerRecoveries) {
+        assertAcked(
+            client().admin().cluster().preparePutRepository(REPO_NAME)
+                .setType("fs")
+                .setSettings(Settings.builder()
+                    .put("location", randomRepoPath())
+                    .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), enableSnapshotPeerRecoveries)
+                    .put("compress", false)
+                ).get()
+        );
+    }
+
+    private CreateSnapshotResponse createSnapshot(String indexName) {
+        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(REPO_NAME, SNAP_NAME)
+            .setWaitForCompletion(true).setIndices(indexName).get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        assertThat(client().admin().cluster().prepareGetSnapshots(REPO_NAME).setSnapshots(SNAP_NAME).get()
+            .getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        return createSnapshotResponse;
     }
 
     protected IndexMode indexMode() {

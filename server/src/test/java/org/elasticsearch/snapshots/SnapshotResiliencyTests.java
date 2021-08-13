@@ -155,6 +155,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -1816,12 +1817,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     SourceOnlyRecoveryPlannerService.INSTANCE
                 );
 
+                final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
                     clusterService,
                     threadPool,
-                    new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService),
+                    new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService, snapshotFilesProvider),
                     shardStateAction,
                     repositoriesService,
                     mock(SearchService.class),

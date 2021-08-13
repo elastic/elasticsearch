@@ -59,6 +59,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 
@@ -71,7 +72,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     protected Expression expression(ParseTree ctx) {
-        return typedParsing(ctx, Expression.class);
+        return typedParsing(this, ctx, Expression.class);
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {

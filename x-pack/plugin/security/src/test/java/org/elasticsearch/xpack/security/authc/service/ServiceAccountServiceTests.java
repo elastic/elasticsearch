@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -122,7 +123,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
     public void testGetServiceAccountPrincipals() {
         assertThat(ServiceAccountService.getServiceAccountPrincipals(),
-            equalTo(Set.of("elastic/fleet-server")));
+            containsInAnyOrder("elastic/fleet-server", "elastic/kibana"));
     }
 
     public void testTryParseToken() throws IOException, IllegalAccessException {

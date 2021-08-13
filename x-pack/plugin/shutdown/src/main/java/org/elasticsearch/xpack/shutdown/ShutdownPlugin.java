@@ -67,7 +67,8 @@ public class ShutdownPlugin extends Plugin implements ActionPlugin {
         return SHUTDOWN_FEATURE_ENABLED_FLAG_SETTING.get(settings);
     }
 
-    @Override public Collection<Object> createComponents(
+    @Override
+    public Collection<Object> createComponents(
         Client client,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -78,7 +79,8 @@ public class ShutdownPlugin extends Plugin implements ActionPlugin {
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
 
         ShutdownService shutdownService = new ShutdownService(clusterService);
 

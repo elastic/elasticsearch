@@ -77,7 +77,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         // Stop the node we're going to shut down and mark it as shutting down while it's offline. This checks that the cluster state
         // listener is working correctly.
         internalCluster().restartNode(nodeToRestartName, new InternalTestCluster.RestartCallback() {
-            @Override public Settings onNodeStopped(String nodeName) throws Exception {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
                 PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
                     nodeToRestartId,
                     SingleNodeShutdownMetadata.Type.REMOVE,

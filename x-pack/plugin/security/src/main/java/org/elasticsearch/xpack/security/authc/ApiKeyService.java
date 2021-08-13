@@ -1125,7 +1125,8 @@ public class ApiKeyService {
                     SearchAction.INSTANCE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
-                        if (searchResponse.getHits().getHits().length <= 0) {
+                        final long total = searchResponse.getHits().getTotalHits().value;
+                        if (total == 0) {
                             logger.debug("No api keys found for query [{}]", searchRequest.source().query());
                             listener.onResponse(QueryApiKeyResponse.emptyResponse());
                             return;
@@ -1133,7 +1134,7 @@ public class ApiKeyService {
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
                             .map(ApiKeyService::convertSearchHitToQueryItem)
                             .collect(Collectors.toUnmodifiableList());
-                        listener.onResponse(new QueryApiKeyResponse(searchResponse.getHits().getTotalHits().value, apiKeyItem));
+                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
                     }, listener::onFailure)));
         }
     }

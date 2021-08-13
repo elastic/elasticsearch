@@ -256,6 +256,16 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         for (int i = from; i < total; i++) {
             assertThat(apiKeyInfos.get(i - from).get("id"), equalTo(apiKeyIds.get(i)));
         }
+
+        // size can be zero, but total should still reflect the number of keys matched
+        final Request request2 = new Request("GET", "/_security/_query/api_key");
+        request2.setOptions(request2.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        request2.setJsonEntity("{\"size\":0}");
+        final Response response2 = client().performRequest(request2);
+        assertOK(response2);
+        final Map<String, Object> responseMap2 = responseAsMap(response2);
+        assertThat(responseMap2.get("total"), equalTo(total));
+        assertThat(responseMap2.get("count"), equalTo(0));
     }
 
     @SuppressWarnings("unchecked")

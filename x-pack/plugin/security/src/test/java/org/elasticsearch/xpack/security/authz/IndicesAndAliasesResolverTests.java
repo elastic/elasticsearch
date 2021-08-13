@@ -22,9 +22,12 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchAction;
@@ -32,6 +35,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -306,47 +310,54 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testWildcardsAreNotAllowedInShardLevelRequests() {
-        ShardSearchRequest request = mock(ShardSearchRequest.class);
-        when(request.indices()).thenReturn(new String[]{"index*"});
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> resolveIndices(SearchAction.NAME + "[s]", request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal()
-        );
-        assertThat(
-            exception,
-            throwableWithMessage(
-                "the action indices:data/read/search[s] does not support wildcards;"
-                    + " the provided index expression(s) [index*] are not allowed"
-            )
-        );
+        for (IndicesRequest request : List.of(mock(DeleteRequest.class), mock(IndexRequest.class),
+                mock(UpdateRequest.class), mock(BulkShardRequest.class), mock(ShardSearchRequest.class))) {
+            when(request.indices()).thenReturn(new String[]{"index*"});
+            IllegalArgumentException exception = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> resolveIndices(SearchAction.NAME + "[s]", (TransportRequest) request,
+                            buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal()
+            );
+            assertThat(
+                    exception,
+                    throwableWithMessage(
+                            "the action indices:data/read/search[s] does not support wildcards;"
+                                    + " the provided index expression(s) [index*] are not allowed"
+                    )
+            );
+        }
     }
 
     public void testAllIsNotAllowedInShardLevelRequests() {
-        ShardSearchRequest request = mock(ShardSearchRequest.class);
-        final boolean literalAll = randomBoolean();
-        if (literalAll) {
-            when(request.indices()).thenReturn(new String[]{"_all"});
-        } else {
-            if (randomBoolean()) {
-                when(request.indices()).thenReturn(Strings.EMPTY_ARRAY);
+        for (IndicesRequest request : List.of(mock(DeleteRequest.class), mock(IndexRequest.class),
+                mock(UpdateRequest.class), mock(BulkShardRequest.class), mock(ShardSearchRequest.class))) {
+            final boolean literalAll = randomBoolean();
+            if (literalAll) {
+                when(request.indices()).thenReturn(new String[]{"_all"});
             } else {
-                when(request.indices()).thenReturn(null);
+                if (randomBoolean()) {
+                    when(request.indices()).thenReturn(Strings.EMPTY_ARRAY);
+                } else {
+                    when(request.indices()).thenReturn(null);
+                }
             }
+            IllegalArgumentException exception = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> resolveIndices(SearchAction.NAME + "[s]", (TransportRequest) request,
+                            buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal()
+            );
+            assertThat(
+                    exception,
+                    literalAll
+                            ? throwableWithMessage(
+                            "the action indices:data/read/search[s] does not support accessing all indices;"
+                                    + " the provided index expression [_all] is not allowed"
+                    )
+                            :
+                            throwableWithMessage("the action indices:data/read/search[s] requires explicit index names, " +
+                                    "but none were provided")
+            );
         }
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> resolveIndices(SearchAction.NAME + "[s]", request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal()
-        );
-
-        assertThat(
-            exception,
-            literalAll
-                ? throwableWithMessage(
-                    "the action indices:data/read/search[s] does not support accessing all indices;"
-                        + " the provided index expression [_all] is not allowed"
-                )
-                : throwableWithMessage("the action indices:data/read/search[s] requires explicit index names, but none were provided")
-        );
     }
 
     public void testExplicitDashIndices() {

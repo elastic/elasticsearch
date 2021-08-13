@@ -349,9 +349,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
+    // TODO: ip filtering does not actually track license usage yet
     public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
         LicensedFeature.momentaryLenient("security_ip_filtering", License.OperationMode.GOLD);
-    public static final LicensedFeature AUDITING_FEATURE =
+    public static final LicensedFeature.Momentary AUDITING_FEATURE =
         LicensedFeature.momentaryLenient("security_auditing", License.OperationMode.GOLD);
 
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked

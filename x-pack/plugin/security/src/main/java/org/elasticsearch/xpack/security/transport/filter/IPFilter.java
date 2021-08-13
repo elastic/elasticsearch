@@ -245,7 +245,7 @@ public class IPFilter {
     }
 
     public boolean accept(String profile, InetSocketAddress peerAddress) {
-        if (Security.IP_FILTERING_FEATURE.check(licenseState) == false) {
+        if (Security.IP_FILTERING_FEATURE.checkWithoutTracking(licenseState) == false) {
             return true;
         }
 

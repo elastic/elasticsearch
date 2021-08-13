@@ -1167,7 +1167,7 @@ public class ApiKeyService {
                         }
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
                             .map(ApiKeyService::convertSearchHitToQueryItem)
-                            .collect(Collectors.toUnmodifiableList());
+                            .collect(Collectors.toList());
                         listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
                     }, listener::onFailure)));
         }

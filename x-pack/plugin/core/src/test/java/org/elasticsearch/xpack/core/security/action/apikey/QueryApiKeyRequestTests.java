@@ -66,7 +66,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
             QueryBuilders.matchAllQuery(),
             42,
             20,
-            List.of(new FieldSortBuilder("name"),
+            org.elasticsearch.core.List.of(new FieldSortBuilder("name"),
                 new FieldSortBuilder("creation_time").setFormat("strict_date_time").order(SortOrder.DESC),
                 new FieldSortBuilder("username")),
             new SearchAfterBuilder().setSortValues(new String[] { "key-2048", "2021-07-01T00:00:59.000Z" }));

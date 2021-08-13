@@ -17,7 +17,7 @@ public class ApiKeyFieldNameTranslators {
     static final List<FieldNameTranslator> FIELD_NAME_TRANSLATORS;
 
     static {
-        FIELD_NAME_TRANSLATORS = List.of(
+        FIELD_NAME_TRANSLATORS = org.elasticsearch.core.List.of(
             new ExactFieldNameTranslator(s -> "creator.principal", "username"),
             new ExactFieldNameTranslator(s -> "creator.realm", "realm_name"),
             new ExactFieldNameTranslator(Function.identity(), "name"),

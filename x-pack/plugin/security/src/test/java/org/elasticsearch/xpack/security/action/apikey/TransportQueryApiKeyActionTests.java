@@ -15,7 +15,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -24,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransportQueryApiKeyActionTests extends ESTestCase {
 
     public void testTranslateFieldSortBuilders() {
-        final List<String> fieldNames = List.of(
+        final List<String> fieldNames = org.elasticsearch.core.List.of(
             "_doc",
             "username",
             "realm_name",
@@ -35,7 +34,7 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
             "metadata." + randomAlphaOfLengthBetween(3, 8));
 
         final List<FieldSortBuilder> originals =
-            fieldNames.stream().map(this::randomFieldSortBuilderWithName).collect(Collectors.toUnmodifiableList());
+            fieldNames.stream().map(this::randomFieldSortBuilderWithName).collect(Collectors.toList());
 
         final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource();
         TransportQueryApiKeyAction.translateFieldSortBuilders(originals, searchSourceBuilder);
@@ -43,7 +42,7 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
         IntStream.range(0, originals.size()).forEach(i -> {
             final FieldSortBuilder original = originals.get(i);
             final FieldSortBuilder translated = (FieldSortBuilder) searchSourceBuilder.sorts().get(i);
-            if (Set.of("_doc", "name").contains(original.getFieldName())) {
+            if (org.elasticsearch.core.Set.of("_doc", "name").contains(original.getFieldName())) {
                 assertThat(translated, equalTo(original));
             } else {
                 if ("username".equals(original.getFieldName())) {
@@ -76,7 +75,8 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
         fieldSortBuilder.setNestedSort(new NestedSortBuilder("name"));
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportQueryApiKeyAction.translateFieldSortBuilders(List.of(fieldSortBuilder), SearchSourceBuilder.searchSource()));
+            () -> TransportQueryApiKeyAction.translateFieldSortBuilders(
+                org.elasticsearch.core.List.of(fieldSortBuilder), SearchSourceBuilder.searchSource()));
         assertThat(e.getMessage(), equalTo("nested sorting is not supported for API Key query"));
     }
 

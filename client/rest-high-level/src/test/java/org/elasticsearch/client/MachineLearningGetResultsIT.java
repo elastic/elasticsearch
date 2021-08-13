@@ -173,7 +173,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             source.put("retain", false);
             source.put("model_size_stats", modelSizeStats);
 
-            indexRequest.source(XContentTestUtils.convertToXContent(source, XContentType.JSON));
+            indexRequest.source(XContentTestUtils.convertToXContent(source, XContentType.JSON), XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
         // Also index one that contains 'memory_assignment_basis', which was added in 7.11
@@ -207,7 +207,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             source.put("retain", false);
             source.put("model_size_stats", modelSizeStats);
 
-            indexRequest.source(XContentTestUtils.convertToXContent(source, XContentType.JSON));
+            indexRequest.source(XContentTestUtils.convertToXContent(source, XContentType.JSON), XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
         {

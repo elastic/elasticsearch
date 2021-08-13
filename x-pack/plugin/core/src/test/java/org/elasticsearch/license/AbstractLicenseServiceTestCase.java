@@ -18,6 +18,8 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
@@ -40,6 +42,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     protected ClockMock clock;
     protected DiscoveryNodes discoveryNodes;
     protected Environment environment;
+    protected ThreadPool threadPool;
     protected String licenseType;
 
     @Before
@@ -49,6 +52,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         discoveryNodes = mock(DiscoveryNodes.class);
         resourceWatcherService = mock(ResourceWatcherService.class);
         environment = mock(Environment.class);
+        threadPool = new TestThreadPool("license-test");
     }
 
     protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings) {
@@ -60,7 +64,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         when(environment.configFile()).thenReturn(tempDir);
         licenseType = selfGeneratedType;
         settings = Settings.builder().put(settings).put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
-        licenseService = new LicenseService(settings, clusterService, clock, environment, resourceWatcherService, licenseState);
+        licenseService = new LicenseService(settings, threadPool, clusterService, clock, environment, resourceWatcherService, licenseState);
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);

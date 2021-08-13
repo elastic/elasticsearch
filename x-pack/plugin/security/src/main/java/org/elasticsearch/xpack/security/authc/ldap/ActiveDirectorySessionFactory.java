@@ -432,23 +432,29 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                                     finalLdapConnection.getConnectedAddress(),
                                     finalLdapConnection.getSSLSession() != null ? ldapsPort : ldapPort));
                     final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                    final SimpleBindRequest bind = bindDN.isEmpty()
+                    final boolean bindAsAuthenticatingUser = this.bindDN.isEmpty();
+                    final SimpleBindRequest bind = bindAsAuthenticatingUser
                             ? new SimpleBindRequest(username, passwordBytes)
                             : new SimpleBindRequest(bindDN, CharArrays.toUtf8Bytes(bindPassword.getChars()));
-                    LdapUtils.maybeForkThenBind(searchConnection, bind, true, threadPool, new ActionRunnable<String>(listener) {
+                    ActionRunnable<String> body = new ActionRunnable<>(listener) {
                         @Override
                         protected void doRun() throws Exception {
-                            search(searchConnection, "CN=Configuration," + domainDN, LdapSearchScope.SUB_TREE.scope(), filter,
-                                    timeLimitSeconds, ignoreReferralErrors,
-                                    ActionListener.wrap(
-                                            results -> {
-                                                IOUtils.close(searchConnection);
-                                                handleSearchResults(results, netBiosDomainName, domainNameCache, listener);
-                                            }, e -> {
-                                                IOUtils.closeWhileHandlingException(searchConnection);
-                                                listener.onFailure(e);
-                                            }),
-                                    "ncname");
+                            search(
+                                searchConnection,
+                                "CN=Configuration," + domainDN,
+                                LdapSearchScope.SUB_TREE.scope(),
+                                filter,
+                                timeLimitSeconds,
+                                ignoreReferralErrors,
+                                ActionListener.wrap(results -> {
+                                    IOUtils.close(searchConnection);
+                                    handleSearchResults(results, netBiosDomainName, domainNameCache, listener);
+                                }, e -> {
+                                    IOUtils.closeWhileHandlingException(searchConnection);
+                                    listener.onFailure(e);
+                                }),
+                                "ncname"
+                            );
                         }
 
                         @Override
@@ -456,7 +462,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                             IOUtils.closeWhileHandlingException(searchConnection);
                             listener.onFailure(e);
                         }
-                    });
+                    };
+                    LdapUtils.maybeForkThenBind(searchConnection, bind, bindAsAuthenticatingUser == false, threadPool, body);
                 }
             } catch (LDAPException e) {
                 listener.onFailure(e);

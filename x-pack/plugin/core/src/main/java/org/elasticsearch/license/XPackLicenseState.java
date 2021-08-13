@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
@@ -20,22 +19,19 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.LongAccumulator;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
 
@@ -526,7 +522,7 @@ public class XPackLicenseState {
 
     private void checkForExpiry(LicensedFeature feature) {
         final long licenseExpiryDate = getLicenseExpiryDate();
-        final long diff = licenseExpiryDate - System.currentTimeMillis();
+        final long diff = licenseExpiryDate - epochMillisProvider.getAsLong();
         if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
             LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
             final long days = TimeUnit.MILLISECONDS.toDays(diff);
@@ -544,8 +540,9 @@ public class XPackLicenseState {
      * Note that if a feature has not been used, it will not appear in the map.
      */
     public Map<FeatureUsage, Long> getLastUsed() {
-        // make a copy so it is not modified when serializing
-        return new HashMap<>(usage);
+        long currentTimeMillis = epochMillisProvider.getAsLong();
+        Function<Long, Long> timeConverter = v -> v == -1 ? currentTimeMillis : v;
+        return usage.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> timeConverter.apply(e.getValue())));
     }
 
     public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {

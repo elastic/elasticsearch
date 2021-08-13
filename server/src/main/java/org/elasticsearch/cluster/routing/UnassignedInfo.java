@@ -277,10 +277,10 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         assert (delayed
             && reason != Reason.NODE_LEFT
             && reason != Reason.NODE_RESTARTING) == false : "shard can only be delayed if it is unassigned due to a node leaving";
-        assert (lastAllocatedNodeId != null
-            && reason != Reason.NODE_LEFT
-            && reason != Reason.NODE_RESTARTING) == false
-            : "last allocated node ID should only be set if the shard is unassigned due to a node leaving";
+        // The below check should be expanded to require `lastAllocatedNodeId` for `NODE_LEFT` as well, once we no longer have to consider
+        // BWC with versions prior to `VERSION_LAST_ALLOCATED_NODE_ADDED`.
+        assert (reason == Reason.NODE_RESTARTING && lastAllocatedNodeId == null) == false
+            : "last allocated node ID must be set if the shard is unassigned due to a node restarting";
     }
 
     public UnassignedInfo(StreamInput in) throws IOException {

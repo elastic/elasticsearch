@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.XPackLicenseState.Feature;

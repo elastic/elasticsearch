@@ -7,8 +7,6 @@
 
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.settings.Settings;
-
 import java.util.function.LongSupplier;
 
 /** A license state that may be mocked by testing because the internal methods are made public */

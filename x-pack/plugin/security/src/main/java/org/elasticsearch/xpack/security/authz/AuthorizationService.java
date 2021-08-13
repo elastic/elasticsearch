@@ -298,39 +298,32 @@ public class AuthorizationService {
             }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
-            final AsyncSupplier<Set<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener -> {
-                LoadAuthorizedIndiciesTimeChecker timeChecker = LoadAuthorizedIndiciesTimeChecker.start(requestInfo, authzInfo);
+            final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
+                final LoadAuthorizedIndiciesTimeChecker timeChecker = LoadAuthorizedIndiciesTimeChecker.start(requestInfo, authzInfo);
                 authzEngine.loadAuthorizedIndices(
-                    requestInfo,
-                    authzInfo,
-                    metadata.getIndicesLookup(),
-                    authzIndicesListener.map(authzIndices -> {
-                        timeChecker.done(authzIndices);
-                        return authzIndices;
-                    })
-                );
-            });
-            final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener ->
-                    authorizedIndicesSupplier.getAsync(
+                        requestInfo,
+                        authzInfo,
+                        metadata.getIndicesLookup(),
                         ActionListener.wrap(
-                            authorizedIndices ->
-                                resolvedIndicesListener.onResponse(
-                                    indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)
-                                ),
-                            e -> {
-                                auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-                                if (e instanceof IndexNotFoundException) {
-                                    listener.onFailure(e);
-                                } else {
-                                    listener.onFailure(denialException(authentication, action, request, e));
+                                authorizedIndices -> {
+                                    timeChecker.done(authorizedIndices);
+                                    resolvedIndicesListener.onResponse(
+                                            indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)
+                                    );
+                                },
+                                e -> {
+                                    auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
+                                    if (e instanceof IndexNotFoundException) {
+                                        listener.onFailure(e);
+                                    } else {
+                                        listener.onFailure(denialException(authentication, action, request, e));
+                                    }
                                 }
-                            }
-                        )
-                    )
-            );
+                        ));
+            });
             authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier,
                 metadata.getIndicesLookup(), wrapPreservingContext(new AuthorizationResultListener<>(result ->
-                    handleIndexActionAuthorizationResult(result, requestInfo, requestId, authzInfo, authzEngine, authorizedIndicesSupplier,
+                    handleIndexActionAuthorizationResult(result, requestInfo, requestId, authzInfo, authzEngine,
                         resolvedIndicesAsyncSupplier, metadata, listener),
                     listener::onFailure, requestInfo, requestId, authzInfo), threadContext));
         } else {
@@ -343,7 +336,6 @@ public class AuthorizationService {
     private void handleIndexActionAuthorizationResult(final IndexAuthorizationResult result, final RequestInfo requestInfo,
                                                       final String requestId, final AuthorizationInfo authzInfo,
                                                       final AuthorizationEngine authzEngine,
-                                                      final AsyncSupplier<Set<String>> authorizedIndicesSupplier,
                                                       final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
                                                       final Metadata metadata,
                                                       final ActionListener<Void> listener) {
@@ -383,7 +375,7 @@ public class AuthorizationService {
             // if this is performing multiple actions on the index, then check each of those actions.
             assert request instanceof BulkShardRequest
                 : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
-            authorizeBulkItems(requestInfo, authzInfo, authzEngine, resolvedIndicesAsyncSupplier, authorizedIndicesSupplier, metadata,
+            authorizeBulkItems(requestInfo, authzInfo, authzEngine, resolvedIndicesAsyncSupplier, metadata,
                     requestId,
                     wrapPreservingContext(
                             ActionListener.wrap(ignore -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
@@ -509,7 +501,6 @@ public class AuthorizationService {
      */
     private void authorizeBulkItems(RequestInfo requestInfo, AuthorizationInfo authzInfo,
                                     AuthorizationEngine authzEngine, AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
-                                    AsyncSupplier<Set<String>> authorizedIndicesSupplier,
                                     Metadata metadata, String requestId, ActionListener<Void> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
         final BulkShardRequest request = (BulkShardRequest) requestInfo.getRequest();
@@ -519,44 +510,43 @@ public class AuthorizationService {
         final Map<String, Set<String>> actionToIndicesMap = new HashMap<>();
         final AuditTrail auditTrail = auditTrailService.get();
 
-        authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
-            resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(overallResolvedIndices -> {
-                final Set<String> localIndices = new HashSet<>(overallResolvedIndices.getLocal());
-                for (BulkItemRequest item : request.items()) {
-                    final String itemAction = getAction(item);
-                    String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
-                        final ResolvedIndices resolvedIndices =
-                            indicesAndAliasesResolver.resolveIndicesAndAliases(itemAction, item.request(), metadata, authorizedIndices);
-                        if (resolvedIndices.getRemote().size() != 0) {
-                            throw illegalArgument("Bulk item should not write to remote indices, but request writes to "
+        resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(overallResolvedIndices -> {
+            final Set<String> localIndices = new HashSet<>(overallResolvedIndices.getLocal());
+            for (BulkItemRequest item : request.items()) {
+                final String itemAction = getAction(item);
+                String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
+                    final ResolvedIndices resolvedIndices =
+                            indicesAndAliasesResolver.resolveIndicesAndAliases(itemAction, item.request(), metadata, localIndices);
+                    if (resolvedIndices.getRemote().size() != 0) {
+                        throw illegalArgument("Bulk item should not write to remote indices, but request writes to "
                                 + String.join(",", resolvedIndices.getRemote()));
-                        }
-                        if (resolvedIndices.getLocal().size() != 1) {
-                            throw illegalArgument("Bulk item should write to exactly 1 index, but request writes to "
+                    }
+                    if (resolvedIndices.getLocal().size() != 1) {
+                        throw illegalArgument("Bulk item should write to exactly 1 index, but request writes to "
                                 + String.join(",", resolvedIndices.getLocal()));
-                        }
-                        final String resolved = resolvedIndices.getLocal().get(0);
-                        if (localIndices.contains(resolved) == false) {
-                            throw illegalArgument("Found bulk item that writes to index " + resolved + " but the request writes to " +
+                    }
+                    final String resolved = resolvedIndices.getLocal().get(0);
+                    if (localIndices.contains(resolved) == false) {
+                        throw illegalArgument("Found bulk item that writes to index " + resolved + " but the request writes to " +
                                 localIndices);
-                        }
-                        return resolved;
-                    });
+                    }
+                    return resolved;
+                });
 
-                    actionToIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
-                        final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
-                        localSet.add(resolvedIndex);
-                        return localSet;
-                    });
-                }
+                actionToIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
+                    final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
+                    localSet.add(resolvedIndex);
+                    return localSet;
+                });
+            }
 
-                final ActionListener<Collection<Tuple<String, IndexAuthorizationResult>>> bulkAuthzListener =
+            final ActionListener<Collection<Tuple<String, IndexAuthorizationResult>>> bulkAuthzListener =
                     ActionListener.wrap(collection -> {
                         final Map<String, IndicesAccessControl> actionToIndicesAccessControl = new HashMap<>();
                         final AtomicBoolean audit = new AtomicBoolean(false);
                         collection.forEach(tuple -> {
                             final IndicesAccessControl existing =
-                                actionToIndicesAccessControl.putIfAbsent(tuple.v1(), tuple.v2().getIndicesAccessControl());
+                                    actionToIndicesAccessControl.putIfAbsent(tuple.v1(), tuple.v2().getIndicesAccessControl());
                             if (existing != null) {
                                 throw new IllegalStateException("a value already exists for action " + tuple.v1());
                             }
@@ -570,12 +560,12 @@ public class AuthorizationService {
                             final String itemAction = getAction(item);
                             final IndicesAccessControl indicesAccessControl = actionToIndicesAccessControl.get(itemAction);
                             final IndicesAccessControl.IndexAccessControl indexAccessControl
-                                = indicesAccessControl.getIndexPermissions(resolvedIndex);
+                                    = indicesAccessControl.getIndexPermissions(resolvedIndex);
                             if (indexAccessControl == null || indexAccessControl.isGranted() == false) {
                                 auditTrail.explicitIndexAccessEvent(requestId, AuditLevel.ACCESS_DENIED, authentication, itemAction,
                                         resolvedIndex, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
                                 item.abort(resolvedIndex, denialException(authentication, itemAction, request,
-                                    AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(List.of(resolvedIndex)), null));
+                                        AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(List.of(resolvedIndex)), null));
                             } else if (audit.get()) {
                                 auditTrail.explicitIndexAccessEvent(requestId, AuditLevel.ACCESS_GRANTED, authentication, itemAction,
                                         resolvedIndex, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
@@ -583,19 +573,18 @@ public class AuthorizationService {
                         }
                         listener.onResponse(null);
                     }, listener::onFailure);
-                final ActionListener<Tuple<String, IndexAuthorizationResult>> groupedActionListener = wrapPreservingContext(
+            final ActionListener<Tuple<String, IndexAuthorizationResult>> groupedActionListener = wrapPreservingContext(
                     new GroupedActionListener<>(bulkAuthzListener, actionToIndicesMap.size()), threadContext);
 
-                actionToIndicesMap.forEach((bulkItemAction, indices) -> {
-                    final RequestInfo bulkItemInfo =
+            actionToIndicesMap.forEach((bulkItemAction, indices) -> {
+                final RequestInfo bulkItemInfo =
                         new RequestInfo(requestInfo.getAuthentication(), requestInfo.getRequest(), bulkItemAction);
-                    authzEngine.authorizeIndexAction(bulkItemInfo, authzInfo,
+                authzEngine.authorizeIndexAction(bulkItemInfo, authzInfo,
                         ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
                         metadata.getIndicesLookup(), ActionListener.wrap(indexAuthorizationResult ->
-                                groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),
-                            groupedActionListener::onFailure));
-                });
-            }, listener::onFailure));
+                                        groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),
+                                groupedActionListener::onFailure));
+            });
         }, listener::onFailure));
     }
 

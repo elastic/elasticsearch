@@ -154,7 +154,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
      */
     @SuppressWarnings("unused") // constructed reflectively by the plugin infrastructure
     public Ccr(final Settings settings) {
-        this(settings, new CcrLicenseChecker());
+        this(settings, new CcrLicenseChecker(settings));
     }
 
     /**

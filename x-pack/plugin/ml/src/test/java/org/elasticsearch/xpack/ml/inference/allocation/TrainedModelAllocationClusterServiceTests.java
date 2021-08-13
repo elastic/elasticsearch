@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.allocation;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
@@ -42,6 +44,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -174,7 +177,29 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
 
         ClusterState modified = TrainedModelAllocationClusterService.removeAllocation(clusterStateWithAllocation, modelId);
         assertThat(TrainedModelAllocationMetadata.fromState(modified).getModelAllocation(modelId), is(nullValue()));
+    }
 
+    public void testRemoveAllAllocations() {
+        ClusterState clusterStateWithoutAllocation = ClusterState.builder(new ClusterName("testRemoveAllAllocations"))
+            .metadata(Metadata.builder().build())
+            .build();
+        assertThat(
+            TrainedModelAllocationClusterService.removeAllAllocations(clusterStateWithoutAllocation),
+            equalTo(clusterStateWithoutAllocation)
+        );
+
+        ClusterState clusterStateWithAllocations = ClusterState.builder(new ClusterName("testRemoveAllAllocations"))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAllocationMetadata.NAME,
+                        TrainedModelAllocationMetadataTests.randomInstance()
+                    )
+                    .build()
+            )
+            .build();
+        ClusterState modified = TrainedModelAllocationClusterService.removeAllAllocations(clusterStateWithAllocations);
+        assertThat(TrainedModelAllocationMetadata.fromState(modified).modelAllocations(), is(anEmptyMap()));
     }
 
     public void testCreateAllocation() {
@@ -185,6 +210,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                     .add(buildNode("ml-node-without-room", true, 1000L))
                     .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes()))
                     .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes()))
+                    .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes()))
                     .build()
             )
             .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
@@ -211,6 +237,33 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         );
     }
 
+    public void testCreateAllocationWhileResetModeIsTrue() {
+        ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAllocation"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes()))
+                    .build()
+            )
+            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build()))
+            .build();
+        TrainedModelAllocationClusterService trainedModelAllocationClusterService = createClusterService();
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> trainedModelAllocationClusterService.createModelAllocation(currentState, newParams("new-model", 150))
+        );
+
+        ClusterState stateWithoutReset = ClusterState.builder(new ClusterName("testCreateAllocation"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes()))
+                    .build()
+            )
+            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(false).build()))
+            .build();
+        // Shouldn't throw
+        trainedModelAllocationClusterService.createModelAllocation(stateWithoutReset, newParams("new-model", 150));
+    }
+
     public void testAddRemoveAllocationNodes() {
         ClusterState currentState = ClusterState.builder(new ClusterName("testAddRemoveAllocationNodes"))
             .nodes(
@@ -220,6 +273,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                     .add(buildNode("ml-node-without-room", true, 1000L))
                     .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes()))
                     .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes()))
+                    .add(buildOldNode("old-versioned-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes()))
                     .build()
             )
             .metadata(
@@ -632,6 +686,10 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory) {
+        return buildNode(name, isML, nativeMemory, Version.CURRENT);
+    }
+
+    private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory, Version version) {
         return new DiscoveryNode(
             name,
             name,
@@ -642,12 +700,16 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                 .put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, String.valueOf(10))
                 .map(),
             isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            version
         );
     }
 
+    private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory) {
+        return buildNode(name, isML, nativeMemory, Version.V_7_15_0);
+    }
+
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId, long modelSize) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, "test-index", modelSize);
+        return new StartTrainedModelDeploymentAction.TaskParams(modelId, modelSize);
     }
 
     private static void assertNodeState(TrainedModelAllocationMetadata metadata, String modelId, String nodeId, RoutingState routingState) {

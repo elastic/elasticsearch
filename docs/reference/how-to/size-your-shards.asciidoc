@@ -129,7 +129,7 @@ fails, {es} rebalances the node's shards across the data tier's remaining nodes.
 Large shards can be harder to move across a network and may tax node resources.
 
 While not a hard limit, shards between 10GB and 50GB tend to work well for logs
-and similar time series data. You may be able to use larger shards depending on
+and time series data. You may be able to use larger shards depending on
 your network and use case. Smaller shards may be appropriate for
 {enterprise-search-ref}/index.html[Enterprise Search] and similar use cases.
 

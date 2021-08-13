@@ -55,6 +55,11 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         threadPool = new TestThreadPool("license-test");
     }
 
+    @After
+    public void shutdown() {
+        threadPool.shutdown();
+    }
+
     protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings) {
         setInitialState(license, licenseState, settings, randomBoolean() ? "trial" : "basic");
     }

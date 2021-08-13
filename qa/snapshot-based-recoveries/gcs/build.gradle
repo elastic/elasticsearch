@@ -56,16 +56,16 @@ tasks.register("createServiceAccountFile") {
       {
         "type": "service_account",
         "project_id": "integration_test",
-        "private_key_id":  + ${UUID.randomUUID().toString()},
-        "private_key": "-----BEGIN PRIVATE KEY-----
-        ${encodedKey}
-        -----END PRIVATE KEY-----",
+        "private_key_id": "${UUID.randomUUID().toString()}",
+
+        "private_key": "-----BEGIN PRIVATE KEY-----\\n${encodedKey}\\n-----END PRIVATE KEY-----\\n",
         "client_email": "integration_test@appspot.gserviceaccount.com",
         "client_id": "123456789101112130594"
       }
     """
     )
   }
+}
 
 def fixtureAddress = { f ->
   assert useFixture: 'closure should not be used without a fixture'

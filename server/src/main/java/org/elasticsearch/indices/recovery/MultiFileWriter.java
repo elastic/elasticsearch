@@ -90,7 +90,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             long bytesWritten = 0;
             while ((length = stream.read(buffer)) > 0) {
                 indexOutput.writeBytes(buffer, length);
-                indexState.addRecoveredBytesToFile(fileName, length);
+                indexState.addRecoveredFromSnapshotBytesToFile(fileName, length);
                 bytesWritten += length;
             }
 
@@ -103,10 +103,10 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             assert Arrays.asList(store.directory().listAll()).contains(tempFileName) :
                 "expected: [" + tempFileName + "] in " + Arrays.toString(store.directory().listAll());
             store.directory().sync(Collections.singleton(tempFileName));
+            indexState.setFullyRecoveredFromSnapshot(fileName);
         } catch (Exception e) {
             tempFileNames.remove(tempFileName);
             store.deleteQuiet(tempFileName);
-            indexState.resetRecoveredBytesOfFile(fileName);
             throw e;
         } finally {
             decRef();

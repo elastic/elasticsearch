@@ -19,7 +19,7 @@ executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api-kibana-response]
+include-tagged::{doc-tests}/EnrollDocumentationIT.java[{api}-response]
 --------------------------------------------------
 <1> A token that can be used as a bearer token for the `elastic/kibana` service account.
 <2> The CA certificate that has signed the certificate that the cluster uses for TLS on the HTTP layer,
@@ -33,14 +33,14 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-async]
+include-tagged::{doc-tests}/EnrollDocumentationIT.java[{api}-execute-async]
 --------------------------------------------------
 
 A typical listener for a `KibanaEnrollmentResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-listener]
+include-tagged::{doc-tests}/EnrollDocumentationIT.java[{api}-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

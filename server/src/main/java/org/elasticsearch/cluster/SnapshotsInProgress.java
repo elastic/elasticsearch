@@ -568,7 +568,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.partial = partial;
             this.indices = org.elasticsearch.core.Map.copyOf(indices);
             this.dataStreams = org.elasticsearch.core.List.copyOf(dataStreams);
-            this.featureStates = Collections.unmodifiableList(featureStates);
+            this.featureStates = org.elasticsearch.core.List.copyOf(featureStates);
             this.startTime = startTime;
             this.shards = shards;
             this.repositoryStateId = repositoryStateId;

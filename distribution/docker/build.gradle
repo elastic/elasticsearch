@@ -81,7 +81,16 @@ dependencies {
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
-  def (major, minor) = VersionProperties.elasticsearch.split("\\.")
+  String buildArgs = ''
+  if (base == DockerBase.IRON_BANK) {
+    buildArgs = """
+ARG BASE_REGISTRY=registry1.dso.mil
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
+ARG BASE_TAG=8.4
+"""
+  }
+
+  def (major,minor) = VersionProperties.elasticsearch.split("\\.")
 
   return [
     'base_image'         : base.getImage(),
@@ -89,7 +98,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
     'build_date'         : BuildParams.buildDate,
     'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'       : BuildParams.gitRevision,
-    'license'            : 'Elastic-License-2.0',
+    'license'            : base == DockerBase.IRON_BANK ? 'Elastic License 1.0' : 'Elastic-License-2.0',
     'package_manager'    : base == DockerBase.UBI ? 'microdnf' : 'yum',
     'docker_base'        : base.name().toLowerCase(),
     'version'            : VersionProperties.elasticsearch,
@@ -227,30 +236,37 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
   String configDirectory = base == DockerBase.IRON_BANK ? 'scripts' : 'config'
   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
 
-  tasks.register(taskName('build', architecture, base, 'DockerContext'), Tar) {
-    archiveExtension = 'tar.gz'
-    compression = Compression.GZIP
-    archiveClassifier = "docker-build-context${arch}"
-    archiveBaseName = "elasticsearch${base.suffix}"
-    with dockerBuildContext(architecture, base)
+  final TaskProvider<Tar> buildDockerContextTask =
+    tasks.register(taskName('build', architecture, base, 'DockerContext'), Tar) {
+      archiveExtension = 'tar.gz'
+      compression = Compression.GZIP
+      archiveClassifier = "docker-build-context${arch}"
+      archiveBaseName = "elasticsearch${base.suffix}"
+      with dockerBuildContext(architecture, base)
 
-    into(configDirectory) {
-      from(configurations.log4jConfig) {
-        filter TransformLog4jConfigFilter
+      into(configDirectory) {
+        from(configurations.log4jConfig) {
+          filter TransformLog4jConfigFilter
+        }
       }
+
+      if (base == DockerBase.CLOUD) {
+        from configurations.repositoryS3Plugin
+        from configurations.repositoryGcsPlugin
+        from configurations.repositoryAzurePlugin
+        from configurations.filebeat
+        from configurations.metricbeat
+        // For some reason, the artifact name can differ depending on what repository we used.
+        rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
+      }
+
+      onlyIf { Architecture.current() == architecture }
     }
 
-    if (base == DockerBase.CLOUD) {
-      from configurations.repositoryS3Plugin
-      from configurations.repositoryGcsPlugin
-      from configurations.repositoryAzurePlugin
-      from configurations.filebeat
-      from configurations.metricbeat
-      // For some reason, the artifact name can differ depending on what repository we used.
-      rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
+  if (base == DockerBase.IRON_BANK) {
+    tasks.named("assemble").configure {
+      dependsOn(buildDockerContextTask)
     }
-
-    onlyIf { Architecture.current() == architecture }
   }
 }
 
@@ -338,8 +354,10 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       onlyIf { Architecture.current() == architecture }
     }
 
-  tasks.named("assemble").configure {
-    dependsOn(buildDockerImageTask)
+  if (base != DockerBase.IRON_BANK) {
+    tasks.named("assemble").configure {
+      dependsOn(buildDockerImageTask)
+    }
   }
 }
 

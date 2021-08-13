@@ -20,11 +20,11 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -132,7 +132,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    void setAfter(Comparable value) {
+    void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else {
@@ -173,7 +173,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable<Long> value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != Long.class) {
             throw new IllegalArgumentException("Expected Long, got " + value.getClass());
         }

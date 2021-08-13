@@ -10,6 +10,7 @@ import com.sun.net.httpserver.HttpsServer;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -74,6 +74,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -174,10 +175,11 @@ public class SamlRealmTests extends SamlTestCase {
         Mockito.doAnswer(invocation -> {
             assert invocation.getArguments().length == 2;
             userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
+            @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onResponse(Collections.singleton("superuser"));
             return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
 
         final boolean useNameId = randomBoolean();
         final boolean principalIsEmailAddress = randomBoolean();
@@ -209,10 +211,11 @@ public class SamlRealmTests extends SamlTestCase {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         Mockito.doAnswer(invocation -> {
             assert invocation.getArguments().length == 2;
+            @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onFailure(new RuntimeException("Role mapping should not be called"));
             return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
 
         final boolean useNameId = randomBoolean();
         final boolean principalIsEmailAddress = randomBoolean();
@@ -298,7 +301,6 @@ public class SamlRealmTests extends SamlTestCase {
 
     private void initializeRealms(Realm... realms) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
 
         final List<Realm> realmList = Arrays.asList(realms);

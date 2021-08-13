@@ -24,8 +24,6 @@ public class DockerShell extends Shell {
         List<String> cmd = new ArrayList<>();
         cmd.add("docker");
         cmd.add("exec");
-        cmd.add("--user");
-        cmd.add("elasticsearch:root");
         cmd.add("--tty");
 
         env.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));

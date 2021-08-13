@@ -11,9 +11,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
@@ -21,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.stream.Collectors;
 
@@ -75,6 +80,7 @@ public class NodeLoadDetector {
             return nodeLoad.setError(Strings.collectionToCommaDelimitedString(errors)).build();
         }
         updateLoadGivenTasks(nodeLoad, persistentTasks);
+        updateLoadGivenModelAllocations(nodeLoad, TrainedModelAllocationMetadata.fromState(clusterState));
         return nodeLoad.build();
     }
 
@@ -94,6 +100,19 @@ public class NodeLoadDetector {
             // so increase the total memory usage of the assigned jobs to account for this
             if (nodeLoad.getNumAssignedJobs() > 0) {
                 nodeLoad.incAssignedJobMemory(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
+            }
+        }
+    }
+
+    private void updateLoadGivenModelAllocations(NodeLoad.Builder nodeLoad, TrainedModelAllocationMetadata trainedModelAllocationMetadata) {
+        if (trainedModelAllocationMetadata != null && trainedModelAllocationMetadata.modelAllocations().isEmpty() == false) {
+            for (TrainedModelAllocation allocation : trainedModelAllocationMetadata.modelAllocations().values()) {
+                if (Optional.ofNullable(allocation.getNodeRoutingTable().get(nodeLoad.getNodeId()))
+                    .map(RoutingStateAndReason::getState)
+                    .orElse(RoutingState.STOPPED)
+                    .consumesMemory()) {
+                    nodeLoad.incAssignedJobMemory(allocation.getTaskParams().estimateMemoryUsageBytes());
+                }
             }
         }
     }

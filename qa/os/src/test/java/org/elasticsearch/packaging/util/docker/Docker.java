@@ -36,13 +36,11 @@ import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
-import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
+import static org.elasticsearch.packaging.util.FileMatcher.p444;
 import static org.elasticsearch.packaging.util.FileMatcher.p555;
-import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
-import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
 import static org.elasticsearch.packaging.util.docker.DockerRun.getImageName;
@@ -58,7 +56,7 @@ import static org.junit.Assert.fail;
 public class Docker {
     private static final Log logger = LogFactory.getLog(Docker.class);
 
-    static final Shell sh = new Shell();
+    public static final Shell sh = new Shell();
     private static final DockerShell dockerShell = new DockerShell();
     public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
     public static final int STARTUP_ATTEMPTS_MAX = 10;
@@ -197,7 +195,7 @@ public class Docker {
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to exit", e);
             }
-        } while (attempt++ < 5);
+        } while (attempt++ < 8);
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
@@ -373,42 +371,42 @@ public class Docker {
     }
 
     /**
-     * Perform a variety of checks on an installation. If the current distribution is not OSS, additional checks are carried out.
-     * @param installation the installation to verify
+     * Perform a variety of checks on an installation.
+     * @param es the installation to verify
      */
-    public static void verifyContainerInstallation(Installation installation) {
-        verifyOssInstallation(installation);
-        verifyDefaultInstallation(installation);
-    }
-
-    private static void verifyOssInstallation(Installation es) {
+    public static void verifyContainerInstallation(Installation es) {
+        // Ensure the `elasticsearch` user and group exist.
+        // These lines will both throw an exception if the command fails
         dockerShell.run("id elasticsearch");
         dockerShell.run("getent group elasticsearch");
 
         final Shell.Result passwdResult = dockerShell.run("getent passwd elasticsearch");
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
-        assertThat(homeDir, equalTo("/usr/share/elasticsearch"));
+        assertThat("elasticsearch user's home directory is incorrect", homeDir, equalTo("/usr/share/elasticsearch"));
 
-        Stream.of(es.home, es.data, es.logs, es.config, es.plugins).forEach(dir -> assertThat(dir, file(Directory, p775)));
+        assertThat(es.home, file(Directory, "root", "root", p775));
 
-        Stream.of(es.bin, es.bundledJdk, es.lib, es.modules).forEach(dir -> assertThat(dir, file(Directory, p555)));
+        Stream.of(es.bundledJdk, es.lib, es.modules).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p555)));
 
-        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
-            .forEach(configFile -> assertThat(es.config(configFile), file(File, p664)));
+        // You can't install plugins that include configuration when running as `elasticsearch` and the `config`
+        // dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
+        // config directory.
+        Stream.of(es.bin, es.config, es.logs, es.config.resolve("jvm.options.d"), es.data, es.plugins)
+            .forEach(dir -> assertThat(dir, file(Directory, "elasticsearch", "root", p775)));
+
+        Stream.of(es.bin, es.bundledJdk.resolve("bin"), es.modules.resolve("x-pack-ml/platform/linux-*/bin"))
+            .forEach(
+                binariesPath -> sh.run("ls " + binariesPath).stdout.lines()
+                    .forEach(bin -> assertThat(binariesPath.resolve(bin), file("root", "root", p555)))
+            );
+
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
+            .forEach(configFile -> assertThat(es.config(configFile), file("root", "root", p664)));
+
+        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc")
+            .forEach(doc -> assertThat(es.home.resolve(doc), file("root", "root", p444)));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
-
-        Stream.of(
-            "elasticsearch",
-            "elasticsearch-cli",
-            "elasticsearch-env",
-            "elasticsearch-keystore",
-            "elasticsearch-node",
-            "elasticsearch-plugin",
-            "elasticsearch-shard"
-        ).forEach(executable -> assertThat(es.bin(executable), file(p555)));
-
-        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertThat(es.home.resolve(doc), file(p644)));
 
         // nc is useful for checking network issues
         // zip/unzip are installed to help users who are working with certificates.
@@ -421,37 +419,6 @@ public class Docker {
             );
     }
 
-    private static void verifyDefaultInstallation(Installation es) {
-        Stream.of(
-            "elasticsearch-certgen",
-            "elasticsearch-certutil",
-            "elasticsearch-croneval",
-            "elasticsearch-saml-metadata",
-            "elasticsearch-setup-passwords",
-            "elasticsearch-sql-cli",
-            "elasticsearch-syskeygen",
-            "elasticsearch-users",
-            "elasticsearch-service-tokens",
-            "x-pack-env",
-            "x-pack-security-env",
-            "x-pack-watcher-env"
-        ).forEach(executable -> assertThat(es.bin(executable), file(p555)));
-
-        // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
-        // the version through here
-        assertThat(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), file(p555));
-
-        final String architecture = getArchitecture();
-        Stream.of("autodetect", "categorize", "controller", "data_frame_analyzer", "normalize", "pytorch_inference")
-            .forEach(executableName -> {
-                final Path executablePath = es.modules.resolve("x-pack-ml/platform/linux-" + architecture + "/bin/" + executableName);
-                assertThat(executablePath, file(p555));
-            });
-
-        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
-            .forEach(configFile -> assertThat(es.config(configFile), file(p664)));
-    }
-
     public static void waitForElasticsearch(Installation installation) throws Exception {
         withLogging(() -> ServerUtils.waitForElasticsearch(installation));
     }
@@ -459,6 +426,18 @@ public class Docker {
     public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
         throws Exception {
         withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
+    }
+
+    public static void waitForElasticsearch(Installation installation, String username, String password) {
+        try {
+            waitForElasticsearch("green", null, installation, username, password);
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
+        }
     }
 
     /**
@@ -489,7 +468,7 @@ public class Docker {
      * @return the parsed response
      */
     public static JsonNode getJson(String path) throws Exception {
-        path = Objects.requireNonNull(path).trim();
+        path = Objects.requireNonNull(path, "path can not be null").trim();
         if (path.isEmpty()) {
             throw new IllegalArgumentException("path must be supplied");
         }
@@ -497,6 +476,21 @@ public class Docker {
             throw new IllegalArgumentException("path must start with /");
         }
         final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path));
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        return mapper.readTree(pluginsResponse);
+    }
+
+    public static JsonNode getJson(String path, String user, String password) throws Exception {
+        path = Objects.requireNonNull(path, "path can not be null").trim();
+        if (path.isEmpty()) {
+            throw new IllegalArgumentException("path must be supplied");
+        }
+        if (path.startsWith("/") == false) {
+            throw new IllegalArgumentException("path must start with /");
+        }
+        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path), user, password, null);
 
         ObjectMapper mapper = new ObjectMapper();
 
@@ -554,14 +548,6 @@ public class Docker {
      */
     public static void restartContainer() {
         sh.run("docker restart " + containerId);
-    }
-
-    private static String getArchitecture() {
-        String architecture = System.getProperty("os.arch", "x86_64");
-        if (architecture.equals("amd64")) {
-            architecture = "x86_64";
-        }
-        return architecture;
     }
 
     public static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {

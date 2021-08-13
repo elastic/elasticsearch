@@ -19,6 +19,9 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.common.geo.SphericalMercatorUtils.latToSphericalMercator;
+import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSphericalMercator;
+
 public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoShapeFieldData {
 
     @Override
@@ -86,6 +89,16 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
         @Override
         public GeoPoint getCentroid() {
             return value == null ? null : centroid;
+        }
+
+        @Override
+        public double getMercatorWidth() {
+            return lonToSphericalMercator(boundingBox.right()) - lonToSphericalMercator(boundingBox.left());
+        }
+
+        @Override
+        public double getMercatorHeight() {
+            return latToSphericalMercator(boundingBox.top()) - latToSphericalMercator(boundingBox.bottom());
         }
 
         @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ssl;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -78,7 +79,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     public void testMessageForMissingPemKey() {
-        checkMissingKeyManagerResource("key", "key", withCertificate("cert1a.crt"));
+        checkMissingKeyManagerResource("PEM private key", "key", withCertificate("cert1a.crt"));
     }
 
     public void testMessageForMissingTruststore() {
@@ -98,7 +99,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     public void testMessageForPemKeyWithoutReadAccess() throws Exception {
-        checkUnreadableKeyManagerResource("cert1a.key", "key", "key", withCertificate("cert1a.crt"));
+        checkUnreadableKeyManagerResource("cert1a.key", "PEM private key", "key", withCertificate("cert1a.crt"));
     }
 
     public void testMessageForTruststoreWithoutReadAccess() throws Exception {
@@ -118,7 +119,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     public void testMessageForPemKeyOutsideConfigDir() throws Exception {
-        checkBlockedKeyManagerResource("key", "key", withCertificate("cert1a.crt"));
+        checkBlockedKeyManagerResource("PEM private key", "key", withCertificate("cert1a.crt"));
     }
 
     public void testMessageForTrustStoreOutsideConfigDir() throws Exception {
@@ -235,14 +236,21 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         final String key = prefix + "." + configKey;
         settings.put(key, fileName);
 
+        final String fileErrorMessage = "cannot read configured " + fileType + " [" + fileName + "] because the file does not exist";
         Throwable exception = expectFailure(settings);
         assertThat(exception, throwableWithMessage("failed to load SSL configuration [" + prefix + "]"));
         assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
 
         exception = exception.getCause();
-        assertThat(exception, throwableWithMessage(
-            "failed to initialize SSL " + sslManagerType + " - " + fileType + " file [" + fileName + "] does not exist"));
-        assertThat(exception, instanceOf(ElasticsearchException.class));
+        // This is needed temporarily while we're converting from X-Pack SSL to libs/ssl-config
+        if (exception.getMessage().contains(sslManagerType)) {
+            String message = "failed to initialize SSL " + sslManagerType + " - " + fileType + " file [" + fileName + "] does not exist";
+            assertThat(exception, throwableWithMessage(message));
+            assertThat(exception, instanceOf(ElasticsearchException.class));
+        } else {
+            assertThat(exception, throwableWithMessage(fileErrorMessage));
+            assertThat(exception, instanceOf(SslConfigException.class));
+        }
 
         exception = exception.getCause();
         assertThat(exception, instanceOf(NoSuchFileException.class));
@@ -259,14 +267,26 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         final String key = prefix + "." + configKey;
         settings.put(key, fileName);
 
+        final String fileErrorMessage = "not permitted to read the " + fileType + " file [" + fileName + "]";
+
         Throwable exception = expectFailure(settings);
         assertThat(exception, throwableWithMessage("failed to load SSL configuration [" + prefix + "]"));
         assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
 
         exception = exception.getCause();
-        assertThat(exception, throwableWithMessage(
-            "failed to initialize SSL " + sslManagerType + " - not permitted to read " + fileType + " file [" + fileName + "]"));
-        assertThat(exception, instanceOf(ElasticsearchException.class));
+        // This is needed temporarily while we're converting from X-Pack SSL to libs/ssl-config
+        if (exception.getMessage().contains(sslManagerType)) {
+            assertThat(
+                exception,
+                throwableWithMessage(
+                    "failed to initialize SSL " + sslManagerType + " - not permitted to read " + fileType + " file [" + fileName + "]"
+                )
+            );
+            assertThat(exception, instanceOf(ElasticsearchException.class));
+        } else {
+            assertThat(exception, throwableWithMessage(fileErrorMessage));
+            assertThat(exception, instanceOf(SslConfigException.class));
+        }
 
         exception = exception.getCause();
         assertThat(exception, instanceOf(AccessDeniedException.class));
@@ -283,15 +303,25 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         final String key = prefix + "." + configKey;
         settings.put(key, fileName);
 
+        final String fileErrorMessage = "cannot read configured " + fileType + " [" + fileName
+            + "] because access to read the file is blocked; SSL resources should be placed in the "
+            + "Elasticsearch config directory";
+
         Throwable exception = expectFailure(settings);
         assertThat(exception, throwableWithMessage("failed to load SSL configuration [" + prefix + "]"));
         assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
 
         exception = exception.getCause();
-        assertThat(exception.getMessage(),
-            containsString("failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file"));
-        assertThat(exception.getMessage(), containsString("file.error"));
-        assertThat(exception, instanceOf(ElasticsearchException.class));
+        // This is needed temporarily while we're converting from X-Pack SSL to libs/ssl-config
+        if (exception.getMessage().contains(sslManagerType)) {
+            String message = "failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file";
+            assertThat(exception.getMessage(), containsString(message));
+            assertThat(exception.getMessage(), containsString("file.error"));
+            assertThat(exception, instanceOf(ElasticsearchException.class));
+        } else {
+            assertThat(exception, throwableWithMessage(fileErrorMessage));
+            assertThat(exception, instanceOf(SslConfigException.class));
+        }
 
         exception = exception.getCause();
         assertThat(exception, instanceOf(AccessControlException.class));
@@ -322,7 +352,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     private String blockedFile() throws IOException {
-        return PathUtils.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toString();
+        return PathUtils.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toAbsolutePath().toString();
     }
 
     /**

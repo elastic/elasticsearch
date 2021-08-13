@@ -165,7 +165,7 @@ public class XPackPlugin extends XPackClientPlugin
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
 
-        setLicenseState(new XPackLicenseState(settings, () -> getEpochMillisSupplier().getAsLong()));
+        setLicenseState(new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong()));
 
         this.licensing = new Licensing(settings);
     }

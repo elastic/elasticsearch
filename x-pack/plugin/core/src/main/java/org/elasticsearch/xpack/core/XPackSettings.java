@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
 import javax.crypto.SecretKeyFactory;
 import javax.net.ssl.SSLContext;
@@ -145,9 +145,9 @@ public class XPackSettings {
         new Setting.SimpleKey("xpack.security.authc.password_hashing.algorithm"),
         (s) -> {
             if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
-                return "PBKDF2";
+                return Hasher.PBKDF2_STRETCH.name();
             } else {
-                return "BCRYPT";
+                return Hasher.BCRYPT.name();
             }
         },
         Function.identity(),
@@ -201,23 +201,23 @@ public class XPackSettings {
             Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
     }
 
-    public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
-    public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
-    public static final VerificationMode VERIFICATION_MODE_DEFAULT = VerificationMode.FULL;
+    public static final SslClientAuthenticationMode CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.REQUIRED;
+    public static final SslClientAuthenticationMode HTTP_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
+    public static final SslVerificationMode VERIFICATION_MODE_DEFAULT = SslVerificationMode.FULL;
 
     // http specific settings
     public static final String HTTP_SSL_PREFIX = SecurityField.setting("http.ssl.");
-    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX);
+    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX, true);
 
     // transport specific settings
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
-    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX);
+    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(HTTP_SSL.getAllSettings());
-        settings.addAll(TRANSPORT_SSL.getAllSettings());
+        settings.addAll(HTTP_SSL.getEnabledSettings());
+        settings.addAll(TRANSPORT_SSL.getEnabledSettings());
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);

@@ -125,6 +125,6 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         final PlainActionFuture<KibanaEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
-        assertThat(e.getDetailedMessage(), containsString("Failed to create credentials for the [kibana-system] service account"));
+        assertThat(e.getDetailedMessage(), containsString("Failed to create credentials for the [elastic/kibana] service account"));
     }
 }

@@ -21,7 +21,7 @@ executed operation as follows:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api-kibana-response]
 --------------------------------------------------
-<1> A token that can be used as a bearer token for the `kibana-system` service account.
+<1> A token that can be used as a bearer token for the `elastic/kibana` service account.
 <2> The CA certificate that has signed the certificate that the cluster uses for TLS on the HTTP layer,
 as a Base64 encoded string of the ASN.1 DER encoding of the certificate.
 

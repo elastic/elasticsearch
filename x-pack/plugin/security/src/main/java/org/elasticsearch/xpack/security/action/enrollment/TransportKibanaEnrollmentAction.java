@@ -95,12 +95,12 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
                 return;
             }
             final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-                new CreateServiceAccountTokenRequest("elastic", "kibana-system", getTokenName());
+                new CreateServiceAccountTokenRequest("elastic", "kibana", getTokenName());
             client.execute(CreateServiceAccountTokenAction.INSTANCE, createServiceAccountTokenRequest, ActionListener.wrap(response -> {
-                logger.debug("Successfully created credentials for the [kibana-system] service account during kibana enrollment");
+                logger.debug("Successfully created credentials for the [elastic/kibana] service account during kibana enrollment");
                 listener.onResponse(new KibanaEnrollmentResponse(response.getValue(), httpCa));
             }, e -> listener.onFailure(
-                new ElasticsearchException("Failed to create credentials for the [kibana-system] service account", e))));
+                new ElasticsearchException("Failed to create credentials for the [elastic/kibana] service account", e))));
         }
     }
 

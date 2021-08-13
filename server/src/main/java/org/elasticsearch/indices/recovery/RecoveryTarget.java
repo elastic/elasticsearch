@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -19,14 +20,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -36,11 +37,14 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.repositories.IndexId;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -63,6 +67,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final long recoveryId;
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
+    private final SnapshotFilesProvider snapshotFilesProvider;
     private final MultiFileWriter multiFileWriter;
     private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
     private final Store store;
@@ -87,7 +92,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * @param sourceNode                        source node of the recovery where we recover from
      * @param listener                          called when recovery is completed/failed
      */
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener) {
+    public RecoveryTarget(IndexShard indexShard,
+                          DiscoveryNode sourceNode,
+                          SnapshotFilesProvider snapshotFilesProvider,
+                          PeerRecoveryTargetService.RecoveryListener listener) {
         super("recovery_status");
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
@@ -95,6 +103,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
+        this.snapshotFilesProvider = snapshotFilesProvider;
         this.shardId = indexShard.shardId();
         final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger,
@@ -111,7 +120,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * @return a copy of this recovery target
      */
     public RecoveryTarget retryCopy() {
-        return new RecoveryTarget(indexShard, sourceNode, listener);
+        return new RecoveryTarget(indexShard, sourceNode, snapshotFilesProvider, listener);
     }
 
     @Nullable
@@ -496,6 +505,30 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    @Override
+    public void restoreFileFromSnapshot(String repository,
+                                        IndexId indexId,
+                                        BlobStoreIndexShardSnapshot.FileInfo fileInfo,
+                                        ActionListener<Void> listener) {
+        try (InputStream inputStream =
+                 snapshotFilesProvider.getInputStreamForSnapshotFile(repository, indexId, shardId, fileInfo, this::registerThrottleTime)) {
+            StoreFileMetadata metadata = fileInfo.metadata();
+            int readSnapshotFileBufferSize = snapshotFilesProvider.getReadSnapshotFileBufferSizeForRepo(repository);
+            multiFileWriter.writeFile(metadata, readSnapshotFileBufferSize, inputStream);
+            listener.onResponse(null);
+        } catch (Exception e) {
+            logger.debug(
+                new ParameterizedMessage("Unable to recover snapshot file {} from repository {}", fileInfo, repository), e
+            );
+            listener.onFailure(e);
+        }
+    }
+
+    private void registerThrottleTime(long throttleTimeInNanos) {
+        state().getIndex().addTargetThrottling(throttleTimeInNanos);
+        indexShard.recoveryStats().addThrottleTime(throttleTimeInNanos);
     }
 
     /** Get a temporary name for the provided file name. */

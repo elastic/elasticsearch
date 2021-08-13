@@ -640,6 +640,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             recovered += bytes;
         }
 
+        void resetRecoveredBytes() {
+            assert reused == false : "file is marked as reused, can't update recovered bytes";
+            // TODO: change this once we keep track of recovered data broke down by snapshot/primary
+            recovered = 0;
+        }
+
         /**
          * file name *
          */
@@ -768,6 +774,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             file.addRecoveredBytes(bytes);
         }
 
+        public void resetRecoveredBytesOfFile(String name) {
+            FileDetail file = fileDetails.get(name);
+            assert file != null : "file [" + name + "] hasn't been reported";
+            file.resetRecoveredBytes();
+        }
+
         public FileDetail get(String name) {
             return fileDetails.get(name);
         }
@@ -850,6 +862,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public synchronized void addRecoveredBytesToFile(String name, long bytes) {
             fileDetails.addRecoveredBytesToFile(name, bytes);
+        }
+
+        public synchronized void resetRecoveredBytesOfFile(String name) {
+            fileDetails.resetRecoveredBytesOfFile(name);
         }
 
         public synchronized void addSourceThrottling(long timeInNanos) {

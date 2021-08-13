@@ -1126,7 +1126,7 @@ public class ApiKeyService {
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
                         if (searchResponse.getHits().getHits().length <= 0) {
-                            logger.debug("No active api keys found for query [{}]", searchRequest.source().query());
+                            logger.debug("No api keys found for query [{}]", searchRequest.source().query());
                             listener.onResponse(QueryApiKeyResponse.emptyResponse());
                             return;
                         }

@@ -76,6 +76,73 @@ class SomeClass {
 """
     }
 
+    def "Avoids full qualified usage of elastic util methods where possible"() {
+        when:
+        setupRewriteYamlConfig()
+        def sourceFile = file("src/main/java/org/acme/SomeClass.java")
+        sourceFile << """
+package org.acme;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+class SomeClass {
+    public void someMethod() {
+        Collection myList = List.of("some", "non", "java8", "code");
+        Collection mySet = Set.of("some", "non", "java8", "code");
+        Map myMap = Map.of(List.of("some", "non"), Set.of("java8", "code"));
+    }
+}
+"""
+
+        buildFile.text = """
+        plugins {
+          id 'java'
+          id 'elasticsearch.rewrite'
+        }
+        rewrite {
+            rewriteVersion = "7.10.0"
+            activeRecipe("org.elasticsearch.java.backport.ListOfBackport",
+                    "org.elasticsearch.java.backport.MapOfBackport",
+                    "org.elasticsearch.java.backport.SetOfBackport")
+            configFile = rootProject.file("rewrite.yml")
+        }
+        
+        repositories {
+            mavenCentral()
+            maven { url 'https://jitpack.io' }
+        }
+        
+        dependencies {
+            rewrite "org.openrewrite:rewrite-java-11"
+            rewrite "com.github.breskeby:java-recipes:0dde6854d5"
+        }
+        """
+
+        then:
+        gradleRunner("rewrite").build()
+
+        sourceFile.text == """
+package org.acme;
+
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Set;
+
+import java.util.Collection;
+import java.util.Map;
+
+class SomeClass {
+    public void someMethod() {
+        Collection myList = List.of("some", "non", "java8", "code");
+        Collection mySet = Set.of("some", "non", "java8", "code");
+        Map myMap = org.elasticsearch.core.Map.of(List.of("some", "non"), Set.of("java8", "code"));
+    }
+}
+"""
+    }
+
     private File setupRewriteYamlConfig() {
         file("rewrite.yml") << """
 type: specs.openrewrite.org/v1beta/recipe

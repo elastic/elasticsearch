@@ -9,6 +9,10 @@
 
 package org.elasticsearch.script;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoPoint;
+
+import java.math.BigInteger;
 import java.util.List;
 
 /**
@@ -21,15 +25,133 @@ import java.util.List;
  * * {@code getValue(defaultValue) == defaultValue}
  * @param <T>
  */
-public interface Field<T> {
-    String getName();
+public abstract class Field<T> {
+    public static final Converter<BigInteger, BigIntegerField> BigInteger = Converters.BIGINTEGER;
+    public static final Converter<Long, LongField> Long = Converters.LONG;
 
-    /** Does the field have any values? An unmapped field may have values from source */
-    boolean isEmpty();
+    protected final String name;
+    protected final FieldValues<T> values;
 
-    /** Get all values of a multivalued field.  If {@code isEmpty()} this returns an empty list */
-    List<T> getValues();
+    public Field(String name, FieldValues<T> values) {
+        this.name = name;
+        this.values = values;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    /**
+     * Does the field have any values? An unmapped field may have values from source
+     */
+    public boolean isEmpty() {
+        return values.isEmpty();
+    }
+
+    /**
+     * Get all values of a multivalued field.  If {@code isEmpty()} this returns an empty list
+     */
+    public List<T> getValues() {
+        return values.getValues();
+    }
+
+    public <CT, CF extends Field<CT>> Field<CT> as(Converter<CT, CF> converter) {
+        if (converter.getFieldClass().isInstance(this)) {
+            return converter.getFieldClass().cast(this);
+        }
+
+        return converter.convert(this);
+    }
+
+    public FieldValues<T> getFieldValues() {
+        return values;
+    }
 
     /** Get the first value of a field, if {@code isEmpty()} return defaultValue instead */
-    T getValue(T defaultValue);
+    public T getValue(T defaultValue) {
+        if (isEmpty()) {
+            return defaultValue;
+        }
+        return values.getNonPrimitiveValue();
+    }
+
+    public double getDouble(double defaultValue) {
+        if (isEmpty()) {
+            return defaultValue;
+        }
+        return values.getDoubleValue();
+    }
+
+    public long getLong(long defaultValue) {
+        if (isEmpty()) {
+            return defaultValue;
+        }
+        return values.getLongValue();
+    }
+
+    public static class BooleanField extends Field<Boolean> {
+        public BooleanField(String name, FieldValues<Boolean> values) {
+            super(name, values);
+        }
+    }
+
+    public static class DoubleField extends Field<Double> {
+        public DoubleField(String name, FieldValues<Double> values) {
+            super(name, values);
+        }
+    }
+
+    public static class LongField extends Field<Long> {
+        public LongField(String name, FieldValues<Long> values) {
+            super(name, values);
+        }
+    }
+
+    public static class DateNanosField extends Field<JodaCompatibleZonedDateTime> {
+        public DateNanosField(String name, FieldValues<JodaCompatibleZonedDateTime> values) {
+            super(name, values);
+        }
+    }
+
+    public static class DateMillisField extends Field<JodaCompatibleZonedDateTime> {
+        public DateMillisField(String name, FieldValues<JodaCompatibleZonedDateTime> values) {
+            super(name, values);
+        }
+    }
+
+    public static class GeoPointField extends Field<GeoPoint> {
+        public GeoPointField(String name, FieldValues<GeoPoint> values) {
+            super(name, values);
+        }
+    }
+
+    public static class StringField extends Field<String> {
+        public StringField(String name, FieldValues<String> values) {
+            super(name, values);
+        }
+    }
+
+    public static class BytesRefField extends Field<BytesRef> {
+        public BytesRefField(String name, FieldValues<BytesRef> values) {
+            super(name, values);
+        }
+    }
+
+    public static class BigIntegerField extends Field<BigInteger> {
+        public BigIntegerField(String name, FieldValues<BigInteger> values) {
+            super(name, values);
+        }
+    }
+
+    public static class VersionField extends Field<String> {
+        public VersionField(String name, FieldValues<String> values) {
+            super(name, values);
+        }
+    }
+
+    public static class IpField extends Field<String> {
+        public IpField(String name, FieldValues<String> values) {
+            super(name, values);
+        }
+    }
 }

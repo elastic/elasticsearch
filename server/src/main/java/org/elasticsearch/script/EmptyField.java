@@ -11,16 +11,9 @@ package org.elasticsearch.script;
 import java.util.Collections;
 import java.util.List;
 
-public class EmptyField<T> implements Field<Object> {
-    protected final String name;
-
+public class EmptyField<T> extends Field<T> {
     public EmptyField(String name) {
-        this.name = name;
-    }
-
-    @Override
-    public String getName() {
-        return name;
+        super(name, null);
     }
 
     @Override
@@ -29,12 +22,28 @@ public class EmptyField<T> implements Field<Object> {
     }
 
     @Override
-    public Object getValue(Object defaultValue) {
+    public List<T> getValues() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public <CT, CF extends Field<CT>> Field<CT> as(Converter<CT, CF> converter) {
+        // TODO(stu): test
+        return converter.getFieldClass().cast(this);
+    }
+
+    @Override
+    public T getValue(T defaultValue) {
         return defaultValue;
     }
 
     @Override
-    public List<Object> getValues() {
-        return Collections.emptyList();
+    public double getDouble(double defaultValue) {
+        return defaultValue;
+    }
+
+    @Override
+    public long getLong(long defaultValue) {
+        return defaultValue;
     }
 }

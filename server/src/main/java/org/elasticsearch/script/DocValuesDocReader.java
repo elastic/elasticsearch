@@ -23,7 +23,10 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
     // provide access to the leaf context reader for expressions
     protected final LeafReaderContext leafReaderContext;
 
+    protected final SearchLookup lookup;
+
     public DocValuesDocReader(SearchLookup lookup, LeafReaderContext leafContext) {
+        this.lookup = lookup;
         this.leafReaderContext = leafContext;
         this.leafLookup = lookup.getLeafSearchLookup(leafReaderContext);
     }
@@ -35,7 +38,7 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
         if (doc.containsKey(fieldName) == false) {
             return new EmptyField<Number>(fieldName);
         }
-        return new DocValuesField<>(fieldName, doc.get(fieldName));
+        return doc.get(fieldName).toField(fieldName);
     }
 
 

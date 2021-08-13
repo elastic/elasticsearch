@@ -284,8 +284,8 @@ public class RecoveryTargetTests extends ESTestCase {
 
                 assertThat(fileDetail.recovered(), is(equalTo(fileDetail.length())));
                 assertThat(fileDetail.recoveredFromSnapshot(), is(equalTo(fileDetail.length())));
+                assertThat(fileDetail.recoveredFromSource(), is(equalTo(0L)));
                 assertThat(fileDetail.fullyRecovered(), is(equalTo(true)));
-                assertThat(fileDetail.recoveredFromSnapshot(), is(equalTo(true)));
 
                 bytesToRecover -= fileDetail.length();
                 recoveredBytes += fileDetail.length();

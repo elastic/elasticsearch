@@ -1030,6 +1030,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             return recovered;
         }
 
+        public synchronized long recoveredFromSnapshotBytes() {
+            long recoveredFromSnapshot = 0;
+            for (FileDetail fileDetail : fileDetails.values()) {
+                recoveredFromSnapshot += fileDetail.recoveredFromSnapshot();
+            }
+            return recoveredFromSnapshot;
+        }
+
         /**
          * total bytes of files to be recovered (potentially not yet done)
          */
@@ -1110,6 +1118,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(totalBytes()));
             builder.humanReadableField(Fields.REUSED_IN_BYTES, Fields.REUSED, new ByteSizeValue(reusedBytes()));
             builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recoveredBytes()));
+            builder.humanReadableField(
+                Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES, Fields.RECOVERED_FROM_SNAPSHOT, new ByteSizeValue(recoveredFromSnapshotBytes())
+            );
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredBytesPercent()));
             builder.endObject();
 

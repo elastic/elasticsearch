@@ -69,7 +69,6 @@ import java.util.stream.LongStream;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -511,17 +510,14 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         RecoveryState.FileDetail fileDetails = recoveryStateIndex.getFileDetails(storeFileMetadata.name());
         assertThat(fileDetails.recovered(), equalTo(0L));
-        if (downloadFileErrorType == DownloadFileErrorType.FETCH_ERROR) {
-            assertThat(fileDetails.recoveredFromSnapshot(), equalTo(0L));
-        } else {
-            assertThat(fileDetails.recoveredFromSnapshot(), greaterThan(0L));
-        }
 
         // Subsequent writes on the same file can proceed without issues
         PlainActionFuture<Void> writeChunkFuture = PlainActionFuture.newFuture();
         ReleasableBytesReference bytesRef = ReleasableBytesReference.wrap(new BytesArray(fileData));
         recoveryTarget.writeFileChunk(storeFileMetadata, 0, bytesRef, true, 0, writeChunkFuture);
         writeChunkFuture.get();
+
+        assertThat(fileDetails.recovered(), equalTo(storeFileMetadata.length()));
 
         recoveryTarget.decRef();
         closeShards(shard);

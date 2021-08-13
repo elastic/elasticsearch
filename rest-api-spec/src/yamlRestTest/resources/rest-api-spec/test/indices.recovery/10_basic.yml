@@ -84,7 +84,6 @@
   - gte:   { test_2.shards.0.index.size.reused_in_bytes:                    0                       }
   - gte:   { test_2.shards.0.index.size.recovered_in_bytes:                 0                       }
   - gte:   { test_2.shards.0.index.size.recovered_from_snapshot_in_bytes:   0                       }
-  - gte:   { test_2.shards.0.index.size.recovered_from_source_in_bytes:     0                       }
   - match: { test_2.shards.0.index.size.percent:                            /^\d+\.\d\%$/           }
   - gte:   { test_2.shards.0.index.source_throttle_time_in_millis:          0                       }
   - gte:   { test_2.shards.0.index.target_throttle_time_in_millis:          0                       }

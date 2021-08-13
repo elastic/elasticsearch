@@ -20,12 +20,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.Arrays;
 import java.util.stream.IntStream;
 
 public class SslDiagnostics {
+
 
     public static List<String> describeValidHostnames(X509Certificate certificate) {
         try {
@@ -142,7 +143,21 @@ public class SslDiagnostics {
         }
     }
 
-    public enum ExtendedKeyUsage {
+    /**
+      * These names align with the values (and indices) defined by {@link X509Certificate#getKeyUsage()}
+      */
+    private static final String[] KEY_USAGE_NAMES = new String[] {
+        "digitalSignature",
+        "nonRepudiation",
+        "keyEncipherment",
+        "dataEncipherment",
+        "keyAgreement",
+        "keyCertSign",
+        "cRLSign",
+        "encipherOnly",
+        "decipherOnly" };
+
+    private enum ExtendedKeyUsage {
         serverAuth ("1.3.6.1.5.5.7.3.1"),
         clientAuth ("1.3.6.1.5.5.7.3.2"),
         codeSigning ("1.3.6.1.5.5.7.3.3"),
@@ -152,13 +167,13 @@ public class SslDiagnostics {
 
         private String oid;
 
-        private ExtendedKeyUsage(String oid) {
-            this.oid = oid;
+        ExtendedKeyUsage(String oid) {
+            this.oid = Objects.requireNonNull(oid);
         }
 
         public static String decodeOid(String oid) {
             for (ExtendedKeyUsage e : values()) {
-                if (e.oid != null && e.oid.equals(oid)) {
+                if (e.oid.equals(oid)) {
                     return e.name();
                 }
             }
@@ -433,39 +448,28 @@ public class SslDiagnostics {
         if (keyUsage == null || keyUsage.length == 0) {
             return "no keyUsage";
         }
-
-        final String[] keyUsageGlossary = {"digitalSignature", "nonRepudiation", "keyEncipherment",
-            "dataEncipherment", "keyAgreement", "keyCertSign", "cRLSign", "encipherOnly",
-            "decipherOnly"};
-
-        List<String> keyUsageDescription = new ArrayList<>();
-        IntStream.range(0, keyUsage.length).forEach(i -> {
-            if (keyUsage[i]) {
-                keyUsageDescription.add(keyUsageGlossary[i]);
-            }
-        });
-        return keyUsageDescription.stream()
-            .reduce((a, b) -> a + ", " + b)
-            .map(str ->  "keyUsage [" + str + "]")
-            .orElse("no keyUsage");
+        final String keyUsageDescription = IntStream.range(0, keyUsage.length)
+            .filter(i -> keyUsage[i])
+            .mapToObj(i -> (i < KEY_USAGE_NAMES.length) ? KEY_USAGE_NAMES[i] : ("#" + i))
+            .collect(Collectors.joining(", "));
+        return keyUsageDescription.isEmpty() ? "no keyUsage" : ("keyUsage [" + keyUsageDescription + "]");
     }
 
     private static String extendedKeyUsageDescription(X509Certificate certificate) {
         try {
             return Optional.ofNullable(certificate.getExtendedKeyUsage())
-                .map(keyUsage -> generateExtendedKeyUsageDescription(keyUsage))
+                .flatMap(keyUsage -> generateExtendedKeyUsageDescription(keyUsage))
                 .orElse("no extendedKeyUsage");
         } catch (CertificateParsingException e) {
-            return "invalid extendedKeyUsage [" + e.toString() + "]";
+            return "invalid extendedKeyUsage [" + e + "]";
         }
     }
 
-    private static String generateExtendedKeyUsageDescription(List<String> oids) {
+    private static Optional<String> generateExtendedKeyUsageDescription(List<String> oids) {
         return oids.stream()
             .map(ExtendedKeyUsage::decodeOid)
             .reduce((x, y) -> x + ", " + y)
-            .map(str -> "extendedKeyUsage [" + str + "]")
-            .orElse("no extendedKeyUsage");
+            .map(str -> "extendedKeyUsage [" + str + "]");
     }
 
     private static void addSessionDescription(SSLSession session, StringBuilder message) {
@@ -475,7 +479,7 @@ public class SslDiagnostics {
         String protocol = Optional.ofNullable(session)
             .map(SSLSession::getProtocol)
             .orElse("<unknown protocol>");
-        message.append("; the session supports cipher suite [")
+        message.append("; the session uses cipher suite [")
             .append(cipherSuite)
             .append("] and protocol [")
             .append(protocol)

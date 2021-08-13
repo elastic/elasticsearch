@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,7 +21,6 @@ import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.DataTier;
@@ -508,13 +506,11 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
     public void testTierAllocationSettings() {
         String settingValue = DataTier.DATA_HOT;
-        final Settings nodeSettings = Settings.builder()
+        final Settings settings = settings(Version.CURRENT)
             .put(INDEX_ROUTING_REQUIRE_SETTING.getKey(), DataTier.DATA_HOT)
             .put(INDEX_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
             .put(INDEX_ROUTING_EXCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
             .build();
-        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        final ClusterState clusterState = ClusterState.EMPTY_STATE;
         final DeprecationIssue expectedRequireIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
@@ -549,7 +545,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             false,null
         );
 
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(nodeSettings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         assertThat(
             IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata),
             equalTo(expectedRequireIssue)

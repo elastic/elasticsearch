@@ -339,7 +339,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         || featureAssociatedIndices.size() > 0
                         || featureDataStreamBackingIndices.size() > 0) {
 
-                        featureStates.add(new SnapshotFeatureInfo(featureName, new ArrayList<>(featureSystemIndices)));
+                        featureStates.add(new SnapshotFeatureInfo(featureName, List.copyOf(featureSystemIndices)));
                         indexNames.addAll(featureSystemIndices);
                         indexNames.addAll(featureAssociatedIndices);
                         indexNames.addAll(featureDataStreamBackingIndices);
@@ -396,7 +396,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     shards,
                     userMeta,
                     version,
-                    new ArrayList<>(featureStates)
+                    List.copyOf(featureStates)
                 );
                 return ClusterState.builder(currentState)
                     .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(CollectionUtils.appendToCopy(runningSnapshots, newEntry)))

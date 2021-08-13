@@ -51,16 +51,21 @@ tasks.register("createServiceAccountFile") {
     String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
 
     serviceAccountFile.parentFile.mkdirs()
-    serviceAccountFile.setText("{\n" +
-      '  "type": "service_account",\n' +
-      '  "project_id": "integration_test",\n' +
-      '  "private_key_id": "' + UUID.randomUUID().toString() + '",\n' +
-      '  "private_key": "-----BEGIN PRIVATE KEY-----\\n' + encodedKey + '\\n-----END PRIVATE KEY-----\\n",\n' +
-      '  "client_email": "integration_test@appspot.gserviceaccount.com",\n' +
-      '  "client_id": "123456789101112130594"\n' +
-      '}', 'UTF-8')
+    serviceAccountFile.setText(
+      """
+      {
+        "type": "service_account",
+        "project_id": "integration_test",
+        "private_key_id":  + ${privateKeyId},
+        "private_key": "-----BEGIN PRIVATE KEY-----
+        ${encodedKey}
+        -----END PRIVATE KEY-----",
+        "client_email": "integration_test@appspot.gserviceaccount.com",
+        "client_id": "123456789101112130594"
+      }
+    """
+    )
   }
-}
 
 def fixtureAddress = { f ->
   assert useFixture: 'closure should not be used without a fixture'

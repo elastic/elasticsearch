@@ -212,7 +212,7 @@ public class AllocationService {
                 String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.getMessage();
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, message,
                     failedShardEntry.getFailure(), failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false,
-                    AllocationStatus.NO_ATTEMPT, failedNodeIds, null);
+                    AllocationStatus.NO_ATTEMPT, failedNodeIds, shardToFail.currentNodeId());
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);
                 }
@@ -337,17 +337,9 @@ public class AllocationService {
         while (unassignedIterator.hasNext()) {
             ShardRouting shardRouting = unassignedIterator.next();
             UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-            UnassignedInfo.Reason reason = unassignedInfo.getReason();
-            String lastAllocatedNodeId = unassignedInfo.getLastAllocatedNodeId();
-            if (unassignedInfo.getNumFailedAllocations() > 0) {
-                reason = UnassignedInfo.Reason.MANUAL_ALLOCATION;
-                // If we're changing the reason, we need to make sure the last allocated node ID is unset to avoid tripping an assertion,
-                // because the last allocated node ID is only valid for certain reasons (of which MANUAL_ALLOCATION is not one)
-                lastAllocatedNodeId = null;
-            }
             unassignedIterator.updateUnassigned(
                 new UnassignedInfo(
-                    reason,
+                    unassignedInfo.getNumFailedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(),
                     unassignedInfo.getMessage(),
                     unassignedInfo.getFailure(),
                     0,
@@ -356,7 +348,7 @@ public class AllocationService {
                     unassignedInfo.isDelayed(),
                     unassignedInfo.getLastAllocationStatus(),
                     Collections.emptySet(),
-                    lastAllocatedNodeId),
+                    unassignedInfo.getLastAllocatedNodeId()),
                 shardRouting.recoverySource(),
                 allocation.changes()
             );

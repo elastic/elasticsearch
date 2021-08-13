@@ -548,7 +548,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             false,
                             AllocationStatus.NO_ATTEMPT,
                             Collections.emptySet(),
-                            null);
+                            routing.currentNodeId());
                         failShard(logger, replicaShard, primaryFailedUnassignedInfo, indexMetadata, routingChangesObserver);
                     }
                 }

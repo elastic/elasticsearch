@@ -226,31 +226,30 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final int from = randomIntBetween(0, 3);
         final int size = randomIntBetween(2, 5);
         final int remaining = total - from;
-        final String sortField = randomFrom("name", "creation");
+        final List<String> sortFields = List.of(randomFrom("name", "creation"), "_doc");
+        final String sortFieldsString = sortFields.stream().map(f -> "\"" + f + "\"").collect(Collectors.joining(","));
 
         final List<Map<String, Object>> apiKeyInfos = new ArrayList<>(remaining);
         final Request request1 = new Request("GET", "/_security/_query/api_key");
         request1.setOptions(request1.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
-        request1.setJsonEntity("{\"from\":" + from + ",\"size\":" + size + ",\"sort\":[\"" + sortField + "\"]}");
+        request1.setJsonEntity("{\"from\":" + from + ",\"size\":" + size + ",\"sort\":[" + sortFieldsString + "]}");
         collectApiKeys(apiKeyInfos, request1, total, size);
 
         while (apiKeyInfos.size() < remaining) {
             final Request request2 = new Request("GET", "/_security/_query/api_key");
             request2.setOptions(request2.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
-            final String searchAfter;
-            // Sort values can be either gather from the explicitly return _sort field or derived from the api key info
-            if (randomBoolean()) {
-                if (sortField.equals("name")) {
-                    searchAfter = String.format(Locale.ROOT, "\"k-%02d\"", from + apiKeyInfos.size() - 1);
-                } else {
-                    searchAfter = apiKeyInfos.get(apiKeyInfos.size()-1).get("creation").toString();
-                }
+            final StringBuilder searchAfter = new StringBuilder();
+            @SuppressWarnings("unchecked")
+            final List<Object> sortValues = (List<Object>) apiKeyInfos.get(apiKeyInfos.size() - 1).get("_sort");
+            if (sortFields.get(0).equals("name")) {
+                assertThat(String.format(Locale.ROOT, "k-%02d", from + apiKeyInfos.size() - 1), equalTo(sortValues.get(0)));
+                searchAfter.append("\"").append(sortValues.get(0)).append("\"");
             } else {
-                @SuppressWarnings("unchecked")
-                final List<Object> sortValues = (List<Object>) apiKeyInfos.get(apiKeyInfos.size() - 1).get("_sort");
-                searchAfter = sortValues.get(0).toString();
+                assertThat(apiKeyInfos.get(apiKeyInfos.size() - 1).get("creation"), equalTo(sortValues.get(0)));
+                searchAfter.append(sortValues.get(0));
             }
-            request2.setJsonEntity("{\"size\":" + size + ",\"sort\":[\"" + sortField + "\"],\"search_after\":[" + searchAfter + "]}");
+            searchAfter.append(",").append(sortValues.get(1));
+            request2.setJsonEntity("{\"size\":" + size + ",\"sort\":[" + sortFieldsString + "],\"search_after\":[" + searchAfter + "]}");
             collectApiKeys(apiKeyInfos, request2, total, size);
         }
 

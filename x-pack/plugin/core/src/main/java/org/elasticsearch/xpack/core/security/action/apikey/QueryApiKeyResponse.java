@@ -40,7 +40,7 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
     public QueryApiKeyResponse(long total, Collection<Item> items) {
         this.total = total;
-        Objects.requireNonNull(items, "found_api_keys_info must be provided");
+        Objects.requireNonNull(items, "items must be provided");
         this.items = items.toArray(new Item[0]);
     }
 
@@ -90,7 +90,7 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
     @Override
     public String toString() {
-        return "QueryApiKeyResponse{" + "total=" + total + ", foundApiKeysInfo=" + Arrays.toString(items) + '}';
+        return "QueryApiKeyResponse{" + "total=" + total + ", items=" + Arrays.toString(items) + '}';
     }
 
     public static class Item implements ToXContentObject, Writeable {
@@ -105,13 +105,13 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
         public Item(StreamInput in) throws IOException {
             this.apiKey = new ApiKey(in);
-            this.sortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+            this.sortValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             apiKey.writeTo(out);
-            out.writeArray(Lucene::writeSortValue, sortValues);
+            out.writeOptionalArray(Lucene::writeSortValue, sortValues);
         }
 
         @Override
@@ -123,6 +123,28 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            Item item = (Item) o;
+            return Objects.equals(apiKey, item.apiKey) && Arrays.equals(sortValues, item.sortValues);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(apiKey);
+            result = 31 * result + Arrays.hashCode(sortValues);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "Item{" + "apiKey=" + apiKey + ", sortValues=" + Arrays.toString(sortValues) + '}';
         }
     }
 }

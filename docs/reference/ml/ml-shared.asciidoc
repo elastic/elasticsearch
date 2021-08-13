@@ -1230,9 +1230,12 @@ Only the specified `terms` can be viewed when using the Single Metric Viewer.
 end::model-plot-config-terms[]
 
 tag::model-prune-window[]
-Advanced configuration option, which affects the pruning of models that have not
-been updated for the given time duration. The value of this option must be at least
-two whole multiples of `bucket_span`. If not set, a default value is not supplied.
+Advanced configuration option. 
+Affects the pruning of models that have not been updated for the given time 
+duration. The value must be set to a multiple of the `bucket_span`. If set too 
+low, important information may be removed from the model. If not set, model 
+pruning only occurs if the model memory status reaches the soft limit 
+(`model_memory_limit`) or the hard limit (`xpack.ml.max_model_memory_limit`).
 end::model-prune-window[]
 
 tag::model-snapshot-id[]

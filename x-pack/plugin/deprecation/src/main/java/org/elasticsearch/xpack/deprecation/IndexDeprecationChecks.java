@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
@@ -31,6 +32,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
 
 
 /**
@@ -316,5 +321,45 @@ public class IndexDeprecationChecks {
                     "as it offers superior or equivalent performance to [simplefs].", false, null);
         }
         return null;
+    }
+
+    static DeprecationIssue checkRemovedSetting(final Settings settings,
+                                                final Setting<?> removedSetting,
+                                                final String url,
+                                                DeprecationIssue.Level deprecationLevel) {
+        if (removedSetting.exists(settings) == false) {
+            return null;
+        }
+        final String removedSettingKey = removedSetting.getKey();
+        final String value = removedSetting.get(settings).toString();
+        final String message =
+            String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
+        final String details =
+            String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
+        return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
+    }
+
+    static DeprecationIssue checkIndexRoutingRequireSetting(IndexMetadata indexMetadata) {
+        return checkRemovedSetting(indexMetadata.getSettings(),
+            INDEX_ROUTING_REQUIRE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkIndexRoutingIncludeSetting(IndexMetadata indexMetadata) {
+        return checkRemovedSetting(indexMetadata.getSettings(),
+            INDEX_ROUTING_INCLUDE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkIndexRoutingExcludeSetting(IndexMetadata indexMetadata) {
+        return checkRemovedSetting(indexMetadata.getSettings(),
+            INDEX_ROUTING_EXCLUDE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
     }
 }

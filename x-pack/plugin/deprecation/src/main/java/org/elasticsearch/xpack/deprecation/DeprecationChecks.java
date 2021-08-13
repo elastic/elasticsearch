@@ -95,7 +95,10 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
                     NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
-                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
+                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                    NodeDeprecationChecks::checkClusterRoutingRequireSetting,
+                    NodeDeprecationChecks::checkClusterRoutingIncludeSetting,
+                    NodeDeprecationChecks::checkClusterRoutingExcludeSetting
                 )
             ).collect(Collectors.toList());
         }
@@ -111,7 +114,10 @@ public class DeprecationChecks {
             IndexDeprecationChecks::checkIndexDataPath,
             IndexDeprecationChecks::indexingSlowLogLevelSettingCheck,
             IndexDeprecationChecks::searchSlowLogLevelSettingCheck,
-            IndexDeprecationChecks::storeTypeSettingCheck
+            IndexDeprecationChecks::storeTypeSettingCheck,
+            IndexDeprecationChecks::checkIndexRoutingRequireSetting,
+            IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
+            IndexDeprecationChecks::checkIndexRoutingExcludeSetting
         ));
 
     /**

@@ -4,14 +4,14 @@
 [discrete]
 === Disable the features you do not need
 
-By default Elasticsearch indexes and adds doc values to most fields so that they
-can be searched and aggregated out of the box. For instance if you have a numeric
+By default, {es} indexes and adds doc values to most fields so that they
+can be searched and aggregated out of the box. For instance, if you have a numeric
 field called `foo` that you need to run histograms on but that you never need to
 filter on, you can safely disable indexing on this field in your
 <<mappings,mappings>>:
 
 [source,console]
---------------------------------------------------
+----
 PUT index
 {
   "mappings": {
@@ -23,10 +23,10 @@ PUT index
     }
   }
 }
---------------------------------------------------
+----
 
-<<text,`text`>> fields store normalization factors in the index in order to be
-able to score documents. If you only need matching capabilities on a `text`
+<<text,`text`>> fields store normalization factors in the index to facilitate
+document scoring. If you only need matching capabilities on a `text`
 field but do not care about the produced scores, you can use the
 <<match-only-text-field-type,`match_only_text`>> type instead. This field type
 saves significant space by dropping scoring and positional information.

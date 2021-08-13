@@ -45,6 +45,12 @@ public class ShutdownService implements ClusterStateListener {
             // Only do this if we're the current master node.
             return;
         }
+
+        if (event.nodesAdded() == false) {
+            // If there's no new nodes this cluster state update, nothing to do.
+            return;
+        }
+
         NodesShutdownMetadata eventShutdownMetadata = event.state().metadata().custom(NodesShutdownMetadata.TYPE);
         final Set<String> nodesNotPreviouslySeen = eventShutdownMetadata.getAllNodeMetadataMap()
             .values()

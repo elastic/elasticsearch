@@ -33,6 +33,8 @@ List projects = [
   'distribution:docker',
   'distribution:docker:cloud-docker-export',
   'distribution:docker:cloud-docker-aarch64-export',
+  'distribution:docker:cloud-ess-docker-export',
+  'distribution:docker:cloud-ess-docker-aarch64-export',
   'distribution:docker:docker-aarch64-export',
   'distribution:docker:docker-export',
   'distribution:docker:ironbank-docker-aarch64-export',

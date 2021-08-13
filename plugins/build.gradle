@@ -10,6 +10,11 @@ subprojects {
   apply plugin: 'elasticsearch.internal-testclusters'
 }
 
+configurations {
+  repositoryPlugins
+  nonRepositoryPlugins
+}
+
 // only configure immediate children of plugins dir
 configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.elasticsearch.plugin'
@@ -21,5 +26,10 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
 
     licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
     noticeFile rootProject.file('NOTICE.txt')
+  }
+
+  String configurationName = project.name.startsWith('repository-') ? 'repositoryPlugins' : 'nonRepositoryPlugins'
+  parent.dependencies { DependencyHandler d ->
+    d.add(configurationName, d.project(path: project.name, configuration: 'zip'))
   }
 }

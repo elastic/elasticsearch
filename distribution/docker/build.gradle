@@ -58,9 +58,8 @@ configurations {
   dockerSource
   log4jConfig
   tini
-  repositoryS3Plugin
-  repositoryGcsPlugin
-  repositoryAzurePlugin
+  repositoryPlugins
+  nonRepositoryPlugins
   filebeat
   metricbeat
 }
@@ -73,23 +72,13 @@ dependencies {
   dockerSource project(path: ":distribution:archives:linux-tar", configuration: 'default')
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
-  repositoryS3Plugin project(path: ':plugins:repository-s3', configuration: 'zip')
-  repositoryGcsPlugin project(path: ':plugins:repository-gcs', configuration: 'zip')
-  repositoryAzurePlugin project(path: ':plugins:repository-azure', configuration: 'zip')
+  repositoryPlugins project(path: ':plugins', configuration: 'repositoryPlugins')
+  nonRepositoryPlugins project(path: ':plugins', configuration: 'nonRepositoryPlugins')
   filebeat "beats:filebeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
   metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
-  String buildArgs = ''
-  if (base == DockerBase.IRON_BANK) {
-    buildArgs = """
-ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.4
-"""
-  }
-
   def (major,minor) = VersionProperties.elasticsearch.split("\\.")
 
   return [
@@ -251,9 +240,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
       }
 
       if (base == DockerBase.CLOUD) {
-        from configurations.repositoryS3Plugin
-        from configurations.repositoryGcsPlugin
-        from configurations.repositoryAzurePlugin
+        from configurations.repositoryPlugins
         from configurations.filebeat
         from configurations.metricbeat
         // For some reason, the artifact name can differ depending on what repository we used.
@@ -310,8 +297,18 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
 }
 
 
-private List<String> generateTags(DockerBase base) {
-  String version = VersionProperties.elasticsearch
+private static List<String> generateTags(DockerBase base) {
+  final String version = VersionProperties.elasticsearch
+
+  if (base == DockerBase.CLOUD_ESS) {
+    final String namespace = VersionProperties.isElasticsearchSnapshot() ? 'cloud-ci' : 'cloud-assets'
+    return [
+      "elasticsearch${base.suffix}:test",
+      "elasticsearch${base.suffix}:${version}",
+      "docker.elastic.co/${namespace}/elasticsearch:${version}"
+    ]
+  }
+
   return [
     "elasticsearch${base.suffix}:test",
     "elasticsearch${base.suffix}:${version}",
@@ -323,10 +320,10 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
     tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
 
-      TaskProvider<Tar> transformTask = tasks.named(taskName("transform", architecture, base, "DockerContext"))
+      TaskProvider<Sync> transformTask = tasks.named(taskName("transform", architecture, base, "DockerContext"))
       dependsOn(transformTask)
 
-      dockerContext.fileProvider(transformTask.map { it.destinationDir })
+      dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
       tags = generateTags(base)
 
@@ -361,13 +358,59 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
   }
 }
 
+void addBuildDockerEssImageTask(Architecture architecture) {
+  DockerBase base = DockerBase.CLOUD_ESS
+  String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
+  String contextDir = "${project.buildDir}/docker-context/elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
+
+  final TaskProvider<Sync> buildContextTask =
+    tasks.register(taskName('build', architecture, base, 'DockerContext'), Sync) {
+      into contextDir
+
+      into("plugins-archive") {
+        from configurations.nonRepositoryPlugins
+      }
+
+      from(project.projectDir.toPath().resolve("src/docker/Dockerfile.cloud-ess")) {
+        expand([
+          base_image: "elasticsearch-cloud:${VersionProperties.elasticsearch}"
+        ])
+        filter SquashNewlinesFilter
+        rename ~/Dockerfile\.cloud-ess$/, 'Dockerfile'
+      }
+    }
+
+  final TaskProvider<DockerBuildTask> buildDockerImageTask =
+    tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
+
+      TaskProvider<DockerBuildTask> buildCloudTask = tasks.named(taskName("build", architecture, DockerBase.CLOUD, "DockerImage"))
+      dependsOn(buildCloudTask)
+      dependsOn(buildContextTask)
+
+      dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
+
+      baseImages = []
+      tags = generateTags(base)
+
+      onlyIf { Architecture.current() == architecture }
+    }
+
+  tasks.named("assemble").configure {
+    dependsOn(buildDockerImageTask)
+  }
+}
 
 for (final Architecture architecture : Architecture.values()) {
   for (final DockerBase base : DockerBase.values()) {
+    if (base == DockerBase.CLOUD_ESS) {
+      continue
+    }
     addBuildDockerContextTask(architecture, base)
     addTransformDockerContextTask(architecture, base)
     addBuildDockerImageTask(architecture, base)
   }
+
+  addBuildDockerEssImageTask(architecture)
 }
 
 /*

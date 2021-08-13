@@ -21,7 +21,10 @@ public enum DockerBase {
     IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank"),
 
     // Base image with extras for Cloud
-    CLOUD("centos:8", "-cloud");
+    CLOUD("centos:8", "-cloud"),
+
+    // Based on CLOUD above, with more extras
+    CLOUD_ESS("centos:8", "-cloud-ess");
 
     private final String image;
     private final String suffix;

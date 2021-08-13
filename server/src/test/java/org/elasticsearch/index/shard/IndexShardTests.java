@@ -2414,7 +2414,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new IndexFieldDataCache.Listener() {});
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(shard.indexSettings, indicesFieldDataCache,
             new NoneCircuitBreakerService(), shard.mapperService());
-        IndexFieldData.Global ifd = indexFieldDataService.getForField(foo, "test", () -> {
+        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(foo, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");
         });
         FieldDataStats before = shard.fieldData().stats("foo");
@@ -2536,7 +2536,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
         recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener) {
+            new RecoveryTarget(shard, discoveryNode, null, recoveryListener) {
                 @Override
                 public void indexTranslogOperations(
                         final List<Translog.Operation> operations,
@@ -2643,7 +2643,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
         recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener) {
+            new RecoveryTarget(shard, discoveryNode, null, recoveryListener) {
                 @Override
                 public void indexTranslogOperations(
                         final List<Translog.Operation> operations,
@@ -2699,7 +2699,7 @@ public class IndexShardTests extends IndexShardTestCase {
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         assertListenerCalled.accept(replica);
         recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener) {
+            new RecoveryTarget(shard, discoveryNode, null, recoveryListener) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
                 public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {

@@ -32,7 +32,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
     }
 
     static PolygonBuilder mutate(PolygonBuilder original) throws IOException {
-        PolygonBuilder mutation = (PolygonBuilder) copyShape(original);
+        PolygonBuilder mutation = copyShape(original);
         return mutatePolygonBuilder(mutation);
     }
 

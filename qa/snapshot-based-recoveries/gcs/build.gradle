@@ -56,7 +56,7 @@ tasks.register("createServiceAccountFile") {
       {
         "type": "service_account",
         "project_id": "integration_test",
-        "private_key_id":  + ${privateKeyId},
+        "private_key_id":  + ${UUID.randomUUID().toString()},
         "private_key": "-----BEGIN PRIVATE KEY-----
         ${encodedKey}
         -----END PRIVATE KEY-----",

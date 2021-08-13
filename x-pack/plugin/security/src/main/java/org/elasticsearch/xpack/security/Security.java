@@ -353,8 +353,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         LicensedFeature.momentaryLenient("security_ip_filtering", License.OperationMode.GOLD);
     public static final LicensedFeature AUDITING_FEATURE =
         LicensedFeature.momentaryLenient("security_auditing", License.OperationMode.GOLD);
-    public static final LicensedFeature DLS_FLS_FEATURE =
-        LicensedFeature.momentaryLenient("security_dls_fls", License.OperationMode.PLATINUM);
 
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
     // Standard realms (LDAP, AD, PKI, etc) are Gold+
@@ -363,15 +361,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         LicensedFeature.persistentLenient("security_standard_realms", License.OperationMode.GOLD);
     public static final LicensedFeature.Persistent ALL_REALMS_FEATURE =
         LicensedFeature.persistentLenient("security_all_realms", License.OperationMode.PLATINUM);
-
-    public static final LicensedFeature CUSTOM_ROLE_FEATURE =
-        LicensedFeature.momentary("security_custom_role_providers", License.OperationMode.PLATINUM);
-    public static final LicensedFeature TOKEN_SERVICE_FEATURE =
-        LicensedFeature.momentaryLenient("security_token_service", License.OperationMode.STANDARD);
-    public static final LicensedFeature AUTH_REALM_FEATURE =
-        LicensedFeature.momentary("security_authorization_realm", License.OperationMode.PLATINUM);
-    public static final LicensedFeature AUTH_ENGINE_FEATURE =
-        LicensedFeature.momentary("security_authorization_engine", License.OperationMode.PLATINUM);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 

@@ -94,9 +94,9 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
     }
 
     public static class Item implements ToXContentObject, Writeable {
-        ApiKey apiKey;
+        private final ApiKey apiKey;
         @Nullable
-        Object[] sortValues;
+        private final Object[] sortValues;
 
         public Item(ApiKey apiKey, @Nullable Object[] sortValues) {
             this.apiKey = apiKey;
@@ -106,6 +106,14 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         public Item(StreamInput in) throws IOException {
             this.apiKey = new ApiKey(in);
             this.sortValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        }
+
+        public ApiKey getApiKey() {
+            return apiKey;
+        }
+
+        public Object[] getSortValues() {
+            return sortValues;
         }
 
         @Override

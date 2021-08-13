@@ -12,6 +12,26 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest;
 
 class AutobackportFuncTest extends AbstractGradleFuncTest {
 
+    def setup() {
+        file("src/main/java/org/elasticsearch/core/List.java") << """
+        package org.elasticsearch.core;
+        public class List {
+            public static <T> java.util.List<T> of(T... entries) {
+                //impl does not matter
+                return new java.util.ArrayList();
+            }
+        }
+        """
+        file("src/main/java/org/elasticsearch/core/Set.java") << """
+        package org.elasticsearch.core;
+        public class Set {
+            public static <T> java.util.Set<T> of(T... entries) {
+                //impl does not matter
+                return new java.util.HashSet();
+            }
+        }
+        """
+    }
     def "can run rewrite to backport java util methods"() {
         when:
         setupRewriteYamlConfig()
@@ -76,7 +96,7 @@ class SomeClass {
 """
     }
 
-    def "Avoids full qualified usage of elastic util methods where possible"() {
+    def "converts new full qualified usage of elastic util methods where possible"() {
         when:
         setupRewriteYamlConfig()
         def sourceFile = file("src/main/java/org/acme/SomeClass.java")
@@ -138,6 +158,64 @@ class SomeClass {
         Collection myList = List.of("some", "non", "java8", "code");
         Collection mySet = Set.of("some", "non", "java8", "code");
         Map myMap = org.elasticsearch.core.Map.of(List.of("some", "non"), Set.of("java8", "code"));
+    }
+}
+"""
+    }
+
+    def "compatible code is not changed"() {
+        when:
+        setupRewriteYamlConfig()
+        def sourceFile = file("src/main/java/org/acme/SomeClass.java")
+        sourceFile << """
+package org.acme;
+
+import java.util.Collection;
+
+class SomeClass {
+    public void someMethod() {
+        Collection myList = org.elasticsearch.core.List.of("some", "non", "java8", "code");
+        Collection mySet = org.elasticsearch.core.Set.of("some", "non", "java8", "code");
+    }
+}
+"""
+
+        buildFile.text = """
+        plugins {
+          id 'java'
+          id 'elasticsearch.rewrite'
+        }
+        rewrite {
+            rewriteVersion = "7.10.0"
+            activeRecipe("org.elasticsearch.java.backport.ListOfBackport",
+                    "org.elasticsearch.java.backport.MapOfBackport",
+                    "org.elasticsearch.java.backport.SetOfBackport")
+            configFile = rootProject.file("rewrite.yml")
+        }
+        
+        repositories {
+            mavenCentral()
+            maven { url 'https://jitpack.io' }
+        }
+        
+        dependencies {
+            rewrite "org.openrewrite:rewrite-java-11"
+            rewrite "com.github.breskeby:java-recipes:0dde6854d5"
+        }
+        """
+
+        then:
+        gradleRunner("rewrite").build()
+
+        sourceFile.text == """
+package org.acme;
+
+import java.util.Collection;
+
+class SomeClass {
+    public void someMethod() {
+        Collection myList = org.elasticsearch.core.List.of("some", "non", "java8", "code");
+        Collection mySet = org.elasticsearch.core.Set.of("some", "non", "java8", "code");
     }
 }
 """

@@ -522,7 +522,8 @@ public class XPackLicenseState {
 
     private void checkForExpiry(LicensedFeature feature) {
         final long licenseExpiryDate = getLicenseExpiryDate();
-        final long diff = licenseExpiryDate - epochMillisProvider.getAsLong();
+        // TODO: this should use epochMillisProvider to avoid a system call + testability
+        final long diff = licenseExpiryDate - System.currentTimeMillis();
         if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
             LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
             final long days = TimeUnit.MILLISECONDS.toDays(diff);

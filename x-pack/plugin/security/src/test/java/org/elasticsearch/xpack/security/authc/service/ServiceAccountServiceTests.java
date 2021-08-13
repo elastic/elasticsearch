@@ -122,7 +122,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
     public void testGetServiceAccountPrincipals() {
         assertThat(ServiceAccountService.getServiceAccountPrincipals(),
-            containsInAnyOrder("elastic/fleet-server", "elastic/kibana-system"));
+            containsInAnyOrder("elastic/fleet-server", "elastic/kibana"));
     }
 
     public void testTryParseToken() throws IOException, IllegalAccessException {

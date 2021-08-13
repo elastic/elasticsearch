@@ -126,7 +126,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
          */
         INDEX_CLOSED,
         /**
-         * Similar to NODE_LEFT, but at the time the node left, it had been registered for a restart via the Node Shutdown API.
+         * Similar to NODE_LEFT, but at the time the node left, it had been registered for a restart via the Node Shutdown API. Note that
+         * there is no verification that it was ready to be restarted, so this may be an intentional restart or a node crash.
          */
         NODE_RESTARTING
     }

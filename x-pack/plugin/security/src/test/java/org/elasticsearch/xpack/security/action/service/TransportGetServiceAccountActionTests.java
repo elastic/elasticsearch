@@ -48,7 +48,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
 
     public void testDoExecute() {
         final GetServiceAccountRequest request1 = randomFrom(new GetServiceAccountRequest(null, null),
-        new GetServiceAccountRequest("elastic", null));
+            new GetServiceAccountRequest("elastic", null));
         final PlainActionFuture<GetServiceAccountResponse> future1 = new PlainActionFuture<>();
         transportGetServiceAccountAction.doExecute(mock(Task.class), request1, future1);
         final GetServiceAccountResponse getServiceAccountResponse1 = future1.actionGet();
@@ -57,7 +57,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
             Arrays.stream(getServiceAccountResponse1.getServiceAccountInfos())
                 .map(ServiceAccountInfo::getPrincipal)
                 .collect(Collectors.toList()),
-            containsInAnyOrder("elastic/fleet-server", "elastic/kibana-system")
+            containsInAnyOrder("elastic/fleet-server", "elastic/kibana")
         );
 
         final GetServiceAccountRequest request2 = new GetServiceAccountRequest("elastic", "fleet-server");

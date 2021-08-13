@@ -27,7 +27,7 @@ public class BertRequestBuilderTests extends ESTestCase {
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN)).build();
 
-        BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, NlpTaskConfig.builder().build());
+        BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, 512);
         BytesReference bytesReference = requestBuilder.buildRequest("Elasticsearch fun", "request1");
 
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(bytesReference, true, XContentType.JSON).v2();
@@ -45,9 +45,7 @@ public class BertRequestBuilderTests extends ESTestCase {
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN)).build();
 
         {
-            NlpTaskConfig config = NlpTaskConfig.builder().setMaxSequenceLength(5).build();
-
-            BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, config);
+            BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, 5);
             ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
                 () -> requestBuilder.buildRequest("Elasticsearch fun Elasticsearch fun Elasticsearch fun", "request1"));
 
@@ -55,9 +53,7 @@ public class BertRequestBuilderTests extends ESTestCase {
                 containsString("Input too large. The tokenized input length [11] exceeds the maximum sequence length [5]"));
         }
         {
-            NlpTaskConfig config = NlpTaskConfig.builder().setMaxSequenceLength(5).build();
-
-            BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, config);
+            BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, 5);
             // input will become 3 tokens + the Class and Separator token = 5 which is
             // our max sequence length
             requestBuilder.buildRequest("Elasticsearch fun", "request1");

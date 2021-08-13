@@ -101,9 +101,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                                 currentNode, nodeWithHighestMatch);
                         final Set<String> failedNodeIds =
                             shard.unassignedInfo() == null ? Collections.emptySet() : shard.unassignedInfo().getFailedNodeIds();
-                        boolean nodeIsRestarting = Optional.ofNullable(metadata.nodeShutdowns().get(shard.currentNodeId()))
-                            .map(shutdownInfo -> shutdownInfo.getType().equals(SingleNodeShutdownMetadata.Type.RESTART))
-                            .orElse(false);
                         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
                             "existing allocation of replica to [" + currentNode + "] cancelled, can perform a noop recovery on ["+
                                 nodeWithHighestMatch + "]",

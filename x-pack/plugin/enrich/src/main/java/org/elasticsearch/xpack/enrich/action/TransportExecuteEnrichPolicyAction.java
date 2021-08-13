@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich.action;
 
@@ -22,7 +23,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
-import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 
@@ -80,17 +80,10 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
         }
 
         if (request.isWaitForCompletion()) {
-            executor.runPolicy(request, new ActionListener<>() {
-                @Override
-                public void onResponse(ExecuteEnrichPolicyStatus executionStatus) {
-                    listener.onResponse(new ExecuteEnrichPolicyAction.Response(executionStatus));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            executor.runPolicy(
+                request,
+                listener.delegateFailure((l, executionStatus) -> l.onResponse(new ExecuteEnrichPolicyAction.Response(executionStatus)))
+            );
         } else {
             Task executeTask = executor.runPolicy(request, LoggingTaskListener.instance());
             TaskId taskId = new TaskId(clusterService.localNode().getId(), executeTask.getId());

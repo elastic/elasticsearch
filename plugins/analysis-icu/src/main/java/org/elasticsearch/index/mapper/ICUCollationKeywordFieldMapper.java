@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,6 +12,7 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -30,15 +20,15 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -81,7 +71,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
@@ -101,7 +91,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
@@ -123,13 +113,13 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions, QueryShardContext context) {
+                                boolean transpositions, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method,
-                                 boolean caseInsensitive, QueryShardContext context) {
+                                 boolean caseInsensitive, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
@@ -137,17 +127,17 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         public Query wildcardQuery(String value,
                                    @Nullable MultiTermQuery.RewriteMethod method,
                                    boolean caseInsensitive,
-                                   QueryShardContext context) {
+                                   SearchExecutionContext context) {
             throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+                                 MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
-        public static DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
+        public static final DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
             @Override
             public String getWriteableName() {
                 return "collate";
@@ -445,20 +435,21 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
+        XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            value = nullValue;
         } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = nullValue;
-            } else {
-                value = parser.textOrNull();
-            }
+            value = parser.textOrNull();
         }
 
-        if (value == null || value.length() > ignoreAbove) {
+        if (value == null) {
+            return;
+        }
+
+        if (value.length() > ignoreAbove) {
+            context.addIgnoredField(name());
             return;
         }
 
@@ -473,7 +464,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         if (hasDocValues) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

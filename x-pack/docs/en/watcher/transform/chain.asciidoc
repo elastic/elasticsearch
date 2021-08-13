@@ -1,6 +1,9 @@
 [role="xpack"]
 [[transform-chain]]
-=== Chain {watcher-transform}
+=== {watcher} chain {watcher-transform}
+++++
+<titleabbrev>Chain {watcher-transform}</titleabbrev>
+++++
 
 A <<transform,{watcher-transform}>> that executes an ordered list of configured
 {watcher-transforms} in a chain, where the output of one transform serves as the
@@ -30,7 +33,7 @@ the other available transforms. For example, you can combine a
       }
     },
     {
-      "script" : "return [ error_count : ctx.payload.hits.total.value ]"  <3>
+      "script" : "return [ error_count : ctx.payload.hits.total ]"  <3>
     }
   ]
 }

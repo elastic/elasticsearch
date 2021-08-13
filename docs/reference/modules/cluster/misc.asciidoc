@@ -45,11 +45,13 @@ either the limit is increased as described below, or some indices are
 <<indices-open-close,closed>> or <<indices-delete-index,deleted>> to bring the
 number of shards below the limit.
 
-The cluster shard limit defaults to 1,000 shards per data node. 
-Both primary and replica shards of all open indices count toward the limit, 
-including unassigned shards. 
-For example, an open index with 5 primary shards and 2 replicas counts as 15 shards. 
-Closed indices do not contribute to the shard count. 
+The cluster shard limit defaults to 1,000 shards per non-frozen data node for
+normal (non-frozen) indices and 3000 shards per frozen data node for frozen
+indices.
+Both primary and replica shards of all open indices count toward the limit,
+including unassigned shards.
+For example, an open index with 5 primary shards and 2 replicas counts as 15 shards.
+Closed indices do not contribute to the shard count.
 
 You can dynamically adjust the cluster shard limit with the following setting:
 
@@ -61,7 +63,7 @@ You can dynamically adjust the cluster shard limit with the following setting:
 Limits the total number of primary and replica shards for the cluster. {es}
 calculates the limit as follows:
 
-`cluster.max_shards_per_node * number of data nodes`
+`cluster.max_shards_per_node * number of non-frozen data nodes`
 
 Shards for closed indices do not count toward this limit. Defaults to `1000`.
 A cluster with no data nodes is unlimited.
@@ -71,7 +73,29 @@ example, a cluster with a `cluster.max_shards_per_node` setting of `100` and
 three data nodes has a shard limit of 300. If the cluster already contains 296
 shards, {es} rejects any request that adds five or more shards to the cluster.
 
-NOTE: This setting does not limit shards for individual nodes. To limit the
+Notice that frozen shards have their own independent limit.
+--
+
+[[cluster-max-shards-per-node-frozen]]
+`cluster.max_shards_per_node.frozen`::
++
+--
+(<<dynamic-cluster-setting,Dynamic>>)
+Limits the total number of primary and replica frozen shards for the cluster.
+{es} calculates the limit as follows:
+
+`cluster.max_shards_per_node * number of frozen data nodes`
+
+Shards for closed indices do not count toward this limit. Defaults to `3000`.
+A cluster with no frozen data nodes is unlimited.
+
+{es} rejects any request that creates more frozen shards than this limit allows.
+For example, a cluster with a `cluster.max_shards_per_node.frozen` setting of
+`100` and three frozen data nodes has a frozen shard limit of 300. If the
+cluster already contains 296 shards, {es} rejects any request that adds five or
+more frozen shards to the cluster.
+
+NOTE: These setting do not limit shards for individual nodes. To limit the
 number of shards for each node, use the
 <<cluster-total-shards-per-node,`cluster.routing.allocation.total_shards_per_node`>>
 setting.
@@ -83,7 +107,7 @@ setting.
 User-defined metadata can be stored and retrieved using the Cluster Settings API.
 This can be used to store arbitrary, infrequently-changing data about the cluster
 without the need to create an index to store it. This data may be stored using
-any key prefixed with `cluster.metadata.`.  For example, to store the email
+any key prefixed with `cluster.metadata.`. For example, to store the email
 address of the administrator of a cluster under the key `cluster.metadata.administrator`,
 issue this request:
 
@@ -107,7 +131,7 @@ metadata will be viewable by anyone with access to the
 ===== Index tombstones
 
 The cluster state maintains index tombstones to explicitly denote indices that
-have been deleted.  The number of tombstones maintained in the cluster state is
+have been deleted. The number of tombstones maintained in the cluster state is
 controlled by the following setting:
 
 `cluster.indices.tombstones.size`::
@@ -128,7 +152,7 @@ this situation.
 ===== Logger
 
 The settings which control logging can be updated <<dynamic-cluster-setting,dynamically>> with the
-`logger.` prefix.  For instance, to increase the logging level of the
+`logger.` prefix. For instance, to increase the logging level of the
 `indices.recovery` module to `DEBUG`, issue this request:
 
 [source,console]

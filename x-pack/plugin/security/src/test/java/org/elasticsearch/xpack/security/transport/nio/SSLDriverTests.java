@@ -1,23 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
+import org.hamcrest.Matcher;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
-import javax.net.ssl.TrustManager;
 import java.io.IOException;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
@@ -28,6 +25,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManager;
+
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.is;
 
 public class SSLDriverTests extends ESTestCase {
 
@@ -159,25 +165,49 @@ public class SSLDriverTests extends ESTestCase {
         SSLEngine clientEngine = sslContext.createSSLEngine();
         SSLEngine serverEngine = sslContext.createSSLEngine();
 
-        String[] serverProtocols = {"TLSv1.2"};
+        final String[] serverProtocols;
+        final String[] clientProtocols;
+        final Matcher<String> expectedMessageMatcher;
+
+        if (inFipsJvm()) {
+            // fips JSSE does not support TLSv1.3 yet
+            serverProtocols = new String[]{"TLSv1.2"};
+            clientProtocols = new String[]{"TLSv1.1"};
+            expectedMessageMatcher = is("org.bouncycastle.tls.TlsFatalAlert: protocol_version(70)");
+        } else if (JavaVersion.current().compareTo(JavaVersion.parse("16")) >= 0) {
+            // JDK16 https://jdk.java.net/16/release-notes does not permit protocol TLSv1.1 OOB
+            serverProtocols = new String[]{"TLSv1.3"};
+            clientProtocols = new String[]{"TLSv1.2"};
+            expectedMessageMatcher = is("The client supported protocol versions [TLSv1.2] are not accepted by server preferences [TLS13]");
+        } else {
+            serverProtocols = new String[]{"TLSv1.2"};
+            clientProtocols = new String[]{"TLSv1.1"};
+            expectedMessageMatcher = anyOf(
+                is("No appropriate protocol (protocol is disabled or cipher suites are inappropriate)"),
+                is("The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS12]"));
+        }
+
         serverEngine.setEnabledProtocols(serverProtocols);
-        String[] clientProtocols = {"TLSv1.1"};
         clientEngine.setEnabledProtocols(clientProtocols);
         SSLDriver clientDriver = getDriver(clientEngine, true);
         SSLDriver serverDriver = getDriver(serverEngine, false);
 
         SSLException sslException = expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
-        String oldExpected = "Client requested protocol TLSv1.1 not enabled or not supported";
-        String jdk11Expected = "The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS12]";
-        String bctlsExpected = "org.bouncycastle.tls.TlsFatalAlert: protocol_version(70)";
-        boolean expectedMessage = oldExpected.equals(sslException.getMessage()) || jdk11Expected.equals(sslException.getMessage())
-            || bctlsExpected.equals(sslException.getMessage());
-        assertTrue("Unexpected exception message: " + sslException.getMessage(), expectedMessage);
+        assertThat(sslException.getMessage(), expectedMessageMatcher);
 
         // Prior to JDK11 we still need to send a close alert
         if (serverDriver.isClosed() == false) {
-            failedCloseAlert(serverDriver, clientDriver, Arrays.asList("Received fatal alert: protocol_version",
-                "Received fatal alert: handshake_failure"));
+            if (false == inFipsJvm() && false == serverDriver.getOutboundBuffer().hasEncryptedBytesToFlush()) {
+                serverDriver.getSSLEngine().closeInbound();
+                serverDriver.getSSLEngine().closeOutbound();
+                serverDriver.close();;
+                assertTrue(serverDriver.isClosed());
+                clientDriver.close();
+                assertTrue(clientDriver.isClosed());
+            } else {
+                failedCloseAlert(serverDriver, clientDriver, Arrays.asList("Received fatal alert: protocol_version",
+                    "Received fatal alert: handshake_failure"));
+            }
         }
     }
 

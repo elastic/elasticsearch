@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.apikey;
@@ -11,7 +12,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.security.support.ApiKey;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.XContentTestUtils;
@@ -41,9 +42,9 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     private static final String SYSTEM_USER = "system_user";
-    private static final SecureString SYSTEM_USER_PASSWORD = new SecureString("sys-pass".toCharArray());
+    private static final SecureString SYSTEM_USER_PASSWORD = new SecureString("system-user-password".toCharArray());
     private static final String END_USER = "end_user";
-    private static final SecureString END_USER_PASSWORD = new SecureString("user-pass".toCharArray());
+    private static final SecureString END_USER_PASSWORD = new SecureString("end-user-password".toCharArray());
 
     @Before
     public void createUsers() throws IOException {

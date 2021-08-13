@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -86,10 +88,10 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
                 metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             case 4:
-                complete = !complete;
+                complete = complete == false;
                 break;
             case 5:
-                includeSorts = !includeSorts;
+                includeSorts = includeSorts == false;
                 break;
             case 6:
                 sortOrder = SortOrder.ASC.equals(sortOrder) ? SortOrder.DESC : SortOrder.ASC;
@@ -159,14 +161,12 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        List<NamedXContentRegistry.Entry> extendedNamedXContents = new ArrayList<>(super.getNamedXContents());
-        extendedNamedXContents.add(new NamedXContentRegistry.Entry(Aggregation.class,
-            new ParseField(GeoLineAggregationBuilder.NAME),
-            (p, c) -> {
-                assumeTrue("There is no ParsedGeoLine yet", false);
-                return null;
-            }
+        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
+                new ParseField(GeoLineAggregationBuilder.NAME),
+                (p, c) -> {
+                    assumeTrue("There is no ParsedGeoLine yet", false);
+                    return null;
+                }
         ));
-        return extendedNamedXContents;
     }
 }

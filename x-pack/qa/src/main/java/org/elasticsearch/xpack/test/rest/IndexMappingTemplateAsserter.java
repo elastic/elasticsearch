@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.test.rest;
@@ -17,12 +18,14 @@ import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -41,6 +44,7 @@ import static org.junit.Assert.fail;
  * These assertions are usually part of upgrade testing.
  */
 public class IndexMappingTemplateAsserter {
+
     /**
      * Assert that the mappings of the ml indices are the same as in the
      * templates. If different this is either a consequence of an unintended
@@ -51,28 +55,8 @@ public class IndexMappingTemplateAsserter {
      * effect of a different test running in the cluster.
      *
      * @param client The rest client
-     * @throws IOException On error
      */
-    public static void assertMlMappingsMatchTemplates(RestClient client) throws IOException {
-        // Keys that have been dynamically mapped in the .ml-config index
-        // but are not in the template. These can only be fixed with
-        // re-index and should be addressed at the next major upgrade.
-        // For now this serves as documentation of the missing fields
-        Set<String> configIndexExceptions = new HashSet<>();
-        configIndexExceptions.add("properties.allow_lazy_start.type");
-        configIndexExceptions.add("properties.analysis.properties.classification.properties.randomize_seed.type");
-        configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.compute_feature_influence.type");
-        configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.outlier_fraction.type");
-        configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.standardization_enabled.type");
-        configIndexExceptions.add("properties.analysis.properties.regression.properties.randomize_seed.type");
-        configIndexExceptions.add("properties.deleting.type");
-        configIndexExceptions.add("properties.model_memory_limit.type");
-
-        // renamed to max_trees in 7.7.
-        // These exceptions are necessary for Full Cluster Restart tests where the upgrade version is < 7.x
-        configIndexExceptions.add("properties.analysis.properties.classification.properties.maximum_number_trees.type");
-        configIndexExceptions.add("properties.analysis.properties.regression.properties.maximum_number_trees.type");
-
+    public static void assertMlMappingsMatchTemplates(RestClient client) throws Exception {
         // Excluding those from stats index as some have been renamed and other removed.
         // These exceptions are necessary for Full Cluster Restart tests where the upgrade version is < 7.x
         Set<String> statsIndexException = new HashSet<>();
@@ -87,23 +71,26 @@ public class IndexMappingTemplateAsserter {
         Set<String> notificationsIndexExceptions = new HashSet<>();
         notificationsIndexExceptions.add("properties.message.fields.raw.ignore_above");
 
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-config", ".ml-config", false, configIndexExceptions, true);
-        // the true parameter means the index may not have been created
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-meta", ".ml-meta", true, Collections.emptySet(), true);
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException, false);
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet(), false);
+        assertComposableTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException, false);
+        assertComposableTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet(), false);
         // Depending on the order Full Cluster restart tests are run there may not be an notifications index yet
-        assertLegacyTemplateMatchesIndexMappings(client,
-            ".ml-notifications-000001", ".ml-notifications-000001", true, notificationsIndexExceptions, false);
-        assertLegacyTemplateMatchesIndexMappings(client,
-            ".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet(), true);
+        assertComposableTemplateMatchesIndexMappings(client,
+            ".ml-notifications-000002", ".ml-notifications-000002", true, notificationsIndexExceptions, false);
         // .ml-annotations-6 does not use a template
         // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
+
+        // Dynamic mappings updates are banned for system indices.
+        // The .ml-config and .ml-meta indices have mappings that allow dynamic updates.
+        // The effect is instant error if a document containing an unknown field is added
+        // to one of these indices.  Assuming we have some sort of test coverage somewhere
+        // for new fields, we will very quickly catch any failures to add new fields to
+        // the mappings for the .ml-config and .ml-meta indices.  So there is no need to
+        // test again here.
     }
 
     /**
-     * Compares the mappings from the template and the index and asserts they
-     * are the same. The assertion error message details the differences in
+     * Compares the mappings from the legacy template and the index and asserts
+     * they are the same. The assertion error message details the differences in
      * the mappings.
      *
      * The Mappings, which are maps of maps, are flattened with the keys built
@@ -128,7 +115,6 @@ public class IndexMappingTemplateAsserter {
      * @param exceptions                    List of keys to ignore in the index mappings.
      *                                      Each key is a '.' separated path.
      * @param allowSystemIndexWarnings      Whether deprecation warnings for system index access should be allowed/expected.
-     * @throws IOException                  Yes
      */
     @SuppressWarnings("unchecked")
     public static void assertLegacyTemplateMatchesIndexMappings(RestClient client,
@@ -136,16 +122,86 @@ public class IndexMappingTemplateAsserter {
                                                                 String indexName,
                                                                 boolean notAnErrorIfIndexDoesNotExist,
                                                                 Set<String> exceptions,
-                                                                boolean allowSystemIndexWarnings) throws IOException {
+                                                                boolean allowSystemIndexWarnings) throws Exception {
 
-        Request getTemplate = new Request("GET", "_template/" + templateName);
-        Response templateResponse = client.performRequest(getTemplate);
-        assertEquals("missing template [" + templateName + "]", 200, templateResponse.getStatusLine().getStatusCode());
+        AtomicReference<Response> templateResponse = new AtomicReference<>();
+
+        ESRestTestCase.assertBusy(() -> {
+            Request getTemplate = new Request("GET", "_template/" + templateName);
+            templateResponse.set(client.performRequest(getTemplate));
+            assertEquals("missing template [" + templateName + "]", 200, templateResponse.get().getStatusLine().getStatusCode());
+        });
 
         Map<String, Object> templateMappings = (Map<String, Object>) XContentMapValues.extractValue(
-            ESRestTestCase.entityAsMap(templateResponse),
+            ESRestTestCase.entityAsMap(templateResponse.get()),
             templateName, "mappings");
         assertNotNull(templateMappings);
+
+        assertTemplateMatchesIndexMappingsCommon(client, templateName, templateMappings,
+            indexName, notAnErrorIfIndexDoesNotExist, exceptions, allowSystemIndexWarnings);
+    }
+
+    /**
+     * Compares the mappings from the composable template and the index and asserts
+     * they are the same. The assertion error message details the differences in
+     * the mappings.
+     *
+     * The Mappings, which are maps of maps, are flattened with the keys built
+     * from the keys of the sub-maps appended to the parent key.
+     * This makes diffing the 2 maps easier and diffs more comprehensible.
+     *
+     * The _meta field is not compared as it contains version numbers that
+     * change even when the mappings don't.
+     *
+     * Mistakes happen and some indices may be stuck with the incorrect mappings
+     * that cannot be fixed without re-index. In this case use the {@code exceptions}
+     * parameter to filter out fields in the index mapping that are not in the
+     * template. Each exception should be a '.' separated path to the value
+     * e.g. {@code properties.analysis.analysis_field.type}.
+     *
+     * @param client                        The rest client to use
+     * @param templateName                  The template
+     * @param indexName                     The index
+     * @param notAnErrorIfIndexDoesNotExist The index may or may not have been created from
+     *                                      the template. If {@code true} then the missing
+     *                                      index does not cause an error
+     * @param exceptions                    List of keys to ignore in the index mappings.
+     *                                      Each key is a '.' separated path.
+     * @param allowSystemIndexWarnings      Whether deprecation warnings for system index access should be allowed/expected.
+     */
+    @SuppressWarnings("unchecked")
+    public static void assertComposableTemplateMatchesIndexMappings(RestClient client,
+                                                                    String templateName,
+                                                                    String indexName,
+                                                                    boolean notAnErrorIfIndexDoesNotExist,
+                                                                    Set<String> exceptions,
+                                                                    boolean allowSystemIndexWarnings) throws Exception {
+
+        AtomicReference<Response> templateResponse = new AtomicReference<>();
+
+        ESRestTestCase.assertBusy(() -> {
+            Request getTemplate = new Request("GET", "_index_template/" + templateName);
+            templateResponse.set(client.performRequest(getTemplate));
+            assertEquals("missing template [" + templateName + "]", 200, templateResponse.get().getStatusLine().getStatusCode());
+        });
+
+        Map<String, Object> templateMappings = ((List<Map<String, Object>>) XContentMapValues.extractValue(
+            ESRestTestCase.entityAsMap(templateResponse.get()),
+            "index_templates", "index_template", "template", "mappings")).get(0);
+        assertNotNull(templateMappings);
+
+        assertTemplateMatchesIndexMappingsCommon(client, templateName, templateMappings, indexName, notAnErrorIfIndexDoesNotExist,
+            exceptions, allowSystemIndexWarnings);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertTemplateMatchesIndexMappingsCommon(RestClient client,
+                                                                 String templateName,
+                                                                 Map<String, Object> templateMappings,
+                                                                 String indexName,
+                                                                 boolean notAnErrorIfIndexDoesNotExist,
+                                                                 Set<String> exceptions,
+                                                                 boolean allowSystemIndexWarnings) throws IOException {
 
         Request getIndexMapping = new Request("GET", indexName + "/_mapping");
         if (allowSystemIndexWarnings) {
@@ -250,12 +306,6 @@ public class IndexMappingTemplateAsserter {
         if (mappingsAreTheSame == false) {
             fail(errorMesssage.toString());
         }
-    }
-
-    public static void assertLegacyTemplateMatchesIndexMappings(RestClient client,
-                                                                String templateName,
-                                                                String indexName) throws IOException {
-        assertLegacyTemplateMatchesIndexMappings(client, templateName, indexName, false, Collections.emptySet(), false);
     }
 
     private static boolean areBooleanObjectsAndEqual(Object a, Object b) {

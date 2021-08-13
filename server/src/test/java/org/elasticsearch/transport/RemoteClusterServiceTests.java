@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -29,7 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.node.Node;
@@ -380,8 +369,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     Settings.Builder settingsChange = Settings.builder();
                     TimeValue pingSchedule = TimeValue.timeValueSeconds(randomIntBetween(6, 8));
                     settingsChange.put("cluster.remote.cluster_1.transport.ping_schedule", pingSchedule);
-                    boolean compressionEnabled = true;
-                    settingsChange.put("cluster.remote.cluster_1.transport.compress", compressionEnabled);
+                    boolean compressionScheme = randomBoolean();
+                    Compression.Enabled enabled = randomFrom(Compression.Enabled.TRUE, Compression.Enabled.INDEXING_DATA);
+                    if (compressionScheme) {
+                        settingsChange.put("cluster.remote.cluster_1.transport.compression_scheme", Compression.Scheme.LZ4);
+                    } else {
+                        settingsChange.put("cluster.remote.cluster_1.transport.compress", enabled);
+                    }
                     settingsChange.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
                     service.validateAndUpdateRemoteCluster("cluster_1", settingsChange.build());
                     assertBusy(remoteClusterConnection::isClosed);
@@ -389,7 +383,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
                     ConnectionProfile connectionProfile = remoteClusterConnection.getConnectionManager().getConnectionProfile();
                     assertEquals(pingSchedule, connectionProfile.getPingInterval());
-                    assertEquals(compressionEnabled, connectionProfile.getCompressionEnabled());
+                    if (compressionScheme) {
+                        assertEquals(Compression.Enabled.FALSE, connectionProfile.getCompressionEnabled());
+                        assertEquals(Compression.Scheme.LZ4, connectionProfile.getCompressionScheme());
+                    } else {
+                        assertEquals(enabled, connectionProfile.getCompressionEnabled());
+                        assertEquals(Compression.Scheme.DEFLATE, connectionProfile.getCompressionScheme());
+                    }
                 }
             }
         }

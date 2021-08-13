@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 
-import java.util.Objects;
-
+import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
 import static org.elasticsearch.xpack.core.ilm.SwapAliasesAndDeleteSourceIndexStep.deleteSourceIndexAndTransferAliases;
 
 /**
@@ -19,24 +21,24 @@ import static org.elasticsearch.xpack.core.ilm.SwapAliasesAndDeleteSourceIndexSt
  */
 public class ShrinkSetAliasStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "aliases";
-    private String shrunkIndexPrefix;
 
-    public ShrinkSetAliasStep(StepKey key, StepKey nextStepKey, Client client, String shrunkIndexPrefix) {
+    public ShrinkSetAliasStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
-        this.shrunkIndexPrefix = shrunkIndexPrefix;
-    }
-
-    String getShrunkIndexPrefix() {
-        return shrunkIndexPrefix;
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, Listener listener) {
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Boolean> listener) {
         // get source index
-        String index = indexMetadata.getIndex().getName();
+        String indexName = indexMetadata.getIndex().getName();
         // get target shrink index
-        String targetIndexName = shrunkIndexPrefix + index;
-        deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, getMasterTimeout(currentState), targetIndexName, listener);
+        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
+        String targetIndexName = getShrinkIndexName(indexName, lifecycleState);
+        deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, targetIndexName, listener);
     }
 
     @Override
@@ -44,21 +46,4 @@ public class ShrinkSetAliasStep extends AsyncRetryDuringSnapshotActionStep {
         return false;
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), shrunkIndexPrefix);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        ShrinkSetAliasStep other = (ShrinkSetAliasStep) obj;
-        return super.equals(obj) &&
-                Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
-    }
 }

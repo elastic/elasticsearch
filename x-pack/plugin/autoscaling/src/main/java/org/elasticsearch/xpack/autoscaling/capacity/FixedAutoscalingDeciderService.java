@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class FixedAutoscalingDeciderService implements AutoscalingDeciderService {
 
@@ -27,7 +30,9 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
     public static final Setting<Integer> NODES = Setting.intSetting("nodes", 1, 0);
 
     @Inject
-    public FixedAutoscalingDeciderService() {}
+    public FixedAutoscalingDeciderService() {
+
+    }
 
     @Override
     public String name() {
@@ -42,7 +47,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
         ByteSizeValue memory = MEMORY.exists(configuration) ? MEMORY.get(configuration) : null;
         if (storage != null || memory != null) {
             requiredCapacity = AutoscalingCapacity.builder()
-                .total(tierCapacity(storage, nodes), tierCapacity(memory, nodes))
+                .total(totalCapacity(storage, nodes), totalCapacity(memory, nodes))
                 .node(storage, memory)
                 .build();
         } else {
@@ -52,7 +57,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
         return new AutoscalingDeciderResult(requiredCapacity, new FixedReason(storage, memory, nodes));
     }
 
-    private static ByteSizeValue tierCapacity(ByteSizeValue nodeCapacity, int nodes) {
+    private static ByteSizeValue totalCapacity(ByteSizeValue nodeCapacity, int nodes) {
         if (nodeCapacity != null) {
             return new ByteSizeValue(nodeCapacity.getBytes() * nodes);
         } else {
@@ -63,6 +68,21 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
     @Override
     public List<Setting<?>> deciderSettings() {
         return List.of(STORAGE, MEMORY, NODES);
+    }
+
+    @Override
+    public List<DiscoveryNodeRole> roles() {
+        return DiscoveryNodeRole.roles().stream().collect(Collectors.toUnmodifiableList());
+    }
+
+    @Override
+    public boolean appliesToEmptyRoles() {
+        return true;
+    }
+
+    @Override
+    public boolean defaultOn() {
+        return false;
     }
 
     public static class FixedReason implements AutoscalingDeciderResult.Reason {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.ttest;
@@ -9,8 +10,8 @@ package org.elasticsearch.xpack.analytics.ttest;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -18,8 +19,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,7 +36,7 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
     private final Supplier<Tuple<Weight, Weight>> weightsSupplier;
 
     UnpairedTTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, boolean homoscedastic,
-                            Supplier<Tuple<Weight, Weight>> weightsSupplier, DocValueFormat format, SearchContext context,
+                            Supplier<Tuple<Weight, Weight>> weightsSupplier, DocValueFormat format, AggregationContext context,
                             Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, valuesSources, tails, format, context, parent, metadata);
         a = new TTestStatsBuilder(bigArrays());

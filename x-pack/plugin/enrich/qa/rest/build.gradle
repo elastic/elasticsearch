@@ -1,10 +1,12 @@
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index'
-    includeXpack 'enrich'
+    include '_common', 'indices', 'index', 'enrich'
   }
 }
 
@@ -12,8 +14,15 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('enrich:qa:common'))
 }
 
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("yamlRestTest").configure{enabled = false }
+}
+
 testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
 }

@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.profile.aggregation.InternalAggregationProfileTree;
 
 import java.io.IOException;
@@ -41,24 +30,26 @@ public abstract class AdaptingAggregator extends Aggregator {
     public AdaptingAggregator(
         Aggregator parent,
         AggregatorFactories subAggregators,
-        CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate
+        CheckedFunction<AggregatorFactories, ? extends Aggregator, IOException> delegate
     ) throws IOException {
         // Its important we set parent first or else when we build the sub-aggregators they can fail because they'll call this.parent.
         this.parent = parent;
         /*
          * Lock the parent of the sub-aggregators to *this* instead of to
          * the delegate. This keeps the parent link shaped like the requested
-         * agg tree. Thisis how it has always been and some aggs rely on it.
+         * agg tree the rate aggregator needs this or it will die.
          */
         this.delegate = delegate.apply(subAggregators.fixParent(this));
-        assert this.delegate.parent() == parent : "invalid parent set on delegate";
+        if (this.delegate.parent() != parent) {
+            throw new IllegalStateException("invalid parent set on delegate");
+        }
     }
 
     /**
      * Adapt the result from the collecting {@linkplain Aggregator} into the
      * result expected by this {@linkplain Aggregator}.
      */
-    protected abstract InternalAggregation adapt(InternalAggregation delegateResult);
+    protected abstract InternalAggregation adapt(InternalAggregation delegateResult) throws IOException;
 
     @Override
     public final void close() {
@@ -96,6 +87,11 @@ public abstract class AdaptingAggregator extends Aggregator {
     }
 
     @Override
+    public final void postCollection() throws IOException {
+        delegate.postCollection();
+    }
+
+    @Override
     public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         InternalAggregation[] delegateResults = delegate.buildAggregations(owningBucketOrds);
         InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
@@ -107,7 +103,12 @@ public abstract class AdaptingAggregator extends Aggregator {
 
     @Override
     public final InternalAggregation buildEmptyAggregation() {
-        return adapt(delegate.buildEmptyAggregation());
+        try {
+            return adapt(delegate.buildEmptyAggregation());
+        } catch (IOException e) {
+            // We don't expect this to happen, but computers are funny.
+            throw new AggregationExecutionException("io error while building empty agg", e);
+        }
     }
 
     @Override

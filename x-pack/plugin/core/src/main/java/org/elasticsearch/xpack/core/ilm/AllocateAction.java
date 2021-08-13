@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,22 +31,26 @@ public class AllocateAction implements LifecycleAction {
 
     public static final String NAME = "allocate";
     public static final ParseField NUMBER_OF_REPLICAS_FIELD = new ParseField("number_of_replicas");
+    public static final ParseField TOTAL_SHARDS_PER_NODE_FIELD = new ParseField("total_shards_per_node");
     public static final ParseField INCLUDE_FIELD = new ParseField("include");
     public static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
     public static final ParseField REQUIRE_FIELD = new ParseField("require");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AllocateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new AllocateAction((Integer) a[0], (Map<String, String>) a[1], (Map<String, String>) a[2], (Map<String, String>) a[3]));
+            a -> new AllocateAction((Integer) a[0], (Integer) a[1], (Map<String, String>) a[2], (Map<String, String>) a[3],
+                (Map<String, String>) a[4]));
 
     static {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUMBER_OF_REPLICAS_FIELD);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), TOTAL_SHARDS_PER_NODE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapStrings(), INCLUDE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapStrings(), EXCLUDE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapStrings(), REQUIRE_FIELD);
     }
 
     private final Integer numberOfReplicas;
+    private final Integer totalShardsPerNode;
     private final Map<String, String> include;
     private final Map<String, String> exclude;
     private final Map<String, String> require;
@@ -52,7 +59,8 @@ public class AllocateAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public AllocateAction(Integer numberOfReplicas, Map<String, String> include, Map<String, String> exclude, Map<String, String> require) {
+    public AllocateAction(Integer numberOfReplicas, Integer totalShardsPerNode, Map<String, String> include, Map<String, String> exclude,
+                          Map<String, String> require) {
         if (include == null) {
             this.include = Collections.emptyMap();
         } else {
@@ -77,16 +85,25 @@ public class AllocateAction implements LifecycleAction {
             throw new IllegalArgumentException("[" + NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0");
         }
         this.numberOfReplicas = numberOfReplicas;
+        if (totalShardsPerNode != null && totalShardsPerNode < -1) {
+            throw new IllegalArgumentException("[" + TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName() + "] must be >= -1");
+        }
+        this.totalShardsPerNode = totalShardsPerNode;
     }
 
     @SuppressWarnings("unchecked")
     public AllocateAction(StreamInput in) throws IOException {
-        this(in.readOptionalVInt(), (Map<String, String>) in.readGenericValue(), (Map<String, String>) in.readGenericValue(),
-                (Map<String, String>) in.readGenericValue());
+        this(in.readOptionalVInt(), in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readOptionalInt() : null,
+            (Map<String, String>) in.readGenericValue(), (Map<String, String>) in.readGenericValue(),
+            (Map<String, String>) in.readGenericValue());
     }
 
     public Integer getNumberOfReplicas() {
         return numberOfReplicas;
+    }
+
+    public Integer getTotalShardsPerNode() {
+        return totalShardsPerNode;
     }
 
     public Map<String, String> getInclude() {
@@ -104,6 +121,9 @@ public class AllocateAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(numberOfReplicas);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalInt(totalShardsPerNode);
+        }
         out.writeGenericValue(include);
         out.writeGenericValue(exclude);
         out.writeGenericValue(require);
@@ -119,6 +139,9 @@ public class AllocateAction implements LifecycleAction {
         builder.startObject();
         if (numberOfReplicas != null) {
             builder.field(NUMBER_OF_REPLICAS_FIELD.getPreferredName(), numberOfReplicas);
+        }
+        if (totalShardsPerNode != null) {
+            builder.field(TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName(), totalShardsPerNode);
         }
         builder.field(INCLUDE_FIELD.getPreferredName(), include);
         builder.field(EXCLUDE_FIELD.getPreferredName(), exclude);
@@ -144,6 +167,9 @@ public class AllocateAction implements LifecycleAction {
         include.forEach((key, value) -> newSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
         exclude.forEach((key, value) -> newSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
         require.forEach((key, value) -> newSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
+        if (totalShardsPerNode != null) {
+            newSettings.put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), totalShardsPerNode);
+        }
         UpdateSettingsStep allocateStep = new UpdateSettingsStep(allocateKey, allocationRoutedKey, client, newSettings.build());
         AllocationRoutedStep routedCheckStep = new AllocationRoutedStep(allocationRoutedKey, nextStepKey);
         return Arrays.asList(allocateStep, routedCheckStep);
@@ -151,7 +177,7 @@ public class AllocateAction implements LifecycleAction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(numberOfReplicas, include, exclude, require);
+        return Objects.hash(numberOfReplicas, totalShardsPerNode, include, exclude, require);
     }
 
     @Override
@@ -164,6 +190,7 @@ public class AllocateAction implements LifecycleAction {
         }
         AllocateAction other = (AllocateAction) obj;
         return Objects.equals(numberOfReplicas, other.numberOfReplicas) &&
+            Objects.equals(totalShardsPerNode, other.totalShardsPerNode) &&
             Objects.equals(include, other.include) &&
             Objects.equals(exclude, other.exclude) &&
             Objects.equals(require, other.require);

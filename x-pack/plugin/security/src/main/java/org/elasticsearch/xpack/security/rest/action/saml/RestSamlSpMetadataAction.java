@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.rest.action.saml;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataResponse;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -33,8 +33,7 @@ public class RestSamlSpMetadataAction extends SamlBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
-            new Route(GET, "/_security/saml/metadata/{realm}"));
+        return List.of(new Route(GET, "/_security/saml/metadata/{realm}"));
     }
 
     @Override
@@ -47,13 +46,13 @@ public class RestSamlSpMetadataAction extends SamlBaseRestHandler {
         final SamlSpMetadataRequest SamlSpMetadataRequest = new SamlSpMetadataRequest(request.param("realm"));
         return channel -> client.execute(SamlSpMetadataAction.INSTANCE, SamlSpMetadataRequest,
             new RestBuilderListener<SamlSpMetadataResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(SamlSpMetadataResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.field("metadata", response.getXMLString());
-                builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
-            }
-        });
+                @Override
+                public RestResponse buildResponse(SamlSpMetadataResponse response, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    builder.field("metadata", response.getXMLString());
+                    builder.endObject();
+                    return new BytesRestResponse(RestStatus.OK, builder);
+                }
+            });
     }
 }

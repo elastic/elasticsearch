@@ -1,39 +1,52 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 
+import java.util.Locale;
+
 /**
- * Maps long bucket keys to bucket ordinals.
+ * Maps owning bucket ordinals and long bucket keys to bucket ordinals.
  */
 public abstract class LongKeyedBucketOrds implements Releasable {
     /**
-     * Build a {@link LongKeyedBucketOrds}.
+     * Build a {@link LongKeyedBucketOrds} who's values have unknown bounds.
      */
     public static LongKeyedBucketOrds build(BigArrays bigArrays, CardinalityUpperBound cardinality) {
         return cardinality.map(estimate -> estimate < 2 ? new FromSingle(bigArrays) : new FromMany(bigArrays));
+    }
+
+    /**
+     * Build a {@link LongKeyedBucketOrds} who's values have known bounds.
+     */
+    public static LongKeyedBucketOrds buildForValueRange(BigArrays bigArrays, CardinalityUpperBound cardinality, long min, long max) {
+        return cardinality.map((int cardinalityUpperBound) -> {
+            if (cardinalityUpperBound < 2) {
+                return new FromSingle(bigArrays);
+            }
+            if (min < 0 || cardinalityUpperBound == Integer.MAX_VALUE) {
+                // cardinalityUpperBound tops out at maxint. If you see maxInt it could be anything above maxint.
+                return new FromMany(bigArrays);
+            }
+            int owningBucketOrdShift = Long.numberOfLeadingZeros(cardinalityUpperBound);
+            int maxBits = 64 - Long.numberOfLeadingZeros(max);
+            if (maxBits < owningBucketOrdShift) {
+                // There is enough space in a long to contain both the owning bucket and the entire range of values
+                return new FromManySmall(bigArrays, owningBucketOrdShift);
+            }
+            return new FromMany(bigArrays);
+        });
     }
 
     private LongKeyedBucketOrds() {}
@@ -60,7 +73,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
    public abstract long find(long owningBucketOrd, long value);
 
     /**
-     * Returns the value currently associated with the bucket ordinal
+     * Returns the value currently associated with the bucket ordinal.
      */
     public abstract long get(long ordinal);
 
@@ -73,6 +86,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
      * The maximum possible used {@code owningBucketOrd}.
      */
     public abstract long maxOwningBucketOrd();
+
+    /**
+     * Description used in profile results.
+     */
+    public abstract String decribe();
 
     /**
      * Build an iterator for buckets inside {@code owningBucketOrd} in order
@@ -157,6 +175,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         @Override
         public long maxOwningBucketOrd() {
             return 0;
+        }
+
+        @Override
+        public String decribe() {
+            return "single bucket ords";
         }
 
         @Override
@@ -248,6 +271,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         }
 
         @Override
+        public String decribe() {
+            return "many bucket ords";
+        }
+
+        @Override
         public BucketOrdsEnum ordsEnum(long owningBucketOrd) {
             // TODO it'd be faster to iterate many ords at once rather than one at a time
             return new BucketOrdsEnum() {
@@ -263,6 +291,141 @@ public abstract class LongKeyedBucketOrds implements Releasable {
                         }
                         if (ords.getKey1(ord) == owningBucketOrd) {
                             value = ords.getKey2(ord);
+                            return true;
+                        }
+                    }
+                }
+
+                @Override
+                public long value() {
+                    return value;
+                }
+
+                @Override
+                public long ord() {
+                    return ord;
+                }
+            };
+        }
+
+        @Override
+        public void close() {
+            ords.close();
+        }
+    }
+
+    /**
+     * Implementation that packs the {@code owningbucketOrd} into the top
+     * bits of a {@code long} and uses the bottom bits for the value.
+     */
+    public static class FromManySmall extends LongKeyedBucketOrds {
+        private final LongHash ords;
+        private final int owningBucketOrdShift;
+        private final long owningBucketOrdMask;
+
+        public FromManySmall(BigArrays bigArrays, int owningBucketOrdShift) {
+            ords = new LongHash(2, bigArrays);
+            this.owningBucketOrdShift = owningBucketOrdShift;
+            this.owningBucketOrdMask = -1L << owningBucketOrdShift;
+        }
+
+        private long encode(long owningBucketOrd, long value) {
+            // This is in the critical path for collecting some aggs. Be careful of performance.
+            return (owningBucketOrd << owningBucketOrdShift) | value;
+        }
+
+        @Override
+        public long add(long owningBucketOrd, long value) {
+            // This is in the critical path for collecting lots of aggs. Be careful of performance.
+            long enc = encode(owningBucketOrd, value);
+            if (owningBucketOrd != (enc >>> owningBucketOrdShift) && (enc & ~owningBucketOrdMask) != value) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "[%s] and [%s] must fit in [%s..%s] bits",
+                        owningBucketOrd,
+                        value,
+                        64 - owningBucketOrdShift,
+                        owningBucketOrdShift
+                    )
+                );
+            }
+            return ords.add(enc);
+        }
+
+        @Override
+        public long find(long owningBucketOrd, long value) {
+            if (Long.numberOfLeadingZeros(owningBucketOrd) < owningBucketOrdShift) {
+                return -1;
+            }
+            if ((value & owningBucketOrdMask) != 0) {
+                return -1;
+            }
+            return ords.find(encode(owningBucketOrd, value));
+        }
+
+        @Override
+        public long get(long ordinal) {
+            return ords.get(ordinal) & ~owningBucketOrdMask;
+        }
+
+        @Override
+        public long bucketsInOrd(long owningBucketOrd) {
+            // TODO it'd be faster to count the number of buckets in a list of these ords rather than one at a time
+            if (Long.numberOfLeadingZeros(owningBucketOrd) < owningBucketOrdShift) {
+                return 0;
+            }
+            long count = 0;
+            long enc = owningBucketOrd << owningBucketOrdShift;
+            for (long i = 0; i < ords.size(); i++) {
+                if ((ords.get(i) & owningBucketOrdMask) == enc) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        @Override
+        public long size() {
+            return ords.size();
+        }
+
+        @Override
+        public long maxOwningBucketOrd() {
+            // TODO this is fairly expensive to compute. Can we avoid needing it?
+            long max = -1;
+            for (long i = 0; i < ords.size(); i++) {
+                max = Math.max(max, (ords.get(i) & owningBucketOrdMask) >>> owningBucketOrdShift);
+            }
+            return max;
+        }
+
+        @Override
+        public String decribe() {
+            return "many bucket ords packed using [" + (64 - owningBucketOrdShift) + "/" + owningBucketOrdShift + "] bits";
+        }
+
+        @Override
+        public BucketOrdsEnum ordsEnum(long owningBucketOrd) {
+            // TODO it'd be faster to iterate many ords at once rather than one at a time
+            if (Long.numberOfLeadingZeros(owningBucketOrd) < owningBucketOrdShift) {
+                return BucketOrdsEnum.EMPTY;
+            }
+            final long encodedOwningBucketOrd = owningBucketOrd << owningBucketOrdShift;
+            return new BucketOrdsEnum() {
+                private long ord = -1;
+                private long value;
+
+                @Override
+                public boolean next() {
+                    while (true) {
+                        ord++;
+                        if (ord >= ords.size()) {
+                            return false;
+                        }
+                        long encoded = ords.get(ord);
+                        if ((encoded & owningBucketOrdMask) == encodedOwningBucketOrd) {
+                            value = encoded & ~owningBucketOrdMask;
                             return true;
                         }
                     }

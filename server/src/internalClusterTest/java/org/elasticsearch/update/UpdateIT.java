@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.update;
@@ -34,7 +23,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -76,6 +65,11 @@ public class UpdateIT extends ESIntegTestCase {
     private static final String UPSERT_SCRIPT = "scripted_upsert";
     private static final String EXTRACT_CTX_SCRIPT = "extract_ctx";
 
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> get(Map<String, Object> source, String key) {
+        return (Map<String, Object>) source.get(key);
+    }
+
     public static class UpdateScriptsPlugin extends MockScriptPlugin {
         @Override
         public String pluginScriptLang() {
@@ -85,38 +79,39 @@ public class UpdateIT extends ESIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
             scripts.put(PUT_VALUES_SCRIPT, vars -> {
-                Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                Map<String, Object> ctx = get(vars, "ctx");
                 assertNotNull(ctx);
 
-                Map<String, Object> params = new HashMap<>((Map<String, Object>) vars.get("params"));
+                Map<String, Object> params = new HashMap<>(get(vars, "params"));
 
+                @SuppressWarnings("unchecked")
                 Map<String, Object> newCtx = (Map<String, Object>) params.remove("_ctx");
                 if (newCtx != null) {
                     assertFalse(newCtx.containsKey("_source"));
                     ctx.putAll(newCtx);
                 }
 
-                Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                Map<String, Object> source = get(ctx, "_source");
                 params.remove("ctx");
                 source.putAll(params);
 
                 return ctx;
             });
             scripts.put(FIELD_INC_SCRIPT, vars -> {
-                Map<String, Object> params = (Map<String, Object>) vars.get("params");
+                Map<String, Object> params = get(vars, "params");
                 String fieldname = (String) vars.get("field");
-                Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                Map<String, Object> ctx = get(vars, "ctx");
                 assertNotNull(ctx);
-                Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                Map<String, Object> source = get(ctx, "_source");
                 Number currentValue = (Number) source.get(fieldname);
                 Number inc = (Number) params.getOrDefault("inc", 1);
                 source.put(fieldname, currentValue.longValue() + inc.longValue());
                 return ctx;
             });
             scripts.put(UPSERT_SCRIPT, vars -> {
-                Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                Map<String, Object> ctx = get(vars, "ctx");
                 assertNotNull(ctx);
-                Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                Map<String, Object> source = get(ctx, "_source");
                 Number payment = (Number) vars.get("payment");
                 Number oldBalance = (Number) source.get("balance");
                 int deduction = "create".equals(ctx.get("op")) ? payment.intValue() / 2 : payment.intValue();
@@ -124,10 +119,10 @@ public class UpdateIT extends ESIntegTestCase {
                 return ctx;
             });
             scripts.put(EXTRACT_CTX_SCRIPT, vars -> {
-                Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                Map<String, Object> ctx = get(vars, "ctx");
                 assertNotNull(ctx);
 
-                Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                Map<String, Object> source = get(ctx, "_source");
                 Map<String, Object> ctxWithoutSource = new HashMap<>(ctx);
                 ctxWithoutSource.remove("_source");
                 source.put("update_context", ctxWithoutSource);
@@ -403,12 +398,12 @@ public class UpdateIT extends ESIntegTestCase {
             .setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
-            Map map1 = (Map) getResponse.getSourceAsMap().get("map");
+            Map<String, Object> map1 = get(getResponse.getSourceAsMap(), "map");
             assertThat(map1.size(), equalTo(3));
             assertThat(map1.containsKey("map1"), equalTo(true));
             assertThat(map1.containsKey("map3"), equalTo(true));
             assertThat(map1.containsKey("commonkey"), equalTo(true));
-            Map map2 = (Map) map1.get("commonkey");
+            Map<String, Object> map2 = get(map1, "commonkey");
             assertThat(map2.size(), equalTo(3));
             assertThat(map2.containsKey("map1"), equalTo(true));
             assertThat(map2.containsKey("map2"), equalTo(true));
@@ -519,7 +514,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertEquals(2, updateResponse.getVersion());
 
         GetResponse getResponse = client().prepareGet("test", "id1").setRouting("routing1").execute().actionGet();
-        Map<String, Object> updateContext = (Map<String, Object>) getResponse.getSourceAsMap().get("update_context");
+        Map<String, Object> updateContext = get(getResponse.getSourceAsMap(), "update_context");
         assertEquals("test", updateContext.get("_index"));
         assertEquals("id1", updateContext.get("_id"));
         assertEquals(1, updateContext.get("_version"));
@@ -533,7 +528,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertEquals(2, updateResponse.getVersion());
 
         getResponse = client().prepareGet("test", "id2").execute().actionGet();
-        updateContext = (Map<String, Object>) getResponse.getSourceAsMap().get("update_context");
+        updateContext = get(getResponse.getSourceAsMap(), "update_context");
         assertEquals("test", updateContext.get("_index"));
         assertEquals("id2", updateContext.get("_id"));
         assertEquals(1, updateContext.get("_version"));
@@ -700,7 +695,7 @@ public class UpdateIT extends ESIntegTestCase {
                                 if (randomBoolean()) {
                                     client().update(ur, new UpdateListener(j));
                                 } else {
-                                    client().prepareBulk().add(ur).execute(ActionListener.map(new UpdateListener(j), br -> {
+                                    client().prepareBulk().add(ur).execute(new UpdateListener(j).map(br -> {
                                         final BulkItemResponse ir = br.getItems()[0];
                                         if (ir.isFailed()) {
                                             throw ir.getFailure().getCause();
@@ -755,7 +750,7 @@ public class UpdateIT extends ESIntegTestCase {
             }
 
             private void incrementMapValue(int j, Map<Integer,Integer> map) {
-                if (!map.containsKey(j)) {
+                if (map.containsKey(j) == false) {
                     map.put(j, 0);
                 }
                 map.put(j, map.get(j) + 1);

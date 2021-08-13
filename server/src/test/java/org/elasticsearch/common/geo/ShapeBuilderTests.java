@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo;
@@ -566,6 +555,27 @@ public class ShapeBuilderTests extends ESTestCase {
         assertMultiPolygon(buildGeometry(builder.close()), false);
     }
 
+    public void testShapeWithHoleTouchingAtDateline() throws Exception {
+        PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(-180, 90)
+            .coordinate(-180, -90)
+            .coordinate(180, -90)
+            .coordinate(180, 90)
+            .coordinate(-180, 90)
+        );
+        builder.hole(new LineStringBuilder(new CoordinatesBuilder()
+            .coordinate(180.0, -16.14)
+            .coordinate(178.53, -16.64)
+            .coordinate(178.49, -16.82)
+            .coordinate(178.73, -17.02)
+            .coordinate(178.86, -16.86)
+            .coordinate(180.0, -16.14)
+        ));
+
+        assertPolygon(builder.close().buildS4J(), true);
+        assertPolygon(buildGeometry(builder.close()), false);
+    }
+
     public void testShapeWithTangentialHole() {
         // test a shape with one tangential (shared) vertex (should pass)
         PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
@@ -703,7 +713,7 @@ public class ShapeBuilderTests extends ESTestCase {
         assertMultiPolygon(buildGeometry(builder.close()), false);
      }
 
-    public void testInvalidShapeWithConsecutiveDuplicatePoints() {
+    public void testShapeWithConsecutiveDuplicatePoints() {
         PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
                 .coordinate(180, 0)
                 .coordinate(176, 4)
@@ -712,10 +722,56 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(180, 0)
                 );
 
-        Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
-        assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
-        e = expectThrows(InvalidShapeException.class, () -> buildGeometry(builder.close()));
-        assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
+        // duplicated points are removed
+        PolygonBuilder expected = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(180, 0)
+            .coordinate(176, 4)
+            .coordinate(-176, 4)
+            .coordinate(180, 0)
+        );
+
+        assertEquals(buildGeometry(expected.close()), buildGeometry(builder.close()));
+        assertEquals(expected.close().buildS4J(), builder.close().buildS4J());
+    }
+
+    public void testShapeWithCoplanarVerticalPoints() throws Exception {
+        PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(180, -36)
+            .coordinate(180, 90)
+            .coordinate(-180, 90)
+            .coordinate(-180, 79)
+            .coordinate(16, 58)
+            .coordinate(8, 13)
+            .coordinate(-180, 74)
+            .coordinate(-180, -85)
+            .coordinate(-180, -90)
+            .coordinate(180,  -90)
+            .coordinate(180, -85)
+            .coordinate(26, 6)
+            .coordinate(33, 62)
+            .coordinate(180, -36)
+        );
+
+        //coplanar points on vertical edge are removed.
+        PolygonBuilder expected = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(180, -36)
+            .coordinate(180, 90)
+            .coordinate(-180, 90)
+            .coordinate(-180, 79)
+            .coordinate(16, 58)
+            .coordinate(8, 13)
+            .coordinate(-180, 74)
+            .coordinate(-180, -90)
+            .coordinate(180,  -90)
+            .coordinate(180, -85)
+            .coordinate(26, 6)
+            .coordinate(33, 62)
+            .coordinate(180, -36)
+        );
+
+        assertEquals(buildGeometry(expected.close()), buildGeometry(builder.close()));
+        assertEquals(expected.close().buildS4J(), builder.close().buildS4J());
+
     }
 
     public void testPolygon3D() {

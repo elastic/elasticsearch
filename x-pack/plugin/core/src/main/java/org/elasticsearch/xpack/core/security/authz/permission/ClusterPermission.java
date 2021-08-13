@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
@@ -43,7 +44,12 @@ public class ClusterPermission {
      * @return {@code true} if the access is allowed else returns {@code false}
      */
     public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
-        return checks.stream().anyMatch(permission -> permission.check(action, request, authentication));
+        for (PermissionCheck permission : checks) {
+            if (permission.check(action, request, authentication)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -205,9 +211,14 @@ public class ClusterPermission {
 
         @Override
         protected boolean doImplies(ActionBasedPermissionCheck permissionCheck) {
-            return permissionCheck instanceof AutomatonPermissionCheck;
+            /*
+             * We know that "permissionCheck" has an automaton which is a subset of ours.
+             * Which means "permissionCheck" _cannot_ grant an action that we don't (see ActionBasedPermissionCheck#check)
+             * Since we grant _all_ requests on actions within our automaton, we must therefore grant _all_ actions+requests that the other
+             * permission check grants.
+             */
+            return true;
         }
-
     }
 
     // action, request based permission check

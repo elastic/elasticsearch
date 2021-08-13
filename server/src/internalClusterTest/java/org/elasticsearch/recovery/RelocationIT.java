@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.recovery;
@@ -40,10 +29,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
@@ -254,7 +243,7 @@ public class RelocationIT extends ESIntegTestCase {
                         IntHashSet set = IntHashSet.from(hitIds);
                         for (SearchHit hit : hits.getHits()) {
                             int id = Integer.parseInt(hit.getId());
-                            if (!set.remove(id)) {
+                            if (set.remove(id) == false) {
                                 logger.error("Extra id [{}]", id);
                             }
                         }
@@ -266,7 +255,7 @@ public class RelocationIT extends ESIntegTestCase {
                     logger.info("--> DONE search test round {}", i + 1);
 
             }
-            if (!ranOnce) {
+            if (ranOnce == false) {
                 fail();
             }
         }
@@ -404,7 +393,7 @@ public class RelocationIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, p_node);
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, p_node);
         for (DiscoveryNode node : clusterService.state().nodes()) {
-            if (!node.equals(clusterService.localNode())) {
+            if (node.equals(clusterService.localNode()) == false) {
                 mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, node.getName()),
                         new RecoveryCorruption(corruptionCount));
             }
@@ -435,18 +424,17 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> verifying no temporary recoveries are left");
         for (String node : internalCluster().getNodeNames()) {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
-            for (final Path shardLoc : nodeEnvironment.availableShardPaths(new ShardId(indexName, "_na_", 0))) {
-                if (Files.exists(shardLoc)) {
-                    assertBusy(() -> {
-                        try {
-                            forEachFileRecursively(shardLoc,
-                                (file, attrs) -> assertThat("found a temporary recovery file: " + file, file.getFileName().toString(),
-                                    not(startsWith("recovery."))));
-                        } catch (IOException e) {
-                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
-                        }
-                    });
-                }
+            final Path shardLoc = nodeEnvironment.availableShardPath(new ShardId(indexName, "_na_", 0));
+            if (Files.exists(shardLoc)) {
+                assertBusy(() -> {
+                    try {
+                        forEachFileRecursively(shardLoc,
+                            (file, attrs) -> assertThat("found a temporary recovery file: " + file, file.getFileName().toString(),
+                                not(startsWith("recovery."))));
+                    } catch (IOException e) {
+                        throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
+                    }
+                });
             }
         }
     }

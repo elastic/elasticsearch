@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
@@ -65,7 +66,6 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
         IndexShard indexShard = mock(IndexShard.class);

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
@@ -37,6 +26,7 @@ import java.util.Objects;
 
 public class InternalRange<B extends InternalRange.Bucket, R extends InternalRange<B, R>> extends InternalMultiBucketAggregation<R, B>
         implements Range {
+    @SuppressWarnings("rawtypes")
     static final Factory FACTORY = new Factory();
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
@@ -116,6 +106,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return aggregations;
         }
 
+        @SuppressWarnings("unchecked")
         protected Factory<? extends Bucket, ?> getFactory() {
             return FACTORY;
         }
@@ -128,13 +119,13 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 builder.startObject();
                 builder.field(CommonFields.KEY.getPreferredName(), key);
             }
-            if (!Double.isInfinite(from)) {
+            if (Double.isInfinite(from) == false) {
                 builder.field(CommonFields.FROM.getPreferredName(), from);
                 if (format != DocValueFormat.RAW) {
                     builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), format.format(from));
                 }
             }
-            if (!Double.isInfinite(to)) {
+            if (Double.isInfinite(to) == false) {
                 builder.field(CommonFields.TO.getPreferredName(), to);
                 if (format != DocValueFormat.RAW) {
                     builder.field(CommonFields.TO_AS_STRING.getPreferredName(), format.format(to));
@@ -265,6 +256,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         return ranges;
     }
 
+    @SuppressWarnings("unchecked")
     public Factory<B, R> getFactory() {
         return FACTORY;
     }
@@ -284,6 +276,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
+        @SuppressWarnings("rawtypes")
         List<B>[] rangeList = new List[ranges.size()];
         for (int i = 0; i < rangeList.length; ++i) {
             rangeList[i] = new ArrayList<>();
@@ -298,7 +291,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         final List<B> ranges = new ArrayList<>();
         for (int i = 0; i < this.ranges.size(); ++i) {
-            ranges.add((B) reduceBucket(rangeList[i], reduceContext));
+            ranges.add(reduceBucket(rangeList[i], reduceContext));
         }
         return getFactory().create(name, ranges, format, keyed, getMetadata());
     }

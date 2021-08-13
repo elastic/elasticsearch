@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -20,10 +21,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,7 +34,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
@@ -518,7 +520,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metadataResolver, domainDN,
                     ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING, UPN_USER_FILTER, threadPool);
             if (userSearchFilter.contains("{0}")) {
-                deprecationLogger.deprecate("ldap_settings", "The use of the account name variable {0} in the setting ["
+                deprecationLogger.deprecate(DeprecationCategory.SECURITY, "ldap_settings",
+                    "The use of the account name variable {0} in the setting ["
                     + RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING)
                     + "] has been deprecated and will be removed in a future version!");
             }

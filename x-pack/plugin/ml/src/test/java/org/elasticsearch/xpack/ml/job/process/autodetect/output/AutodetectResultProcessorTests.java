@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
@@ -379,8 +380,9 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
         IndexResponse indexResponse = new IndexResponse(new ShardId("ml", "uid", 0), "1", 0L, 0L, 0L, true);
 
-        when(persister.persistModelSnapshot(any(), any(), any()))
-            .thenReturn(new BulkResponse(new BulkItemResponse[]{new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, indexResponse)}, 0));
+        when(persister.persistModelSnapshot(any(), any(), any())).thenReturn(
+            new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, indexResponse) }, 0)
+        );
 
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);

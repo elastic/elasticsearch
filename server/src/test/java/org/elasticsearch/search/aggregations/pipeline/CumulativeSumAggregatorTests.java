@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -30,7 +19,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -130,7 +119,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
-        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.fixedInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "_count"));
 
         executeTestCase(query, aggBuilder, histogram -> {
@@ -143,7 +132,6 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
                 sum += 1.0;
             }
         });
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testDocCount() throws IOException {

@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -48,9 +50,10 @@ public class LifecycleLicenseIT extends ESRestTestCase {
     private String dataStream;
 
     @Before
-    public void refreshDatastream() {
+    public void refreshDatastream() throws Exception {
         dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
+        waitForActiveLicense(adminClient());
     }
 
     @After
@@ -67,7 +70,8 @@ public class LifecycleLicenseIT extends ESRestTestCase {
         checkCurrentLicenseIs("basic");
 
         ResponseException exception = expectThrows(ResponseException.class,
-            () -> createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true)));
+            () -> createNewSingletonPolicy(client(), policy, "cold",
+                new SearchableSnapshotAction(snapshotRepo, true)));
         assertThat(EntityUtils.toString(exception.getResponse().getEntity()),
             containsStringIgnoringCase("policy [" + policy + "] defines the [" + SearchableSnapshotAction.NAME + "] action but the " +
                 "current license is non-compliant for [searchable-snapshots]"));
@@ -111,7 +115,7 @@ public class LifecycleLicenseIT extends ESRestTestCase {
         putTrialLicense();
         checkCurrentLicenseIs("trial");
 
-        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
+        String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
                 return indexExists(restoredIndexName);
@@ -130,11 +134,20 @@ public class LifecycleLicenseIT extends ESRestTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder = signedLicense.toXContent(builder, ToXContent.EMPTY_PARAMS);
         putTrialRequest.setJsonEntity("{\"licenses\":[\n " + Strings.toString(builder) + "\n]}");
-        client().performRequest(putTrialRequest);
+        assertBusy(() -> {
+            Response putLicenseResponse = client().performRequest(putTrialRequest);
+            logger.info("put trial license response body is [{}]", EntityUtils.toString(putLicenseResponse.getEntity()));
+            assertOK(putLicenseResponse);
+        });
     }
 
     private void checkCurrentLicenseIs(String type) throws Exception {
-        assertBusy(() -> assertThat(EntityUtils.toString(client().performRequest(new Request("GET", "/_license")).getEntity()),
-            containsStringIgnoringCase("\"type\" : \"" + type + "\"")));
+        assertBusy(() ->  {
+            Response getLicense = client().performRequest(new Request("GET", "/_license"));
+            String responseBody = EntityUtils.toString(getLicense.getEntity());
+            logger.info("get license response body is [{}]", responseBody);
+            assertThat(responseBody,
+                containsStringIgnoringCase("\"type\" : \"" + type + "\""));
+        });
     }
 }

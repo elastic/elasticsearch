@@ -8,7 +8,7 @@ services:
         port: 80
         bucket: "bucket"
         basePath: "base_path_integration_tests"
-        accessKey: "access_key"
+        accessKey: "s3_test_access_key"
       dockerfile: Dockerfile
     volumes:
       - ./testfixtures_shared/shared:/fixture/shared
@@ -23,7 +23,7 @@ services:
         port: 80
         bucket: "bucket"
         basePath: "base_path"
-        accessKey: "access_key"
+        accessKey: "s3_test_access_key"
       dockerfile: Dockerfile
     volumes:
       - ./testfixtures_shared/shared:/fixture/shared
@@ -38,7 +38,22 @@ services:
         port: 80
         bucket: "bucket"
         basePath: "base_path"
-        accessKey: "access_key"
+        accessKey: "s3_test_access_key"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+
+  s3-fixture-repository-test-kit:
+    build:
+      context: .
+      args:
+        fixtureClass: fixture.s3.S3HttpFixture
+        port: 80
+        bucket: "bucket"
+        basePath: "base_path"
+        accessKey: "s3_test_access_key"
       dockerfile: Dockerfile
     volumes:
       - ./testfixtures_shared/shared:/fixture/shared

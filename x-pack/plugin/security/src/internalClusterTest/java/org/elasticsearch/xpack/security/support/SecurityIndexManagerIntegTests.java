@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.support;
 
@@ -45,7 +46,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
                 @Override
                 protected void doRun() throws Exception {
                     final List<PutUserRequestBuilder> requests = new ArrayList<>(numRequests);
-                    final SecureString password = new SecureString("password".toCharArray());
+                    final SecureString password = new SecureString("test-user-password".toCharArray());
                     for (int i = 0; i < numRequests; i++) {
                         requests.add(new PutUserRequestBuilder(client())
                             .username("user" + userNumber.getAndIncrement())

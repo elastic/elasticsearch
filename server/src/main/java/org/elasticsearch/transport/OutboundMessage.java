@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -23,7 +12,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -32,10 +24,11 @@ import java.io.IOException;
 
 abstract class OutboundMessage extends NetworkMessage {
 
-    private final Writeable message;
+    protected final Writeable message;
 
-    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message) {
-        super(threadContext, version, status, requestId);
+    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Compression.Scheme compressionScheme,
+                    Writeable message) {
+        super(threadContext, version, status, requestId, compressionScheme);
         this.message = message;
     }
 
@@ -53,13 +46,37 @@ abstract class OutboundMessage extends NetworkMessage {
             variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
         }
 
-        try (CompressibleBytesOutputStream stream =
-                 new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
+        final boolean compress = TransportStatus.isCompress(status);
+        final StreamOutput stream = compress ? wrapCompressed(bytesStream) : bytesStream;
+        final BytesReference zeroCopyBuffer;
+        try {
             stream.setVersion(version);
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);
             }
-            reference = writeMessage(stream);
+            if (message instanceof BytesTransportRequest) {
+                BytesTransportRequest bRequest = (BytesTransportRequest) message;
+                bRequest.writeThin(stream);
+                zeroCopyBuffer = bRequest.bytes;
+            } else if (message instanceof RemoteTransportException) {
+                stream.writeException((RemoteTransportException) message);
+                zeroCopyBuffer = BytesArray.EMPTY;
+            } else {
+                message.writeTo(stream);
+                zeroCopyBuffer = BytesArray.EMPTY;
+            }
+        } finally {
+            // We have to close here before accessing the bytes when using compression to ensure that some marker bytes (EOS marker)
+            // are written.
+            if (compress) {
+                stream.close();
+            }
+        }
+        final BytesReference message = bytesStream.bytes();
+        if (zeroCopyBuffer.length() == 0) {
+            reference = message;
+        } else {
+            reference = CompositeBytesReference.of(message, zeroCopyBuffer);
         }
 
         bytesStream.seek(0);
@@ -68,34 +85,20 @@ abstract class OutboundMessage extends NetworkMessage {
         return reference;
     }
 
-    protected void writeVariableHeader(StreamOutput stream) throws IOException {
-        threadContext.writeTo(stream);
+    // compressed stream wrapped bytes must be no-close wrapped since we need to close the compressed wrapper below to release
+    // resources and write EOS marker bytes but must not yet release the bytes themselves
+    private StreamOutput wrapCompressed(BytesStreamOutput bytesStream) throws IOException {
+        if (compressionScheme == Compression.Scheme.DEFLATE) {
+            return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
+        } else if (compressionScheme == Compression.Scheme.LZ4) {
+            return new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
+        } else {
+            throw new IllegalArgumentException("Invalid compression scheme: " + compressionScheme);
+        }
     }
 
-    protected BytesReference writeMessage(CompressibleBytesOutputStream stream) throws IOException {
-        final BytesReference zeroCopyBuffer;
-        if (message instanceof BytesTransportRequest) {
-            BytesTransportRequest bRequest = (BytesTransportRequest) message;
-            bRequest.writeThin(stream);
-            zeroCopyBuffer = bRequest.bytes;
-        } else if (message instanceof RemoteTransportException) {
-            stream.writeException((RemoteTransportException) message);
-            zeroCopyBuffer = BytesArray.EMPTY;
-        } else {
-            message.writeTo(stream);
-            zeroCopyBuffer = BytesArray.EMPTY;
-        }
-        // we have to call materializeBytes() here before accessing the bytes. A CompressibleBytesOutputStream
-        // might be implementing compression. And materializeBytes() ensures that some marker bytes (EOS marker)
-        // are written. Otherwise we barf on the decompressing end when we read past EOF on purpose in the
-        // #validateRequest method. this might be a problem in deflate after all but it's important to write
-        // the marker bytes.
-        final BytesReference message = stream.materializeBytes();
-        if (zeroCopyBuffer.length() == 0) {
-            return message;
-        } else {
-            return CompositeBytesReference.of(message, zeroCopyBuffer);
-        }
+    protected void writeVariableHeader(StreamOutput stream) throws IOException {
+        threadContext.writeTo(stream);
     }
 
     static class Request extends OutboundMessage {
@@ -103,8 +106,8 @@ abstract class OutboundMessage extends NetworkMessage {
         private final String action;
 
         Request(ThreadContext threadContext, Writeable message, Version version, String action, long requestId,
-                boolean isHandshake, boolean compress) {
-            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
+                boolean isHandshake, Compression.Scheme compressionScheme) {
+            super(threadContext, version, setStatus(isHandshake), requestId, adjustCompressionScheme(compressionScheme, message), message);
             this.action = action;
         }
 
@@ -118,34 +121,44 @@ abstract class OutboundMessage extends NetworkMessage {
             stream.writeString(action);
         }
 
-        private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {
+        // Do not compress instances of BytesTransportRequest
+        private static Compression.Scheme adjustCompressionScheme(Compression.Scheme compressionScheme, Writeable message) {
+            if (message instanceof BytesTransportRequest) {
+                return null;
+            } else {
+               return compressionScheme;
+            }
+        }
+
+        private static byte setStatus(boolean isHandshake) {
             byte status = 0;
             status = TransportStatus.setRequest(status);
-            if (compress && OutboundMessage.canCompress(message)) {
-                status = TransportStatus.setCompress(status);
-            }
             if (isHandshake) {
                 status = TransportStatus.setHandshake(status);
             }
 
             return status;
+        }
+
+
+        @Override
+        public String toString() {
+            return "Request{" + action + "}{" + requestId + "}{" + isError() + "}{" + isCompress() + "}{" + isHandshake() + "}";
         }
     }
 
     static class Response extends OutboundMessage {
 
-        Response(ThreadContext threadContext, Writeable message, Version version, long requestId, boolean isHandshake, boolean compress) {
-            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
+        Response(ThreadContext threadContext, Writeable message, Version version, long requestId, boolean isHandshake,
+                 Compression.Scheme compressionScheme) {
+            super(threadContext, version, setStatus(isHandshake, message), requestId, compressionScheme, message);
         }
 
-        private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {
+        private static byte setStatus(boolean isHandshake, Writeable message) {
             byte status = 0;
             status = TransportStatus.setResponse(status);
             if (message instanceof RemoteTransportException) {
                 status = TransportStatus.setError(status);
-            }
-            if (compress) {
-                status = TransportStatus.setCompress(status);
             }
             if (isHandshake) {
                 status = TransportStatus.setHandshake(status);
@@ -153,9 +166,11 @@ abstract class OutboundMessage extends NetworkMessage {
 
             return status;
         }
-    }
 
-    private static boolean canCompress(Writeable message) {
-        return message instanceof BytesTransportRequest == false;
+        @Override
+        public String toString() {
+            return "Response{" + requestId + "}{" + isError() + "}{" + isCompress() + "}{" + isHandshake() + "}{"
+                    + message.getClass() + "}";
+        }
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
@@ -35,10 +24,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryA
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -77,26 +65,11 @@ public class GatewayServiceTests extends ESTestCase {
 
         // ensure settings override default
         final TimeValue timeValue = TimeValue.timeValueHours(3);
+
         // ensure default is set when setting expected_nodes
         service = createService(Settings.builder().put("gateway.recover_after_time",
             timeValue.toString()));
         assertThat(service.recoverAfterTime().millis(), Matchers.equalTo(timeValue.millis()));
-    }
-
-    public void testDeprecatedSettings() {
-        GatewayService service = createService(Settings.builder());
-
-        service = createService(Settings.builder().put("gateway.expected_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.EXPECTED_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.expected_master_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.EXPECTED_MASTER_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.recover_after_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.RECOVER_AFTER_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.recover_after_master_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING });
     }
 
     public void testRecoverStateUpdateTask() throws Exception {

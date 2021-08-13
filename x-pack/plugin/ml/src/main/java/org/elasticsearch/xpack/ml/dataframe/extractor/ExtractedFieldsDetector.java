@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
@@ -11,11 +12,12 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.ml.extractor.ProcessedField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -45,6 +48,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -55,16 +59,15 @@ public class ExtractedFieldsDetector {
     private static final Logger LOGGER = LogManager.getLogger(ExtractedFieldsDetector.class);
 
     /**
-     * Fields to ignore. These are mostly internal meta fields.
+     * Internal fields to ignore.
      */
-    private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
-        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.INCREMENTAL_ID,
-        "_data_stream_timestamp", "_doc_count");
+    private static final List<String> IGNORE_FIELDS = Collections.singletonList(DestinationIndex.INCREMENTAL_ID);
 
     private final DataFrameAnalyticsConfig config;
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
     private final Map<String, Long> cardinalitiesForFieldsWithConstraints;
+    private final List<String> topNestedFieldPrefixes;
 
     ExtractedFieldsDetector(DataFrameAnalyticsConfig config,
                             int docValueFieldsLimit,
@@ -74,6 +77,26 @@ public class ExtractedFieldsDetector {
         this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
         this.cardinalitiesForFieldsWithConstraints = Objects.requireNonNull(cardinalitiesForFieldsWithConstraints);
+        this.topNestedFieldPrefixes = findTopNestedFieldPrefixes(fieldCapabilitiesResponse);
+    }
+
+    private List<String> findTopNestedFieldPrefixes(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+        List<String> sortedNestedFieldPrefixes = fieldCapabilitiesResponse.get().keySet().stream()
+            .filter(field -> isNested(getMappingTypes(field)))
+            .map(field -> field + ".")
+            .sorted()
+            .collect(Collectors.toList());
+        Iterator<String> iterator = sortedNestedFieldPrefixes.iterator();
+        String previousNestedFieldPrefix = null;
+        while (iterator.hasNext()) {
+            String nestedFieldPrefix = iterator.next();
+            if (previousNestedFieldPrefix != null && nestedFieldPrefix.startsWith(previousNestedFieldPrefix)) {
+                iterator.remove();
+            } else {
+                previousNestedFieldPrefix = nestedFieldPrefix;
+            }
+        }
+        return Collections.unmodifiableList(sortedNestedFieldPrefixes);
     }
 
     public Tuple<ExtractedFields, List<FieldSelection>> detect() {
@@ -99,9 +122,13 @@ public class ExtractedFieldsDetector {
     }
 
     private Set<String> getIncludedFields(Set<FieldSelection> fieldSelection, Set<String> requiredFieldsForProcessors) {
-        Set<String> fields = new TreeSet<>(fieldCapabilitiesResponse.get().keySet());
         validateFieldsRequireForProcessors(requiredFieldsForProcessors);
-        fields.removeAll(IGNORE_FIELDS);
+        Set<String> fields = new TreeSet<>();
+        // filter metadata field
+        fieldCapabilitiesResponse.get().keySet().stream()
+            .filter(f -> fieldCapabilitiesResponse.isMetadataField(f) == false
+                && IGNORE_FIELDS.contains(f) == false)
+            .forEach(fields::add);
         removeFieldsUnderResultsField(fields);
         removeObjects(fields);
         applySourceFiltering(fields);
@@ -135,11 +162,23 @@ public class ExtractedFieldsDetector {
         }
         removeObjects(fieldsForProcessor);
         if (fieldsForProcessor.size() < processorFields.size()) {
-            throw ExceptionsHelper.badRequestException("fields for feature_processors must not be objects");
+            throw ExceptionsHelper.badRequestException("fields for feature_processors must not be objects or nested");
         }
-        fieldsForProcessor.removeAll(IGNORE_FIELDS);
-        if (fieldsForProcessor.size() < processorFields.size()) {
-            throw ExceptionsHelper.badRequestException("the following fields cannot be used in feature_processors {}", IGNORE_FIELDS);
+        for (String field : fieldsForProcessor) {
+            Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+            if (matchingNestedFieldPattern.isPresent()) {
+                throw ExceptionsHelper.badRequestException("nested fields [{}] cannot be used in a feature_processor",
+                    matchingNestedFieldPattern.get());
+            }
+        }
+        Collection<String> errorFields = new ArrayList<>();
+        for (String fieldName : fieldsForProcessor) {
+            if (fieldCapabilitiesResponse.isMetadataField(fieldName) || IGNORE_FIELDS.contains(fieldName)) {
+                errorFields.add(fieldName);
+            }
+        }
+        if (errorFields.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException("the following fields cannot be used in feature_processors {}", errorFields);
         }
         List<String> fieldsMissingInMapping = processorFields.stream()
             .filter(f -> fieldCapabilitiesResponse.get().containsKey(f) == false)
@@ -181,7 +220,7 @@ public class ExtractedFieldsDetector {
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
             Set<String> types = getMappingTypes(field);
-            if (isObject(types)) {
+            if (isObject(types) || isNested(types)) {
                 fieldsIterator.remove();
             }
         }
@@ -201,6 +240,11 @@ public class ExtractedFieldsDetector {
         fieldSelection.add(FieldSelection.excluded(field, getMappingTypes(field), reason));
     }
 
+    private void addExcludedNestedPattern(String pattern, Set<FieldSelection> fieldSelection) {
+        fieldSelection.add(FieldSelection.excluded(
+            pattern, Collections.singleton(NestedObjectMapper.CONTENT_TYPE), "nested fields are not supported"));
+    }
+
     private Set<String> getMappingTypes(String field) {
         Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(field);
         return fieldCaps == null ? Collections.emptySet() : fieldCaps.keySet();
@@ -210,7 +254,11 @@ public class ExtractedFieldsDetector {
         Iterator<String> fieldsIterator = fields.iterator();
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
-            if (hasCompatibleType(field) == false) {
+            Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+            if (matchingNestedFieldPattern.isPresent()) {
+                addExcludedNestedPattern(matchingNestedFieldPattern.get(), fieldSelection);
+                fieldsIterator.remove();
+            } else if (hasCompatibleType(field) == false) {
                 addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
                 fieldsIterator.remove();
             }
@@ -246,6 +294,10 @@ public class ExtractedFieldsDetector {
         }
         supportedTypes.add(BooleanFieldMapper.CONTENT_TYPE);
         return supportedTypes;
+    }
+
+    private Optional<String> findMatchingNestedFieldPattern(String field) {
+        return topNestedFieldPrefixes.stream().filter(prefix -> field.startsWith(prefix)).map(prefix -> prefix + "*").findFirst();
     }
 
     private void includeAndExcludeFields(Set<String> fields, Set<FieldSelection> fieldSelection) {
@@ -285,10 +337,10 @@ public class ExtractedFieldsDetector {
 
     private void checkIncludesExcludesAreNotObjects(FetchSourceContext analyzedFields) {
         List<String> objectFields = Stream.concat(Arrays.stream(analyzedFields.includes()), Arrays.stream(analyzedFields.excludes()))
-            .filter(field -> isObject(getMappingTypes(field)))
+            .filter(field -> isObject(getMappingTypes(field)) || isNested(getMappingTypes(field)))
             .collect(Collectors.toList());
         if (objectFields.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("{} must not include or exclude object fields: {}",
+            throw ExceptionsHelper.badRequestException("{} must not include or exclude object or nested fields: {}",
                 DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(), objectFields);
         }
     }
@@ -299,7 +351,7 @@ public class ExtractedFieldsDetector {
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
             if (includes.contains(field)) {
-                if (IGNORE_FIELDS.contains(field)) {
+                if (fieldCapabilitiesResponse.isMetadataField(field) || IGNORE_FIELDS.contains(field)) {
                     throw ExceptionsHelper.badRequestException("field [{}] cannot be analyzed", field);
                 }
                 if (excludes.contains(field)) {
@@ -308,10 +360,15 @@ public class ExtractedFieldsDetector {
                 }
             } else {
                 fieldsIterator.remove();
-                if (hasCompatibleType(field)) {
-                    addExcludedField(field, "field not in includes list", fieldSelection);
-                } else {
+                if (hasCompatibleType(field) == false) {
                     addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
+                } else {
+                    Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+                    if (matchingNestedFieldPattern.isPresent()) {
+                        addExcludedNestedPattern(matchingNestedFieldPattern.get(), fieldSelection);
+                    } else {
+                        addExcludedField(field, "field not in includes list", fieldSelection);
+                    }
                 }
             }
         }
@@ -327,6 +384,10 @@ public class ExtractedFieldsDetector {
             if (hasCompatibleType(field) == false) {
                 throw ExceptionsHelper.badRequestException("field [{}] has unsupported type {}. Supported types are {}.", field,
                     fieldCaps.keySet(), getSupportedTypes());
+            }
+            Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+            if (matchingNestedFieldPattern.isPresent()) {
+                throw ExceptionsHelper.badRequestException("nested fields [{}] are not supported", matchingNestedFieldPattern.get());
             }
         }
     }
@@ -367,6 +428,7 @@ public class ExtractedFieldsDetector {
                                                   Set<FieldSelection> fieldSelection,
                                                   List<ProcessedField> processedFields) {
         ExtractedFields extractedFields = ExtractedFields.build(fields,
+            Collections.emptySet(),
             Collections.emptySet(),
             fieldCapabilitiesResponse,
             cardinalitiesForFieldsWithConstraints,
@@ -591,7 +653,11 @@ public class ExtractedFieldsDetector {
         return types.size() == 1 && types.contains(BooleanFieldMapper.CONTENT_TYPE);
     }
 
-    private boolean isObject(Set<String> types) {
+    private static boolean isObject(Set<String> types) {
         return types.size() == 1 && types.contains(ObjectMapper.CONTENT_TYPE);
+    }
+
+    private static boolean isNested(Set<String> types) {
+        return types.size() == 1 && types.contains(NestedObjectMapper.CONTENT_TYPE);
     }
 }

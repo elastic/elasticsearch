@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.DiagnosticErrorListener;
@@ -25,6 +27,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.parser.CaseChangingCharStream;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
@@ -99,7 +102,7 @@ public class SqlParser {
                                Function<SqlBaseParser, ParserRuleContext> parseFunction,
                                BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
         try {
-            SqlBaseLexer lexer = new SqlBaseLexer(new CaseInsensitiveStream(sql));
+            SqlBaseLexer lexer = new SqlBaseLexer(new CaseChangingCharStream(CharStreams.fromString(sql), true));
 
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
@@ -205,7 +208,7 @@ public class SqlParser {
         @Override
         public void exitNonReserved(SqlBaseParser.NonReservedContext context) {
             // tree cannot be modified during rule enter/exit _unless_ it's a terminal node
-            if (!(context.getChild(0) instanceof TerminalNode)) {
+            if ((context.getChild(0) instanceof TerminalNode) == false) {
                 int rule = ((ParserRuleContext) context.getChild(0)).getRuleIndex();
                 throw new ParsingException("nonReserved can only contain tokens. Found nested rule: " + ruleNames.get(rule));
             }

@@ -1,27 +1,29 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
-  yamlRestTestImplementation project(path: xpackModule('core'))
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  yamlRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(xpackProject('plugin')))
 }
 
 // bring in machine learning rest test suite
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk'
-    includeXpack 'ml', 'cat'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat'
   }
   restTests {
     includeXpack 'ml'
   }
 }
 
-yamlRestTest {
+tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', [
-    // Remove this test because it doesn't call an ML endpoint and we don't want
+    // Remove these tests because they don't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite
     'ml/ml_classic_analyze/Test analyze API with an analyzer that does what we used to do in native code',
+    'ml/ml_standard_analyze/Test analyze API with the standard 7.14 ML analyzer',
+    'ml/ml_standard_analyze/Test 7.14 analyzer with blank lines',
+    'ml/ml_standard_analyze/Test 7.14 analyzer with multiple multiline messages',
+    'ml/ml_standard_analyze/Test 7.14 analyzer with stop words in messages',
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
     'ml/calendar_crud/Test get calendar given missing',
@@ -127,10 +129,13 @@ yamlRestTest {
     'ml/explain_data_frame_analytics/Test both job id and body',
     'ml/explain_data_frame_analytics/Test missing job',
     'ml/explain_data_frame_analytics/Test empty data frame given body',
+    'ml/preview_data_frame_analytics/Test neither job id nor body',
+    'ml/preview_data_frame_analytics/Test both job id and body',
+    'ml/preview_data_frame_analytics/Test missing job',
+    'ml/preview_data_frame_analytics/Test id that matches multiple jobs',
     'ml/delete_job_force/Test cannot force delete a non-existent job',
     'ml/delete_model_snapshot/Test delete snapshot missing snapshotId',
     'ml/delete_model_snapshot/Test delete snapshot missing job_id',
-    'ml/delete_model_snapshot/Test delete with in-use model',
     'ml/filter_crud/Test create filter api with mismatching body ID',
     'ml/filter_crud/Test create filter given invalid filter_id',
     'ml/filter_crud/Test get filter API with bad ID',
@@ -147,17 +152,17 @@ yamlRestTest {
     'ml/inference_crud/Test put ensemble with tree where tree has out of bounds feature_names index',
     'ml/inference_crud/Test put model with empty input.field_names',
     'ml/inference_crud/Test PUT model where target type and inference config mismatch',
+    'ml/inference_crud/Test update model alias with model id referring to missing model',
+    'ml/inference_crud/Test update model alias with bad alias',
+    'ml/inference_crud/Test update model alias where alias exists but old model id is different inference type',
+    'ml/inference_crud/Test update model alias where alias exists but reassign is false',
+    'ml/inference_crud/Test delete model alias with missing alias',
+    'ml/inference_crud/Test delete model alias where alias points to different model',
     'ml/inference_processor/Test create processor with missing mandatory fields',
     'ml/inference_stats_crud/Test get stats given missing trained model',
     'ml/inference_stats_crud/Test get stats given expression without matches and allow_no_match is false',
-    'ml/jobs_crud/Test cannot create job with existing categorizer state document',
-    'ml/jobs_crud/Test cannot create job with existing quantiles document',
-    'ml/jobs_crud/Test cannot create job with existing result document',
     'ml/jobs_crud/Test cannot create job with model snapshot id set',
-    'ml/jobs_crud/Test cannot decrease model_memory_limit below current usage',
     'ml/jobs_crud/Test get job API with non existing job id',
-    'ml/jobs_crud/Test put job after closing results index',
-    'ml/jobs_crud/Test put job after closing state index',
     'ml/jobs_crud/Test put job with inconsistent body/param ids',
     'ml/jobs_crud/Test put job with inconsistent model snapshot settings',
     'ml/jobs_crud/Test put job with time field in analysis_config',
@@ -189,6 +194,11 @@ yamlRestTest {
     'ml/post_data/Test open and close with non-existent job id',
     'ml/post_data/Test POST data with invalid parameters',
     'ml/preview_datafeed/Test preview missing datafeed',
+    'ml/preview_datafeed/Test preview with datafeed_id and job config',
+    'ml/preview_datafeed/Test preview with datafeed id and config',
+    'ml/preview_datafeed/Test preview with datafeed config and job config with datafeed config',
+    'ml/reset_job/Test reset given job is open',
+    'ml/reset_job/Test reset given unknown job id',
     'ml/revert_model_snapshot/Test revert model with invalid snapshotId',
     'ml/start_data_frame_analytics/Test start given missing source index',
     'ml/start_data_frame_analytics/Test start outlier_detection given source index has no fields',
@@ -199,7 +209,6 @@ yamlRestTest {
     'ml/start_stop_datafeed/Test start datafeed job, but not open',
     'ml/start_stop_datafeed/Test start non existing datafeed',
     'ml/start_stop_datafeed/Test stop non existing datafeed',
-    'ml/update_model_snapshot/Test without description',
     'ml/validate/Test invalid job config',
     'ml/validate/Test job config is invalid because model snapshot id set',
     'ml/validate/Test job config that is invalid only because of the job ID',
@@ -213,7 +222,6 @@ yamlRestTest {
     'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false'
   ].join(',')
 }
-
 
 testClusters.all {
   testDistribution = 'DEFAULT'

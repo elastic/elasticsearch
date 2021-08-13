@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
@@ -19,8 +20,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,7 +50,7 @@ public class StringStatsAggregator extends MetricsAggregator {
     Map<Character, LongArray> charOccurrences;
 
     StringStatsAggregator(String name, ValuesSource valuesSource, boolean showDistribution, DocValueFormat format,
-                          SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+                          AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         this.showDistribution = showDistribution;
         this.valuesSource = (ValuesSource.Bytes) valuesSource;

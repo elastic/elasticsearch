@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.master;
@@ -39,9 +28,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -49,6 +39,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.CancellationException;
 import java.util.function.Predicate;
 
 /**
@@ -93,6 +84,15 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected abstract void masterOperation(Task task, Request request, ClusterState state,
                                             ActionListener<Response> listener) throws Exception;
 
+    private void executeMasterOperation(Task task, Request request, ClusterState state,
+                                        ActionListener<Response> listener) throws Exception {
+        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
+            throw new CancellationException("Task was cancelled");
+        }
+
+        masterOperation(task, request, state, listener);
+    }
+
     protected boolean localExecute(Request request) {
         return false;
     }
@@ -125,13 +125,17 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
 
         protected void doStart(ClusterState clusterState) {
+            if (isTaskCancelled()) {
+                listener.onFailure(new CancellationException("Task was cancelled"));
+                return;
+            }
             try {
                 final DiscoveryNodes nodes = clusterState.nodes();
                 if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
                     // check for block, if blocked, retry, else, execute locally
                     final ClusterBlockException blockException = checkBlock(request, clusterState);
                     if (blockException != null) {
-                        if (!blockException.retryable()) {
+                        if (blockException.retryable() == false) {
                             logger.trace("can't execute due to a non-retryable cluster block", blockException);
                             listener.onFailure(blockException);
                         } else {
@@ -139,7 +143,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             retry(clusterState, blockException, newState -> {
                                 try {
                                     ClusterBlockException newException = checkBlock(request, newState);
-                                    return (newException == null || !newException.retryable());
+                                    return (newException == null || newException.retryable() == false);
                                 } catch (Exception e) {
                                     // accept state as block will be rechecked by doStart() and listener.onFailure() then called
                                     logger.debug("exception occurred during cluster block checking, accepting state", e);
@@ -148,7 +152,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             });
                         }
                     } else {
-                        ActionListener<Response> delegate = ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
+                        ActionListener<Response> delegate = listener.delegateResponse((delegatedListener, t) -> {
                             if (t instanceof FailedToCommitClusterStateException || t instanceof NotMasterException) {
                                 logger.debug(() -> new ParameterizedMessage("master could not publish cluster state or " +
                                     "stepped down before publishing action [{}], scheduling a retry", actionName), t);
@@ -159,7 +163,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             }
                         });
                         threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
+                            .execute(ActionRunnable.wrap(delegate, l -> executeMasterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {
@@ -229,7 +233,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             actionName, timeout), failure);
                         listener.onFailure(new MasterNotDiscoveredException(failure));
                     }
-                }, statePredicate);
+                }, clusterState -> isTaskCancelled() || statePredicate.test(clusterState));
+        }
+
+        private boolean isTaskCancelled() {
+            return task instanceof CancellableTask && ((CancellableTask) task).isCancelled();
         }
     }
 }

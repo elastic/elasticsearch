@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
@@ -11,11 +12,10 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,22 +38,19 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
+    protected Aggregator createUnmapped(Aggregator parent,
                                         Map<String, Object> metaData) throws IOException {
-        return new GeoLineAggregator(name, null, searchContext, parent, metaData, includeSort, sortOrder, size);
+        return new GeoLineAggregator(name, null, context, parent, metaData, includeSort, sortOrder, size);
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Map<String, ValuesSourceConfig> configs,
+    protected Aggregator doCreateInternal(Map<String, ValuesSourceConfig> configs,
                                           DocValueFormat format,
                                           Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metaData) throws IOException {
-        GeoLineMultiValuesSource valuesSources =
-            new GeoLineMultiValuesSource(configs, searchContext.getQueryShardContext());
-        return new GeoLineAggregator(name, valuesSources, searchContext, parent, metaData, includeSort, sortOrder, size);
+        GeoLineMultiValuesSource valuesSources = new GeoLineMultiValuesSource(configs);
+        return new GeoLineAggregator(name, valuesSources, context, parent, metaData, includeSort, sortOrder, size);
     }
 
     @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.recovery;
@@ -35,12 +24,13 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -50,6 +40,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
@@ -71,7 +62,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
@@ -271,7 +262,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     public interface RecoveryListener {
-        void onRecoveryDone(RecoveryState state);
+        void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange);
 
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
     }
@@ -315,9 +306,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             boolean success = false;
             try {
                 recoveryRef.target().handoffPrimaryContext(request.primaryContext(),
-                        ActionListener.runBefore(ActionListener.map(
-                                new ChannelActionListener<>(channel, Actions.HANDOFF_PRIMARY_CONTEXT, request),
-                                v -> TransportResponse.Empty.INSTANCE), recoveryRef::close));
+                        ActionListener.runBefore(new ChannelActionListener<>(channel, Actions.HANDOFF_PRIMARY_CONTEXT, request)
+                                .map(v -> TransportResponse.Empty.INSTANCE), recoveryRef::close));
                 success = true;
             } finally {
                 if (success == false) {
@@ -432,7 +422,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 }
 
                 recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.getGlobalCheckpoint(), request.sourceMetaSnapshot(),
-                    listener);
+                    listener.delegateFailure((l, r) -> {
+                            Releasable reenableMonitor = recoveryRef.target().disableRecoveryMonitor();
+                            recoveryRef.target().indexShard().afterCleanFiles(() -> {
+                                reenableMonitor.close();
+                                l.onResponse(null);
+                            });
+                        }));
             }
         }
     }
@@ -483,8 +479,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                                                         final String action, final RecoveryTransportRequest request,
                                                         final CheckedFunction<Void, TransportResponse, Exception> responseFn) {
         final RecoveryTarget recoveryTarget = recoveryRef.target();
-        final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, action, request);
-        final ActionListener<Void> voidListener = ActionListener.map(channelListener, responseFn);
+        final ActionListener<Void> voidListener = new ChannelActionListener<>(channel, action, request).map(responseFn);
 
         final long requestSeqNo = request.requestSeqNo();
         final ActionListener<Void> listener;

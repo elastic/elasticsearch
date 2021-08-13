@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -170,7 +171,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
         public static class Builder {
 
             private long totalModelCount;
-            private Set<String> expandedIds;
+            private Map<String, Set<String>> expandedIdsWithAliases;
             private Map<String, IngestStats> ingestStatsMap;
             private Map<String, InferenceStats> inferenceStatsMap;
 
@@ -179,13 +180,13 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this;
             }
 
-            public Builder setExpandedIds(Set<String> expandedIds) {
-                this.expandedIds = expandedIds;
+            public Builder setExpandedIdsWithAliases(Map<String, Set<String>> expandedIdsWithAliases) {
+                this.expandedIdsWithAliases = expandedIdsWithAliases;
                 return this;
             }
 
-            public Set<String> getExpandedIds() {
-                return this.expandedIds;
+            public Map<String, Set<String>> getExpandedIdsWithAliases() {
+                return this.expandedIdsWithAliases;
             }
 
             public Builder setIngestStatsByModelId(Map<String, IngestStats> ingestStatsByModelId) {
@@ -199,8 +200,8 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             }
 
             public Response build() {
-                List<TrainedModelStats> trainedModelStats = new ArrayList<>(expandedIds.size());
-                expandedIds.forEach(id -> {
+                List<TrainedModelStats> trainedModelStats = new ArrayList<>(expandedIdsWithAliases.size());
+                expandedIdsWithAliases.keySet().forEach(id -> {
                     IngestStats ingestStats = ingestStatsMap.get(id);
                     InferenceStats inferenceStats = inferenceStatsMap.get(id);
                     trainedModelStats.add(new TrainedModelStats(

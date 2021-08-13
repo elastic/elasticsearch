@@ -1,9 +1,12 @@
 [discrete]
 [[breaking_80_transport_changes]]
-=== Transport changes
+==== Transport changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-.Several `tranport` settings have been replaced.
+.Several `transport` settings have been replaced.
 [%collapsible]
 ====
 *Details* +
@@ -26,4 +29,21 @@ Specifying the removed settings in `elasticsearch.yml` will result in an error
 on startup.
 ====
 
+.The `es.unsafely_permit_handshake_from_incompatible_builds` system property has been removed.
+[%collapsible]
+====
+*Details* +
+{es} has a check that verifies that communicating pairs of nodes of the same
+version are running exactly the same build and therefore using the same wire
+format as each other. In previous versions this check can be bypassed by
+setting the system property
+`es.unsafely_permit_handshake_from_incompatible_builds` to `true`. The use of
+this system property is now forbidden.
+
+*Impact* +
+Discontinue use of the `es.unsafely_permit_handshake_from_incompatible_builds`
+system property, and ensure that all nodes of the same version are running
+exactly the same build. Setting this system property will result in an error
+on startup.
+====
 // end::notable-breaking-changes[]

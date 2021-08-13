@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.upgrades;
 
@@ -23,15 +12,21 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
@@ -148,18 +143,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 waitForGreen.addParameter("wait_for_nodes", "3");
                 client().performRequest(waitForGreen);
 
-                Version minNodeVersion = null;
-                Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
-                Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-                for (Map.Entry<?, ?> node : nodes.entrySet()) {
-                    Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-                    Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
-                    if (minNodeVersion == null) {
-                        minNodeVersion = nodeVersion;
-                    } else if (nodeVersion.before(minNodeVersion)) {
-                        minNodeVersion = nodeVersion;
-                    }
-                }
+                Version minNodeVersion = minNodeVersion();
 
                 if (minNodeVersion.before(Version.V_7_5_0)) {
                     ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
@@ -182,6 +166,62 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
     }
 
+    public void testDateNanosFormatUpgrade() throws IOException {
+        final String indexName = "test_date_nanos";
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                Request createIndex = new Request("PUT", "/" + indexName);
+                XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                        .startObject("mappings")
+                            .startObject("properties")
+                                .startObject("date")
+                                    .field("type", "date")
+                                .endObject()
+                                .startObject("date_nanos")
+                                    .field("type", "date_nanos")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject();
+                createIndex.setJsonEntity(Strings.toString(mappings));
+                client().performRequest(createIndex);
+
+                Request index = new Request("POST", "/" + indexName + "/_doc/");
+                XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                        .field("date", "2015-01-01T12:10:30.123456789Z")
+                        .field("date_nanos", "2015-01-01T12:10:30.123456789Z")
+                    .endObject();
+                index.addParameter("refresh", "true");
+                index.setJsonEntity(Strings.toString(doc));
+                client().performRequest(index);
+                break;
+
+            case UPGRADED:
+                Request search = new Request("POST", "/" + indexName + "/_search");
+                XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                        .array("fields", new String[] { "date", "date_nanos" })
+                    .endObject();
+                search.setJsonEntity(Strings.toString(query));
+                Map<String, Object> response = entityAsMap(client().performRequest(search));
+
+                Map<?, ?> bestHit = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("hits.hits", response))).get(0);
+                List<?> date = (List<?>) XContentMapValues.extractValue("fields.date", bestHit);
+                assertThat(date.size(), equalTo(1));
+                assertThat(date.get(0), equalTo("2015-01-01T12:10:30.123Z"));
+
+                List<?> dateNanos = (List<?>) XContentMapValues.extractValue("fields.date_nanos", bestHit);
+                assertThat(dateNanos.size(), equalTo(1));
+                assertThat(dateNanos.get(0), equalTo("2015-01-01T12:10:30.123456789Z"));
+                break;
+
+            default:
+                break;
+        }
+    }
+
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
@@ -201,5 +241,21 @@ public class IndexingIT extends AbstractRollingTestCase {
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
         assertEquals("{\"hits\":{\"total\":" + count + "}}",
                 EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+    }
+
+    private Version minNodeVersion() throws IOException {
+        Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
+        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+        Version minNodeVersion = null;
+        for (Map.Entry<?, ?> node : nodes.entrySet()) {
+            Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
+            Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
+            if (minNodeVersion == null) {
+                minNodeVersion = nodeVersion;
+            } else if (nodeVersion.before(minNodeVersion)) {
+                minNodeVersion = nodeVersion;
+            }
+        }
+        return minNodeVersion;
     }
 }

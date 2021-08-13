@@ -30,15 +30,16 @@ index settings, aliases, mappings, and index templates.
 * <<indices-put-mapping>>
 * <<indices-get-mapping>>
 * <<indices-get-field-mapping>>
+* <<indices-disk-usage>>
 
 [discrete]
 [[alias-management]]
 === Alias management:
+* <<indices-aliases>>
 * <<indices-add-alias>>
-* <<indices-delete-alias>>
 * <<indices-get-alias>>
 * <<indices-alias-exists>>
-* <<indices-aliases>>
+* <<indices-delete-alias>>
 
 [discrete]
 [[index-settings]]
@@ -55,7 +56,7 @@ Index templates automatically apply settings, mappings, and aliases to new indic
 They are most often used to configure rolling indices for time series data to 
 ensure that each new index has the same configuration as the previous one. 
 The index template associated with a data stream configures its backing indices. 
-For more information, see <<indices-templates, Index Templates>>.
+For more information, see <<index-templates, Index Templates>>.
 
 * <<indices-put-template>>
 * <<indices-get-template>>
@@ -63,7 +64,6 @@ For more information, see <<indices-templates, Index Templates>>.
 * <<indices-component-template>>
 * <<getting-component-templates>>
 * <<indices-delete-component-template>>
-* <<indices-template-exists>>
 * <<indices-simulate-index>>
 * <<indices-simulate-template>>
 
@@ -71,6 +71,7 @@ For more information, see <<indices-templates, Index Templates>>.
 [[monitoring]]
 === Monitoring:
 * <<indices-stats>>
+* <<field-usage-stats>>
 * <<indices-segments>>
 * <<indices-recovery>>
 * <<indices-shards-stores>>
@@ -90,98 +91,52 @@ For more information, see <<indices-templates, Index Templates>>.
 * <<dangling-index-import>>
 * <<dangling-index-delete>>
 
-
-
-include::indices/add-alias.asciidoc[]
-
-include::indices/analyze.asciidoc[]
-
-include::indices/clearcache.asciidoc[]
-
-include::indices/clone-index.asciidoc[]
-
-include::indices/close.asciidoc[]
-
-include::indices/create-index.asciidoc[]
-
-include::indices/delete-index.asciidoc[]
-
-include::indices/delete-alias.asciidoc[]
-
-include::indices/delete-component-template.asciidoc[]
-
-include::indices/delete-index-template.asciidoc[]
-
-include::indices/delete-index-template-v1.asciidoc[]
-
-include::indices/flush.asciidoc[]
-
-include::indices/forcemerge.asciidoc[]
-
-include::indices/apis/freeze.asciidoc[]
-
-include::indices/get-component-template.asciidoc[]
-
-include::indices/get-field-mapping.asciidoc[]
-
-include::indices/get-index.asciidoc[]
-
-include::indices/get-alias.asciidoc[]
-
-include::indices/get-settings.asciidoc[]
-
-include::indices/get-index-template.asciidoc[]
-
-include::indices/get-index-template-v1.asciidoc[]
-
-include::indices/get-mapping.asciidoc[]
-
 include::indices/alias-exists.asciidoc[]
-
-include::indices/indices-exists.asciidoc[]
-
-include::indices/recovery.asciidoc[]
-
-include::indices/segments.asciidoc[]
-
-include::indices/shard-stores.asciidoc[]
-
-include::indices/stats.asciidoc[]
-
-include::indices/template-exists.asciidoc[]
-
-include::indices/open-close.asciidoc[]
-
-include::indices/put-index-template.asciidoc[]
-
-include::indices/put-index-template-v1.asciidoc[]
-
-include::indices/put-component-template.asciidoc[]
-
-include::indices/put-mapping.asciidoc[]
-
-include::indices/refresh.asciidoc[]
-
-include::indices/rollover-index.asciidoc[]
-
-include::indices/shrink-index.asciidoc[]
-
-include::indices/simulate-index.asciidoc[]
-
-include::indices/simulate-template.asciidoc[]
-
-include::indices/split-index.asciidoc[]
-
-include::indices/apis/unfreeze.asciidoc[]
-
 include::indices/aliases.asciidoc[]
-
-include::indices/update-settings.asciidoc[]
-
-include::indices/resolve.asciidoc[]
-
-include::indices/dangling-indices-list.asciidoc[]
-
-include::indices/dangling-index-import.asciidoc[]
-
+include::indices/analyze.asciidoc[]
+include::indices/diskusage.asciidoc[]
+include::indices/clearcache.asciidoc[]
+include::indices/clone-index.asciidoc[]
+include::indices/close.asciidoc[]
+include::indices/create-index.asciidoc[]
+include::indices/add-alias.asciidoc[]
+include::indices/put-component-template.asciidoc[]
+include::indices/put-index-template.asciidoc[]
+include::indices/put-index-template-v1.asciidoc[]
+include::indices/delete-component-template.asciidoc[]
 include::indices/dangling-index-delete.asciidoc[]
+include::indices/delete-alias.asciidoc[]
+include::indices/delete-index.asciidoc[]
+include::indices/delete-index-template.asciidoc[]
+include::indices/delete-index-template-v1.asciidoc[]
+include::indices/indices-exists.asciidoc[]
+include::indices/field-usage-stats.asciidoc[]
+include::indices/flush.asciidoc[]
+include::indices/forcemerge.asciidoc[]
+include::indices/apis/freeze.asciidoc[]
+include::indices/get-alias.asciidoc[]
+include::indices/get-component-template.asciidoc[]
+include::indices/get-field-mapping.asciidoc[]
+include::indices/get-index.asciidoc[]
+include::indices/get-settings.asciidoc[]
+include::indices/get-index-template.asciidoc[]
+include::indices/get-index-template-v1.asciidoc[]
+include::indices/get-mapping.asciidoc[]
+include::indices/dangling-index-import.asciidoc[]
+include::indices/recovery.asciidoc[]
+include::indices/segments.asciidoc[]
+include::indices/shard-stores.asciidoc[]
+include::indices/stats.asciidoc[]
+include::indices/index-template-exists-v1.asciidoc[]
+include::indices/dangling-indices-list.asciidoc[]
+include::indices/open-close.asciidoc[]
+include::indices/refresh.asciidoc[]
+include::indices/resolve.asciidoc[]
+include::indices/rollover-index.asciidoc[]
+include::indices/shrink-index.asciidoc[]
+include::indices/simulate-index.asciidoc[]
+include::indices/simulate-template.asciidoc[]
+include::indices/split-index.asciidoc[]
+include::indices/apis/unfreeze.asciidoc[]
+include::indices/update-settings.asciidoc[]
+include::indices/put-mapping.asciidoc[]

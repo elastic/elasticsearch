@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -536,7 +537,7 @@ public class Detector implements ToXContentObject, Writeable {
             boolean emptyPartitionField = Strings.isEmpty(partitionFieldName);
 
             if (emptyField && emptyByField && emptyOverField) {
-                if (!Detector.COUNT_WITHOUT_FIELD_FUNCTIONS.contains(function)) {
+                if (Detector.COUNT_WITHOUT_FIELD_FUNCTIONS.contains(function) == false) {
                     throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_ANALYSIS_FIELD_MUST_BE_SET));
                 }
             }
@@ -547,7 +548,7 @@ public class Detector implements ToXContentObject, Writeable {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_REQUIRES_FIELDNAME, function));
             }
 
-            if (!emptyField && (Detector.FIELD_NAME_FUNCTIONS.contains(function) == false)) {
+            if (emptyField == false && (Detector.FIELD_NAME_FUNCTIONS.contains(function) == false)) {
                 throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION, function));
             }
@@ -560,7 +561,7 @@ public class Detector implements ToXContentObject, Writeable {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_REQUIRES_OVERFIELD, function));
             }
 
-            if (!emptyOverField && Detector.NO_OVER_FIELD_NAME_FUNCTIONS.contains(function)) {
+            if (emptyOverField == false && Detector.NO_OVER_FIELD_NAME_FUNCTIONS.contains(function)) {
                 throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.JOB_CONFIG_OVERFIELD_INCOMPATIBLE_FUNCTION, function));
             }
@@ -577,7 +578,7 @@ public class Detector implements ToXContentObject, Writeable {
             }
 
             // partition, by and over field names cannot be duplicates
-            if (!emptyPartitionField) {
+            if (emptyPartitionField == false) {
                 if (partitionFieldName.equals(byFieldName)) {
                     throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
                             PARTITION_FIELD_NAME_FIELD.getPreferredName(), BY_FIELD_NAME_FIELD.getPreferredName(),
@@ -589,7 +590,7 @@ public class Detector implements ToXContentObject, Writeable {
                             partitionFieldName));
                 }
             }
-            if (!emptyByField && byFieldName.equals(overFieldName)) {
+            if (emptyByField == false && byFieldName.equals(overFieldName)) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
                         BY_FIELD_NAME_FIELD.getPreferredName(), OVER_FIELD_NAME_FIELD.getPreferredName(),
                         byFieldName));

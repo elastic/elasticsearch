@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -39,17 +40,23 @@ public class TransformUsageIT extends TransformRestTestCase {
         assertTrue((boolean) XContentMapValues.extractValue("transform.available", usageAsMap));
         assertTrue((boolean) XContentMapValues.extractValue("transform.enabled", usageAsMap));
         // no transforms, no stats
-        assertEquals(null, XContentMapValues.extractValue("transform.transforms", usageAsMap));
-        assertEquals(null, XContentMapValues.extractValue("transform.stats", usageAsMap));
+        assertNull(XContentMapValues.extractValue("transform.transforms", usageAsMap));
+        assertNull(XContentMapValues.extractValue("transform.feature_counts", usageAsMap));
+        assertNull(XContentMapValues.extractValue("transform.stats", usageAsMap));
 
         // create transforms
         createPivotReviewsTransform("test_usage", "pivot_reviews", null);
         createPivotReviewsTransform("test_usage_no_stats", "pivot_reviews_no_stats", null);
         createContinuousPivotReviewsTransform("test_usage_continuous", "pivot_reviews_continuous", null);
+        createLatestReviewsTransform("test_usage_latest", "latest_reviews");
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
         usageAsMap = entityAsMap(usageResponse);
-        assertEquals(3, XContentMapValues.extractValue("transform.transforms._all", usageAsMap));
-        assertEquals(3, XContentMapValues.extractValue("transform.transforms.stopped", usageAsMap));
+        assertEquals(4, XContentMapValues.extractValue("transform.transforms._all", usageAsMap));
+        assertEquals(4, XContentMapValues.extractValue("transform.transforms.stopped", usageAsMap));
+        assertEquals(3, XContentMapValues.extractValue("transform.feature_counts.pivot", usageAsMap));
+        assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.latest", usageAsMap));
+        assertEquals(0, XContentMapValues.extractValue("transform.feature_counts.retention_policy", usageAsMap));
+        assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.sync", usageAsMap));
 
         startAndWaitForTransform("test_usage", "pivot_reviews");
         stopTransform("test_usage", false);
@@ -75,8 +82,6 @@ public class TransformUsageIT extends TransformRestTestCase {
 
         Request getRequest = new Request("GET", getTransformEndpoint() + "test_usage/_stats");
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
-        // temporary debug logs for https://github.com/elastic/elasticsearch/issues/52931
-        logger.info("test_usage/_stats response: [{}]", stats);
         Map<String, Double> expectedStats = new HashMap<>();
         for (String statName : PROVIDED_STATS) {
             @SuppressWarnings("unchecked")
@@ -87,8 +92,6 @@ public class TransformUsageIT extends TransformRestTestCase {
 
         getRequest = new Request("GET", getTransformEndpoint() + "test_usage_continuous/_stats");
         stats = entityAsMap(client().performRequest(getRequest));
-        // temporary debug logs for https://github.com/elastic/elasticsearch/issues/52931
-        logger.info("test_usage_continuous/_stats response: [{}]", stats);
         for (String statName : PROVIDED_STATS) {
             @SuppressWarnings("unchecked")
             List<Object> specificStatistic = (List<Object>) (XContentMapValues.extractValue("transforms.stats." + statName, stats));
@@ -103,16 +106,22 @@ public class TransformUsageIT extends TransformRestTestCase {
             Response response = client().performRequest(new Request("GET", "_xpack/usage"));
             Map<String, Object> statsMap = entityAsMap(response);
             // we should see some stats
-            assertEquals(3, XContentMapValues.extractValue("transform.transforms._all", statsMap));
-            assertEquals(2, XContentMapValues.extractValue("transform.transforms.stopped", statsMap));
+            assertEquals(4, XContentMapValues.extractValue("transform.transforms._all", statsMap));
+            assertEquals(3, XContentMapValues.extractValue("transform.transforms.stopped", statsMap));
             assertEquals(1, XContentMapValues.extractValue("transform.transforms.started", statsMap));
+            assertEquals(3, XContentMapValues.extractValue("transform.feature_counts.pivot", statsMap));
+            assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.latest", statsMap));
+            assertEquals(0, XContentMapValues.extractValue("transform.feature_counts.retention_policy", statsMap));
+            assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.sync", statsMap));
             for (String statName : PROVIDED_STATS) {
-                // the trigger count can be higher if the scheduler kicked before usage has been called, therefore check for gte
+                // the trigger count can be off: e.g. if the scheduler kicked in before usage has been called,
+                // or if the scheduler triggered later, but state hasn't been persisted (by design)
+                // however, we know that as we have 2 transforms, the trigger count must be greater or equal to 2
                 if (statName.equals(TransformIndexerStats.NUM_INVOCATIONS.getPreferredName())) {
                     assertThat(
                         "Incorrect stat " + statName + ", got: " + statsMap.get("transform"),
                         extractStatsAsDouble(XContentMapValues.extractValue("transform.stats." + statName, statsMap)),
-                        greaterThanOrEqualTo(expectedStats.get(statName).doubleValue())
+                        greaterThanOrEqualTo(2.0)
                     );
                 } else {
                     assertThat(
@@ -131,11 +140,15 @@ public class TransformUsageIT extends TransformRestTestCase {
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
         usageAsMap = entityAsMap(usageResponse);
 
-        assertEquals(3, XContentMapValues.extractValue("transform.transforms._all", usageAsMap));
-        assertEquals(3, XContentMapValues.extractValue("transform.transforms.stopped", usageAsMap));
+        assertEquals(4, XContentMapValues.extractValue("transform.transforms._all", usageAsMap));
+        assertEquals(4, XContentMapValues.extractValue("transform.transforms.stopped", usageAsMap));
+        assertEquals(3, XContentMapValues.extractValue("transform.feature_counts.pivot", usageAsMap));
+        assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.latest", usageAsMap));
+        assertEquals(0, XContentMapValues.extractValue("transform.feature_counts.retention_policy", usageAsMap));
+        assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.sync", usageAsMap));
     }
 
-    private double extractStatsAsDouble(Object statsObject) {
+    private static double extractStatsAsDouble(Object statsObject) {
         if (statsObject instanceof Integer) {
             return ((Integer) statsObject).doubleValue();
         } else if (statsObject instanceof Double) {

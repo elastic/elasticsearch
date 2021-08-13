@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -19,6 +21,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
@@ -35,6 +38,8 @@ import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
@@ -61,7 +66,9 @@ import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggrega
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils.BucketKeyExtractor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -75,6 +82,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.is;
@@ -112,6 +120,96 @@ public class AggregationResultUtilsTests extends ESTestCase {
             .stream()
             .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
             .collect(Collectors.toList());
+    }
+
+    class TestMultiValueAggregation extends InternalMultiValueAggregation {
+
+        private final Map<String, String> values;
+
+        TestMultiValueAggregation(String name, Map<String, String> values) {
+            super(name, emptyMap());
+            this.values = values;
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<String> getValuesAsStrings(String name) {
+            return Collections.singletonList(values.get(name).toString());
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterable<String> valueNames() {
+            return values.keySet();
+        }
+
+        @Override
+        protected boolean mustReduceOnSingleInternalAgg() {
+            return false;
+        }
+
+        @Override
+        public Object getProperty(List<String> path) {
+            return null;
+        }
+    }
+
+    class TestNumericMultiValueAggregation extends InternalNumericMetricsAggregation.MultiValue {
+
+        private final Map<String, Double> values;
+
+        TestNumericMultiValueAggregation(String name, Map<String, Double> values) {
+            super(name, emptyMap());
+            this.values = values;
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public double value(String name) {
+            return values.get(name);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterable<String> valueNames() {
+            return values.keySet();
+        }
     }
 
     @Override
@@ -550,6 +648,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             )
         );
         TransformIndexerStats stats = new TransformIndexerStats();
+        TransformProgress progress = new TransformProgress();
 
         Map<String, String> fieldTypeMap = asStringMap(aggName, "double", targetField, "keyword", targetField2, "keyword");
 
@@ -559,7 +658,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             Collections.emptyList(),
             inputFirstRun,
             fieldTypeMap,
-            stats
+            stats,
+            progress
         );
         List<Map<String, Object>> resultSecondRun = runExtraction(
             groupBy,
@@ -567,7 +667,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             Collections.emptyList(),
             inputSecondRun,
             fieldTypeMap,
-            stats
+            stats,
+            progress
         );
 
         assertNotEquals(resultFirstRun, resultSecondRun);
@@ -659,6 +760,65 @@ public class AggregationResultUtilsTests extends ESTestCase {
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("metric", "unsigned_long"), ""),
             equalTo(100L)
+        );
+    }
+
+    public void testMultiValueAggExtractor() {
+        Aggregation agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("ip", "192.168.1.1"));
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.ip", "ip"), ""),
+            equalTo(Collections.singletonMap("ip", "192.168.1.1"))
+        );
+
+        agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("top_answer", "fortytwo"));
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.written_answer", "written_answer"), ""),
+            equalTo(Collections.singletonMap("top_answer", "fortytwo"))
+        );
+
+        agg = new TestMultiValueAggregation("mv_metric", Map.of("ip", "192.168.1.1", "top_answer", "fortytwo"));
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Map.of("mv_metric.top_answer", "keyword", "mv_metric.ip", "ip"), ""),
+            equalTo(Map.of("top_answer", "fortytwo", "ip", "192.168.1.1"))
+        );
+    }
+
+    public void testNumericMultiValueAggExtractor() {
+        Aggregation agg = new TestNumericMultiValueAggregation(
+            "mv_metric",
+            Collections.singletonMap("approx_answer", Double.valueOf(42.2))
+        );
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.approx_answer", "double"), ""),
+            equalTo(Collections.singletonMap("approx_answer", Double.valueOf(42.2)))
+        );
+
+        agg = new TestNumericMultiValueAggregation("mv_metric", Collections.singletonMap("exact_answer", Double.valueOf(42.0)));
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.exact_answer", "long"), ""),
+            equalTo(Collections.singletonMap("exact_answer", Long.valueOf(42)))
+        );
+
+        agg = new TestNumericMultiValueAggregation(
+            "mv_metric",
+            Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Double.valueOf(42.0))
+        );
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg)
+                .value(agg, Map.of("mv_metric.approx_answer", "double", "mv_metric.exact_answer", "long"), ""),
+            equalTo(Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
+        );
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg)
+                .value(agg, Map.of("filter.mv_metric.approx_answer", "double", "filter.mv_metric.exact_answer", "long"), "filter"),
+            equalTo(Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
         );
     }
 
@@ -871,6 +1031,26 @@ public class AggregationResultUtilsTests extends ESTestCase {
         );
     }
 
+    public void testDefaultBucketKeyExtractor() {
+        BucketKeyExtractor extractor = new AggregationResultUtils.DefaultBucketKeyExtractor();
+
+        assertThat(extractor.value(42.0, "long"), equalTo(42L));
+        assertThat(extractor.value(42.2, "double"), equalTo(42.2));
+        assertThat(extractor.value(1577836800000L, "date"), equalTo("2020-01-01T00:00:00.000Z"));
+        assertThat(extractor.value(1577836800000L, "date_nanos"), equalTo("2020-01-01T00:00:00.000Z"));
+        assertThat(extractor.value(1577836800000L, "long"), equalTo(1577836800000L));
+    }
+
+    public void testDatesAsEpochBucketKeyExtractor() {
+        BucketKeyExtractor extractor = new AggregationResultUtils.DatesAsEpochBucketKeyExtractor();
+
+        assertThat(extractor.value(42.0, "long"), equalTo(42L));
+        assertThat(extractor.value(42.2, "double"), equalTo(42.2));
+        assertThat(extractor.value(1577836800000L, "date"), equalTo(1577836800000L));
+        assertThat(extractor.value(1577836800000L, "date_nanos"), equalTo(1577836800000L));
+        assertThat(extractor.value(1577836800000L, "long"), equalTo(1577836800000L));
+    }
+
     private void executeTest(
         GroupConfig groups,
         Collection<AggregationBuilder> aggregationBuilders,
@@ -881,6 +1061,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         long expectedDocCounts
     ) throws IOException {
         TransformIndexerStats stats = new TransformIndexerStats();
+        TransformProgress progress = new TransformProgress();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 
@@ -890,7 +1071,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             pipelineAggregationBuilders,
             input,
             fieldTypeMap,
-            stats
+            stats,
+            progress
         );
 
         // remove the document ids and test uniqueness
@@ -909,7 +1091,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
         Collection<PipelineAggregationBuilder> pipelineAggregationBuilders,
         Map<String, Object> input,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats stats
+        TransformIndexerStats stats,
+        TransformProgress progress
     ) throws IOException {
 
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -923,7 +1106,9 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 aggregationBuilders,
                 pipelineAggregationBuilders,
                 fieldTypeMap,
-                stats
+                stats,
+                progress,
+                true
             ).collect(Collectors.toList());
         }
     }

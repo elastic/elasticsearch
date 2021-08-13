@@ -1,10 +1,10 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('ccr'))
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
@@ -17,40 +17,41 @@ tasks.register("resolve") {
     println "configurations.testCompileClasspath.files " + configurations.testCompileClasspath.files.size()
   }
 }
-task 'leader-cluster'(type: RestIntegTestTask) {
+
+testClusters {
+  'leader-cluster' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    extraConfigFile 'roles.yml', file('leader-roles.yml')
+    user username: "test_admin", role: "superuser"
+    user username: "test_ccr", role: "ccruser"
+  }
+
+  'follow-cluster' {
+    testDistribution = 'DEFAULT'
+    setting 'cluster.remote.leader_cluster.seeds', {
+      "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\""
+    }
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.monitoring.collection.enabled', 'true'
+    extraConfigFile 'roles.yml', file('follower-roles.yml')
+    user username: "test_admin", role: "superuser"
+    user username: "test_ccr", role: "ccruser"
+  }
+}
+
+tasks.register('leader-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
 }
 
-testClusters.'leader-cluster' {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  extraConfigFile 'roles.yml', file('leader-roles.yml')
-  user username: "test_admin", role: "superuser"
-  user username: "test_ccr", role: "ccruser"
-}
-
-task 'follow-cluster'(type: RestIntegTestTask) {
+tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn 'leader-cluster'
   useCluster testClusters.'leader-cluster'
   systemProperty 'tests.target_cluster', 'follow'
   nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
 }
 
-testClusters.'follow-cluster' {
-  testDistribution = 'DEFAULT'
-  setting 'cluster.remote.leader_cluster.seeds', {
-    "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\""
-  }
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.monitoring.collection.enabled', 'true'
-  extraConfigFile 'roles.yml', file('follower-roles.yml')
-  user username: "test_admin", role: "superuser"
-  user username: "test_ccr", role: "ccruser"
-}
-
 tasks.named("check").configure { dependsOn('follow-cluster') }
-// no unit tests for multi-cluster-search, only the rest integration test
-tasks.named("test").configure { enabled = false }

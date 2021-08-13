@@ -5,6 +5,10 @@
       "description":"Returns information about whether a particular document type exists. (DEPRECATED)"
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

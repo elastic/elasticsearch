@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -31,8 +20,11 @@ import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.ClearSecurityCacheResponse;
+import org.elasticsearch.client.security.ClearServiceAccountTokenCacheRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
+import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
+import org.elasticsearch.client.security.CreateServiceAccountTokenResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
@@ -43,6 +35,8 @@ import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
@@ -57,18 +51,25 @@ import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
+import org.elasticsearch.client.security.GetServiceAccountCredentialsRequest;
+import org.elasticsearch.client.security.GetServiceAccountCredentialsResponse;
+import org.elasticsearch.client.security.GetServiceAccountsRequest;
+import org.elasticsearch.client.security.GetServiceAccountsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesRequest;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.GetUserPrivilegesRequest;
 import org.elasticsearch.client.security.GetUserPrivilegesResponse;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GetUsersResponse;
+import org.elasticsearch.client.security.GrantApiKeyRequest;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
+import org.elasticsearch.client.security.NodeEnrollmentRequest;
+import org.elasticsearch.client.security.NodeEnrollmentResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutPrivilegesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -77,6 +78,8 @@ import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
+import org.elasticsearch.client.security.KibanaEnrollmentRequest;
+import org.elasticsearch.client.security.KibanaEnrollmentResponse;
 
 import java.io.IOException;
 
@@ -578,6 +581,38 @@ public final class SecurityClient {
     }
 
     /**
+     * Clears the service account token cache for the specified namespace, service-name and list of token names.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-service-token-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with namespace, service-name and token names for the service account tokens
+     *                that should be cleared from the cache.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the clear security cache call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */public ClearSecurityCacheResponse clearServiceAccountTokenCache(ClearServiceAccountTokenCacheRequest request,
+                                                                       RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::clearServiceAccountTokenCache,
+            options, ClearSecurityCacheResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Clears the service account token cache for the specified namespace, service-name and list of token names asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-service-token-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with namespace, service-name and token names for the service account tokens
+     *                that should be cleared from the cache.
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */public Cancellable clearServiceAccountTokenCacheAsync(ClearServiceAccountTokenCacheRequest request, RequestOptions options,
+                                                             ActionListener<ClearSecurityCacheResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearServiceAccountTokenCache,
+            options, ClearSecurityCacheResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Synchronously retrieve the X.509 certificates that are used to encrypt communications in an Elasticsearch cluster.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-ssl.html">
      * the docs</a> for more.
@@ -1076,6 +1111,162 @@ public final class SecurityClient {
     }
 
     /**
+     * Create an API Key on behalf of another user.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-grant-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to grant an API key
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create API key call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CreateApiKeyResponse grantApiKey(final GrantApiKeyRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::grantApiKey, options,
+            CreateApiKeyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates an API key on behalf of another user.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-grant-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to grant an API key
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable grantApiKeyAsync(final GrantApiKeyRequest request, final RequestOptions options,
+                                         final ActionListener<CreateApiKeyResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::grantApiKey, options,
+            CreateApiKeyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Get a service account, or list of service accounts synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-service-accounts.html">
+     * the docs</a> for more information.
+     * @param request the request with namespace and service-name
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the get service accounts call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetServiceAccountsResponse getServiceAccounts(GetServiceAccountsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getServiceAccounts, options,
+            GetServiceAccountsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Get a service account, or list of service accounts asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-service-accounts.html">
+     * the docs</a> for more information.
+     * @param request the request with namespace and service-name
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getServiceAccountsAsync(GetServiceAccountsRequest request, RequestOptions options,
+                                               ActionListener<GetServiceAccountsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getServiceAccounts, options,
+            GetServiceAccountsResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Create a service account token.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-service-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to create a service account token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create service account token call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CreateServiceAccountTokenResponse createServiceAccountToken(final CreateServiceAccountTokenRequest request,
+                                                                       final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::createServiceAccountToken, options,
+            CreateServiceAccountTokenResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates a service account token.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-service-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to create a service account token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable createServiceAccountTokenAsync(final CreateServiceAccountTokenRequest request,
+                                                      final RequestOptions options,
+                                                      final ActionListener<CreateServiceAccountTokenResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::createServiceAccountToken, options,
+            CreateServiceAccountTokenResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Delete a service account token.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-service-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to delete a service account token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create service account token call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DeleteServiceAccountTokenResponse deleteServiceAccountToken(final DeleteServiceAccountTokenRequest request,
+                                                                       final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::deleteServiceAccountToken, options,
+            DeleteServiceAccountTokenResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously deletes a service account token.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-service-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to delete a service account token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable deleteServiceAccountTokenAsync(final DeleteServiceAccountTokenRequest request,
+                                                      final RequestOptions options,
+                                                      final ActionListener<DeleteServiceAccountTokenResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteServiceAccountToken, options,
+            DeleteServiceAccountTokenResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Get credentials for a service account synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-service-credentails.html">
+     * the docs</a> for more information.
+     * @param request the request with namespace and service-name
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the get service accounts call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetServiceAccountCredentialsResponse getServiceAccountCredentials(GetServiceAccountCredentialsRequest request,
+                                                                             RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getServiceAccountCredentials,
+            options, GetServiceAccountCredentialsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Get credentials for a service account asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-service-credentails.html">
+     * the docs</a> for more information.
+     * @param request the request with namespace and service-name
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getServiceAccountCredentialsAsync(GetServiceAccountCredentialsRequest request, RequestOptions options,
+                                                         ActionListener<GetServiceAccountCredentialsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getServiceAccountCredentials,
+            options, GetServiceAccountCredentialsResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Get an Elasticsearch access token from an {@code X509Certificate} chain. The certificate chain is that of the client from a mutually
      * authenticated TLS session, and it is validated by the PKI realms with {@code delegation.enabled} toggled to {@code true}.<br>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delegate-pki-authentication.html"> the
@@ -1109,4 +1300,55 @@ public final class SecurityClient {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
                 DelegatePkiAuthenticationResponse::fromXContent, listener, emptySet());
     }
+
+    /**
+     * Allows a node to join to a cluster with security features enabled using the Enroll Node API.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public NodeEnrollmentResponse enrollNode(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            NodeEnrollmentRequest.INSTANCE, NodeEnrollmentRequest::getRequest,
+            options, NodeEnrollmentResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously allows a node to join to a cluster with security features enabled using the Enroll Node API.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
+     */
+    public Cancellable enrollNodeAsync(RequestOptions options, ActionListener<NodeEnrollmentResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(NodeEnrollmentRequest.INSTANCE, NodeEnrollmentRequest::getRequest,
+            options, NodeEnrollmentResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Allows a kibana instance to configure itself to connect to a secured cluster using the Enroll Kibana API
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public KibanaEnrollmentResponse enrollKibana(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            KibanaEnrollmentRequest.INSTANCE,
+            KibanaEnrollmentRequest::getRequest,
+            options,
+            KibanaEnrollmentResponse::fromXContent,
+            emptySet());
+    }
+
+    /**
+     * Asynchronously allows a kibana instance to configure itself to connect to a secured cluster using the Enroll Kibana API
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public Cancellable enrollKibanaAsync(
+        RequestOptions options,
+        ActionListener<KibanaEnrollmentResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            KibanaEnrollmentRequest.INSTANCE,
+            KibanaEnrollmentRequest::getRequest, options, KibanaEnrollmentResponse::fromXContent, listener, emptySet());
+    }
+
 }

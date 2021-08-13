@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -13,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * Invokes a close step on a single index.
@@ -27,9 +29,9 @@ public class CloseIndexStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                              ClusterStateObserver observer, Listener listener) {
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
-            CloseIndexRequest request = new CloseIndexRequest(indexMetadata.getIndex().getName());
+            CloseIndexRequest request = new CloseIndexRequest(indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE);
             getClient().admin().indices()
                 .close(request, ActionListener.wrap(closeIndexResponse -> {
                     if (closeIndexResponse.isAcknowledged() == false) {

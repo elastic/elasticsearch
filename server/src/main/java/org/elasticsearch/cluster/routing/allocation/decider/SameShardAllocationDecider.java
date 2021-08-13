@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -27,6 +16,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 
 /**
  * An allocation decider that prevents multiple instances of the same shard to
@@ -69,6 +60,9 @@ public class SameShardAllocationDecider extends AllocationDecider {
     private static final Decision YES_NONE_HOLD_COPY =
             Decision.single(Decision.Type.YES, NAME, "none of the nodes on this host hold a copy of this shard");
 
+    private static final Decision YES_AUTO_EXPAND_ALL = Decision.single(Decision.Type.YES, NAME,
+            "same-host allocation is ignored, this index is set to auto-expand to all nodes");
+
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         Iterable<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting.shardId());
@@ -76,6 +70,10 @@ public class SameShardAllocationDecider extends AllocationDecider {
         if (decision.type() == Decision.Type.NO || sameHost == false) {
             // if its already a NO decision looking at the node, or we aren't configured to look at the host, return the decision
             return decision;
+        }
+        if (INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(
+                allocation.metadata().getIndexSafe(shardRouting.index()).getSettings()).expandToAllNodes()) {
+            return YES_AUTO_EXPAND_ALL;
         }
         if (node.node() != null) {
             for (RoutingNode checkNode : allocation.routingNodes()) {

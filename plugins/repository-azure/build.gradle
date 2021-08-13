@@ -1,88 +1,322 @@
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.InternalClusterTestPlugin
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.PropertyNormalization
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
   classname 'org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
 }
 
+versions << [
+  'azure': '12.9.0',
+  'azureCore': '1.10.0',
+  'azureCoreHttpNetty': '1.6.3',
+
+  'jakartaActivation': '1.2.1',
+  'jakartaXMLBind': '2.3.2',
+  'stax2API': '4.2',
+  'woodstox': '6.0.2',
+
+  'reactorNetty': '0.9.12.RELEASE',
+  'reactorCore': '3.3.10.RELEASE',
+  'reactiveStreams': '1.0.3',
+]
+
 dependencies {
-  api 'com.microsoft.azure:azure-storage:8.6.2'
-  api 'com.microsoft.azure:azure-keyvault-core:1.0.0'
-  runtimeOnly 'com.google.guava:guava:20.0'
-  api 'org.apache.commons:commons-lang3:3.4'
+  api project(path: 'azure-storage-blob', configuration: 'shadow')
+  if (isEclipse) {
+    /*
+     * Eclipse can't pick up the shadow dependency so we point it at *something*
+     * so it can compile things.
+     */
+    api project(path: 'azure-storage-blob')
+  }
+  api "com.azure:azure-storage-common:${versions.azure}"
+  api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
+  api "com.azure:azure-core:${versions.azureCore}"
+
+  // jackson
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+
+  // jackson xml
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
+  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
+  api "jakarta.activation:jakarta.activation-api:${versions.jakartaActivation}"
+  api "jakarta.xml.bind:jakarta.xml.bind-api:${versions.jakartaXMLBind}"
+  api "org.codehaus.woodstox:stax2-api:${versions.stax2API}"
+  api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
+
+  // netty
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec-http:${versions.netty}"
+  api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-codec-socks:${versions.netty}"
+  api "io.netty:netty-codec:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "io.netty:netty-handler-proxy:${versions.netty}"
+  api "io.netty:netty-handler:${versions.netty}"
+  api "io.netty:netty-resolver:${versions.netty}"
+  api "io.netty:netty-transport:${versions.netty}"
+
+  // reactor
+  api "io.projectreactor.netty:reactor-netty:${versions.reactorNetty}"
+  api "io.projectreactor:reactor-core:${versions.reactorCore}"
+  api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
+
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+
   testImplementation project(':test:fixtures:azure-fixture')
+}
+
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
+tasks.named("internalClusterTestJar").configure {
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
+    include '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
   }
 }
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /jersey-.*/, to: 'jersey'
+  mapping from: /netty-.*/, to: 'netty'
   mapping from: /jaxb-.*/, to: 'jaxb'
   mapping from: /stax-.*/, to: 'stax'
+  mapping from: /reactive-streams.*/, to: 'reactive-streams'
 }
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-    // Optional and not enabled by Elasticsearch
-    'org.slf4j.Logger',
-    'org.slf4j.LoggerFactory'
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+
+    // from reactory-netty metric collection
+    'io.micrometer.core.instrument.Clock',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.Tag',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.micrometer.core.instrument.search.Search',
+    'io.micrometer.core.instrument.Gauge',
+    'io.micrometer.core.instrument.Gauge$Builder',
+
+    // from reactor-core kotlin extensions (to be deprecated from the library at some point on 3.3.x release)
+    'kotlin.TypeCastException',
+    'kotlin.collections.ArraysKt',
+    'kotlin.jvm.JvmClassMappingKt',
+    'kotlin.jvm.functions.Function0',
+    'kotlin.jvm.functions.Function1',
+    'kotlin.jvm.internal.FunctionReference',
+    'kotlin.jvm.internal.Intrinsics',
+    'kotlin.jvm.internal.Reflection',
+    'kotlin.jvm.internal.markers.KMappedMarker',
+    'kotlin.reflect.KClass',
+    'kotlin.reflect.KDeclarationContainer',
+    'kotlin.sequences.Sequence',
+
+    // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
+    'com.google.protobuf.ExtensionRegistry',
+    'com.google.protobuf.MessageLite$Builder',
+    'com.google.protobuf.MessageLite',
+    'com.google.protobuf.Parser',
+    'com.google.protobuf.ExtensionRegistryLite',
+    'com.google.protobuf.MessageLiteOrBuilder',
+    'com.google.protobuf.nano.CodedOutputByteBufferNano',
+    'com.google.protobuf.nano.MessageNano',
+
+    // from io.netty.logging.CommonsLoggerFactory (netty)
+    'org.apache.commons.logging.Log',
+    'org.apache.commons.logging.LogFactory',
+
+    // from Log4j (deliberate, Netty will fallback to Log4j 2)
+    'org.apache.log4j.Level',
+    'org.apache.log4j.Logger',
+
+    // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
+    'org.bouncycastle.jce.provider.BouncyCastleProvider',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.asn1.x500.X500Name',
+
+    // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
+    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
+    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
+    'org.eclipse.jetty.npn.NextProtoNego',
+
+    // from io.netty.handler.codec.marshalling.ChannelBufferByteInput (netty)
+    'org.jboss.marshalling.ByteInput',
+
+    // from io.netty.handler.codec.marshalling.ChannelBufferByteOutput (netty)
+    'org.jboss.marshalling.ByteOutput',
+
+    // from io.netty.handler.codec.marshalling.CompatibleMarshallingEncoder (netty)
+    'org.jboss.marshalling.Marshaller',
+
+    // from io.netty.handler.codec.marshalling.ContextBoundUnmarshallerProvider (netty)
+    'org.jboss.marshalling.MarshallerFactory',
+    'org.jboss.marshalling.MarshallingConfiguration',
+    'org.jboss.marshalling.Unmarshaller',
+
+    // from io.netty.handler.codec.spdy.SpdyHeaderBlockJZlibEncoder (netty-codec-http)
+    'com.jcraft.jzlib.Deflater',
+    'com.jcraft.jzlib.Inflater',
+    'com.jcraft.jzlib.JZlib$WrapperType',
+    'com.jcraft.jzlib.JZlib',
+
+    'com.github.luben.zstd.Zstd',
+
+    // from io.netty.handler.codec.compression.LzfDecoder
+    // from io.netty.handler.codec.compression.LzfEncoder (netty-codec)
+    'com.ning.compress.BufferRecycler',
+    'com.ning.compress.lzf.ChunkDecoder',
+    'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
+    'com.ning.compress.lzf.LZFEncoder',
+    'com.ning.compress.lzf.util.ChunkDecoderFactory',
+    'com.ning.compress.lzf.util.ChunkEncoderFactory',
+
+    // from io.netty.handler.codec.compression.LzmaFrameEncoder (netty-codec)
+    'lzma.sdk.lzma.Encoder',
+
+    // from io.netty.handler.ssl.JettyAlpnSslEngin (netty-handler optional dependency)
+    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
+    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
+    'org.eclipse.jetty.alpn.ALPN',
+
+    // from io.netty.handler.ssl.ConscryptAlpnSslEngine (netty-handler optional dependency)
+    'org.conscrypt.AllocatedBuffer',
+    'org.conscrypt.BufferAllocator',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.HandshakeListener',
+
+    // from io.netty.handler.ssl.OpenSslEngine (netty)
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
+    'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.Library',
+    'io.netty.internal.tcnative.SSL',
+    'io.netty.internal.tcnative.SSLContext',
+    'io.netty.internal.tcnative.SSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.CertificateCallback',
+    'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.ResultCallback',
+    'io.netty.internal.tcnative.SessionTicketKey',
+    'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
+
+    // from io.netty.util.internal.Hidden (netty-common optional dependency)
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+
+    // it uses NIO
+    'io.netty.channel.kqueue.KQueue',
+    'io.netty.channel.kqueue.KQueueDatagramChannel',
+    'io.netty.channel.kqueue.KQueueEventLoopGroup',
+    'io.netty.channel.kqueue.KQueueServerSocketChannel',
+    'io.netty.channel.kqueue.KQueueSocketChannel',
+    'io.netty.channel.epoll.Epoll',
+    'io.netty.channel.epoll.EpollDatagramChannel',
+    'io.netty.channel.epoll.EpollEventLoopGroup',
+    'io.netty.channel.epoll.EpollServerSocketChannel',
+    'io.netty.channel.epoll.EpollSocketChannel',
+
+    // from reactor.netty.http.server.HttpServer (reactor-netty)
+    'io.netty.handler.codec.haproxy.HAProxyMessage',
+    'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
+
+    // from com.ctc.wstx.osgi.WstxBundleActivator (woodstox-core)
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
+
+    // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
+    'com.sun.org.apache.xml.internal.resolver.Catalog',
+    'com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver',
+
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder',
   )
 
   ignoreViolations(
-    // uses internal java api: sun.misc.Unsafe
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+
+    'io.netty.util.internal.PlatformDependent0',
+    'io.netty.util.internal.PlatformDependent0$1',
+    'io.netty.util.internal.PlatformDependent0$2',
+    'io.netty.util.internal.PlatformDependent0$3',
+    'io.netty.util.internal.PlatformDependent0$5',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+
+    'javax.activation.MailcapCommandMap',
+    'javax.activation.MimetypesFileTypeMap',
+
+    'reactor.core.publisher.MultiProducerRingBuffer',
+    'reactor.core.publisher.RingBufferFields',
+    'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
+    'reactor.core.publisher.UnsafeSequence',
+    'reactor.core.publisher.UnsafeSupport'
   )
 }
-
 boolean useFixture = false
 
 def azureAddress = {
   assert useFixture: 'closure should not be used without a fixture'
   int ephemeralPort = project(':test:fixtures:azure-fixture').postProcessFixture.ext."test.fixtures.azure-fixture.tcp.8091"
   assert ephemeralPort > 0
-  return 'ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://127.0.0.1:' + ephemeralPort + '/'
+  return 'ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://127.0.0.1:' + ephemeralPort + '/azure_integration_test_account'
 }
 
 String azureAccount = System.getenv("azure_storage_account")
@@ -103,23 +337,22 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   testFixtures.useFixture ':test:fixtures:azure-fixture', 'azure-fixture'
 }
 
-Map<String, Object> expansions = [
+Map<String, String> expansions = [
   'container': azureContainer,
   'base_path': azureBasePath + "_integration_tests"
 ]
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
-internalClusterTest {
+tasks.named("internalClusterTest").configure {
   // this is tested explicitly in a separate test task
   exclude '**/AzureStorageCleanupThirdPartyTests.class'
 }
 
-testClusters {
-  yamlRestTest {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
     keystore 'azure.client.integration_test.account', azureAccount
     if (azureKey != null && azureKey.isEmpty() == false) {
       keystore 'azure.client.integration_test.key', azureKey
@@ -130,17 +363,18 @@ testClusters {
     if (useFixture) {
       setting 'azure.client.integration_test.endpoint_suffix', azureAddress
       String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
-      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
+
+      def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').forUseAtConfigurationTime().isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
+      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), ignoreTestSeed
     }
-  }
 }
 
-task azureThirdPartyTest(type: Test) {
+tasks.register("azureThirdPartyTest", Test) {
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  dependsOn tasks.internalClusterTest
+  dependsOn "internalClusterTest"
   include '**/AzureStorageCleanupThirdPartyTests.class'
   systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
   systemProperty 'test.azure.key', azureKey ? azureKey : ""

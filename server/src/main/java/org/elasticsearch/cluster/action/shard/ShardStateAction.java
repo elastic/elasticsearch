@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.action.shard;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -35,19 +25,24 @@ import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -58,16 +53,18 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestDeduplicator;
+import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -85,7 +82,7 @@ public class ShardStateAction {
 
     // a list of shards that failed during replication
     // we keep track of these shards in order to avoid sending duplicate failed shard requests for a single failing shard.
-    private final TransportRequestDeduplicator<FailedShardEntry> remoteFailedShardsDeduplicator = new TransportRequestDeduplicator<>();
+    private final ResultDeduplicator<FailedShardEntry, Void> remoteFailedShardsDeduplicator = new ResultDeduplicator<>();
 
     @Inject
     public ShardStateAction(ClusterService clusterService, TransportService transportService,
@@ -138,7 +135,7 @@ public class ShardStateAction {
         }
     }
 
-    private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class[]{
+    private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class<?>[]{
         NotMasterException.class,
         ConnectTransportException.class,
         FailedToCommitClusterStateException.class
@@ -473,16 +470,23 @@ public class ShardStateAction {
     public void shardStarted(final ShardRouting shardRouting,
                              final long primaryTerm,
                              final String message,
+                             final ShardLongFieldRange timestampRange,
                              final ActionListener<Void> listener) {
-        shardStarted(shardRouting, primaryTerm, message, listener, clusterService.state());
+        shardStarted(shardRouting, primaryTerm, message, timestampRange, listener, clusterService.state());
     }
 
     public void shardStarted(final ShardRouting shardRouting,
                              final long primaryTerm,
                              final String message,
+                             final ShardLongFieldRange timestampRange,
                              final ActionListener<Void> listener,
                              final ClusterState currentState) {
-        StartedShardEntry entry = new StartedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), primaryTerm, message);
+        final StartedShardEntry entry = new StartedShardEntry(
+                shardRouting.shardId(),
+                shardRouting.allocationId().getId(),
+                primaryTerm,
+                message,
+                timestampRange);
         sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, entry, listener);
     }
 
@@ -529,6 +533,7 @@ public class ShardStateAction {
             List<StartedShardEntry> tasksToBeApplied = new ArrayList<>();
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
+            final Map<Index, IndexLongFieldRange> updatedTimestampRanges = new HashMap<>();
             for (StartedShardEntry task : tasks) {
                 final ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
                 if (matched == null) {
@@ -569,6 +574,22 @@ public class ShardStateAction {
                             tasksToBeApplied.add(task);
                             shardRoutingsToBeApplied.add(matched);
                             seenShardRoutings.add(matched);
+
+                            // expand the timestamp range recorded in the index metadata if needed
+                            final Index index = task.shardId.getIndex();
+                            IndexLongFieldRange currentTimestampMillisRange = updatedTimestampRanges.get(index);
+                            final IndexMetadata indexMetadata = currentState.metadata().index(index);
+                            if (currentTimestampMillisRange == null) {
+                                currentTimestampMillisRange = indexMetadata.getTimestampRange();
+                            }
+                            final IndexLongFieldRange newTimestampMillisRange;
+                            newTimestampMillisRange = currentTimestampMillisRange.extendWithShardRange(
+                                    task.shardId.id(),
+                                    indexMetadata.getNumberOfShards(),
+                                    task.timestampRange);
+                            if (newTimestampMillisRange != currentTimestampMillisRange) {
+                                updatedTimestampRanges.put(index, newTimestampMillisRange);
+                            }
                         }
                     }
                 }
@@ -578,6 +599,19 @@ public class ShardStateAction {
             ClusterState maybeUpdatedState = currentState;
             try {
                 maybeUpdatedState = allocationService.applyStartedShards(currentState, shardRoutingsToBeApplied);
+
+                if (updatedTimestampRanges.isEmpty() == false) {
+                    final Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
+                    for (Map.Entry<Index, IndexLongFieldRange> updatedTimestampRangeEntry : updatedTimestampRanges.entrySet()) {
+                        metadataBuilder.put(IndexMetadata
+                                .builder(metadataBuilder.getSafe(updatedTimestampRangeEntry.getKey()))
+                                .timestampRange(updatedTimestampRangeEntry.getValue()));
+                    }
+                    maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
+                }
+
+                assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
+
                 builder.successes(tasksToBeApplied);
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);
@@ -585,6 +619,16 @@ public class ShardStateAction {
             }
 
             return builder.build(maybeUpdatedState);
+        }
+
+        private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
+            for (ObjectObjectCursor<String, IndexRoutingTable> cursor : clusterState.getRoutingTable().getIndicesRouting()) {
+                assert cursor.value.allPrimaryShardsActive() == false
+                        || clusterState.metadata().index(cursor.key).getTimestampRange().isComplete()
+                        : "index [" + cursor.key + "] should have complete timestamp range, but got "
+                        + clusterState.metadata().index(cursor.key).getTimestampRange() + " for " + cursor.value.prettyPrint();
+            }
+            return true;
         }
 
         @Override
@@ -609,6 +653,7 @@ public class ShardStateAction {
         final String allocationId;
         final long primaryTerm;
         final String message;
+        final ShardLongFieldRange timestampRange;
 
         StartedShardEntry(StreamInput in) throws IOException {
             super(in);
@@ -616,13 +661,19 @@ public class ShardStateAction {
             allocationId = in.readString();
             primaryTerm = in.readVLong();
             this.message = in.readString();
+            this.timestampRange = ShardLongFieldRange.readFrom(in);
         }
 
-        public StartedShardEntry(final ShardId shardId, final String allocationId, final long primaryTerm, final String message) {
+        public StartedShardEntry(final ShardId shardId,
+                                 final String allocationId,
+                                 final long primaryTerm,
+                                 final String message,
+                                 final ShardLongFieldRange timestampRange) {
             this.shardId = shardId;
             this.allocationId = allocationId;
             this.primaryTerm = primaryTerm;
             this.message = message;
+            this.timestampRange = timestampRange;
         }
 
         @Override
@@ -632,6 +683,7 @@ public class ShardStateAction {
             out.writeString(allocationId);
             out.writeVLong(primaryTerm);
             out.writeString(message);
+            timestampRange.writeTo(out);
         }
 
         @Override

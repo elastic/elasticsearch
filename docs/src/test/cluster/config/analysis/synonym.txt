@@ -4,7 +4,7 @@
 # and replace with all alternatives on the RHS.  These types of mappings
 # ignore the expand parameter in the schema.
 # Examples:
-i-pod, i pod => ipod,
+i-pod, i pod => ipod
 sea biscuit, sea biscit => seabiscuit
 
 # Equivalent synonyms may be separated with commas and give

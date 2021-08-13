@@ -65,7 +65,7 @@ public class ConstructionContext<T> {
         // the implementation type, I'll be able to get away with one proxy
         // instance (as opposed to one per caller).
 
-        if (!expectedType.isInterface()) {
+        if (expectedType.isInterface() == false) {
             throw errors.cannotSatisfyCircularDependency(expectedType).toException();
         }
 
@@ -82,7 +82,7 @@ public class ConstructionContext<T> {
         ClassLoader classLoader = expectedType.getClassLoader() == null ?
             ClassLoader.getSystemClassLoader() : expectedType.getClassLoader();
         return expectedType.cast(Proxy.newProxyInstance(classLoader,
-                new Class[]{expectedType}, invocationHandler));
+                new Class<?>[]{expectedType}, invocationHandler));
     }
 
     public void setProxyDelegates(T delegate) {

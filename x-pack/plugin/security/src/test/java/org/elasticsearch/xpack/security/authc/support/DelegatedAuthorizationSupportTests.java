@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support;
 
@@ -193,7 +194,6 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
 
     private XPackLicenseState getLicenseState(boolean authzRealmsAllowed) {
         final XPackLicenseState license = mock(XPackLicenseState.class);
-        when(license.isSecurityEnabled()).thenReturn(true);
         when(license.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(authzRealmsAllowed);
         return license;
     }

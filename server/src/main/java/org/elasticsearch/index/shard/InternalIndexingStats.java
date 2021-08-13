@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.shard;
@@ -71,7 +60,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
-        if (!index.origin().isRecovery()) {
+        if (index.origin().isRecovery() == false) {
             totalStats.indexCurrent.dec();
             totalStats.indexFailed.inc();
         }
@@ -79,7 +68,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-        if (!delete.origin().isRecovery()) {
+        if (delete.origin().isRecovery() == false) {
             totalStats.deleteCurrent.inc();
         }
         return delete;
@@ -90,7 +79,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
         switch (result.getResultType()) {
             case SUCCESS:
-                if (!delete.origin().isRecovery()) {
+                if (delete.origin().isRecovery() == false) {
                     long took = result.getTook();
                     totalStats.deleteMetric.inc(took);
                     totalStats.deleteCurrent.dec();
@@ -106,7 +95,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public void postDelete(ShardId shardId, Engine.Delete delete, Exception ex) {
-        if (!delete.origin().isRecovery()) {
+        if (delete.origin().isRecovery() == false) {
             totalStats.deleteCurrent.dec();
         }
     }

@@ -5,14 +5,14 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put {anomaly-jobs} in calendar API
+=== Add {anomaly-jobs} to calendar API
 
 Adds {anomaly-jobs} jobs to an existing {ml} calendar.
 The API accepts a +{request}+ and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Put {anomaly-jobs} in calendar request
+==== Request
 
 A +{request}+ is constructed referencing a non-null
 calendar ID, and JobIDs to which to add to the calendar
@@ -25,7 +25,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <2> The JobIds to add to the calendar
 
 [id="{upid}-{api}-response"]
-==== Put {anomaly-jobs} in calendar response
+==== Response
 
 The returned +{response}+ contains the updated calendar:
 

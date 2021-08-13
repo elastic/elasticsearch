@@ -12,6 +12,12 @@ Returns cluster-level changes that have not yet been executed, similar to the
 
 `GET /_cat/pending_tasks`
 
+[[cat-pending-tasks-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[cat-pending-tasks-api-query-params]]
 ==== {api-query-parms-title}
 
@@ -37,7 +43,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/pending_tasks?v
+GET /_cat/pending_tasks?v=true
 --------------------------------------------------
 
 The API returns the following response:

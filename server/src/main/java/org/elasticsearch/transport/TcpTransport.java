@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -47,7 +36,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -144,10 +133,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
+        Compression.Scheme compressionScheme = TransportSettings.TRANSPORT_COMPRESSION_SCHEME.get(settings);
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, bigArrays);
+        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, bigArrays, compressionScheme);
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
@@ -186,6 +176,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     @Override
     public void setSlowLogThreshold(TimeValue slowLogThreshold) {
         inboundHandler.setSlowLogThreshold(slowLogThreshold);
+        outboundHandler.setSlowLogThreshold(slowLogThreshold);
     }
 
     public final class NodeChannels extends CloseableConnection {
@@ -193,7 +184,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
         private final Version version;
-        private final boolean compress;
+        private final Compression.Enabled compress;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
         NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
@@ -252,7 +243,23 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
+            // We compress if total transport compression is enabled or if indexing_data transport compression
+            // is enabled and the request is a RawIndexingDataTransportRequest which indicates it should be
+            // compressed.
+            boolean shouldCompress = compress == Compression.Enabled.TRUE ||
+                (compress == Compression.Enabled.INDEXING_DATA
+                    && request instanceof RawIndexingDataTransportRequest
+                    && ((RawIndexingDataTransportRequest) request).isRawIndexingData());
+            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), shouldCompress, false);
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append("NodeChannels[");
+            node.appendDescriptionWithoutAttributes(stringBuilder);
+            stringBuilder.append("]");
+            return stringBuilder.toString();
         }
     }
 
@@ -395,7 +402,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 }
                 return true;
             });
-            if (!success) {
+            if (success == false) {
                 throw new BindTransportException(
                     "Failed to bind to " + NetworkAddress.format(hostAddress, portsRange),
                     lastException.get()
@@ -509,7 +516,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         if (hostPortString.startsWith("[")) {
             // Parse a bracketed host, typically an IPv6 literal.
             Matcher matcher = BRACKET_PATTERN.matcher(hostPortString);
-            if (!matcher.matches()) {
+            if (matcher.matches() == false) {
                 throw new IllegalArgumentException("Invalid bracketed host/port range: " + hostPortString);
             }
             host = matcher.group(1);
@@ -595,7 +602,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // exposed for tests
     static void handleException(TcpChannel channel, Exception e, Lifecycle lifecycle, OutboundHandler outboundHandler) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
             return;
@@ -627,6 +634,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         } else if (e instanceof StreamCorruptedException) {
             logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
+            CloseableChannel.closeChannel(channel);
+        } else if (e instanceof TransportNotReadyException) {
+            logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
             CloseableChannel.closeChannel(channel);
         } else {
             logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
@@ -742,8 +752,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         if (messageLength > THIRTY_PER_HEAP_SIZE) {
-            throw new IllegalArgumentException("transport content length received [" + new ByteSizeValue(messageLength) + "] exceeded ["
-                + new ByteSizeValue(THIRTY_PER_HEAP_SIZE) + "]");
+            throw new IllegalArgumentException("illegal transport message of size [" + new ByteSizeValue(messageLength) +
+                    "] which exceeds 30% of this node's heap size [" + new ByteSizeValue(THIRTY_PER_HEAP_SIZE) + "], closing connection");
         }
 
         return messageLength;

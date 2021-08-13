@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -17,6 +20,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 
+import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
@@ -45,10 +49,11 @@ public class RestXPackInfoAction extends BaseRestHandler {
         // In 7.x, there was an opt-in flag to show "enterprise" licenses. In 8.0 the flag is deprecated and can only be true
         // TODO Remove this from 9.0
         if (request.hasParam("accept_enterprise")) {
-            deprecationLogger.deprecate("get_license_accept_enterprise",
+            deprecationLogger.deprecate(DeprecationCategory.API, "get_license_accept_enterprise",
                 "Including [accept_enterprise] in get license requests is deprecated." +
                     " The parameter will be removed in the next major version");
-            if (request.paramAsBoolean("accept_enterprise", true) == false) {
+            if (request.paramAsBoolean("accept_enterprise", true) == false
+                && request.getRestApiVersion().matches(onOrAfter(RestApiVersion.V_8))) {
                 throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
             }
         }

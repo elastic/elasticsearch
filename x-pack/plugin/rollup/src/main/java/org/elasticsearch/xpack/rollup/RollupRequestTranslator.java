@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup;
 
@@ -13,7 +14,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -204,12 +204,6 @@ public class RollupRequestTranslator {
                 rolledDateHisto.calendarInterval(source.getCalendarInterval());
             } else if (source.getFixedInterval() != null) {
                 rolledDateHisto.fixedInterval(source.getFixedInterval());
-            } else if (source.dateHistogramInterval() != null) {
-                // We have to fall back to deprecated interval because we're not sure if this is fixed or cal
-                rolledDateHisto.dateHistogramInterval(source.dateHistogramInterval());
-            } else {
-                // if interval() was used we know it is fixed and can upgrade
-                rolledDateHisto.fixedInterval(new DateHistogramInterval(source.interval() + "ms"));
             }
 
             ZoneId timeZone = source.timeZone() == null ? DateHistogramGroupConfig.DEFAULT_ZONEID_TIMEZONE : source.timeZone();

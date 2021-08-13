@@ -15,6 +15,13 @@ more repositories. A snapshot is a backup of an index or running {es} cluster.
 
 `GET /_cat/snapshots`
 
+[[cat-snapshots-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor_snapshot`, `create_snapshot`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 
 [[cat-snapshots-path-params]]
 ==== {api-path-parms-title}
@@ -113,7 +120,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/snapshots/repo1?v&s=id
+GET /_cat/snapshots/repo1?v=true&s=id
 --------------------------------------------------
 // TEST[s/^/PUT \/_snapshot\/repo1\/snap1?wait_for_completion=true\n/]
 // TEST[s/^/PUT \/_snapshot\/repo1\/snap2?wait_for_completion=true\n/]

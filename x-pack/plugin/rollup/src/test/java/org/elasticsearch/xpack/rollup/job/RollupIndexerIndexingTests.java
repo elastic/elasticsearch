@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.job;
 
@@ -31,16 +32,17 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
@@ -82,15 +84,15 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
 
 public class RollupIndexerIndexingTests extends AggregatorTestCase {
-    private QueryShardContext queryShardContext;
+    private SearchExecutionContext searchExecutionContext;
     private IndexSettings settings;
 
     @Before
     private void setup() {
         settings = createIndexSettings();
-        queryShardContext = new QueryShardContext(0, settings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-                null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
+        searchExecutionContext = new SearchExecutionContext(0, 0, settings,
+            null, null, null, null, null, null,
+            null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
     }
 
     public void testSimpleDateHisto() throws Exception {
@@ -511,7 +513,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         try {
             RollupJob job = new RollupJob(config, Collections.emptyMap());
-            final SyncRollupIndexer action = new SyncRollupIndexer(threadPool, ThreadPool.Names.GENERIC, job, searcher,
+            final SyncRollupIndexer action = new SyncRollupIndexer(threadPool, job, searcher,
                     fieldTypeLookup.values().toArray(new MappedFieldType[0]), fieldTypeLookup.get(dateHistoField));
             rollupConsumer.accept(action.triggerAndWaitForCompletion(now));
         } finally {
@@ -535,7 +537,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberFieldMapper.NumberType.LONG, false, false)
+                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberType.LONG, ScriptCompiler.NONE, false, false)
                         .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
@@ -553,7 +555,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getMetricsConfig() != null) {
             for (MetricConfig metric : job.getMetricsConfig()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberFieldMapper.NumberType.LONG, false, false)
+                MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberType.LONG, ScriptCompiler.NONE, false, false)
                         .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
@@ -608,9 +610,9 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         private final CountDownLatch latch = new CountDownLatch(1);
         private Exception exc;
 
-        SyncRollupIndexer(ThreadPool threadPool, String executorName, RollupJob job, IndexSearcher searcher,
+        SyncRollupIndexer(ThreadPool threadPool, RollupJob job, IndexSearcher searcher,
                           MappedFieldType[] fieldTypes, MappedFieldType timestampField) {
-            super(threadPool, executorName, job, new AtomicReference<>(IndexerState.STARTED), null);
+            super(threadPool, job, new AtomicReference<>(IndexerState.STARTED), null);
             this.searcher = searcher;
             this.fieldTypes = fieldTypes;
             this.timestampField = timestampField;
@@ -643,7 +645,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             RangeQueryBuilder range = (RangeQueryBuilder) request.source().query();
             final ZoneId timeZone = range.timeZone() != null ? ZoneId.of(range.timeZone()) : null;
             Query query = timestampField.rangeQuery(range.from(), range.to(), range.includeLower(), range.includeUpper(),
-                    null, timeZone, DateFormatter.forPattern(range.format()).toDateMathParser(), queryShardContext);
+                    null, timeZone, DateFormatter.forPattern(range.format()).toDateMathParser(), searchExecutionContext);
 
             // extract composite agg
             assertThat(request.source().aggregations().getAggregatorFactories().size(), equalTo(1));

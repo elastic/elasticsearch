@@ -1,6 +1,7 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   name 'spatial'
@@ -10,17 +11,17 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  api project(path: ':modules:geo', configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('vector-tile'))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  api project(path: ':modules:geo')
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'bulk', 'indices', 'index', 'search'
-    includeXpack 'xpack'
+    include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
   }
   restTests {
     includeCore 'geo_shape'
@@ -30,4 +31,5 @@ restResources {
 testClusters.all {
   setting 'xpack.license.self_generated.type', 'trial'
   testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
 }

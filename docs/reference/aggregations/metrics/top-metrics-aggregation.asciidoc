@@ -53,8 +53,9 @@ faster.
 
 The `sort` field in the metric request functions exactly the same as the `sort` field in the
 <<sort-search-results, search>> request except:
+
 * It can't be used on <<binary,binary>>, <<flattened,flattened>>, <<ip,ip>>,
-<<keyword,keyword>>, or <<text,text>> fields.
+  <<keyword,keyword>>, or <<text,text>> fields.
 * It only supports a single sort value so which document wins ties is not specified.
 
 The metrics that the aggregation returns is the first hit that would be returned by the search
@@ -69,9 +70,21 @@ request. So,
 ==== `metrics`
 
 `metrics` selects the fields of the "top" document to return. You can request
-a single metric with something like `"metric": {"field": "m"}` or multiple
-metrics by requesting a list of metrics like `"metric": [{"field": "m"}, {"field": "i"}`.
-Here is a more complete example:
+a single metric with something like `"metrics": {"field": "m"}` or multiple
+metrics by requesting a list of metrics like `"metrics": [{"field": "m"}, {"field": "i"}`.
+
+`metrics.field` supports the following field types:
+
+* <<boolean,`boolean`>>
+* <<ip,`ip`>>
+* <<keyword,keywords>>
+* <<number,numbers>>
+
+Except for keywords, <<runtime,runtime fields>> for corresponding types are also
+supported. `metrics.field` doesn't support fields with <<array,array values>>. A
+`top_metric` aggregation on array values may return inconsistent results.
+
+The following example runs a `top_metrics` aggregation on several field types.
 
 [source,console,id=search-aggregations-metrics-top-metrics-list-of-metrics]
 ----
@@ -85,11 +98,11 @@ PUT /test
 }
 POST /test/_bulk?refresh
 {"index": {}}
-{"s": 1, "m": 3.1415, "i": 1, "d": "2020-01-01T00:12:12Z"}
+{"s": 1, "m": 3.1415, "i": 1, "d": "2020-01-01T00:12:12Z", "t": "cat"}
 {"index": {}}
-{"s": 2, "m": 1.0, "i": 6, "d": "2020-01-02T00:12:12Z"}
+{"s": 2, "m": 1.0, "i": 6, "d": "2020-01-02T00:12:12Z", "t": "dog"}
 {"index": {}}
-{"s": 3, "m": 2.71828, "i": -12, "d": "2019-12-31T00:12:12Z"}
+{"s": 3, "m": 2.71828, "i": -12, "d": "2019-12-31T00:12:12Z", "t": "chicken"}
 POST /test/_search?filter_path=aggregations
 {
   "aggs": {
@@ -98,7 +111,8 @@ POST /test/_search?filter_path=aggregations
         "metrics": [
           {"field": "m"},
           {"field": "i"},
-          {"field": "d"}
+          {"field": "d"},
+          {"field": "t.keyword"}
         ],
         "sort": {"s": "desc"}
       }
@@ -119,7 +133,8 @@ Which returns:
         "metrics": {
           "m": 2.718280076980591,
           "i": -12,
-          "d": "2019-12-31T00:12:12.000Z"
+          "d": "2019-12-31T00:12:12.000Z",
+          "t.keyword": "chicken"
         }
       } ]
     }
@@ -330,8 +345,8 @@ Which returns:
 ===== Mixed sort types
 
 Sorting `top_metrics` by a field that has different types across different
-indices producs somewhat suprising results: floating point fields are
-always sorted independantly of whole numbered fields.
+indices producs somewhat surprising results: floating point fields are
+always sorted independently of whole numbered fields.
 
 [source,console,id=search-aggregations-metrics-top-metrics-mixed-sort]
 ----
@@ -370,7 +385,7 @@ Which returns:
 // TESTRESPONSE
 
 While this is better than an error it *probably* isn't what you were going for.
-While it does lose some precision, you can explictly cast the whole number
+While it does lose some precision, you can explicitly cast the whole number
 fields to floating points with something like:
 
 [source,console]

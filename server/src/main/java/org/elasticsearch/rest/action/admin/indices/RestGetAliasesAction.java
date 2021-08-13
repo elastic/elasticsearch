@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -25,12 +14,14 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -42,6 +33,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -74,7 +66,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     static RestResponse buildRestResponse(boolean aliasesExplicitlyRequested, String[] requestedAliases,
                                           ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
-                                          XContentBuilder builder) throws Exception {
+                                          Map<String, List<DataStreamAlias>> dataStreamAliases, XContentBuilder builder) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
         for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {
@@ -86,6 +78,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 returnedAliasNames.add(aliasMetadata.alias());
             }
         }
+        dataStreamAliases.entrySet().stream()
+            .flatMap(entry -> entry.getValue().stream())
+            .forEach(dataStreamAlias -> returnedAliasNames.add(dataStreamAlias.getName()));
+
         // compute explicitly requested aliases that have are not returned in the result
         final SortedSet<String> missingAliases = new TreeSet<>();
         // first wildcard index, leading "-" as an alias name after this index means
@@ -141,8 +137,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 builder.field("status", status.getStatus());
             }
 
-            for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : responseAliasMap) {
-                if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
+            for (final var entry : responseAliasMap) {
+                if (aliasesExplicitlyRequested == false || indicesToDisplay.contains(entry.key)) {
                     builder.startObject(entry.key);
                     {
                         builder.startObject("aliases");
@@ -155,6 +151,28 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     }
                     builder.endObject();
                 }
+            }
+            // No need to do filtering like is done for aliases pointing to indices (^),
+            // because this already happens in TransportGetAliasesAction.
+            for (var entry : dataStreamAliases.entrySet()) {
+                builder.startObject(entry.getKey());
+                {
+                    builder.startObject("aliases");
+                    {
+                        for (DataStreamAlias alias : entry.getValue()) {
+                            builder.startObject(alias.getName());
+                            if (entry.getKey().equals(alias.getWriteDataStream())) {
+                                builder.field("is_write_index", true);
+                            }
+                            if (alias.getFilter() != null) {
+                                builder.field("filter", XContentHelper.convertToMap(alias.getFilter().uncompressed(), true).v2());
+                            }
+                            builder.endObject();
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
             }
         }
         builder.endObject();
@@ -177,10 +195,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
         //we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will
         //not always be available there (they may get replaced so retrieving request.aliases is not quite the same).
-        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
+        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
-                return buildRestResponse(namesProvided, aliases, response.getAliases(), builder);
+                return buildRestResponse(namesProvided, aliases, response.getAliases(), response.getDataStreamAliases(), builder);
             }
         });
     }

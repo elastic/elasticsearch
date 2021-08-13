@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.file.tool;
 
@@ -13,7 +14,7 @@ import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.containsString;
 
 public class UsersToolTests extends CommandTestCase {
@@ -70,8 +72,7 @@ public class UsersToolTests extends CommandTestCase {
         IOUtils.rm(homeDir);
         confDir = homeDir.resolve("config");
         Files.createDirectories(confDir);
-        hasher = inFipsJvm() ? randomFrom(Hasher.PBKDF2, Hasher.PBKDF2_1000, Hasher.PBKDF2_STRETCH)
-            : randomFrom(Hasher.PBKDF2_1000, Hasher.PBKDF2, Hasher.BCRYPT, Hasher.BCRYPT9);
+        hasher = getFastStoredHashAlgoForTests();
         String defaultPassword = SecuritySettingsSourceField.TEST_PASSWORD;
         Files.write(confDir.resolve("users"), Arrays.asList(
             "existing_user:" + new String(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)),
@@ -402,16 +403,16 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testPasswdNoPasswordOption() throws Exception {
-        terminal.addSecretInput("newpassword");
-        terminal.addSecretInput("newpassword");
+        terminal.addSecretInput("new-test-user-password");
+        terminal.addSecretInput("new-test-user-password");
         execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user");
-        assertUser("existing_user", "newpassword");
+        assertUser("existing_user", "new-test-user-password");
         assertRole("test_admin", "existing_user", "existing_user2"); // roles unchanged
     }
 
     public void testPasswd() throws Exception {
-        execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "newpassword");
-        assertUser("existing_user", "newpassword");
+        execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "new-test-user-password");
+        assertUser("existing_user", "new-test-user-password");
         assertRole("test_admin", "existing_user"); // roles unchanged
     }
 
@@ -423,7 +424,7 @@ public class UsersToolTests extends CommandTestCase {
                 .put("xpack.security.fips_mode.enabled", true)
                 .build();
         UserException e = expectThrows(UserException.class, () -> {
-            execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "newpassword");
+            execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "new-test-user-password");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertEquals("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. " +

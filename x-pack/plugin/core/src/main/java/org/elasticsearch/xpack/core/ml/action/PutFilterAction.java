@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -38,7 +39,7 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
             MlFilter.Builder filter = MlFilter.STRICT_PARSER.apply(parser, null);
             if (filter.getId() == null) {
                 filter.setId(filterId);
-            } else if (!Strings.isNullOrEmpty(filterId) && !filterId.equals(filter.getId())) {
+            } else if (Strings.isNullOrEmpty(filterId) == false && filterId.equals(filter.getId()) == false) {
                 // If we have both URI and body filter ID, they must be identical
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(),
                         filter.getId(), filterId));

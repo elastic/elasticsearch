@@ -30,6 +30,27 @@ IMPORTANT: You cannot add new documents to a data stream using the
 `PUT /<target>/_create/<_id>` format instead. See
 <<add-documents-to-a-data-stream>>.
 
+[[docs-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>> for the target data stream, index,
+or index alias:
+
+** To add or overwrite a document using the `PUT /<target>/_doc/<_id>` request
+format, you must have the `create`, `index`, or `write` index privilege.
+
+** To add a document using the `POST /<target>/_doc/`,
+`PUT /<target>/_create/<_id>`, or `POST /<target>/_create/<_id>` request
+formats, you must have the `create_doc`, `create`, `index`, or `write` index
+privilege.
+
+** To automatically create a data stream or index with an index API request, you
+must have the `auto_configure`, `create_index`, or `manage` index privilege.
+
+* Automatic data stream creation requires a matching index template with data
+stream enabled. See <<set-up-a-data-stream>>.
+
 [[docs-index-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -37,7 +58,7 @@ IMPORTANT: You cannot add new documents to a data stream using the
 (Required, string) Name of the data stream or index to target.
 +
 If the target doesn't exist and matches the name or wildcard (`*`) pattern of an
-<<create-a-data-stream-template,index template with a `data_stream`
+<<create-index-template,index template with a `data_stream`
 definition>>, this request creates the data stream. See
 <<set-up-a-data-stream>>.
 +
@@ -86,7 +107,20 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+`timeout`::
++
+--
+(Optional, <<time-units, time units>>)
+Period the request waits for the following operations:
+
+* <<index-creation,Automatic index creation>>
+* <<dynamic-mapping,Dynamic mapping>> updates
+* <<index-wait-for-active-shards,Waiting for active shards>>
+
+Defaults to `1m` (one minute). This guarantees {es} waits for at least the
+timeout before failing. The actual wait time could be longer, particularly when
+multiple waits occur.
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=doc-version]
 
@@ -161,35 +195,21 @@ exist. To update an existing document, you must use the `_doc` resource.
 ===== Automatically create data streams and indices
 
 If request's target doesn't exist and matches an
-<<create-a-data-stream-template,index template with a `data_stream`
+<<create-index-template,index template with a `data_stream`
 definition>>, the index operation automatically creates the data stream. See
 <<set-up-a-data-stream>>.
 
 If the target doesn't exist and doesn't match a data stream template,
 the operation automatically creates the index and applies any matching
-<<indices-templates,index templates>>.
+<<index-templates,index templates>>.
 
-[IMPORTANT]
-====
-{es} has built-in index templates for the `metrics-*-*`, `logs-*-*`, and `synthetics-*-*` index
-patterns, each with a priority of `100`.
-{ingest-guide}/fleet-overview.html[{agent}] uses these templates to
-create data streams. If you use {agent}, assign your index templates a priority
-lower than `100` to avoid overriding the built-in templates.
-
-Otherwise, to avoid accidentally applying the built-in templates, use a
-non-overlapping index pattern or assign templates with an overlapping pattern a
-`priority` higher than `100`.
-
-For example, if you don't use {agent} and want to create a template for the
-`logs-*` index pattern, assign your template a priority of `200`. This ensures
-your template is applied instead of the built-in template for `logs-*-*`.
-====
+NOTE: {es} includes several built-in index templates. To avoid naming collisions
+with these templates, see <<avoid-index-pattern-collisions>>.
 
 If no mapping exists, the index operation
 creates a dynamic mapping. By default, new fields and objects are
 automatically added to the mapping if needed. For more information about field
-mapping, see <<mapping,mapping>> and the <<indices-put-mapping,put mapping>> API.
+mapping, see <<mapping,mapping>> and the <<indices-put-mapping,update mapping>> API.
 
 Automatic index creation is controlled by the `action.auto_create_index`
 setting. This setting defaults to `true`, which allows any index to be created
@@ -197,7 +217,7 @@ automatically. You can modify this setting to explicitly allow or block
 automatic creation of indices that match specified patterns, or set it to
 `false` to disable automatic index creation entirely. Specify a
 comma-separated list of patterns you want to allow, or prefix each pattern with
-`+` or `-` to indicate whether it should be allowed or blocked.  When a list is
+`+` or `-` to indicate whether it should be allowed or blocked. When a list is
 specified, the default behaviour is to disallow.
 
 IMPORTANT: The `action.auto_create_index` setting only affects the automatic
@@ -499,9 +519,6 @@ In addition to the `external` version type, Elasticsearch
 also supports other types for specific use cases:
 
 [[_version_types]]
-`internal`:: Only index the document if the given version is identical to the version
-of the stored document.
-
 `external` or `external_gt`:: Only index the document if the given version is strictly higher
 than the version of the stored document *or* if there is no existing document. The given
 version will be used as the new version and will be stored with the new document. The supplied

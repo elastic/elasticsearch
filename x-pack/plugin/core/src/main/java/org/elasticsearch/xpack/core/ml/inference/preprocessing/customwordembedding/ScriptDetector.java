@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 
@@ -59,7 +60,7 @@ public final class ScriptDetector {
         }
 
         public static Script fromCodePoint(int codePoint) {
-            // Using blocks for the HANGUL vs HANGUL_JANO distinctions
+            // Using blocks for the HANGUL vs HANGUL_JAMO distinctions
             // If one exists. Needs investigated
             Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
             if (GREEK.equals(block)) {

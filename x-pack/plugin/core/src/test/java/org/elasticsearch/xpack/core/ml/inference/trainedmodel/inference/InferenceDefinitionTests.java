@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
+import com.unboundid.util.Base64;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,7 +61,7 @@ public class InferenceDefinitionTests extends ESTestCase {
         assertThat(definition.getTrainedModel().getClass(), equalTo(TreeInferenceModel.class));
     }
 
-    public void testMultiClassIrisInference() throws IOException {
+    public void testMultiClassIrisInference() throws IOException, ParseException {
         // Fairly simple, random forest classification model built to fit in our format
         // Trained on the well known Iris dataset
         String compressedDef = "H4sIAPbiMl4C/+1b246bMBD9lVWet8jjG3b/oN9QVYgmToLEkghIL6r23wukl90" +
@@ -82,7 +85,8 @@ public class InferenceDefinitionTests extends ESTestCase {
             "aLbAYWcAdpeweKa2IfIT2jz5QzXxD6AoP+DrdXtxeluV7pdWrvkcKqPp7rjS19d+wp/fff/5Ez3FPjzFNy" +
             "fdpTi9JB0sDp2JR7b309mn5HuPkEAAA==";
 
-        InferenceDefinition definition = InferenceToXContentCompressor.inflate(compressedDef,
+        byte[] bytes = Base64.decode(compressedDef);
+        InferenceDefinition definition = InferenceToXContentCompressor.inflate(new BytesArray(bytes),
             InferenceDefinition::fromXContent,
             xContentRegistry());
 

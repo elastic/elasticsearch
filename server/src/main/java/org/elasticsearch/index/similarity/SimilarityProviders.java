@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.similarity;
@@ -50,6 +39,7 @@ import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 
@@ -114,8 +104,8 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
                         "please use another model.");
                 } else {
-                    deprecationLogger.deprecate(basicModel + "_similarity_model_replaced", "Basic model [" + basicModel +
-                                    "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
+                    deprecationLogger.deprecate(DeprecationCategory.INDICES, basicModel + "_similarity_model_replaced", "Basic model ["
+                        + basicModel + "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     model = BASIC_MODELS.get(replacement);
                     assert model != null;
                 }
@@ -145,8 +135,8 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("After effect [" + afterEffect +
                         "] isn't supported anymore, please use another effect.");
                 } else {
-                    deprecationLogger.deprecate(afterEffect + "_after_effect_replaced", "After effect [" + afterEffect +
-                                    "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
+                    deprecationLogger.deprecate(DeprecationCategory.INDICES, afterEffect + "_after_effect_replaced", "After effect ["
+                        + afterEffect + "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     effect = AFTER_EFFECTS.get(replacement);
                     assert effect != null;
                 }
@@ -235,7 +225,7 @@ final class SimilarityProviders {
             if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
-                deprecationLogger.deprecate("unknown_similarity_setting",
+                deprecationLogger.deprecate(DeprecationCategory.INDICES, "unknown_similarity_setting",
                     "Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             }
         }

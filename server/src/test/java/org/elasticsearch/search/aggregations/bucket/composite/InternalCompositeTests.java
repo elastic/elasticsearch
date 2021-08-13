@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -138,7 +127,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     private Comparator<CompositeKey> getKeyComparator() {
         return (o1, o2) -> {
             for (int i = 0; i < o1.size(); i++) {
-                int cmp = ((Comparable) o1.get(i)).compareTo(o2.get(i)) * reverseMuls[i];
+                int cmp = o1.get(i).compareTo(o2.get(i)) * reverseMuls[i];
                 if (cmp != 0) {
                     return cmp;
                 }
@@ -268,11 +257,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     public void testCompareCompositeKeyBiggerFieldName() {
         InternalComposite.ArrayMap key1 = createMap(
             Arrays.asList("field1", "field2"),
-            new Comparable[]{1, 2}
+            new Comparable<?>[]{1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
             Arrays.asList("field3", "field2"),
-            new Comparable[]{1, 2}
+            new Comparable<?>[]{1, 2}
         );
         assertThat(key1.compareTo(key2), lessThan(0));
     }
@@ -280,11 +269,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     public void testCompareCompositeKeySmallerFieldName() {
         InternalComposite.ArrayMap key1 = createMap(
             Arrays.asList("field3", "field2"),
-            new Comparable[]{1, 2}
+            new Comparable<?>[]{1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
             Arrays.asList("field1", "field2"),
-            new Comparable[]{1, 2}
+            new Comparable<?>[]{1, 2}
         );
         assertThat(key1.compareTo(key2), greaterThan(0));
     }
@@ -292,11 +281,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     public void testCompareCompositeKeyBiggerValue() {
         InternalComposite.ArrayMap key1 = createMap(
             Arrays.asList("field1", "field2"),
-            new Comparable[]{1, 2}
+            new Comparable<?>[]{1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
             Arrays.asList("field3", "field2"),
-            new Comparable[]{2, 3}
+            new Comparable<?>[]{2, 3}
         );
         assertThat(key1.compareTo(key2), lessThan(0));
     }
@@ -304,11 +293,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     public void testCompareCompositeKeySmallerValue() {
         InternalComposite.ArrayMap key1 = createMap(
             Arrays.asList("field3", "field2"),
-            new Comparable[]{1, 2}
+            new Comparable<?>[]{1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
             Arrays.asList("field1", "field2"),
-            new Comparable[]{2, 3}
+            new Comparable<?>[]{2, 3}
         );
         assertThat(key1.compareTo(key2), greaterThan(0));
     }
@@ -316,11 +305,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     public void testCompareCompositeKeyNullValueIsSmaller1() {
         InternalComposite.ArrayMap key1 = createMap(
             Arrays.asList("field1", "field2"),
-            new Comparable[]{null, 20}
+            new Comparable<?>[]{null, 20}
         );
         InternalComposite.ArrayMap key2 = createMap(
             Arrays.asList("field1", "field2"),
-            new Comparable[]{1, 2}
+            new Comparable<?>[]{1, 2}
         );
         assertThat(key1.compareTo(key2), lessThan(0));
     }
@@ -328,11 +317,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     public void testCompareCompositeKeyNullValueIsSmaller2() {
         InternalComposite.ArrayMap key1 = createMap(
             Arrays.asList("field1", "field2"),
-            new Comparable[]{1, 2}
+            new Comparable<?>[]{1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
             Arrays.asList("field1", "field2"),
-            new Comparable[]{null, 20}
+            new Comparable<?>[]{null, 20}
         );
         assertThat(key1.compareTo(key2), greaterThan(0));
     }
@@ -340,29 +329,29 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     public void testCompareCompositeKeyMoreFieldsIsGreater() {
         InternalComposite.ArrayMap key1 = createMap(
             Arrays.asList("field1", "field2"),
-            new Comparable[]{1, 2}
+            new Comparable<?>[]{1, 2}
         );
-        InternalComposite.ArrayMap key2 = createMap(Arrays.asList("field1", "field2", "field3"),new Comparable[]{1, 2, null});
+        InternalComposite.ArrayMap key2 = createMap(Arrays.asList("field1", "field2", "field3"),new Comparable<?>[]{1, 2, null});
         assertThat(key1.compareTo(key2), lessThan(0));
     }
 
     public void testCompareCompositeKeyLessFieldsIsLesser() {
         InternalComposite.ArrayMap key1 = createMap(
             Arrays.asList("field1", "field2", "field3"),
-            new Comparable[]{1, 2, null}
+            new Comparable<?>[]{1, 2, null}
         );
-        InternalComposite.ArrayMap key2 = createMap(Arrays.asList("field1", "field2"),new Comparable[]{1, 2});
+        InternalComposite.ArrayMap key2 = createMap(Arrays.asList("field1", "field2"),new Comparable<?>[]{1, 2});
         assertThat(key1.compareTo(key2), greaterThan(0));
     }
 
     public void testCompareCompositeKeyEqual() {
         InternalComposite.ArrayMap key1 = createMap(
             Arrays.asList("field1", "field2", "field3"),
-            new Comparable[]{null, 1, 2}
+            new Comparable<?>[]{null, 1, 2}
         );
         InternalComposite.ArrayMap key2 = createMap(
             Arrays.asList("field1", "field2", "field3"),
-            new Comparable[]{null, 1, 2}
+            new Comparable<?>[]{null, 1, 2}
         );
         assertThat(key1.compareTo(key1), equalTo(0));
         assertThat(key1.equals(key1), is(true));
@@ -375,12 +364,12 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     public void testCompareCompositeKeyValuesHaveDifferentTypes() {
         InternalComposite.ArrayMap key1 = createMap(
             Arrays.asList("field1", "field2"),
-            new Comparable[]{1, 2}
+            new Comparable<?>[]{1, 2}
         );
 
         InternalComposite.ArrayMap key2 = createMap(
             Arrays.asList("field1", "field2"),
-            new Comparable[]{"1", 2}
+            new Comparable<?>[]{"1", 2}
         );
 
         ClassCastException exception = expectThrows(ClassCastException.class, () -> key1.compareTo(key2));
@@ -388,7 +377,39 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             containsString("java.lang.String cannot be cast to"));
     }
 
-    private InternalComposite.ArrayMap createMap(List<String> fields, Comparable[] values) {
+    public void testFormatObjectChecked() {
+        DocValueFormat weekYearMonth = new DocValueFormat.DateTime(
+            // YYYY is week-based year.  The parser will ignore MM (month-of-year) and dd (day-of-month)
+            DateFormatter.forPattern("YYYY-MM-dd"),
+            ZoneOffset.UTC,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        long epoch = 1622060077L; // May 25th 2021, evening
+        expectThrows(IllegalArgumentException.class, () -> InternalComposite.formatObject(epoch, weekYearMonth));
+    }
+
+    public void testFormatDateEpochTimezone() {
+        DocValueFormat epochSecond = new DocValueFormat.DateTime(
+            // YYYY is week-based year.  The parser will ignore MM (month-of-year) and dd (day-of-month)
+            DateFormatter.forPattern("epoch_second"),
+            ZoneOffset.ofHours(-2),
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        DocValueFormat epochMillis = new DocValueFormat.DateTime(
+            // YYYY is week-based year.  The parser will ignore MM (month-of-year) and dd (day-of-month)
+            DateFormatter.forPattern("epoch_millis"),
+            ZoneOffset.ofHours(-2),
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        long epoch = 1622060077L; // May 25th 2021, evening
+        Object actual = InternalComposite.formatObject(epoch, epochSecond);
+        assertEquals("1622060.077", actual.toString());
+
+        actual = InternalComposite.formatObject(epoch, epochMillis);
+        assertEquals("1622060077", actual.toString());
+    }
+
+    private InternalComposite.ArrayMap createMap(List<String> fields, Comparable<?>[] values) {
         List<DocValueFormat> formats = IntStream.range(0, fields.size())
             .mapToObj(i -> DocValueFormat.RAW).collect(Collectors.toList());
         return new InternalComposite.ArrayMap(

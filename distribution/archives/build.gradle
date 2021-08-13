@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import java.nio.file.Files
@@ -61,7 +50,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         include 'README.asciidoc'
       }
       from(rootProject.file('licenses')) {
-        include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'
+        include oss ? 'SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
         rename { 'LICENSE.txt' }
       }
 
@@ -83,98 +72,63 @@ distribution_archives {
   windowsZip {
     archiveClassifier = 'windows-x86_64'
     content {
-      archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, true)
-    }
-  }
-
-  ossWindowsZip {
-    archiveClassifier = 'windows-x86_64'
-    content {
-      archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, true)
+      archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', false, true)
     }
   }
 
   noJdkWindowsZip {
     archiveClassifier = 'no-jdk-windows-x86_64'
     content {
-      archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, false)
-    }
-  }
-
-  ossNoJdkWindowsZip {
-    archiveClassifier = 'no-jdk-windows-x86_64'
-    content {
-      archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, false)
+      archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', false, false)
     }
   }
 
   darwinTar {
     archiveClassifier = 'darwin-x86_64'
     content {
-      archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
+      archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
     }
   }
 
-  ossDarwinTar {
-    archiveClassifier = 'darwin-x86_64'
+  darwinAarch64Tar {
+    archiveClassifier = 'darwin-aarch64'
     content {
-      archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
+      archiveFiles(modulesFiles('darwin-aarch64'), 'tar', 'darwin', 'aarch64', false, true)
     }
   }
 
   noJdkDarwinTar {
     archiveClassifier = 'no-jdk-darwin-x86_64'
     content {
-      archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
+      archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
     }
   }
 
-  ossNoJdkDarwinTar {
-    archiveClassifier = 'no-jdk-darwin-x86_64'
+  noJdkDarwinAarch64Tar {
+    archiveClassifier = 'no-jdk-darwin-aarch64'
     content {
-      archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, false)
+      archiveFiles(modulesFiles('darwin-aarch64'), 'tar', 'darwin', 'aarch64', false, false)
     }
   }
 
   linuxAarch64Tar {
     archiveClassifier = 'linux-aarch64'
     content {
-      archiveFiles(modulesFiles(false, 'linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
+      archiveFiles(modulesFiles('linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
     }
   }
 
   linuxTar {
     archiveClassifier = 'linux-x86_64'
     content {
-      archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, true)
-    }
-  }
-
-  ossLinuxAarch64Tar {
-    archiveClassifier = 'linux-aarch64'
-    content {
-      archiveFiles(modulesFiles(true, 'linux-aarch64'), 'tar', 'linux', 'aarch64', true, true)
-    }
-  }
-
-  ossLinuxTar {
-    archiveClassifier = 'linux-x86_64'
-    content {
-      archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, true)
+      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', false, true)
     }
   }
 
   noJdkLinuxTar {
     archiveClassifier = 'no-jdk-linux-x86_64'
     content {
-      archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, false)
-    }
-  }
-
-  ossNoJdkLinuxTar {
-    archiveClassifier = 'no-jdk-linux-x86_64'
-    content {
-      archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, false)
+      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', false, false)
     }
   }
 }
@@ -183,5 +137,5 @@ subprojects {
   apply plugin: 'distribution'
   apply plugin: 'elasticsearch.internal-distribution-archive-check'
 
-  group = "org.elasticsearch.distribution.${name.startsWith("oss-") ? "oss" : "default"}"
+  group = "org.elasticsearch.distribution.default"
 }

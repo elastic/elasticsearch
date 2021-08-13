@@ -5,6 +5,10 @@
       "description":"Returns information about indices: number of primaries and replicas, document counts, disk size, ..."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

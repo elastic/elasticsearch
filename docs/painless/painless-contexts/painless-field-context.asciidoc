@@ -42,7 +42,7 @@ the `getDayOfWeek` function to determine the corresponding day of the week.
 
 [source,Painless]
 ----
-doc['datetime'].value.getDayOfWeek();
+doc['datetime'].value.getDayOfWeekEnum();
 ----
 
 The second script calculates the number of actors. Actors' names are stored
@@ -50,7 +50,7 @@ as a text array in the `actors` field.
 
 [source,Painless]
 ----
-params['_source']['actors'].length;                        <1>
+params['_source']['actors'].size();                        <1>
 ----
 
 <1> By default, doc values are not available for text fields. However,
@@ -70,15 +70,15 @@ GET seats/_search
   "script_fields": {
     "day-of-week": {
       "script": {
-        "source": "doc['datetime'].value.getDayOfWeek()"
+        "source": "doc['datetime'].value.getDayOfWeekEnum()"
       }
     },
     "number-of-actors": {
       "script": {
-        "source": "params['_source']['actors'].length"
+        "source": "params['_source']['actors'].size()"
       }
     }
   }
 }
 ----
-// TEST[skip: requires setup from other pages]
+// TEST[setup:seats]

@@ -2,8 +2,8 @@
 [[ml-configuring-detector-custom-rules]]
 = Customizing detectors with custom rules
 
-<<ml-rules,Custom rules>> enable you to change the behavior of anomaly
-detectors based on domain-specific knowledge.
+<<ml-ad-rules,Custom rules>> – or _job rules_ as {kib} refers to them – enable you 
+to change the behavior of anomaly detectors based on domain-specific knowledge.
 
 Custom rules describe _when_ a detector should take a certain _action_ instead
 of following its default behavior. To specify the _when_ a rule uses
@@ -127,21 +127,20 @@ PUT _ml/anomaly_detectors/scoping_multiple_fields
 ----------------------------------
 // TEST[skip:needs-licence]
 
-Such a detector will skip results when the values of all 3 scoped fields
-are included in the referenced filters.
+Such a detector skips results when the values of all three scoped fields are 
+included in the referenced filters.
 
 [[ml-custom-rules-conditions]]
 == Specifying custom rule conditions
 
-Imagine a detector that looks for anomalies in CPU utilization.
-Given a machine that is idle for long enough, small movement in CPU could
-result in anomalous results where the `actual` value is quite small, for 
-example, 0.02. Given our knowledge about how CPU utilization behaves we might 
-determine that anomalies with such small actual values are not interesting for 
-investigation.
+Imagine a detector that looks for anomalies in CPU utilization. Given a machine 
+that is idle for long enough, small movement in CPU could result in anomalous 
+results where the `actual` value is quite small, for example, 0.02. Given our 
+knowledge about how CPU utilization behaves we might determine that anomalies 
+with such small actual values are not interesting for investigation.
 
-Let us now configure an {anomaly-job} with a rule that will skip results where
-CPU utilization is less than 0.20.
+Let us now configure an {anomaly-job} with a rule that skips results where CPU 
+utilization is less than 0.20.
 
 [source,console]
 ----------------------------------
@@ -171,12 +170,12 @@ PUT _ml/anomaly_detectors/cpu_with_rule
 ----------------------------------
 // TEST[skip:needs-licence]
 
-When there are multiple conditions they are combined with a logical `and`.
-This is useful when we want the rule to apply to a range. We simply create
-a rule with two conditions, one for each end of the desired range.
+When there are multiple conditions they are combined with a logical `AND`. This 
+is useful when we want the rule to apply to a range. We create a rule with two 
+conditions, one for each end of the desired range.
 
-Here is an example where a count detector will skip results when the count
-is greater than 30 and less than 50:
+Here is an example where a count detector skips results when the count is 
+greater than 30 and less than 50:
 
 [source,console]
 ----------------------------------
@@ -213,26 +212,26 @@ PUT _ml/anomaly_detectors/rule_with_range
 [[ml-custom-rules-lifecycle]]
 == Custom rules in the lifecycle of a job
 
-Custom rules only affect results created after the rules were applied.
-Let us imagine that we have configured an {anomaly-job} and it has been running
-for some time. After observing its results we decide that we can employ
-rules in order to get rid of some uninteresting results. We can use
-the {ref}/ml-update-job.html[update {anomaly-job} API] to do so. However, the
-rule we added will only be in effect for any results created from the moment we
-added the rule onwards. Past results will remain unaffected.
+Custom rules only affect results created after the rules were applied. Let us 
+imagine that we have configured an {anomaly-job} and it has been running for 
+some time. After observing its results, we decide that we can employ rules to 
+get rid of some uninteresting results. We can use the 
+{ref}/ml-update-job.html[update {anomaly-job} API] to do so. However, the rule 
+we added will only be in effect for any results created from the moment we
+added the rule onwards. Past results remain unaffected.
 
 [[ml-custom-rules-filtering]]
 == Using custom rules vs. filtering data
 
-It might appear like using rules is just another way of filtering the data
-that feeds into an {anomaly-job}. For example, a rule that skips results when
-the partition field value is in a filter sounds equivalent to having a query
-that filters out such documents. But it is not. There is a fundamental
-difference. When the data is filtered before reaching a job it is as if they
-never existed for the job. With rules, the data still reaches the job and
-affects its behavior (depending on the rule actions).
+It might appear like using rules is just another way of filtering the data that 
+feeds into an {anomaly-job}. For example, a rule that skips results when the 
+partition field value is in a filter sounds equivalent to having a query that 
+filters out such documents. However, there is a fundamental difference. When the 
+data is filtered before reaching a job, it is as if they never existed for the 
+job. With rules, the data still reaches the job and affects its behavior 
+(depending on the rule actions).
 
-For example, a rule with the `skip_result` action means all data will still
-be modeled. On the other hand, a rule with the `skip_model_update` action means
-results will still be created even though the model will not be updated by
-data matched by a rule.
+For example, a rule with the `skip_result` action means all data is still
+modeled. On the other hand, a rule with the `skip_model_update` action means
+results are still created even though the model is not updated by data matched 
+by a rule.

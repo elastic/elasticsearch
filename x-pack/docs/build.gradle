@@ -5,25 +5,25 @@ apply plugin: 'elasticsearch.rest-resources'
  * `// CONSOLE` and `// TESTRESPONSE` but have yet to be converted. Try and
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
-buildRestTests.expectedUnconvertedCandidates = [
-  'en/rest-api/watcher/put-watch.asciidoc',
-  'en/security/authentication/user-cache.asciidoc',
-  'en/security/authorization/run-as-privilege.asciidoc',
-  'en/security/ccs-clients-integrations/http.asciidoc',
-  'en/rest-api/watcher/stats.asciidoc',
-  'en/watcher/example-watches/watching-time-series-data.asciidoc',
-]
+tasks.named("buildRestTests").configure {
+  expectedUnconvertedCandidates = [
+          'en/rest-api/watcher/put-watch.asciidoc',
+          'en/security/authentication/user-cache.asciidoc',
+          'en/security/authorization/run-as-privilege.asciidoc',
+          'en/security/ccs-clients-integrations/http.asciidoc',
+          'en/rest-api/watcher/stats.asciidoc',
+          'en/watcher/example-watches/watching-time-series-data.asciidoc',
+  ]
+}
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackProject('plugin').path)))
 }
 
 restResources {
   restApi {
-    includeCore '*'
-    includeXpack '*'
+    include '*'
   }
 }
 
@@ -66,19 +66,20 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   user username: 'test_admin'
 }
 
+tasks.named("buildRestTests").configure { buildRestTests ->
 
-buildRestTests.docs = fileTree(projectDir) {
-  // No snippets in here!
-  exclude 'build.gradle'
-  // That is where the snippets go, not where they come from!
-  exclude 'build'
-  // These file simply doesn't pass yet. We should figure out how to fix them.
-  exclude 'en/watcher/reference/actions.asciidoc'
-  exclude 'en/rest-api/security/ssl.asciidoc'
-}
+  buildRestTests.docs = fileTree(projectDir) {
+    // No snippets in here!
+    exclude 'build.gradle'
+    // That is where the snippets go, not where they come from!
+    exclude 'build/**'
+    // These file simply doesn't pass yet. We should figure out how to fix them.
+    exclude 'en/watcher/reference/actions.asciidoc'
+    exclude 'en/rest-api/security/ssl.asciidoc'
+  }
 
-Map<String, String> setups = buildRestTests.setups
-setups['my_inactive_watch'] = '''
+  Map<String, String> setups = buildRestTests.setups
+  setups['my_inactive_watch'] = '''
   - do:
       watcher.put_watch:
         id: "my_watch"
@@ -112,11 +113,11 @@ setups['my_inactive_watch'] = '''
           }
   - match: { _id: "my_watch" }
 '''
-setups['my_active_watch'] = setups['my_inactive_watch'].replace(
-  'active: false', 'active: true')
+  setups['my_active_watch'] = setups['my_inactive_watch'].replace(
+          'active: false', 'active: true')
 
 // Used by SQL because it looks SQL-ish
-setups['library'] = '''
+  setups['library'] = '''
   - do:
         indices.create:
           index: library
@@ -197,7 +198,7 @@ setups['library'] = '''
             {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
 
 '''
-setups['sample_job'] = '''
+  setups['sample_job'] = '''
   - do:
       ml.put_job:
         job_id: "sample_job"
@@ -217,7 +218,7 @@ setups['sample_job'] = '''
             }
           }
 '''
-setups['farequote_index'] = '''
+  setups['farequote_index'] = '''
   - do:
         indices.create:
           index: farequote
@@ -237,7 +238,7 @@ setups['farequote_index'] = '''
                   doc_count:
                      type: integer
 '''
-setups['farequote_data'] = setups['farequote_index'] + '''
+  setups['farequote_data'] = setups['farequote_index'] + '''
   - do:
         bulk:
           index: farequote
@@ -251,7 +252,7 @@ setups['farequote_data'] = setups['farequote_index'] + '''
             {"index": {"_id":"3"}}
             {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
 '''
-setups['farequote_job'] = setups['farequote_data'] + '''
+  setups['farequote_job'] = setups['farequote_data'] + '''
   - do:
       ml.put_job:
         job_id: "farequote"
@@ -271,7 +272,7 @@ setups['farequote_job'] = setups['farequote_data'] + '''
             }
           }
 '''
-setups['farequote_datafeed'] = setups['farequote_job'] + '''
+  setups['farequote_datafeed'] = setups['farequote_job'] + '''
   - do:
       ml.put_datafeed:
         datafeed_id: "datafeed-farequote"
@@ -281,7 +282,7 @@ setups['farequote_datafeed'] = setups['farequote_job'] + '''
           "indexes":"farequote"
           }
 '''
-setups['ml_filter_safe_domains'] = '''
+  setups['ml_filter_safe_domains'] = '''
   - do:
       ml.put_filter:
         filter_id: "safe_domains"
@@ -291,7 +292,7 @@ setups['ml_filter_safe_domains'] = '''
             "items": ["*.google.com", "wikipedia.org"]
           }
 '''
-setups['server_metrics_index'] = '''
+  setups['server_metrics_index'] = '''
   - do:
         indices.create:
           index: server-metrics
@@ -307,7 +308,7 @@ setups['server_metrics_index'] = '''
                   total:
                     type: long
 '''
-setups['server_metrics_data'] = setups['server_metrics_index'] + '''
+  setups['server_metrics_data'] = setups['server_metrics_index'] + '''
   - do:
         bulk:
           index: server-metrics
@@ -345,7 +346,7 @@ setups['server_metrics_data'] = setups['server_metrics_index'] + '''
             {"index": {"_id":"1191"}}
             {"timestamp":"2017-03-23T13:00:00","total":31659}
 '''
-setups['server_metrics_job'] = setups['server_metrics_data'] + '''
+  setups['server_metrics_job'] = setups['server_metrics_data'] + '''
   - do:
       ml.put_job:
         job_id: "total-requests"
@@ -367,7 +368,7 @@ setups['server_metrics_job'] = setups['server_metrics_data'] + '''
             }
           }
 '''
-setups['server_metrics_datafeed'] = setups['server_metrics_job'] + '''
+  setups['server_metrics_datafeed'] = setups['server_metrics_job'] + '''
   - do:
       ml.put_datafeed:
         datafeed_id: "datafeed-total-requests"
@@ -377,22 +378,22 @@ setups['server_metrics_datafeed'] = setups['server_metrics_job'] + '''
           "indexes":"server-metrics"
           }
 '''
-setups['server_metrics_openjob'] = setups['server_metrics_datafeed'] + '''
+  setups['server_metrics_openjob'] = setups['server_metrics_datafeed'] + '''
   - do:
       ml.open_job:
         job_id: "total-requests"
 '''
-setups['server_metrics_startdf'] = setups['server_metrics_openjob'] + '''
+  setups['server_metrics_startdf'] = setups['server_metrics_openjob'] + '''
   - do:
       ml.start_datafeed:
         datafeed_id: "datafeed-total-requests"
 '''
-setups['calendar_outages'] = '''
+  setups['calendar_outages'] = '''
   - do:
         ml.put_calendar:
           calendar_id: "planned-outages"
 '''
-setups['calendar_outages_addevent'] = setups['calendar_outages'] + '''
+  setups['calendar_outages_addevent'] = setups['calendar_outages'] + '''
   - do:
         ml.post_calendar_events:
           calendar_id: "planned-outages"
@@ -401,12 +402,12 @@ setups['calendar_outages_addevent'] = setups['calendar_outages'] + '''
 
 
 '''
-setups['calendar_outages_openjob'] = setups['server_metrics_openjob'] + '''
+  setups['calendar_outages_openjob'] = setups['server_metrics_openjob'] + '''
   - do:
        ml.put_calendar:
          calendar_id: "planned-outages"
 '''
-setups['calendar_outages_addjob'] = setups['server_metrics_openjob'] + '''
+  setups['calendar_outages_addjob'] = setups['server_metrics_openjob'] + '''
   - do:
        ml.put_calendar:
          calendar_id: "planned-outages"
@@ -415,7 +416,7 @@ setups['calendar_outages_addjob'] = setups['server_metrics_openjob'] + '''
            "job_ids": ["total-requests"]
            }
 '''
-setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
+  setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
   - do:
        ml.post_calendar_events:
          calendar_id: "planned-outages"
@@ -426,7 +427,7 @@ setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
            { "description": "event 3", "start_time": "1514160000000", "end_time": "1514246400000"}
            ]}
 '''
-setups['role_mapping'] = '''
+  setups['role_mapping'] = '''
   - do:
         security.put_role_mapping:
          name: "mapping1"
@@ -437,7 +438,7 @@ setups['role_mapping'] = '''
                "rules": { "field": { "username": "*" } }
             }
 '''
-setups['sensor_rollup_job'] = '''
+  setups['sensor_rollup_job'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -486,7 +487,7 @@ setups['sensor_rollup_job'] = '''
                 ]
             }
 '''
-setups['sensor_started_rollup_job'] = '''
+  setups['sensor_started_rollup_job'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -558,7 +559,7 @@ setups['sensor_started_rollup_job'] = '''
         id: "sensor"
 '''
 
-setups['sensor_index'] = '''
+  setups['sensor_index'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -588,7 +589,7 @@ setups['sensor_index'] = '''
                 type: keyword
 '''
 
-setups['sensor_prefab_data'] = '''
+  setups['sensor_prefab_data'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -685,7 +686,7 @@ setups['sensor_prefab_data'] = '''
           {"node.terms.value":"c","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.0,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516294800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
 
 '''
-setups['admin_role'] = '''
+  setups['admin_role'] = '''
   - do:
       security.put_role:
         name: "my_admin_role"
@@ -699,20 +700,20 @@ setups['admin_role'] = '''
             "metadata" : {"version": 1}
           }
 '''
-setups['jacknich_user'] = '''
+  setups['jacknich_user'] = '''
   - do:
       security.put_user:
         username: "jacknich"
         body:  >
           {
-            "password" : "test-password",
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
             "roles" : [ "admin", "other_role1" ],
             "full_name" : "Jack Nicholson",
             "email" : "jacknich@example.com",
             "metadata" : { "intelligence" : 7 }
           }
 '''
-setups['app0102_privileges'] = '''
+  setups['app0102_privileges'] = '''
   - do:
         security.put_privileges:
           body: >
@@ -731,3 +732,11 @@ setups['app0102_privileges'] = '''
               }
             }
 '''
+  setups['service_token42'] = '''
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
+'''
+}

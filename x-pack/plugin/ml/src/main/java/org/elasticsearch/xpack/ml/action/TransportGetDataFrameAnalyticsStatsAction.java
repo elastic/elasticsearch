@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.util.ArrayList;
@@ -105,14 +107,21 @@ public class TransportGetDataFrameAnalyticsStatsAction
                                  ActionListener<QueryPage<Stats>> listener) {
         logger.debug("Get stats for running task [{}]", task.getParams().getId());
 
-        ActionListener<Void> reindexingProgressListener = ActionListener.wrap(
+        ActionListener<Void> updateProgressListener = ActionListener.wrap(
             aVoid -> {
+                StatsHolder statsHolder = task.getStatsHolder();
+                if (statsHolder == null) {
+                    // The task has just been assigned and has not been initialized with its stats holder yet.
+                    // We return empty result here so that we treat it as a stopped task and return its stored stats.
+                    listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
+                    return;
+                }
                 Stats stats = buildStats(
                     task.getParams().getId(),
-                    task.getStatsHolder().getProgressTracker().report(),
-                    task.getStatsHolder().getDataCountsTracker().report(task.getParams().getId()),
-                    task.getStatsHolder().getMemoryUsage(),
-                    task.getStatsHolder().getAnalysisStats()
+                    statsHolder.getProgressTracker().report(),
+                    statsHolder.getDataCountsTracker().report(),
+                    statsHolder.getMemoryUsage(),
+                    statsHolder.getAnalysisStats()
                 );
                 listener.onResponse(new QueryPage<>(Collections.singletonList(stats), 1,
                     GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
@@ -120,7 +129,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
         );
 
         // We must update the progress of the reindexing task as it might be stale
-        task.updateReindexTaskProgress(reindexingProgressListener);
+        task.updateTaskProgress(updateProgressListener);
     }
 
     @Override

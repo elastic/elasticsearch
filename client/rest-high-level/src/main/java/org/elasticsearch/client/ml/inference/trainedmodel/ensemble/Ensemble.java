@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,7 +29,6 @@ public class Ensemble implements TrainedModel {
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
     public static final ParseField TRAINED_MODELS = new ParseField("trained_models");
     public static final ParseField AGGREGATE_OUTPUT  = new ParseField("aggregate_output");
-    public static final ParseField TARGET_TYPE = new ParseField("target_type");
     public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
     public static final ParseField CLASSIFICATION_WEIGHTS = new ParseField("classification_weights");
 
@@ -59,7 +47,7 @@ public class Ensemble implements TrainedModel {
         PARSER.declareNamedObject(Ensemble.Builder::setOutputAggregator,
             (p, c, n) -> p.namedObject(OutputAggregator.class, n, null),
             AGGREGATE_OUTPUT);
-        PARSER.declareString(Ensemble.Builder::setTargetType, TARGET_TYPE);
+        PARSER.declareString(Ensemble.Builder::setTargetType, TargetType.TARGET_TYPE);
         PARSER.declareStringArray(Ensemble.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
         PARSER.declareDoubleArray(Ensemble.Builder::setClassificationWeights, CLASSIFICATION_WEIGHTS);
     }
@@ -116,7 +104,7 @@ public class Ensemble implements TrainedModel {
                 Collections.singletonList(outputAggregator));
         }
         if (targetType != null) {
-            builder.field(TARGET_TYPE.getPreferredName(), targetType);
+            builder.field(TargetType.TARGET_TYPE.getPreferredName(), targetType);
         }
         if (classificationLabels != null) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);

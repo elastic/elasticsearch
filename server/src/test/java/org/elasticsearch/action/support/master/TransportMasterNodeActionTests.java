@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.support.master;
 
@@ -36,7 +25,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -44,12 +32,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -64,8 +56,12 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -139,6 +135,11 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         public ActionRequestValidationException validate() {
             return null;
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
     }
 
     class Response extends ActionResponse {
@@ -173,10 +174,17 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     class Action extends TransportMasterNodeAction<Request, Response> {
         Action(String actionName, TransportService transportService, ClusterService clusterService,
                ThreadPool threadPool) {
-            super(actionName, transportService, clusterService, threadPool,
-                    new ActionFilters(new HashSet<>()), Request::new, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-                    Response::new, ThreadPool.Names.SAME);
+            this(actionName, transportService, clusterService, threadPool, ThreadPool.Names.SAME);
         }
+
+        Action(String actionName, TransportService transportService, ClusterService clusterService,
+               ThreadPool threadPool, String executor) {
+            super(actionName, transportService, clusterService, threadPool,
+                new ActionFilters(new HashSet<>()), Request::new,
+                TestIndexNameExpressionResolver.newInstance(), Response::new,
+                executor);
+        }
+
 
         @Override
         protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
@@ -471,5 +479,111 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         transport.handleResponse(capturedRequest.requestId, response);
         assertTrue(listener.isDone());
         assertThat(listener.get(), equalTo(response));
+    }
+
+    public void testTaskCancellation() {
+        ClusterBlock block = new ClusterBlock(1,
+            "",
+            true,
+            true,
+            false,
+            randomFrom(RestStatus.values()),
+            ClusterBlockLevel.ALL
+        );
+        ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(block)).build();
+
+        // Update the cluster state with a block so the request waits until it's unblocked
+        setState(clusterService, stateWithBlock);
+
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+
+        Request request = new Request();
+        final CancellableTask task = (CancellableTask) taskManager.register("type", "internal:testAction", request);
+
+        boolean cancelBeforeStart = randomBoolean();
+        if (cancelBeforeStart) {
+            taskManager.cancel(task, "", () -> {});
+            assertThat(task.isCancelled(), equalTo(true));
+        }
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+                Set<ClusterBlock> blocks = state.blocks().global();
+                return blocks.isEmpty() ? null : new ClusterBlockException(blocks);
+            }
+        }, task, request, listener);
+
+        final int genericThreads = threadPool.info(ThreadPool.Names.GENERIC).getMax();
+        final EsThreadPoolExecutor executor = (EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.GENERIC);
+        final CyclicBarrier barrier = new CyclicBarrier(genericThreads + 1);
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        if (cancelBeforeStart == false) {
+            assertThat(listener.isDone(), equalTo(false));
+
+            taskManager.cancel(task, "", () -> {});
+            assertThat(task.isCancelled(), equalTo(true));
+
+            // Now that the task is cancelled, let the request to be executed
+            final ClusterState.Builder newStateBuilder = ClusterState.builder(stateWithBlock);
+
+            // Either unblock the cluster state or just do an unrelated cluster state change that will check
+            // if the task has been cancelled
+            if (randomBoolean()) {
+                newStateBuilder.blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK);
+            } else {
+                newStateBuilder.incrementVersion();
+            }
+            setState(clusterService, newStateBuilder.build());
+        }
+        expectThrows(CancellationException.class, listener::actionGet);
+    }
+
+    public void testTaskCancellationOnceActionItIsDispatchedToMaster() throws Exception {
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+
+        Request request = new Request();
+        final CancellableTask task = (CancellableTask) taskManager.register("type", "internal:testAction", request);
+
+        // Block all the threads of the executor in which the master operation will be dispatched to
+        // ensure that the master operation won't be executed until the threads are released
+        final String executorName = ThreadPool.Names.GENERIC;
+        final Runnable releaseBlockedThreads = blockAllThreads(executorName);
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool, executorName),
+            task,
+            request,
+            listener
+        );
+
+        taskManager.cancel(task, "", () -> {});
+        assertThat(task.isCancelled(), equalTo(true));
+
+        releaseBlockedThreads.run();
+
+        expectThrows(CancellationException.class, listener::actionGet);
+    }
+
+    private Runnable blockAllThreads(String executorName) throws Exception {
+        final int numberOfThreads = threadPool.info(executorName).getMax();
+        final EsThreadPoolExecutor executor = (EsThreadPoolExecutor) threadPool.executor(executorName);
+        final CyclicBarrier barrier = new CyclicBarrier(numberOfThreads + 1);
+        final CountDownLatch latch = new CountDownLatch(1);
+        for (int i = 0; i < numberOfThreads; i++) {
+            executor.submit(() -> {
+                try {
+                    barrier.await();
+                    latch.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+        }
+        barrier.await();
+        return latch::countDown;
     }
 }

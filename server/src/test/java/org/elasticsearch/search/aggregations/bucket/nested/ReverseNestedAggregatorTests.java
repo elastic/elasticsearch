@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.nested;
@@ -31,6 +20,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -43,11 +33,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 import static java.util.stream.Collectors.toList;
@@ -63,16 +49,6 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
     private static final String NESTED_AGG = "nestedAgg";
     private static final String REVERSE_AGG_NAME = "reverseNestedAgg";
     private static final String MAX_AGG_NAME = "maxAgg";
-
-    /**
-     * For each provided field type, we also register an alias with name {@code <field>-alias}.
-     */
-    @Override
-    protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
-        return Arrays.stream(fieldTypes).collect(Collectors.toMap(
-            ft -> ft.name() + "-alias",
-            Function.identity()));
-    }
 
     /**
      * Nested aggregations need the {@linkplain DirectoryReader} wrapped.
@@ -264,4 +240,8 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         }, NestedAggregatorTests.resellersMappedFields());
     }
 
+    @Override
+    protected List<ObjectMapper> objectMappers() {
+        return NestedAggregatorTests.MOCK_OBJECT_MAPPERS;
+    }
 }

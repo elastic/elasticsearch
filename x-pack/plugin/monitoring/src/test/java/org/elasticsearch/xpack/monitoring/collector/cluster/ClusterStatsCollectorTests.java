@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodes;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
@@ -18,16 +21,16 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
@@ -37,6 +40,7 @@ import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.junit.Assert;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -69,7 +73,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
     public void testShouldCollectReturnsFalseIfNotMaster() {
         final ClusterStatsCollector collector =
                 new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService,
-                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+                    TestIndexNameExpressionResolver.newInstance());
 
         assertThat(collector.shouldCollect(false), is(false));
     }
@@ -77,7 +81,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
     public void testShouldCollectReturnsTrue() {
         final ClusterStatsCollector collector =
                 new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService,
-                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+                    TestIndexNameExpressionResolver.newInstance());
 
         assertThat(collector.shouldCollect(true), is(true));
     }
@@ -189,7 +193,8 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(mockClusterStatsResponse.getIndicesStats()).thenReturn(mockClusterStatsIndices);
 
         final ClusterStatsRequestBuilder clusterStatsRequestBuilder = mock(ClusterStatsRequestBuilder.class);
-        when(clusterStatsRequestBuilder.get(eq(timeout))).thenReturn(mockClusterStatsResponse);
+        when(clusterStatsRequestBuilder.setTimeout(eq(timeout))).thenReturn(clusterStatsRequestBuilder);
+        when(clusterStatsRequestBuilder.get()).thenReturn(mockClusterStatsResponse);
 
         final ClusterAdminClient clusterAdminClient = mock(ClusterAdminClient.class);
         when(clusterAdminClient.prepareClusterStats()).thenReturn(clusterStatsRequestBuilder);
@@ -207,7 +212,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             .thenReturn(indices);
 
         final XPackUsageResponse xPackUsageResponse = new XPackUsageResponse(
-            singletonList(new MonitoringFeatureSetUsage(true, false, null)));
+            singletonList(new MonitoringFeatureSetUsage(false, null)));
 
         @SuppressWarnings("unchecked")
         final ActionFuture<XPackUsageResponse> xPackUsageFuture = (ActionFuture<XPackUsageResponse>) mock(ActionFuture.class);
@@ -280,7 +285,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         {
             indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*"))
-                .thenReturn(new Index[0]);
+                .thenReturn(Index.EMPTY_ARRAY);
         }
 
         final Client client = mock(Client.class);
@@ -296,7 +301,8 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             when(mockClusterStatsResponse.getIndicesStats()).thenReturn(mockClusterStatsIndices);
 
             final ClusterStatsRequestBuilder clusterStatsRequestBuilder = mock(ClusterStatsRequestBuilder.class);
-            when(clusterStatsRequestBuilder.get(eq(timeout))).thenReturn(mockClusterStatsResponse);
+            when(clusterStatsRequestBuilder.setTimeout(eq(timeout))).thenReturn(clusterStatsRequestBuilder);
+            when(clusterStatsRequestBuilder.get()).thenReturn(mockClusterStatsResponse);
 
             final ClusterAdminClient clusterAdminClient = mock(ClusterAdminClient.class);
             when(clusterAdminClient.prepareClusterStats()).thenReturn(clusterStatsRequestBuilder);
@@ -306,7 +312,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             when(client.admin()).thenReturn(adminClient);
 
             final XPackUsageResponse xPackUsageResponse = new XPackUsageResponse(
-                singletonList(new MonitoringFeatureSetUsage(true, false, null)));
+                singletonList(new MonitoringFeatureSetUsage(false, null)));
             @SuppressWarnings("unchecked")
             final ActionFuture<XPackUsageResponse> xPackUsageFuture = (ActionFuture<XPackUsageResponse>) mock(ActionFuture.class);
             when(client.execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class))).thenReturn(xPackUsageFuture);
@@ -325,4 +331,58 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final ClusterStatsMonitoringDoc doc = (ClusterStatsMonitoringDoc) results.iterator().next();
         assertThat(doc.getLicense(), nullValue());
     }
+
+    public void testDoCollectThrowsTimeoutException() throws Exception {
+        final TimeValue timeout;
+        {
+            final String clusterName = randomAlphaOfLength(10);
+            whenClusterStateWithName(clusterName);
+            final String clusterUUID = UUID.randomUUID().toString();
+            whenClusterStateWithUUID(clusterUUID);
+            timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+            withCollectionTimeout(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT, timeout);
+        }
+        final IndexNameExpressionResolver indexNameExpressionResolver;
+        {
+            indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+            when(indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*"))
+                    .thenReturn(Index.EMPTY_ARRAY);
+        }
+
+        final Client client = mock(Client.class);
+        {
+            final ClusterStatsResponse mockClusterStatsResponse = mock(ClusterStatsResponse.class);
+            final ClusterHealthStatus clusterStatus = randomFrom(ClusterHealthStatus.values());
+            when(mockClusterStatsResponse.getStatus()).thenReturn(clusterStatus);
+            when(mockClusterStatsResponse.getNodesStats()).thenReturn(mock(ClusterStatsNodes.class));
+            when(mockClusterStatsResponse.failures()).thenReturn(List.of(new FailedNodeException("node", "msg",
+                    new ElasticsearchTimeoutException("timed out"))));
+
+            final ClusterStatsIndices mockClusterStatsIndices = mock(ClusterStatsIndices.class);
+
+            when(mockClusterStatsIndices.getIndexCount()).thenReturn(0);
+            when(mockClusterStatsResponse.getIndicesStats()).thenReturn(mockClusterStatsIndices);
+
+            final ClusterStatsRequestBuilder clusterStatsRequestBuilder = mock(ClusterStatsRequestBuilder.class);
+            when(clusterStatsRequestBuilder.setTimeout(eq(timeout))).thenReturn(clusterStatsRequestBuilder);
+            when(clusterStatsRequestBuilder.get()).thenReturn(mockClusterStatsResponse);
+
+            final ClusterAdminClient clusterAdminClient = mock(ClusterAdminClient.class);
+            when(clusterAdminClient.prepareClusterStats()).thenReturn(clusterStatsRequestBuilder);
+
+            final AdminClient adminClient = mock(AdminClient.class);
+            when(adminClient.cluster()).thenReturn(clusterAdminClient);
+            when(client.admin()).thenReturn(adminClient);
+        }
+
+        final long interval = randomNonNegativeLong();
+        final Settings.Builder settings = Settings.builder();
+        final MonitoringDoc.Node node = MonitoringTestUtils.randomMonitoringNode(random());
+
+        final ClusterStatsCollector collector =
+                new ClusterStatsCollector(settings.build(), clusterService, licenseState,
+                        client, licenseService, indexNameExpressionResolver);
+        expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+    }
+
 }

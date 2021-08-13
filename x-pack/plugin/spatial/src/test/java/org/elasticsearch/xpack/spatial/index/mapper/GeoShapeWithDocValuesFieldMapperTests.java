@@ -1,26 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
@@ -28,7 +18,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -36,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -48,6 +39,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -65,12 +57,22 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsSearchLookup() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
             GeoShapeWithDocValuesFieldMapper gsfm = (GeoShapeWithDocValuesFieldMapper) m;
-            assertEquals(ShapeBuilder.Orientation.RIGHT, gsfm.orientation());
+            assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
             GeoShapeWithDocValuesFieldMapper gpfm = (GeoShapeWithDocValuesFieldMapper) m;
@@ -98,7 +100,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
         GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
-        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.RIGHT));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.RIGHT));
         assertTrue(geoShapeFieldMapper.fieldType().hasDocValues());
     }
 
@@ -125,10 +127,10 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        ShapeBuilder.Orientation orientation = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+        Orientation orientation = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).fieldType().orientation();
+        assertThat(orientation, equalTo(Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.LEFT));
+        assertThat(orientation, equalTo(Orientation.CW));
 
         // explicit right orientation test
         defaultMapper = createDocumentMapper(fieldMapping(b -> {
@@ -139,9 +141,9 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
         orientation = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.RIGHT));
+        assertThat(orientation, equalTo(Orientation.CCW));
     }
 
     /**
@@ -267,14 +269,25 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
         GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
-        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
+    }
+
+    public void testInvalidCurrentVersion() {
+        MapperParsingException e =
+            expectThrows(MapperParsingException.class,
+                () -> super.createMapperService(Version.CURRENT, fieldMapping((b) -> {
+                    b.field("type", "geo_shape").field("strategy", "recursive");
+                })));
+        assertThat(e.getMessage(),
+            containsString("using deprecated parameters [strategy] " +
+                "in mapper [field] of type [geo_shape] is no longer allowed"));
     }
 
     public void testSerializeDefaults() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) defaultMapper.mappers().getMapper("field"));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-            ShapeBuilder.Orientation.RIGHT + "\""));
+            Orientation.RIGHT + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":true"));
     }
 
@@ -286,7 +299,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
         }));
         String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) mapper.mappers().getMapper("field"));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-            ShapeBuilder.Orientation.RIGHT + "\""));
+            Orientation.RIGHT + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
     }
 
@@ -316,6 +329,16 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
         assertThat(fields.length, equalTo(2));
     }
 
+    public void testMultiFieldsDeprecationWarning() throws Exception {
+        createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
+    }
+
     public String toXContentString(GeoShapeWithDocValuesFieldMapper mapper, boolean includeDefaults) {
         if (includeDefaults) {
             ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
@@ -332,5 +355,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
 
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

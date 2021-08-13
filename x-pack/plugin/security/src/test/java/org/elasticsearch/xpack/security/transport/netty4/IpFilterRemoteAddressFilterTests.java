@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
@@ -57,7 +58,6 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
                 IPFilter.PROFILE_FILTER_ALLOW_SETTING,
                 IPFilter.PROFILE_FILTER_DENY_SETTING)));
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING)).thenReturn(true);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         IPFilter ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);

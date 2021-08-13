@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,8 +37,11 @@ public class RestPutWatchAction extends BaseRestHandler implements RestRequestFi
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_watcher/watch/{id}"),
-            new Route(PUT, "/_watcher/watch/{id}"));
+            Route.builder(POST, "/_watcher/watch/{id}")
+                .replaces(POST, "/_xpack/watcher/watch/{id}", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/{id}")
+                .replaces(PUT, "/_xpack/watcher/watch/{id}", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
@@ -24,13 +13,15 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MessageDigests;
 
@@ -55,6 +46,7 @@ import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -81,6 +73,9 @@ import java.util.regex.Pattern;
  * in a single thread. Once decrypted, settings may be read in multiple threads.
  */
 public class KeyStoreWrapper implements SecureSettings {
+
+    /** Arbitrarily chosen maximum passphrase length */
+    public static final int MAX_PASSPHRASE_LENGTH = 128;
 
     /** An identifier for the type of data that may be stored in a keystore entry. */
     private enum EntryType {
@@ -111,7 +106,7 @@ public class KeyStoreWrapper implements SecureSettings {
         "~!@#$%^&*-_=+?").toCharArray();
 
     /** The name of the keystore file to read and write. */
-    private static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
+    public static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
     static final int FORMAT_VERSION = 4;
@@ -204,6 +199,29 @@ public class KeyStoreWrapper implements SecureSettings {
         Arrays.fill(characters, (char)0);
     }
 
+    public static KeyStoreWrapper bootstrap(Path configDir, CheckedSupplier<SecureString, Exception> passwordSupplier) throws Exception {
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
+
+        SecureString password;
+        if (keystore != null && keystore.hasPassword()) {
+            password = passwordSupplier.get();
+        } else {
+            password = new SecureString(new char[0]);
+        }
+
+        try (password) {
+            if (keystore == null) {
+                final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
+                keyStoreWrapper.save(configDir, new char[0]);
+                return keyStoreWrapper;
+            } else {
+                keystore.decrypt(password.getChars());
+                KeyStoreWrapper.upgrade(keystore, configDir, password.getChars());
+            }
+        }
+        return keystore;
+    }
+
     /**
      * Loads information about the Elasticsearch keystore from the provided config directory.
      *
@@ -216,7 +234,7 @@ public class KeyStoreWrapper implements SecureSettings {
             return null;
         }
 
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        Directory directory = new NIOFSDirectory(configDir);
         try (IndexInput indexInput = directory.openInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
             ChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput);
             final int formatVersion;
@@ -487,11 +505,16 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Write the keystore to the given config directory. */
     public synchronized void save(Path configDir, char[] password) throws Exception {
+        save(configDir, password, true);
+    }
+
+    public synchronized void save(Path configDir, char[] password, boolean preservePermissions) throws Exception {
         ensureOpen();
 
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        Directory directory = new NIOFSDirectory(configDir);
         // write to tmp file first, then overwrite
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
+        Path keystoreTempFile = configDir.resolve(tmpFile);
         try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
             output.writeByte(password.length == 0 ? (byte)0 : (byte)1);
@@ -525,17 +548,55 @@ public class KeyStoreWrapper implements SecureSettings {
             final String message = String.format(
                 Locale.ROOT,
                 "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
-                configDir.resolve(tmpFile),
+                keystoreTempFile,
                 configDir);
             throw new UserException(ExitCodes.CONFIG, message, e);
+        } catch (final Exception e) {
+            try {
+                Files.deleteIfExists(keystoreTempFile);
+            } catch (Exception ex) {
+                e.addSuppressed(e);
+            }
+            throw e;
         }
 
         Path keystoreFile = keystorePath(configDir);
-        Files.move(configDir.resolve(tmpFile), keystoreFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreFile, PosixFileAttributeView.class);
-        if (attrs != null) {
-            // don't rely on umask: ensure the keystore has minimal permissions
-            attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
+        if (preservePermissions) {
+            try {
+                // check that replace doesn't change the owner
+                if (Files.exists(keystoreFile, LinkOption.NOFOLLOW_LINKS) &&
+                        false == Files.getOwner(keystoreTempFile, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(keystoreFile,
+                                LinkOption.NOFOLLOW_LINKS))) {
+                    String message = String.format(
+                            Locale.ROOT,
+                            "will not overwrite keystore at [%s], because this incurs changing the file owner",
+                            keystoreFile);
+                    throw new UserException(ExitCodes.CONFIG, message);
+                }
+                PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreTempFile, PosixFileAttributeView.class);
+                if (attrs != null) {
+                    // don't rely on umask: ensure the keystore has minimal permissions
+                    attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
+                }
+            } catch (Exception e) {
+                try {
+                    Files.deleteIfExists(keystoreTempFile);
+                } catch (Exception ex) {
+                    e.addSuppressed(ex);
+                }
+                throw e;
+            }
+        }
+
+        try {
+            Files.move(keystoreTempFile, keystoreFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (Exception e) {
+            try {
+                Files.deleteIfExists(keystoreTempFile);
+            } catch (Exception ex) {
+                e.addSuppressed(ex);
+            }
+            throw e;
         }
     }
 
@@ -594,7 +655,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * Set a string setting.
      */
-    synchronized void setString(String setting, char[] value) {
+    public synchronized void setString(String setting, char[] value) {
         ensureOpen();
         validateSettingName(setting);
 

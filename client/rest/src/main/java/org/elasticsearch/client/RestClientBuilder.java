@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -20,19 +20,26 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
+import org.apache.http.HttpRequest;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
+import org.apache.http.protocol.HttpContext;
+import org.apache.http.util.VersionInfo;
 
 import javax.net.ssl.SSLContext;
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Properties;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
@@ -45,6 +52,11 @@ public final class RestClientBuilder {
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
+    static final String VERSION;
+    static final String META_HEADER_NAME = "X-Elastic-Client-Meta";
+    private static final String META_HEADER_VALUE;
+    private static final String USER_AGENT_HEADER_VALUE;
+
     private static final Header[] EMPTY_HEADERS = new Header[0];
 
     private final List<Node> nodes;
@@ -56,6 +68,48 @@ public final class RestClientBuilder {
     private NodeSelector nodeSelector = NodeSelector.ANY;
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
+    private boolean metaHeaderEnabled = true;
+
+    static {
+
+        // Never fail on unknown version, even if an environment messed up their classpath enough that we can't find it.
+        // Better have incomplete telemetry than crashing user applications.
+        String version = null;
+        try (InputStream is = RestClient.class.getResourceAsStream("version.properties")) {
+            if (is != null) {
+                Properties versions = new Properties();
+                versions.load(is);
+                version = versions.getProperty("elasticsearch-client");
+            }
+        } catch (IOException e) {
+            // Keep version unknown
+        }
+
+        if (version == null) {
+            version = ""; // unknown values are reported as empty strings in X-Elastic-Client-Meta
+        }
+
+        VERSION = version;
+
+        USER_AGENT_HEADER_VALUE = String.format(Locale.ROOT, "elasticsearch-java/%s (Java/%s)",
+            VERSION.isEmpty() ? "Unknown" : VERSION, System.getProperty("java.version"));
+
+        VersionInfo httpClientVersion = null;
+        try {
+            httpClientVersion = AccessController.doPrivileged((PrivilegedAction<VersionInfo>)() ->
+                VersionInfo.loadVersionInfo("org.apache.http.nio.client", HttpAsyncClientBuilder.class.getClassLoader())
+            );
+        } catch (Exception e) {
+            // Keep unknown
+        }
+
+        // service, language, transport, followed by additional information
+        META_HEADER_VALUE = "es=" + VERSION +
+            ",jv=" + System.getProperty("java.specification.version") +
+            ",t=" + VERSION +
+            ",hc=" + (httpClientVersion == null ? "" : httpClientVersion.getRelease()) +
+            LanguageRuntimeVersions.getRuntimeMetadata();
+    }
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -192,6 +246,17 @@ public final class RestClientBuilder {
     }
 
     /**
+     * Whether to send a {@code X-Elastic-Client-Meta} header that describes the runtime environment. It contains
+     * information that is similar to what could be found in {@code User-Agent}. Using a separate header allows
+     * applications to use {@code User-Agent} for their own needs, e.g. to identify application version or other
+     * environment information. Defaults to {@code true}.
+     */
+    public RestClientBuilder setMetaHeaderEnabled(boolean metadataEnabled) {
+        this.metaHeaderEnabled = metadataEnabled;
+        return this;
+    }
+
+    /**
      * Creates a new {@link RestClient} based on the provided configuration.
      */
     public RestClient build() {
@@ -220,11 +285,20 @@ public final class RestClientBuilder {
                 //default settings for connection pooling may be too constraining
                 .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
                 .setSSLContext(SSLContext.getDefault())
+                .setUserAgent(USER_AGENT_HEADER_VALUE)
                 .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
 
+            // Always add metadata header last so that it's not overwritten
+            httpClientBuilder.addInterceptorLast((HttpRequest request, HttpContext context) -> {
+                if (metaHeaderEnabled) {
+                    request.setHeader(META_HEADER_NAME, META_HEADER_VALUE);
+                } else {
+                    request.removeHeaders(META_HEADER_NAME);
+                }
+            });
             final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
             return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
         } catch (NoSuchAlgorithmException e) {

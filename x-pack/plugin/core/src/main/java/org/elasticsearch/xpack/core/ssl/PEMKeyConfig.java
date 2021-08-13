@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -21,6 +23,7 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.AccessControlException;
+import java.security.GeneralSecurityException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -119,6 +122,8 @@ class PEMKeyConfig extends KeyConfig {
             throw unreadableKeyConfigFile(accessException, KEY_FILE, key);
         } catch (AccessControlException securityException) {
             throw blockedKeyConfigFile(securityException, environment, KEY_FILE, key);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("Error parsing Private Key from: " + keyPath, e);
         }
     }
 
@@ -142,15 +147,16 @@ class PEMKeyConfig extends KeyConfig {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PEMKeyConfig that = (PEMKeyConfig) o;
-
-        if (keyPath != null ? !keyPath.equals(that.keyPath) : that.keyPath != null) return false;
-        if (keyPassword != null ? !keyPassword.equals(that.keyPassword) : that.keyPassword != null) return false;
-        return certPath != null ? certPath.equals(that.certPath) : that.certPath == null;
-
+        return Objects.equals(keyPath, that.keyPath)
+            && Objects.equals(keyPassword, that.keyPassword)
+            && Objects.equals(certPath, that.certPath);
     }
 
     @Override

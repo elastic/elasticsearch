@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.service;
@@ -40,13 +29,13 @@ import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
@@ -73,6 +62,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -452,7 +442,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             public void execute() {
-                if (!state.compareAndSet(false, true)) {
+                if (state.compareAndSet(false, true) == false) {
                     throw new IllegalStateException();
                 } else {
                     counter.incrementAndGet();
@@ -990,6 +980,127 @@ public class MasterServiceTests extends ESTestCase {
 
                 latch.await();
             }
+        }
+    }
+
+    @TestLogging(value = "org.elasticsearch.cluster.service.MasterService:WARN", reason = "testing WARN logging")
+    public void testStarvationLogging() throws Exception {
+        final long warnThresholdMillis = MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis();
+        relativeTimeInMillis = randomLongBetween(0, Long.MAX_VALUE - warnThresholdMillis * 3);
+        final long startTimeMillis = relativeTimeInMillis;
+        final long taskDurationMillis = TimeValue.timeValueSeconds(1).millis();
+
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+
+        Logger clusterLogger = LogManager.getLogger(MasterService.class);
+        Loggers.addAppender(clusterLogger, mockAppender);
+        try (MasterService masterService = createMasterService(true)) {
+            final AtomicBoolean keepRunning = new AtomicBoolean(true);
+
+            final Runnable await = new Runnable() {
+                private final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
+
+                @Override
+                public void run() {
+                    try {
+                        cyclicBarrier.await(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                        throw new AssertionError("unexpected", e);
+                    }
+                }
+            };
+            final Runnable awaitNextTask = () -> {
+                await.run();
+                await.run();
+            };
+
+            final ClusterStateUpdateTask starvationCausingTask = new ClusterStateUpdateTask(Priority.HIGH) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    await.run();
+                    relativeTimeInMillis += taskDurationMillis;
+                    if (keepRunning.get()) {
+                        masterService.submitStateUpdateTask("starvation-causing task", this);
+                    }
+                    await.run();
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    fail();
+                }
+            };
+            masterService.submitStateUpdateTask("starvation-causing task", starvationCausingTask);
+
+            final CountDownLatch starvedTaskExecuted = new CountDownLatch(1);
+            masterService.submitStateUpdateTask("starved task", new ClusterStateUpdateTask(Priority.NORMAL) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    assertFalse(keepRunning.get());
+                    starvedTaskExecuted.countDown();
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    fail();
+                }
+            });
+
+            // check that a warning is logged after 5m
+            final MockLogAppender.EventuallySeenEventExpectation expectation1 = new MockLogAppender.EventuallySeenEventExpectation(
+                "starvation warning",
+                MasterService.class.getCanonicalName(),
+                Level.WARN,
+                "pending task queue has been nonempty for [5m/300000ms] which is longer than the warn threshold of [300000ms];" +
+                    " there are currently [2] pending tasks, the oldest of which has age [*"
+            );
+            mockAppender.addExpectation(expectation1);
+
+            while (relativeTimeInMillis - startTimeMillis < warnThresholdMillis) {
+                awaitNextTask.run();
+                mockAppender.assertAllExpectationsMatched();
+            }
+
+            expectation1.setExpectSeen();
+            awaitNextTask.run();
+            // the master service thread is somewhere between completing the previous task and starting the next one, which is when the
+            // logging happens, so we must wait for another task to run too to ensure that the message was logged
+            awaitNextTask.run();
+            mockAppender.assertAllExpectationsMatched();
+
+            // check that another warning is logged after 10m
+            final MockLogAppender.EventuallySeenEventExpectation expectation2 = new MockLogAppender.EventuallySeenEventExpectation(
+                "starvation warning",
+                MasterService.class.getCanonicalName(),
+                Level.WARN,
+                "pending task queue has been nonempty for [10m/600000ms] which is longer than the warn threshold of [300000ms];" +
+                    " there are currently [2] pending tasks, the oldest of which has age [*"
+            );
+            mockAppender.addExpectation(expectation2);
+
+            while (relativeTimeInMillis - startTimeMillis < warnThresholdMillis * 2) {
+                awaitNextTask.run();
+                mockAppender.assertAllExpectationsMatched();
+            }
+
+            expectation2.setExpectSeen();
+            awaitNextTask.run();
+            // the master service thread is somewhere between completing the previous task and starting the next one, which is when the
+            // logging happens, so we must wait for another task to run too to ensure that the message was logged
+            awaitNextTask.run();
+            mockAppender.assertAllExpectationsMatched();
+
+            // now stop the starvation and clean up
+            keepRunning.set(false);
+            awaitNextTask.run();
+            assertTrue(starvedTaskExecuted.await(10, TimeUnit.SECONDS));
+
+        } finally {
+            Loggers.removeAppender(clusterLogger, mockAppender);
+            mockAppender.stop();
         }
     }
 

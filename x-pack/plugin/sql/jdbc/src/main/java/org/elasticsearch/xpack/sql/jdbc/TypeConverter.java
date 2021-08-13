@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -56,8 +57,6 @@ import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
  */
 final class TypeConverter {
 
-    private static WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
-
     private TypeConverter() {}
 
     /**
@@ -87,10 +86,14 @@ final class TypeConverter {
     }
 
     /**
-     * Converts millisecond after epoc to timestamp
+     * Converts millisecond after epoch to timestamp
      */
-    static Timestamp convertTimestamp(Long millis, Calendar cal) {
-        return dateTimeConvert(millis, cal, c -> new Timestamp(c.getTimeInMillis()));
+    static Timestamp convertTimestamp(Long millis, int nanos, Calendar cal) {
+        Timestamp ts = dateTimeConvert(millis, cal, c -> new Timestamp(c.getTimeInMillis()));
+        if (ts != null) {
+            ts.setNanos(nanos);
+        }
+        return ts;
     }
 
     private static <T> T dateTimeConvert(Long millis, Calendar c, Function<Calendar, T> creator) {
@@ -105,8 +108,6 @@ final class TypeConverter {
             c.setTimeInMillis(initial);
         }
     }
-
-
 
     static long convertFromCalendarToUTC(long value, Calendar cal) {
         if (cal == null) {
@@ -254,7 +255,7 @@ final class TypeConverter {
             case GEO_SHAPE:
             case SHAPE:
                 try {
-                    return WKT.fromWKT(v.toString());
+                    return WellKnownText.fromWKT(StandardValidator.instance(true), true, v.toString());
                 } catch (IOException | ParseException ex) {
                     throw new SQLException("Cannot parse geo_shape", ex);
                 }

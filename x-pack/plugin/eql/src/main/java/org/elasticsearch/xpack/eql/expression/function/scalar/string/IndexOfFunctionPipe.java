@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
@@ -18,21 +19,18 @@ import java.util.Objects;
 public class IndexOfFunctionPipe extends Pipe {
 
     private final Pipe input, substring, start;
-    private final boolean isCaseSensitive;
+    private final boolean caseInsensitive;
 
-    public IndexOfFunctionPipe(Source source, Expression expression, Pipe input, Pipe substring, Pipe start, boolean isCaseSensitive) {
+    public IndexOfFunctionPipe(Source source, Expression expression, Pipe input, Pipe substring, Pipe start, boolean caseInsensitive) {
         super(source, expression, Arrays.asList(input, substring, start));
         this.input = input;
         this.substring = substring;
         this.start = start;
-        this.isCaseSensitive = isCaseSensitive;
+        this.caseInsensitive = caseInsensitive;
     }
 
     @Override
     public final Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 3) {
-            throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
@@ -58,7 +56,7 @@ public class IndexOfFunctionPipe extends Pipe {
     }
 
     protected IndexOfFunctionPipe replaceChildren(Pipe newInput, Pipe newSubstring, Pipe newStart) {
-        return new IndexOfFunctionPipe(source(), expression(), newInput, newSubstring, newStart, isCaseSensitive);
+        return new IndexOfFunctionPipe(source(), expression(), newInput, newSubstring, newStart, caseInsensitive);
     }
 
     @Override
@@ -70,14 +68,14 @@ public class IndexOfFunctionPipe extends Pipe {
 
     @Override
     protected NodeInfo<IndexOfFunctionPipe> info() {
-        return NodeInfo.create(this, IndexOfFunctionPipe::new, expression(), input, substring, start, isCaseSensitive);
+        return NodeInfo.create(this, IndexOfFunctionPipe::new, expression(), input, substring, start, caseInsensitive);
     }
 
     @Override
     public IndexOfFunctionProcessor asProcessor() {
-        return new IndexOfFunctionProcessor(input.asProcessor(), substring.asProcessor(), start.asProcessor(), isCaseSensitive);
+        return new IndexOfFunctionProcessor(input.asProcessor(), substring.asProcessor(), start.asProcessor(), caseInsensitive);
     }
-    
+
     public Pipe input() {
         return input;
     }
@@ -90,13 +88,13 @@ public class IndexOfFunctionPipe extends Pipe {
         return start;
     }
 
-    protected boolean isCaseSensitive() {
-        return isCaseSensitive;
+    protected boolean isCaseInsensitive() {
+        return caseInsensitive;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(input, substring, start, isCaseSensitive);
+        return Objects.hash(input, substring, start, caseInsensitive);
     }
 
     @Override
@@ -111,8 +109,8 @@ public class IndexOfFunctionPipe extends Pipe {
 
         IndexOfFunctionPipe other = (IndexOfFunctionPipe) obj;
         return Objects.equals(input(), other.input())
-                && Objects.equals(substring(), other.substring())
-                && Objects.equals(start(), other.start())
-                && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
+            && Objects.equals(substring(), other.substring())
+            && Objects.equals(start(), other.start())
+            && Objects.equals(isCaseInsensitive(), other.isCaseInsensitive());
     }
 }

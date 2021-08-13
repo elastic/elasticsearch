@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
@@ -6,7 +6,7 @@ esplugin {
   description 'An example spi extension plugin for security that implements an Authorization Engine'
   classname 'org.elasticsearch.example.AuthorizationEnginePlugin'
   extendedPlugins = ['x-pack-security']
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
 
@@ -19,12 +19,12 @@ dependencies {
 }
 //no unit tests
 tasks.named("test").configure { enabled = false }
-javaRestTest {
+tasks.named("javaRestTest").configure {
   dependsOn "buildZip"
   systemProperty 'tests.security.manager', 'false'
 }
 
-testClusters.javaRestTest {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.store;
 
@@ -22,13 +23,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -47,6 +47,8 @@ import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCac
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
+import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -57,9 +59,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -71,8 +70,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.Fields.APPLICATION;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
 /**
  * {@code NativePrivilegeStore} is a store that reads/writes {@link ApplicationPrivilegeDescriptor} objects,
@@ -99,36 +96,22 @@ public class NativePrivilegeStore {
     private final Settings settings;
     private final Client client;
     private final SecurityIndexManager securityIndexManager;
-    private final Cache<String, Set<ApplicationPrivilegeDescriptor>> descriptorsCache;
-    private final Cache<Set<String>, Set<String>> applicationNamesCache;
-    private final AtomicLong numInvalidation = new AtomicLong();
-    private final ReadWriteLock invalidationLock = new ReentrantReadWriteLock();
-    private final ReleasableLock invalidationReadLock = new ReleasableLock(invalidationLock.readLock());
-    private final ReleasableLock invalidationWriteLock = new ReleasableLock(invalidationLock.writeLock());
+    private final DescriptorsAndApplicationNamesCache descriptorsAndApplicationNamesCache;
 
 
-    public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
+    public NativePrivilegeStore(
+        Settings settings, Client client, SecurityIndexManager securityIndexManager, CacheInvalidatorRegistry cacheInvalidatorRegistry) {
         this.settings = settings;
         this.client = client;
         this.securityIndexManager = securityIndexManager;
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
-            final int cacheSize = CACHE_MAX_APPLICATIONS_SETTING.get(settings);
-            descriptorsCache = CacheBuilder.<String, Set<ApplicationPrivilegeDescriptor>>builder()
-                .setMaximumWeight(cacheSize)
-                .weigher((k, v) -> v.size())
-                .setExpireAfterWrite(ttl).build();
-            applicationNamesCache = CacheBuilder.<Set<String>, Set<String>>builder()
-                .setMaximumWeight(cacheSize)
-                .weigher((k, v) -> k.size() + v.size())
-                .setExpireAfterWrite(ttl).build();
+            descriptorsAndApplicationNamesCache = new DescriptorsAndApplicationNamesCache(
+                ttl, CACHE_MAX_APPLICATIONS_SETTING.get(settings));
+            cacheInvalidatorRegistry.registerCacheInvalidator("application_privileges", descriptorsAndApplicationNamesCache);
         } else {
-            descriptorsCache = null;
-            applicationNamesCache = null;
+            descriptorsAndApplicationNamesCache = null;
         }
-        assert (descriptorsCache == null && applicationNamesCache == null)
-            || (descriptorsCache != null && applicationNamesCache != null)
-            : "descriptor and application names cache must be enabled or disabled together";
     }
 
     public void getPrivileges(Collection<String> applications, Collection<String> names,
@@ -139,7 +122,8 @@ public class NativePrivilegeStore {
 
         // Always fetch for the concrete application names even when the passed-in application names has no wildcard.
         // This serves as a negative lookup, i.e. when a passed-in non-wildcard application does not exist.
-        Set<String> concreteApplicationNames = applicationNamesCache == null ? null : applicationNamesCache.get(applicationNamesCacheKey);
+        Set<String> concreteApplicationNames = descriptorsAndApplicationNamesCache == null ? null
+            : descriptorsAndApplicationNamesCache.getConcreteApplicationNames(applicationNamesCacheKey);
 
         if (concreteApplicationNames != null && concreteApplicationNames.isEmpty()) {
             logger.debug("returning empty application privileges for [{}] as application names result in empty list",
@@ -152,21 +136,15 @@ public class NativePrivilegeStore {
                 logger.debug("All application privileges for [{}] found in cache", applicationNamesCacheKey);
                 listener.onResponse(filterDescriptorsForPrivilegeNames(cachedDescriptors, names));
             } else {
-                final long invalidationCounter = numInvalidation.get();
                 // Always fetch all privileges of an application for caching purpose
                 logger.debug("Fetching application privilege documents for: {}", applicationNamesCacheKey);
+                final long invalidationCount =
+                    descriptorsAndApplicationNamesCache == null ? -1 : descriptorsAndApplicationNamesCache.getInvalidationCount();
                 innerGetPrivileges(applicationNamesCacheKey, ActionListener.wrap(fetchedDescriptors -> {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
                         .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
-                    if (descriptorsCache != null) {
-                        // Use RWLock and atomic counter to:
-                        // 1. Avoid caching potential stale results as much as possible
-                        // 2. If stale results are cached, ensure they will be invalidated as soon as possible
-                        try (ReleasableLock ignored = invalidationReadLock.acquire()) {
-                            if (invalidationCounter == numInvalidation.get()) {
-                                cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors);
-                            }
-                        }
+                    if (invalidationCount != -1) {
+                        cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors, invalidationCount);
                     }
                     listener.onResponse(filterDescriptorsForPrivilegeNames(fetchedDescriptors, names));
                 }, listener::onFailure));
@@ -274,7 +252,7 @@ public class NativePrivilegeStore {
      * name, this means any wildcard will result in null.
      */
     private Set<ApplicationPrivilegeDescriptor> cachedDescriptorsForApplicationNames(Set<String> applicationNames) {
-        if (descriptorsCache == null) {
+        if (descriptorsAndApplicationNamesCache == null) {
             return null;
         }
         final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = new HashSet<>();
@@ -282,7 +260,8 @@ public class NativePrivilegeStore {
             if (applicationName.endsWith("*")) {
                 return null;
             } else {
-                final Set<ApplicationPrivilegeDescriptor> descriptors = descriptorsCache.get(applicationName);
+                final Set<ApplicationPrivilegeDescriptor> descriptors =
+                    descriptorsAndApplicationNamesCache.getApplicationDescriptors(applicationName);
                 if (descriptors == null) {
                     return null;
                 } else {
@@ -307,17 +286,10 @@ public class NativePrivilegeStore {
 
     // protected for tests
     protected void cacheFetchedDescriptors(Set<String> applicationNamesCacheKey,
-        Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors) {
-        final Set<String> fetchedApplicationNames = Collections.unmodifiableSet(mapOfFetchedDescriptors.keySet());
-        // Do not cache the names if expansion has no effect
-        if (fetchedApplicationNames.equals(applicationNamesCacheKey) == false) {
-            logger.debug("Caching application names query: {} = {}", applicationNamesCacheKey, fetchedApplicationNames);
-            applicationNamesCache.put(applicationNamesCacheKey, fetchedApplicationNames);
-        }
-        for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
-            logger.debug("Caching descriptors for application: {}", entry.getKey());
-            descriptorsCache.put(entry.getKey(), entry.getValue());
-        }
+                                           Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors,
+                                           long invalidationCount) {
+        descriptorsAndApplicationNamesCache.putIfNoInvalidationSince(applicationNamesCacheKey, mapOfFetchedDescriptors,
+            invalidationCount);
     }
 
     public void putPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges, WriteRequest.RefreshPolicy refreshPolicy,
@@ -417,60 +389,92 @@ public class NativePrivilegeStore {
         return DOC_TYPE_VALUE + "_" + application + ":" + name;
     }
 
-    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)
-            || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
-            invalidateAll();
-        }
-    }
-
-    public void invalidate(Collection<String> updatedApplicationNames) {
-        if (descriptorsCache == null) {
-            return;
-        }
-        // Increment the invalidation count to avoid caching stale results
-        // Release the lock as soon as we increment the counter so the actual invalidation
-        // does not have to block other threads. In theory, there could be very rare edge
-        // cases that we would invalidate more than necessary. But we consider less locking
-        // duration is overall better.
-        try (ReleasableLock ignored = invalidationWriteLock.acquire()) {
-            numInvalidation.incrementAndGet();
-        }
-        logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
-        final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
-        // Always completely invalidate application names cache due to wildcard
-        applicationNamesCache.invalidateAll();
-        uniqueNames.forEach(descriptorsCache::invalidate);
-    }
-
-    public void invalidateAll() {
-        if (descriptorsCache == null) {
-            return;
-        }
-        try (ReleasableLock ignored = invalidationWriteLock.acquire()) {
-            numInvalidation.incrementAndGet();
-        }
-        logger.debug("Invalidating all application privileges caches");
-        applicationNamesCache.invalidateAll();
-        descriptorsCache.invalidateAll();
-    }
-
     private static boolean isEmpty(Collection<String> collection) {
         return collection == null || collection.isEmpty();
     }
 
     // Package private for tests
+    DescriptorsAndApplicationNamesCache getDescriptorsAndApplicationNamesCache() {
+        return descriptorsAndApplicationNamesCache;
+    }
+
+    // Package private for tests
     Cache<Set<String>, Set<String>> getApplicationNamesCache() {
-        return applicationNamesCache;
+        return descriptorsAndApplicationNamesCache == null ? null : descriptorsAndApplicationNamesCache.applicationNamesCache;
     }
 
     // Package private for tests
     Cache<String, Set<ApplicationPrivilegeDescriptor>> getDescriptorsCache() {
-        return descriptorsCache;
+        return descriptorsAndApplicationNamesCache == null ? null : descriptorsAndApplicationNamesCache.descriptorsCache;
     }
 
     // Package private for tests
-    AtomicLong getNumInvalidation() {
-        return numInvalidation;
+    long getNumInvalidation() {
+        return descriptorsAndApplicationNamesCache.getInvalidationCount();
+    }
+
+    static final class DescriptorsAndApplicationNamesCache implements CacheInvalidatorRegistry.CacheInvalidator {
+        private final Cache<String, Set<ApplicationPrivilegeDescriptor>> descriptorsCache;
+        private final Cache<Set<String>, Set<String>> applicationNamesCache;
+        private final LockingAtomicCounter lockingAtomicCounter;
+
+        DescriptorsAndApplicationNamesCache(TimeValue ttl, int cacheSize) {
+            this.descriptorsCache = CacheBuilder.<String, Set<ApplicationPrivilegeDescriptor>>builder()
+                .setMaximumWeight(cacheSize)
+                .weigher((k, v) -> v.size())
+                .setExpireAfterWrite(ttl)
+                .build();
+            this.applicationNamesCache = CacheBuilder.<Set<String>, Set<String>>builder()
+                .setMaximumWeight(cacheSize)
+                .weigher((k, v) -> k.size() + v.size())
+                .setExpireAfterWrite(ttl)
+                .build();
+            this.lockingAtomicCounter = new LockingAtomicCounter();
+        }
+
+        public Set<ApplicationPrivilegeDescriptor> getApplicationDescriptors(String applicationName) {
+            return descriptorsCache.get(applicationName);
+        }
+
+        public Set<String> getConcreteApplicationNames(Set<String> applicationNames) {
+            return applicationNamesCache.get(applicationNames);
+        }
+
+        public void putIfNoInvalidationSince(Set<String> applicationNamesCacheKey,
+                                             Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors,
+                                             long invalidationCount) {
+            lockingAtomicCounter.compareAndRun(invalidationCount, () -> {
+                final Set<String> fetchedApplicationNames = Collections.unmodifiableSet(mapOfFetchedDescriptors.keySet());
+                // Do not cache the names if expansion has no effect
+                if (fetchedApplicationNames.equals(applicationNamesCacheKey) == false) {
+                    logger.debug("Caching application names query: {} = {}", applicationNamesCacheKey, fetchedApplicationNames);
+                    applicationNamesCache.put(applicationNamesCacheKey, fetchedApplicationNames);
+                }
+                for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
+                    logger.debug("Caching descriptors for application: {}", entry.getKey());
+                    descriptorsCache.put(entry.getKey(), entry.getValue());
+                }
+            });
+        }
+
+        public long getInvalidationCount() {
+            return lockingAtomicCounter.get();
+        }
+
+        public void invalidate(Collection<String> updatedApplicationNames) {
+            lockingAtomicCounter.increment();
+            logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
+            final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
+            // Always completely invalidate application names cache due to wildcard
+            applicationNamesCache.invalidateAll();
+            updatedApplicationNames.forEach(descriptorsCache::invalidate);
+        }
+
+        public void invalidateAll() {
+            lockingAtomicCounter.increment();
+            logger.debug("Invalidating all application privileges caches");
+            applicationNamesCache.invalidateAll();
+            descriptorsCache.invalidateAll();
+        }
     }
 }

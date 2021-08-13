@@ -1,0 +1,114 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+import java.nio.file.Files
+import java.security.KeyPair
+import java.security.KeyPairGenerator
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+final Project fixture = project(':test:fixtures:gcs-fixture')
+final Project repositoryPlugin = project(':plugins:repository-gcs')
+
+dependencies {
+  testImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
+  testImplementation repositoryPlugin
+}
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'snapshot_repo_test_kit'
+  }
+}
+
+boolean useFixture = false
+
+String gcsServiceAccount = System.getenv("google_storage_service_account")
+String gcsBucket = System.getenv("google_storage_bucket")
+String gcsBasePath = System.getenv("google_storage_base_path")
+
+File serviceAccountFile = null
+if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
+  serviceAccountFile = new File(project.buildDir, 'generated-resources/service_account_test.json')
+  gcsBucket = 'bucket'
+  gcsBasePath = 'integration_test'
+  useFixture = true
+} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+  throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
+} else {
+  serviceAccountFile = new File(gcsServiceAccount)
+}
+
+tasks.register("createServiceAccountFile") {
+  doLast {
+    KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(2048)
+    KeyPair keyPair = keyPairGenerator.generateKeyPair()
+    String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
+
+    serviceAccountFile.parentFile.mkdirs()
+    serviceAccountFile.setText("{\n" +
+      '  "type": "service_account",\n' +
+      '  "project_id": "integration_test",\n' +
+      '  "private_key_id": "' + UUID.randomUUID().toString() + '",\n' +
+      '  "private_key": "-----BEGIN PRIVATE KEY-----\\n' + encodedKey + '\\n-----END PRIVATE KEY-----\\n",\n' +
+      '  "client_email": "integration_test@appspot.gserviceaccount.com",\n' +
+      '  "client_id": "123456789101112130594"\n' +
+      '}', 'UTF-8')
+  }
+}
+
+def fixtureAddress = { f ->
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = project(':test:fixtures:gcs-fixture').postProcessFixture.ext."test.fixtures.${f}.tcp.80"
+  assert ephemeralPort > 0
+  'http://127.0.0.1:' + ephemeralPort
+}
+
+Map<String, Object> expansions = [
+  'bucket'   : gcsBucket,
+  'base_path': gcsBasePath + "_integration_tests"
+]
+
+if (useFixture) {
+  apply plugin: 'elasticsearch.test.fixtures'
+  testFixtures.useFixture(fixture.path, 'gcs-fixture-repository-test-kit')
+}
+
+tasks.named("integTest").configure {
+  systemProperty 'test.gcs.bucket', gcsBucket
+  nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repository_test_kit_tests" + BuildParams.testSeed
+
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+  }
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
+  plugin repositoryPlugin.path
+
+  keystore 'gcs.client.repository_test_kit.credentials_file', serviceAccountFile, IGNORE_VALUE
+  if (useFixture) {
+    /* Use a closure on the string to delay evaluation until tests are executed */
+    setting 'gcs.client.repository_test_kit.endpoint', { "${-> fixtureAddress('gcs-fixture-repository-test-kit')}" }, IGNORE_VALUE
+    setting 'gcs.client.repository_test_kit.token_uri', { "${-> fixtureAddress('gcs-fixture-repository-test-kit')}/o/oauth2/token" }, IGNORE_VALUE
+  } else {
+    println "Using an external service to test " + project.name
+  }
+  setting 'xpack.security.enabled', 'false'
+}
+
+tasks.register("gcsThirdPartyTest")  {
+  dependsOn "integTest"
+}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.unit;
@@ -273,9 +262,10 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testParseInvalidValue() {
+        String unitSuffix = (randomBoolean() ? " " : "") + randomFrom(ByteSizeUnit.values()).getSuffix();
         ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
-                () -> ByteSizeValue.parseBytesSizeValue("-6mb", "test_setting"));
-        assertEquals("failed to parse setting [test_setting] with value [-6mb] as a size in bytes", exception.getMessage());
+                () -> ByteSizeValue.parseBytesSizeValue("-6" + unitSuffix, "test_setting"));
+        assertEquals("failed to parse setting [test_setting] with value [-6" + unitSuffix + "] as a size in bytes", exception.getMessage());
         assertNotNull(exception.getCause());
         assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
     }
@@ -301,8 +291,10 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertEquals("failed to parse setting [test] with value [notANumber] as a size in bytes: unit is missing or unrecognized",
                 exception.getMessage());
 
-        exception = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("notANumberMB", "test"));
-        assertEquals("failed to parse setting [test] with value [notANumberMB]", exception.getMessage());
+        String unitSuffix = (randomBoolean() ? " " : "") + randomFrom(ByteSizeUnit.values()).getSuffix();
+        exception = expectThrows(ElasticsearchParseException.class,
+            () -> ByteSizeValue.parseBytesSizeValue("notANumber" + unitSuffix, "test"));
+        assertEquals("failed to parse setting [test] with value [notANumber" + unitSuffix + "]", exception.getMessage());
     }
 
     public void testParseFractionalNumber() throws IOException {

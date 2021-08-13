@@ -1,31 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -52,10 +42,10 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     /**
      * Returns the node id where the params has to be executed,
      * <p>
-     * The default implementation returns the least loaded data node
+     * The default implementation returns the least loaded data node from amongst the collection of candidate nodes
      */
-    public Assignment getAssignment(Params params, ClusterState clusterState) {
-        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, DiscoveryNode::isDataNode);
+    public Assignment getAssignment(Params params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
+        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {
@@ -64,13 +54,16 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     }
 
     /**
-     * Finds the least loaded node that satisfies the selector criteria
+     * Finds the least loaded node from amongs the candidate node collection
+     * that satisfies the selector criteria
      */
-    protected DiscoveryNode selectLeastLoadedNode(ClusterState clusterState, Predicate<DiscoveryNode> selector) {
+    protected DiscoveryNode selectLeastLoadedNode(ClusterState clusterState,
+                                                  Collection<DiscoveryNode> candidateNodes,
+                                                  Predicate<DiscoveryNode> selector) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
         PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        for (DiscoveryNode node : clusterState.getNodes()) {
+        for (DiscoveryNode node : candidateNodes) {
             if (selector.test(node)) {
                 if (persistentTasks == null) {
                     // We don't have any task running yet, pick the first available node

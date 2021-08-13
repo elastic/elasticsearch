@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar;
@@ -28,17 +29,18 @@ public class UserFunctionTests extends ESTestCase {
     public void testNoUsernameFunctionOutput() {
         SqlParser parser = new SqlParser();
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-basic.json", true));
+        SqlConfiguration sqlConfig = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+                Protocol.PAGE_TIMEOUT, null, null,
+                randomFrom(Mode.values()), randomAlphaOfLength(10),
+                null, null, randomAlphaOfLengthBetween(1, 15),
+                randomBoolean(), randomBoolean());
         Analyzer analyzer = new Analyzer(
-                new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-                                  Protocol.PAGE_TIMEOUT, null,
-                                  randomFrom(Mode.values()), randomAlphaOfLength(10),
-                                  null, randomAlphaOfLengthBetween(1, 15),
-                                  randomBoolean(), randomBoolean()),
+                sqlConfig,
                 new SqlFunctionRegistry(),
                 IndexResolution.valid(test),
                 new Verifier(new Metrics())
         );
-        
+
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT USER()"), true);
         NamedExpression ne = result.projections().get(0);
         assertTrue(ne instanceof Alias);

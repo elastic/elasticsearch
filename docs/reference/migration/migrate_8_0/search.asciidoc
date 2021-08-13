@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_search_changes]]
-=== Search Changes
+==== Search changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -20,7 +20,22 @@ Aggregating and sorting on `_id` should be avoided. As an alternative, the
 `_id` field's contents can be duplicated into another field with docvalues
 enabled (note that this does not apply to auto-generated IDs).
 ====
-//end::notable-breaking-changes[]
+
+[[max_clause_count_change]]
+.The `indices.query.bool.max_clause_count` setting now limits all query clauses.
+[%collapsible]
+====
+*Details* +
+Previously, the `indices.query.bool.max_clause_count` would apply to the number
+of clauses of a single `bool` query. It now applies to the total number of
+clauses of the rewritten query. In order to reduce chances of breaks, its
+default value has been bumped from 1024 to 4096.
+
+*Impact* +
+Queries with many clauses should be avoided whenever possible. If you had bumped
+this setting already in order to accomodate for some heavy queries, you might
+need to bump it further so that these heavy queries keep working.
+====
 
 .Search-related REST API endpoints containing mapping types have been removed.
 [%collapsible]
@@ -157,3 +172,33 @@ Change any use of `-1` as `from` parameter in request body or url parameters by 
 setting it to `0` or omitting it entirely. Requests containing negative values will
 return an error.
 ====
+
+.Range queries on date fields treat numeric values alwas as milliseconds-since-epoch.
+[%collapsible]
+====
+*Details* +
+Range queries on date fields used to misinterpret small numbers (e.g. four digits like 1000)
+as a year when no additional format was set, but would interpret other numeric values as
+milliseconds since epoch. We now treat all numeric values in absence of a specific `format`
+parameter as milliseconds since epoch. If you want to query for years instead, with a missing
+`format` you now need to quote the input value (e.g. "1984").
+
+*Impact* +
+If you query date fields without a specified `format`, check if the values in your queries are
+actually meant to be milliseconds-since-epoch and use a numeric value in this case. If not, use
+a string value which gets parsed by either the date format set on the field in the mappings or
+by `strict_date_optional_time` by default.
+====
+
+.The `geo_bounding_box` query's `type` parameter has been removed.
+[%collapsible]
+====
+*Details* +
+The `geo_bounding_box` query's `type` parameter was deprecated in 7.14.0 and has
+been removed in 8.0.0. This parameter is a no-op and has no effect on the query.
+
+*Impact* +
+Discontinue use of the `type` parameter. `geo_bounding_box` queries that include
+this parameter will return an error.
+====
+//end::notable-breaking-changes[]

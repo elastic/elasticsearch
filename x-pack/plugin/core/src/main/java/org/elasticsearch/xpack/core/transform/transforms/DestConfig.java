@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -65,8 +68,11 @@ public class DestConfig implements Writeable, ToXContentObject {
         return pipeline;
     }
 
-    public boolean isValid() {
-        return index.isEmpty() == false;
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        if (index.isEmpty()) {
+            validationException = addValidationError("dest.index must not be empty", validationException);
+        }
+        return validationException;
     }
 
     @Override

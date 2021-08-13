@@ -1,18 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ResourceNotFoundException;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -22,20 +20,16 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.IdsQueryBuilder;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
@@ -48,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
+import org.elasticsearch.xpack.ml.dataframe.steps.DataFrameAnalyticsStep;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
@@ -63,46 +58,41 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private static final Logger LOGGER = LogManager.getLogger(DataFrameAnalyticsTask.class);
 
     private final Client client;
-    private final ClusterService clusterService;
     private final DataFrameAnalyticsManager analyticsManager;
     private final DataFrameAnalyticsAuditor auditor;
     private final StartDataFrameAnalyticsAction.TaskParams taskParams;
-    @Nullable
-    private volatile Long reindexingTaskId;
-    private volatile boolean isReindexingFinished;
     private volatile boolean isStopping;
     private volatile boolean isMarkAsCompletedCalled;
-    private final StatsHolder statsHolder;
+    private volatile StatsHolder statsHolder;
+    private volatile DataFrameAnalyticsStep currentStep;
 
     public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
-                                  Client client, ClusterService clusterService, DataFrameAnalyticsManager analyticsManager,
-                                  DataFrameAnalyticsAuditor auditor, StartDataFrameAnalyticsAction.TaskParams taskParams) {
+                                  Client client, DataFrameAnalyticsManager analyticsManager, DataFrameAnalyticsAuditor auditor,
+                                  StartDataFrameAnalyticsAction.TaskParams taskParams) {
         super(id, type, action, MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(), parentTask, headers);
         this.client = new ParentTaskAssigningClient(Objects.requireNonNull(client), parentTask);
-        this.clusterService = Objects.requireNonNull(clusterService);
         this.analyticsManager = Objects.requireNonNull(analyticsManager);
         this.auditor = Objects.requireNonNull(auditor);
         this.taskParams = Objects.requireNonNull(taskParams);
-        this.statsHolder = new StatsHolder(taskParams.getProgressOnStart());
+    }
+
+    public void setStep(DataFrameAnalyticsStep step) {
+        currentStep = step;
     }
 
     public StartDataFrameAnalyticsAction.TaskParams getParams() {
         return taskParams;
     }
 
-    public void setReindexingTaskId(Long reindexingTaskId) {
-        LOGGER.debug("[{}] Setting reindexing task id to [{}] from [{}]", taskParams.getId(), reindexingTaskId, this.reindexingTaskId);
-        this.reindexingTaskId = reindexingTaskId;
-    }
-
-    public void setReindexingFinished() {
-        isReindexingFinished = true;
-    }
-
     public boolean isStopping() {
         return isStopping;
     }
 
+    public void setStatsHolder(StatsHolder statsHolder) {
+        this.statsHolder = Objects.requireNonNull(statsHolder);
+    }
+
+    @Nullable
     public StatsHolder getStatsHolder() {
         return statsHolder;
     }
@@ -152,59 +142,21 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     public void stop(String reason, TimeValue timeout) {
         isStopping = true;
 
-        ActionListener<Void> reindexProgressListener = ActionListener.wrap(
-            aVoid -> doStop(reason, timeout),
+        LOGGER.debug(() -> new ParameterizedMessage("[{}] Stopping task due to reason [{}]", getParams().getId(), reason));
+
+        DataFrameAnalyticsStep cachedCurrentStep = currentStep;
+        ActionListener<Void> stepProgressListener = ActionListener.wrap(
+            aVoid -> cachedCurrentStep.cancel(reason, timeout),
             e -> {
-                LOGGER.error(new ParameterizedMessage("[{}] Error updating reindexing progress", taskParams.getId()), e);
+                LOGGER.error(new ParameterizedMessage("[{}] Error updating progress for step [{}]",
+                    taskParams.getId(), cachedCurrentStep.name()), e);
                 // We should log the error but it shouldn't stop us from stopping the task
-                doStop(reason, timeout);
+                cachedCurrentStep.cancel(reason, timeout);
             }
         );
 
-        // We need to update reindexing progress before we cancel the task
-        updateReindexTaskProgress(reindexProgressListener);
-    }
-
-    private void doStop(String reason, TimeValue timeout) {
-        if (reindexingTaskId != null) {
-            cancelReindexingTask(reason, timeout);
-        }
-        analyticsManager.stop(this);
-    }
-
-    private void cancelReindexingTask(String reason, TimeValue timeout) {
-        TaskId reindexTaskId = new TaskId(clusterService.localNode().getId(), reindexingTaskId);
-        LOGGER.debug("[{}] Cancelling reindex task [{}]", taskParams.getId(), reindexTaskId);
-
-        CancelTasksRequest cancelReindex = new CancelTasksRequest();
-        cancelReindex.setTaskId(reindexTaskId);
-        cancelReindex.setReason(reason);
-        cancelReindex.setTimeout(timeout);
-
-        // We need to cancel the reindexing task within context with ML origin as we started the task
-        // from the same context
-        CancelTasksResponse cancelReindexResponse = cancelTaskWithinMlOriginContext(cancelReindex);
-
-        Throwable firstError = null;
-        if (cancelReindexResponse.getNodeFailures().isEmpty() == false) {
-            firstError = cancelReindexResponse.getNodeFailures().get(0).getRootCause();
-        }
-        if (cancelReindexResponse.getTaskFailures().isEmpty() == false) {
-            firstError = cancelReindexResponse.getTaskFailures().get(0).getCause();
-        }
-        // There is a chance that the task is finished by the time we cancel it in which case we'll get
-        // a ResourceNotFoundException which we can ignore.
-        if (firstError != null && ExceptionsHelper.unwrapCause(firstError) instanceof ResourceNotFoundException == false) {
-            throw ExceptionsHelper.serverError("[" + taskParams.getId() + "] Error cancelling reindex task", firstError);
-        } else {
-            LOGGER.debug("[{}] Reindex task was successfully cancelled", taskParams.getId());
-        }
-    }
-
-    private CancelTasksResponse cancelTaskWithinMlOriginContext(CancelTasksRequest cancelTasksRequest) {
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
-            return client.admin().cluster().cancelTasks(cancelTasksRequest).actionGet();
+        if (cachedCurrentStep != null) {
+            cachedCurrentStep.updateProgress(stepProgressListener);
         }
     }
 
@@ -236,65 +188,22 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         });
     }
 
-    public void updateReindexTaskProgress(ActionListener<Void> listener) {
-        getReindexTaskProgress(ActionListener.wrap(
-            // We set reindexing progress at least to 1 for a running process to be able to
-            // distinguish a job that is running for the first time against a job that is restarting.
-            reindexTaskProgress -> {
-                statsHolder.getProgressTracker().updateReindexingProgress(Math.max(1, reindexTaskProgress));
-                listener.onResponse(null);
-            },
-            listener::onFailure
-        ));
-    }
-
-    private void getReindexTaskProgress(ActionListener<Integer> listener) {
-        TaskId reindexTaskId = getReindexTaskId();
-        if (reindexTaskId == null) {
-            listener.onResponse(isReindexingFinished ? 100 : 0);
-            return;
-        }
-
-        GetTaskRequest getTaskRequest = new GetTaskRequest();
-        getTaskRequest.setTaskId(reindexTaskId);
-        client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(
-            taskResponse -> {
-                TaskResult taskResult = taskResponse.getTask();
-                BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
-                int progress = (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
-                listener.onResponse(progress);
-            },
-            error -> {
-                if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
-                    // The task is not present which means either it has not started yet or it finished.
-                    listener.onResponse(isReindexingFinished ? 100 : 0);
-                } else {
-                    listener.onFailure(error);
-                }
-            }
-        ));
-    }
-
-    @Nullable
-    private TaskId getReindexTaskId() {
-        try {
-            return new TaskId(clusterService.localNode().getId(), reindexingTaskId);
-        } catch (NullPointerException e) {
-            // This may happen if there is no reindexing task id set which means we either never started the task yet or we're finished
-            return null;
-        }
+    public void persistProgress(Runnable runnable) {
+        persistProgress(client, taskParams.getId(), runnable);
     }
 
     // Visible for testing
     void persistProgress(Client client, String jobId, Runnable runnable) {
         LOGGER.debug("[{}] Persisting progress", jobId);
 
+        SetOnce<StoredProgress> storedProgress = new SetOnce<>();
+
         String progressDocId = StoredProgress.documentId(jobId);
 
         // Step 4: Run the runnable provided as the argument
         ActionListener<IndexResponse> indexProgressDocListener = ActionListener.wrap(
             indexResponse -> {
-                LOGGER.debug("[{}] Successfully indexed progress document", jobId);
+                LOGGER.debug("[{}] Successfully indexed progress document: {}", jobId, storedProgress.get().get());
                 runnable.run();
             },
             indexError -> {
@@ -321,9 +230,11 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 }
 
                 List<PhaseProgress> progress = statsHolder.getProgressTracker().report();
-                final StoredProgress progressToStore = new StoredProgress(progress);
-                if (progressToStore.equals(previous)) {
-                    LOGGER.debug("[{}] new progress is the same as previously persisted progress. Skipping storage.", jobId);
+                storedProgress.set(new StoredProgress(progress));
+                if (storedProgress.get().equals(previous)) {
+                    LOGGER.debug(() -> new ParameterizedMessage(
+                        "[{}] new progress is the same as previously persisted progress. Skipping storage of progress: {}",
+                        jobId, progress));
                     runnable.run();
                     return;
                 }
@@ -333,8 +244,8 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                     .setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
-                    LOGGER.debug("[{}] Persisting progress is: {}", jobId, progress);
-                    progressToStore.toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
+                    LOGGER.debug(() -> new ParameterizedMessage("[{}] Persisting progress is: {}", jobId, progress));
+                    storedProgress.get().toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                     indexRequest.source(jsonBuilder);
                 }
                 executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, indexProgressDocListener);
@@ -347,7 +258,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         );
 
         // Step 2: Search for existing progress document in .ml-state*
-        ActionListener<Void> reindexProgressUpdateListener = ActionListener.wrap(
+        ActionListener<Void> stepProgressUpdateListener = ActionListener.wrap(
             aVoid -> {
                 SearchRequest searchRequest =
                     new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
@@ -359,13 +270,23 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             },
             e -> {
                 LOGGER.error(new ParameterizedMessage(
-                    "[{}] cannot persist progress as an error occurred while updating reindexing task progress", taskParams.getId()), e);
+                    "[{}] cannot persist progress as an error occurred while updating task progress", taskParams.getId()), e);
                 runnable.run();
             }
         );
 
         // Step 1: Update reindexing progress as it could be stale
-        updateReindexTaskProgress(reindexProgressUpdateListener);
+        updateTaskProgress(stepProgressUpdateListener);
+    }
+
+    public void updateTaskProgress(ActionListener<Void> updateProgressListener) {
+        synchronized (this) {
+            if (currentStep != null) {
+                currentStep.updateProgress(updateProgressListener);
+            } else {
+                updateProgressListener.onResponse(null);
+            }
+        }
     }
 
     /**
@@ -376,7 +297,11 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
      * {@code FINISHED} means the job had finished.
      */
     public enum StartingState {
-        FIRST_TIME, RESUMING_REINDEXING, RESUMING_ANALYZING, FINISHED
+        FIRST_TIME, RESUMING_REINDEXING, RESUMING_ANALYZING, RESUMING_INFERENCE, FINISHED
+    }
+
+    public StartingState determineStartingState() {
+        return determineStartingState(taskParams.getId(), statsHolder.getProgressTracker().report());
     }
 
     public static StartingState determineStartingState(String jobId, List<PhaseProgress> progressOnStart) {
@@ -397,6 +322,9 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
         if (ProgressTracker.REINDEXING.equals(lastIncompletePhase.getPhase())) {
             return lastIncompletePhase.getProgressPercent() == 0 ? StartingState.FIRST_TIME : StartingState.RESUMING_REINDEXING;
+        }
+        if (ProgressTracker.INFERENCE.equals(lastIncompletePhase.getPhase())) {
+            return StartingState.RESUMING_INFERENCE;
         }
         return StartingState.RESUMING_ANALYZING;
     }

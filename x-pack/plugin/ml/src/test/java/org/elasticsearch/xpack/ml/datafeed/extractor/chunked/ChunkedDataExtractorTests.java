@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
@@ -12,7 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.mock.orig.Mockito;
@@ -158,7 +159,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     public void testExtractionGivenSpecifiedChunkAndAggs() throws IOException {
         chunkSpan = TimeValue.timeValueSeconds(1);
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2300L, true, 1000L);
-        extractor.setNextResponse(createSearchResponse(0L, 1000L, 2200L));
+        // 0 hits with non-empty data is possible with rollups
+        extractor.setNextResponse(createSearchResponse(randomFrom(0L, 2L, 10000L), 1000L, 2200L));
 
         InputStream inputStream1 = mock(InputStream.class);
         InputStream inputStream2 = mock(InputStream.class);
@@ -199,7 +201,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         TestDataExtractor extractor = new TestDataExtractor(100_000L, 450_000L, true, 200L);
 
-        extractor.setNextResponse(createSearchResponse(0L, 100_000L, 400_000L));
+        // 0 hits with non-empty data is possible with rollups
+        extractor.setNextResponse(createSearchResponse(randomFrom(0L, 2L, 10000L), 100_000L, 400_000L));
 
         InputStream inputStream1 = mock(InputStream.class);
         InputStream inputStream2 = mock(InputStream.class);
@@ -503,6 +506,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
     }
 
+    public void testNoDataSummaryHasNoData() {
+        ChunkedDataExtractor.DataSummary summary = ChunkedDataExtractor.AggregatedDataSummary.noDataSummary(randomNonNegativeLong());
+        assertFalse(summary.hasData());
+    }
+
     private SearchResponse createSearchResponse(long totalHits, long earliestTime, long latestTime) {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
@@ -552,7 +560,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     private ChunkedDataExtractorContext createContext(long start, long end, boolean hasAggregations, Long histogramInterval) {
         return new ChunkedDataExtractorContext(jobId, timeField, indices, query, scrollSize, start, end, chunkSpan,
             ChunkedDataExtractorFactory.newIdentityTimeAligner(), Collections.emptyMap(), hasAggregations, histogramInterval,
-            SearchRequest.DEFAULT_INDICES_OPTIONS);
+            SearchRequest.DEFAULT_INDICES_OPTIONS, Collections.emptyMap());
     }
 
     private static class StubSubExtractor implements DataExtractor {

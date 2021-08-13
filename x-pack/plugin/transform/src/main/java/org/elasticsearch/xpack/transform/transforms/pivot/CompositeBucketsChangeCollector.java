@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 
@@ -113,10 +115,10 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
          * Apply the collected changes in the query that updates the transform destination.
          *
          * @param lastCheckpointTimestamp the last(complete) checkpoint timestamp
-         * @param nextcheckpointTimestamp the next(currently running) checkpoint timestamp.
+         * @param nextCheckpointTimestamp the next(currently running) checkpoint timestamp.
          * @return a querybuilder instance with added filters to narrow the search
          */
-        QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp);
+        QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextCheckpointTimestamp);
 
         /**
          * Clear the field collector, e.g. the changes to free up memory.
@@ -381,8 +383,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             if (missingBucket) {
                 return null;
             }
-            // we only need to round the lower bound, because the checkpoint will not contain new data for the upper bound
-            return new RangeQueryBuilder(sourceFieldName).gte(rounding.round(lowerBound)).lte(upperBound).format("epoch_millis");
+            return new RangeQueryBuilder(sourceFieldName).gte(lowerBound).lte(upperBound).format("epoch_millis");
         }
 
         @Override
@@ -400,7 +401,8 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             final SingleValue upperBoundResult = aggregations.get(maxAggregationOutputName);
 
             if (lowerBoundResult != null && upperBoundResult != null) {
-                lowerBound = (long) lowerBoundResult.value();
+                // we only need to round the lower bound, because the checkpoint will not contain new data for the upper bound
+                lowerBound = rounding.round((long) lowerBoundResult.value());
                 upperBound = (long) upperBoundResult.value();
 
                 return false;
@@ -424,14 +426,40 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
     static class HistogramFieldCollector implements FieldCollector {
 
+        // cutoff is calculated with max_range/current_range, current_range must be smaller
+        // the optimization gets only applied if we cut at least by 20%
+        private static final double MIN_CUT_OFF = 1.2;
         private final String sourceFieldName;
-        private final String targetFieldName;
         private final boolean missingBucket;
+        private final double interval;
+        private final Collection<AggregationBuilder> histogramFieldAggregations;
+        private final String minAggregationOutputName;
+        private final String maxAggregationOutputName;
 
-        HistogramFieldCollector(final String sourceFieldName, final String targetFieldName, final boolean missingBucket) {
+        private double minLowerBound;
+        private double maxUpperBound;
+
+        private double lowerBound;
+        private double upperBound;
+
+        HistogramFieldCollector(
+            final String sourceFieldName,
+            final String targetFieldName,
+            final boolean missingBucket,
+            final double interval
+        ) {
+            assert sourceFieldName != null;
             this.sourceFieldName = sourceFieldName;
-            this.targetFieldName = targetFieldName;
             this.missingBucket = missingBucket;
+
+            this.interval = interval;
+
+            minAggregationOutputName = COMPOSITE_AGGREGATION_NAME + "." + targetFieldName + ".min";
+            maxAggregationOutputName = COMPOSITE_AGGREGATION_NAME + "." + targetFieldName + ".max";
+
+            histogramFieldAggregations = new ArrayList<>();
+            histogramFieldAggregations.add(AggregationBuilders.min(minAggregationOutputName).field(sourceFieldName));
+            histogramFieldAggregations.add(AggregationBuilders.max(maxAggregationOutputName).field(sourceFieldName));
         }
 
         @Override
@@ -451,7 +479,16 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
         @Override
         public QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
-            return null;
+            if (missingBucket) {
+                return null;
+            }
+
+            // (upperBound - lowerBound) >= interval, so never 0
+            if ((maxUpperBound - minLowerBound) / (upperBound - lowerBound) < MIN_CUT_OFF) {
+                return null;
+            }
+
+            return new RangeQueryBuilder(sourceFieldName).gte(lowerBound).lt(upperBound);
         }
 
         @Override
@@ -459,22 +496,37 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
         @Override
         public Collection<AggregationBuilder> aggregateChanges() {
-            return Collections.emptyList();
+            // optimization can't be applied for missing bucket
+            return missingBucket ? Collections.emptyList() : histogramFieldAggregations;
         }
 
         @Override
         public boolean collectChangesFromAggregations(Aggregations aggregations) {
+            final SingleValue lowerBoundResult = aggregations.get(minAggregationOutputName);
+            final SingleValue upperBoundResult = aggregations.get(maxAggregationOutputName);
+
+            if (lowerBoundResult != null && upperBoundResult != null) {
+                lowerBound = interval * (Math.floor(lowerBoundResult.value() / interval));
+                upperBound = interval * (1 + Math.floor(upperBoundResult.value() / interval));
+
+                minLowerBound = Math.min(minLowerBound, lowerBound);
+                maxUpperBound = Math.max(maxUpperBound, upperBound);
+                return false;
+            }
+
             return true;
         }
 
         @Override
         public boolean isOptimized() {
-            return false;
+            // not optimized if missing bucket is true
+            return missingBucket == false;
         }
 
         @Override
         public boolean queryForChanges() {
-            return false;
+            // not optimized if missing bucket is true
+            return missingBucket == false;
         }
     }
 
@@ -653,16 +705,16 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     }
 
     @Override
-    public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
+    public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextCheckpointTimestamp) {
         // shortcut for only 1 element
         if (fieldCollectors.size() == 1) {
-            return fieldCollectors.values().iterator().next().filterByChanges(lastCheckpointTimestamp, nextcheckpointTimestamp);
+            return fieldCollectors.values().iterator().next().filterByChanges(lastCheckpointTimestamp, nextCheckpointTimestamp);
         }
 
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
 
         for (FieldCollector fieldCollector : fieldCollectors.values()) {
-            QueryBuilder filter = fieldCollector.filterByChanges(lastCheckpointTimestamp, nextcheckpointTimestamp);
+            QueryBuilder filter = fieldCollector.filterByChanges(lastCheckpointTimestamp, nextCheckpointTimestamp);
             if (filter != null) {
                 filteredQuery.filter(filter);
             }
@@ -773,7 +825,8 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                         new CompositeBucketsChangeCollector.HistogramFieldCollector(
                             entry.getValue().getField(),
                             entry.getKey(),
-                            entry.getValue().getMissingBucket()
+                            entry.getValue().getMissingBucket(),
+                            ((HistogramGroupSource) entry.getValue()).getInterval()
                         )
                     );
                     break;

@@ -5,6 +5,10 @@
       "description":"Provides statistics on operations happening in an index."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -37,7 +41,6 @@
                 "segments",
                 "store",
                 "warmer",
-                "suggest",
                 "bulk"
               ],
               "description":"Limit the information returned the specific metrics."
@@ -84,7 +87,6 @@
                 "segments",
                 "store",
                 "warmer",
-                "suggest",
                 "bulk"
               ],
               "description":"Limit the information returned the specific metrics."
@@ -96,11 +98,11 @@
     "params":{
       "completion_fields":{
         "type":"list",
-        "description":"A comma-separated list of fields for `fielddata` and `suggest` index metric (supports wildcards)"
+        "description":"A comma-separated list of fields for the `completion` index metric (supports wildcards)"
       },
       "fielddata_fields":{
         "type":"list",
-        "description":"A comma-separated list of fields for `fielddata` index metric (supports wildcards)"
+        "description":"A comma-separated list of fields for the `fielddata` index metric (supports wildcards)"
       },
       "fields":{
         "type":"list",

@@ -5,7 +5,7 @@
 
 <<ilm-allocate,Allocate>>::
 Move shards to nodes with different performance characteristics
-and reduce the number of replicas. 
+and reduce the number of replicas.
 
 <<ilm-delete,Delete>>::
 Permanently remove the index.
@@ -19,33 +19,32 @@ Freeze the index to minimize its memory footprint.
 
 <<ilm-migrate,Migrate>>::
 Move the index shards to the <<data-tiers, data tier>> that corresponds
-to the current {ilm-init] phase.
+to the current {ilm-init} phase.
 
 <<ilm-readonly,Read only>>::
-Block write operations to the index. 
-  
+Block write operations to the index.
+
 <<ilm-rollover,Rollover>>::
-Remove the index as the write index for the rollover alias and 
+Remove the index as the write index for the rollover alias and
 start indexing to a new index.
 
 <<ilm-searchable-snapshot, Searchable snapshot>>::
-beta:[]
 Take a snapshot of the managed index in the configured repository
 and mount it as a searchable snapshot.
 
 <<ilm-set-priority,Set priority>>::
 Lower the priority of an index as it moves through the lifecycle
-to ensure that hot indices are recovered first. 
+to ensure that hot indices are recovered first.
 
 <<ilm-shrink,Shrink>>::
 Reduce the number of primary shards by shrinking the index into a new index.
 
 <<ilm-unfollow,Unfollow>>::
 Convert a follower index to a regular index.
-Performed automatically before a rollover, shrink, or searchable snapshot action. 
+Performed automatically before a rollover, shrink, or searchable snapshot action.
 
 <<ilm-wait-for-snapshot,Wait for snapshot>>::
-Ensure that a snapshot exists before deleting the index. 
+Ensure that a snapshot exists before deleting the index.
 
 include::actions/ilm-allocate.asciidoc[]
 include::actions/ilm-delete.asciidoc[]

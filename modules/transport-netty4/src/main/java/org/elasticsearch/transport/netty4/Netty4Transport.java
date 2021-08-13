@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport.netty4;
 
@@ -38,9 +27,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -90,7 +79,6 @@ public class Netty4Transport extends TcpTransport {
         byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
     public static final Setting<Integer> NETTY_BOSS_COUNT =
         intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
-
 
     private final SharedGroupFactory sharedGroupFactory;
     private final RecvByteBufAllocator recvByteBufAllocator;
@@ -312,6 +300,7 @@ public class Netty4Transport extends TcpTransport {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
+            ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             // using a dot as a prefix means this cannot come from any settings parsed
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
@@ -327,7 +316,6 @@ public class Netty4Transport extends TcpTransport {
     protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
         protected final String name;
-        private final NettyByteBufSizer sizer = new NettyByteBufSizer();
 
         protected ServerChannelInitializer(String name) {
             this.name = name;
@@ -340,7 +328,7 @@ public class Netty4Transport extends TcpTransport {
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
-            ch.pipeline().addLast("byte_buf_sizer", sizer);
+            ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
             serverAcceptedChannel(nettyTcpChannel);

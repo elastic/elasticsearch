@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.suggest.completion.context;
@@ -27,9 +16,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.LuceneDocument;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -109,7 +98,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
      *  </ul>
      */
     @Override
-    public Set<String> parseContext(ParseContext parseContext, XContentParser parser)
+    public Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser)
             throws IOException, ElasticsearchParseException {
         final Set<String> contexts = new HashSet<>();
         Token token = parser.currentToken();
@@ -132,7 +121,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     }
 
     @Override
-    public Set<String> parseContext(Document document) {
+    public Set<String> parseContext(LuceneDocument document) {
         Set<String> values = null;
         if (fieldName != null) {
             IndexableField[] fields = document.getFields(fieldName);
@@ -192,9 +181,9 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         CategoryContextMapping mapping = (CategoryContextMapping) o;
-        return !(fieldName != null ? !fieldName.equals(mapping.fieldName) : mapping.fieldName != null);
+        return Objects.equals(fieldName, mapping.fieldName);
     }
 
     @Override

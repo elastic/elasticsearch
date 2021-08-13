@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -13,15 +13,26 @@ restResources {
   }
 }
 
-integTest {
+def clusterCredentials = [
+        username: providers.systemProperty('tests.rest.cluster.username')
+                .orElse('test_admin')
+                .forUseAtConfigurationTime()
+                .get(),
+        password: providers.systemProperty('tests.rest.cluster.password')
+                .orElse('x-pack-test-password')
+                .forUseAtConfigurationTime()
+                .get()
+]
+
+tasks.named("integTest").configure {
     systemProperty 'tests.rest.blacklist',
       [
         'index/10_with_id/Index with ID',
         'indices.get_alias/10_basic/Get alias against closed indices'
       ].join(',')
 
-    systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
-    systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
+    systemProperty 'tests.rest.cluster.username', clusterCredentials.username
+    systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }
 
 testClusters.matching { it.name == "integTest" }.configureEach {
@@ -32,6 +43,6 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.history_index_enabled', 'false'
 
-  user username: System.getProperty('tests.rest.cluster.username', 'test_user'),
-    password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
+  user username: clusterCredentials.username,
+    password: clusterCredentials.password
 }

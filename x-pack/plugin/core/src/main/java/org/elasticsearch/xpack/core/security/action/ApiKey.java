@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -35,8 +38,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
     private final boolean invalidated;
     private final String username;
     private final String realm;
+    private final Map<String, Object> metadata;
 
-    public ApiKey(String name, String id, Instant creation, Instant expiration, boolean invalidated, String username, String realm) {
+    public ApiKey(String name, String id, Instant creation, Instant expiration, boolean invalidated, String username, String realm,
+                  @Nullable Map<String, Object> metadata) {
         this.name = name;
         this.id = id;
         // As we do not yet support the nanosecond precision when we serialize to JSON,
@@ -47,6 +52,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.invalidated = invalidated;
         this.username = username;
         this.realm = realm;
+        this.metadata = metadata == null ? Map.of() : metadata;
     }
 
     public ApiKey(StreamInput in) throws IOException {
@@ -61,6 +67,11 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.invalidated = in.readBoolean();
         this.username = in.readString();
         this.realm = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.metadata = in.readMap();
+        } else {
+            this.metadata = Map.of();
+        }
     }
 
     public String getId() {
@@ -91,6 +102,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
         return realm;
     }
 
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
@@ -102,7 +117,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
         }
         builder.field("invalidated", invalidated)
         .field("username", username)
-        .field("realm", realm);
+        .field("realm", realm)
+        .field("metadata", (metadata == null ? Map.of() : metadata));
         return builder.endObject();
     }
 
@@ -119,11 +135,14 @@ public final class ApiKey implements ToXContentObject, Writeable {
         out.writeBoolean(invalidated);
         out.writeString(username);
         out.writeString(realm);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeMap(metadata);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, id, creation, expiration, invalidated, username, realm);
+        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata);
     }
 
     @Override
@@ -144,12 +163,15 @@ public final class ApiKey implements ToXContentObject, Writeable {
                 && Objects.equals(expiration, other.expiration)
                 && Objects.equals(invalidated, other.invalidated)
                 && Objects.equals(username, other.username)
-                && Objects.equals(realm, other.realm);
+                && Objects.equals(realm, other.realm)
+                && Objects.equals(metadata, other.metadata);
     }
 
+    @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", args -> {
         return new ApiKey((String) args[0], (String) args[1], Instant.ofEpochMilli((Long) args[2]),
-                (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]), (Boolean) args[4], (String) args[5], (String) args[6]);
+                (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]), (Boolean) args[4], (String) args[5], (String) args[6],
+            (args[7] == null) ? null : (Map<String, Object>) args[7]);
     });
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));
@@ -159,6 +181,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));
         PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareString(constructorArg(), new ParseField("realm"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
     }
 
     public static ApiKey fromXContent(XContentParser parser) throws IOException {
@@ -168,7 +191,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
     @Override
     public String toString() {
         return "ApiKey [name=" + name + ", id=" + id + ", creation=" + creation + ", expiration=" + expiration + ", invalidated="
-                + invalidated + ", username=" + username + ", realm=" + realm + "]";
+                + invalidated + ", username=" + username + ", realm=" + realm + ", metadata=" + metadata + "]";
     }
 
 }

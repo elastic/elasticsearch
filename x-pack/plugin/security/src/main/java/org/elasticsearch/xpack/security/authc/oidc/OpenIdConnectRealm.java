@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
@@ -23,9 +24,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
@@ -391,7 +392,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
      */
     private static boolean isAllowedTypeForClaim(Object o) {
         return (o instanceof String || o instanceof Boolean || o instanceof Number
-            || (o instanceof Collection && ((Collection) o).stream()
+            || (o instanceof Collection && ((Collection<?>) o).stream()
             .allMatch(c -> c instanceof String || c instanceof Boolean || c instanceof Number)));
     }
 
@@ -422,6 +423,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return name;
         }
 
+        @SuppressWarnings("unchecked")
         private static Collection<String> parseClaimValues(JWTClaimsSet claimsSet, String claimName, String settingKey) {
             Collection<String> values;
             final Object claimValueObject = claimsSet.getClaim(claimName);
@@ -430,7 +432,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             } else if (claimValueObject instanceof String) {
                 values = List.of((String) claimValueObject);
             } else if (claimValueObject instanceof Collection &&
-                ((Collection) claimValueObject).stream().allMatch(c -> c instanceof String)) {
+                ((Collection<?>) claimValueObject).stream().allMatch(c -> c instanceof String)) {
                 values = (Collection<String>) claimValueObject;
             } else {
                 throw new SettingsException("Setting [ " + settingKey + " expects a claim with String or a String Array value");

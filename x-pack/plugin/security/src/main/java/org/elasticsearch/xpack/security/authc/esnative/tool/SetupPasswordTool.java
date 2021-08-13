@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
@@ -15,9 +16,9 @@ import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
@@ -35,7 +36,9 @@ import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
+import org.elasticsearch.xpack.security.tool.HttpResponse;
+import org.elasticsearch.xpack.security.tool.HttpResponse.HttpResponseBuilder;
+import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
 
 import javax.net.ssl.SSLException;
 import java.io.ByteArrayOutputStream;

@@ -1,490 +1,494 @@
 {
-  "_doc" : {
-    "_meta" : {
-      "version" : "${xpack.ml.version}"
+  "_meta" : {
+    "version" : "${xpack.ml.version}"
+  },
+  "dynamic_templates" : [
+    {
+      "strings_as_keywords" : {
+        "match" : "*",
+        "mapping" : {
+          "type" : "keyword"
+        }
+      }
+    }
+  ],
+  "properties" : {
+    "actual" : {
+      "type" : "double"
     },
-    "dynamic_templates" : [
-      {
-        "strings_as_keywords" : {
-          "match" : "*",
-          "mapping" : {
-            "type" : "keyword"
-          }
+    "all_field_values" : {
+      "type" : "text",
+      "analyzer" : "whitespace"
+    },
+    "anomaly_score" : {
+      "type" : "double"
+    },
+    "assignment_memory_basis" : {
+      "type" : "keyword"
+    },
+    "average_bucket_processing_time_ms" : {
+      "type" : "double"
+    },
+    "bucket_allocation_failures_count" : {
+      "type" : "long"
+    },
+    "bucket_count" : {
+      "type" : "long"
+    },
+    "bucket_influencers" : {
+      "type" : "nested",
+      "properties" : {
+        "anomaly_score" : {
+          "type" : "double"
+        },
+        "bucket_span" : {
+          "type" : "long"
+        },
+        "influencer_field_name" : {
+          "type" : "keyword"
+        },
+        "initial_anomaly_score" : {
+          "type" : "double"
+        },
+        "is_interim" : {
+          "type" : "boolean"
+        },
+        "job_id" : {
+          "type" : "keyword"
+        },
+        "probability" : {
+          "type" : "double"
+        },
+        "raw_anomaly_score" : {
+          "type" : "double"
+        },
+        "result_type" : {
+          "type" : "keyword"
+        },
+        "timestamp" : {
+          "type" : "date"
         }
       }
-    ],
-    "properties" : {
-      "actual" : {
-        "type" : "double"
-      },
-      "all_field_values" : {
-        "type" : "text",
-        "analyzer" : "whitespace"
-      },
-      "anomaly_score" : {
-        "type" : "double"
-      },
-      "average_bucket_processing_time_ms" : {
-        "type" : "double"
-      },
-      "bucket_allocation_failures_count" : {
-        "type" : "long"
-      },
-      "bucket_count" : {
-        "type" : "long"
-      },
-      "bucket_influencers" : {
-        "type" : "nested",
-        "properties" : {
-          "anomaly_score" : {
-            "type" : "double"
-          },
-          "bucket_span" : {
-            "type" : "long"
-          },
-          "influencer_field_name" : {
-            "type" : "keyword"
-          },
-          "initial_anomaly_score" : {
-            "type" : "double"
-          },
-          "is_interim" : {
-            "type" : "boolean"
-          },
-          "job_id" : {
-            "type" : "keyword"
-          },
-          "probability" : {
-            "type" : "double"
-          },
-          "raw_anomaly_score" : {
-            "type" : "double"
-          },
-          "result_type" : {
-            "type" : "keyword"
-          },
-          "timestamp" : {
-            "type" : "date"
-          }
-        }
-      },
-      "bucket_span" : {
-        "type" : "long"
-      },
-      "by_field_name" : {
-        "type" : "keyword"
-      },
-      "by_field_value" : {
-        "type" : "keyword",
-        "copy_to" : [
-          "all_field_values"
-        ]
-      },
-      "category_id" : {
-        "type" : "long"
-      },
-      "causes" : {
-        "type" : "nested",
-        "properties" : {
-          "actual" : {
-            "type" : "double"
-          },
-          "by_field_name" : {
-            "type" : "keyword"
-          },
-          "by_field_value" : {
-            "type" : "keyword",
-            "copy_to" : [
-              "all_field_values"
-            ]
-          },
-          "correlated_by_field_value" : {
-            "type" : "keyword",
-            "copy_to" : [
-              "all_field_values"
-            ]
-          },
-          "field_name" : {
-            "type" : "keyword"
-          },
-          "function" : {
-            "type" : "keyword"
-          },
-          "function_description" : {
-            "type" : "keyword"
-          },
-          "geo_results" : {
-            "properties" : {
-              "actual_point" : {
-                "type" : "geo_point"
-              },
-              "typical_point" : {
-                "type" : "geo_point"
-              }
+    },
+    "bucket_span" : {
+      "type" : "long"
+    },
+    "by_field_name" : {
+      "type" : "keyword"
+    },
+    "by_field_value" : {
+      "type" : "keyword",
+      "copy_to" : [
+        "all_field_values"
+      ]
+    },
+    "category_id" : {
+      "type" : "long"
+    },
+    "causes" : {
+      "type" : "nested",
+      "properties" : {
+        "actual" : {
+          "type" : "double"
+        },
+        "by_field_name" : {
+          "type" : "keyword"
+        },
+        "by_field_value" : {
+          "type" : "keyword",
+          "copy_to" : [
+            "all_field_values"
+          ]
+        },
+        "correlated_by_field_value" : {
+          "type" : "keyword",
+          "copy_to" : [
+            "all_field_values"
+          ]
+        },
+        "field_name" : {
+          "type" : "keyword"
+        },
+        "function" : {
+          "type" : "keyword"
+        },
+        "function_description" : {
+          "type" : "keyword"
+        },
+        "geo_results" : {
+          "properties" : {
+            "actual_point" : {
+              "type" : "geo_point"
+            },
+            "typical_point" : {
+              "type" : "geo_point"
             }
-          },
-          "over_field_name" : {
-            "type" : "keyword"
-          },
-          "over_field_value" : {
-            "type" : "keyword",
-            "copy_to" : [
-              "all_field_values"
-            ]
-          },
-          "partition_field_name" : {
-            "type" : "keyword"
-          },
-          "partition_field_value" : {
-            "type" : "keyword",
-            "copy_to" : [
-              "all_field_values"
-            ]
-          },
-          "probability" : {
-            "type" : "double"
-          },
-          "typical" : {
-            "type" : "double"
           }
+        },
+        "over_field_name" : {
+          "type" : "keyword"
+        },
+        "over_field_value" : {
+          "type" : "keyword",
+          "copy_to" : [
+            "all_field_values"
+          ]
+        },
+        "partition_field_name" : {
+          "type" : "keyword"
+        },
+        "partition_field_value" : {
+          "type" : "keyword",
+          "copy_to" : [
+            "all_field_values"
+          ]
+        },
+        "probability" : {
+          "type" : "double"
+        },
+        "typical" : {
+          "type" : "double"
         }
-      },
-      "description" : {
-        "type" : "text"
-      },
-      "detector_index" : {
-        "type" : "integer"
-      },
-      "earliest_record_timestamp" : {
-        "type" : "date"
-      },
-      "empty_bucket_count" : {
-        "type" : "long"
-      },
-      "event_count" : {
-        "type" : "long"
-      },
-      "examples" : {
-        "type" : "text"
-      },
-      "exponential_average_bucket_processing_time_ms" : {
-        "type" : "double"
-      },
-      "exponential_average_calculation_context" : {
-        "properties" : {
-          "incremental_metric_value_ms" : {
-            "type" : "double"
-          },
-          "latest_timestamp" : {
-            "type" : "date"
-          },
-          "previous_exponential_average_ms" : {
-            "type" : "double"
-          }
-        }
-      },
-      "field_name" : {
-        "type" : "keyword"
-      },
-      "forecast_create_timestamp" : {
-        "type" : "date"
-      },
-      "forecast_end_timestamp" : {
-        "type" : "date"
-      },
-      "forecast_expiry_timestamp" : {
-        "type" : "date"
-      },
-      "forecast_id" : {
-        "type" : "keyword"
-      },
-      "forecast_lower" : {
-        "type" : "double"
-      },
-      "forecast_memory_bytes" : {
-        "type" : "long"
-      },
-      "forecast_messages" : {
-        "type" : "keyword"
-      },
-      "forecast_prediction" : {
-        "type" : "double"
-      },
-      "forecast_progress" : {
-        "type" : "double"
-      },
-      "forecast_start_timestamp" : {
-        "type" : "date"
-      },
-      "forecast_status" : {
-        "type" : "keyword"
-      },
-      "forecast_upper" : {
-        "type" : "double"
-      },
-      "function" : {
-        "type" : "keyword"
-      },
-      "function_description" : {
-        "type" : "keyword"
-      },
-      "geo_results" : {
-        "properties" : {
-          "actual_point" : {
-            "type" : "geo_point"
-          },
-          "typical_point" : {
-            "type" : "geo_point"
-          }
-        }
-      },
-      "influencer_field_name" : {
-        "type" : "keyword"
-      },
-      "influencer_field_value" : {
-        "type" : "keyword",
-        "copy_to" : [
-          "all_field_values"
-        ]
-      },
-      "influencer_score" : {
-        "type" : "double"
-      },
-      "influencers" : {
-        "type" : "nested",
-        "properties" : {
-          "influencer_field_name" : {
-            "type" : "keyword"
-          },
-          "influencer_field_values" : {
-            "type" : "keyword",
-            "copy_to" : [
-              "all_field_values"
-            ]
-          }
-        }
-      },
-      "initial_anomaly_score" : {
-        "type" : "double"
-      },
-      "initial_influencer_score" : {
-        "type" : "double"
-      },
-      "initial_record_score" : {
-        "type" : "double"
-      },
-      "input_bytes" : {
-        "type" : "long"
-      },
-      "input_field_count" : {
-        "type" : "long"
-      },
-      "input_record_count" : {
-        "type" : "long"
-      },
-      "invalid_date_count" : {
-        "type" : "long"
-      },
-      "is_interim" : {
-        "type" : "boolean"
-      },
-      "job_id" : {
-        "type" : "keyword",
-        "copy_to" : [
-          "all_field_values"
-        ]
-      },
-      "last_data_time" : {
-        "type" : "date"
-      },
-      "latest_empty_bucket_timestamp" : {
-        "type" : "date"
-      },
-      "latest_record_time_stamp" : {
-        "type" : "date"
-      },
-      "latest_record_timestamp" : {
-        "type" : "date"
-      },
-      "latest_result_time_stamp" : {
-        "type" : "date"
-      },
-      "latest_sparse_bucket_timestamp" : {
-        "type" : "date"
-      },
-      "log_time" : {
-        "type" : "date"
-      },
-      "max_matching_length" : {
-        "type" : "long"
-      },
-      "maximum_bucket_processing_time_ms" : {
-        "type" : "double"
-      },
-      "memory_status" : {
-        "type" : "keyword"
-      },
-      "min_version" : {
-        "type" : "keyword"
-      },
-      "minimum_bucket_processing_time_ms" : {
-        "type" : "double"
-      },
-      "missing_field_count" : {
-        "type" : "long"
-      },
-      "mlcategory": {
-        "type": "keyword"
-      },
-      "model_bytes" : {
-        "type" : "long"
-      },
-      "model_feature" : {
-        "type" : "keyword"
-      },
-      "model_lower" : {
-        "type" : "double"
-      },
-      "model_median" : {
-        "type" : "double"
-      },
-      "model_size_stats" : {
-        "properties" : {
-          "bucket_allocation_failures_count" : {
-            "type" : "long"
-          },
-          "job_id" : {
-            "type" : "keyword"
-          },
-          "log_time" : {
-            "type" : "date"
-          },
-          "memory_status" : {
-            "type" : "keyword"
-          },
-          "model_bytes" : {
-            "type" : "long"
-          },
-          "peak_model_bytes" : {
-            "type" : "long"
-          },
-          "result_type" : {
-            "type" : "keyword"
-          },
-          "timestamp" : {
-            "type" : "date"
-          },
-          "total_by_field_count" : {
-            "type" : "long"
-          },
-          "total_over_field_count" : {
-            "type" : "long"
-          },
-          "total_partition_field_count" : {
-            "type" : "long"
-          }
-        }
-      },
-      "model_upper" : {
-        "type" : "double"
-      },
-      "multi_bucket_impact" : {
-        "type" : "double"
-      },
-      "num_matches": {
-        "type" : "long"
-      },
-      "out_of_order_timestamp_count" : {
-        "type" : "long"
-      },
-      "over_field_name" : {
-        "type" : "keyword"
-      },
-      "over_field_value" : {
-        "type" : "keyword",
-        "copy_to" : [
-          "all_field_values"
-        ]
-      },
-      "partition_field_name" : {
-        "type" : "keyword"
-      },
-      "partition_field_value" : {
-        "type" : "keyword",
-        "copy_to" : [
-          "all_field_values"
-        ]
-      },
-      "preferred_to_categories": {
-        "type": "long"
-      },
-      "probability" : {
-        "type" : "double"
-      },
-      "processed_field_count" : {
-        "type" : "long"
-      },
-      "processed_record_count" : {
-        "type" : "long"
-      },
-      "processing_time_ms" : {
-        "type" : "long"
-      },
-      "quantiles" : {
-        "type" : "object",
-        "enabled" : false
-      },
-      "raw_anomaly_score" : {
-        "type" : "double"
-      },
-      "record_score" : {
-        "type" : "double"
-      },
-      "regex" : {
-        "type" : "keyword"
-      },
-      "result_type" : {
-        "type" : "keyword"
-      },
-      "retain" : {
-        "type" : "boolean"
-      },
-      "scheduled_events" : {
-        "type" : "keyword"
-      },
-      "search_count" : {
-        "type" : "long"
-      },
-      "snapshot_doc_count" : {
-        "type" : "integer"
-      },
-      "snapshot_id" : {
-        "type" : "keyword"
-      },
-      "sparse_bucket_count" : {
-        "type" : "long"
-      },
-      "terms" : {
-        "type" : "text"
-      },
-      "timestamp" : {
-        "type" : "date"
-      },
-      "total_by_field_count" : {
-        "type" : "long"
-      },
-      "total_over_field_count" : {
-        "type" : "long"
-      },
-      "total_partition_field_count" : {
-        "type" : "long"
-      },
-      "total_search_time_ms" : {
-        "type" : "double"
-      },
-      "typical" : {
-        "type" : "double"
       }
+    },
+    "description" : {
+      "type" : "text"
+    },
+    "detector_index" : {
+      "type" : "integer"
+    },
+    "earliest_record_timestamp" : {
+      "type" : "date"
+    },
+    "empty_bucket_count" : {
+      "type" : "long"
+    },
+    "event_count" : {
+      "type" : "long"
+    },
+    "examples" : {
+      "type" : "text"
+    },
+    "exponential_average_bucket_processing_time_ms" : {
+      "type" : "double"
+    },
+    "exponential_average_calculation_context" : {
+      "properties" : {
+        "incremental_metric_value_ms" : {
+          "type" : "double"
+        },
+        "latest_timestamp" : {
+          "type" : "date"
+        },
+        "previous_exponential_average_ms" : {
+          "type" : "double"
+        }
+      }
+    },
+    "field_name" : {
+      "type" : "keyword"
+    },
+    "forecast_create_timestamp" : {
+      "type" : "date"
+    },
+    "forecast_end_timestamp" : {
+      "type" : "date"
+    },
+    "forecast_expiry_timestamp" : {
+      "type" : "date"
+    },
+    "forecast_id" : {
+      "type" : "keyword"
+    },
+    "forecast_lower" : {
+      "type" : "double"
+    },
+    "forecast_memory_bytes" : {
+      "type" : "long"
+    },
+    "forecast_messages" : {
+      "type" : "keyword"
+    },
+    "forecast_prediction" : {
+      "type" : "double"
+    },
+    "forecast_progress" : {
+      "type" : "double"
+    },
+    "forecast_start_timestamp" : {
+      "type" : "date"
+    },
+    "forecast_status" : {
+      "type" : "keyword"
+    },
+    "forecast_upper" : {
+      "type" : "double"
+    },
+    "function" : {
+      "type" : "keyword"
+    },
+    "function_description" : {
+      "type" : "keyword"
+    },
+    "geo_results" : {
+      "properties" : {
+        "actual_point" : {
+          "type" : "geo_point"
+        },
+        "typical_point" : {
+          "type" : "geo_point"
+        }
+      }
+    },
+    "influencer_field_name" : {
+      "type" : "keyword"
+    },
+    "influencer_field_value" : {
+      "type" : "keyword",
+      "copy_to" : [
+        "all_field_values"
+      ]
+    },
+    "influencer_score" : {
+      "type" : "double"
+    },
+    "influencers" : {
+      "type" : "nested",
+      "properties" : {
+        "influencer_field_name" : {
+          "type" : "keyword"
+        },
+        "influencer_field_values" : {
+          "type" : "keyword",
+          "copy_to" : [
+            "all_field_values"
+          ]
+        }
+      }
+    },
+    "initial_anomaly_score" : {
+      "type" : "double"
+    },
+    "initial_influencer_score" : {
+      "type" : "double"
+    },
+    "initial_record_score" : {
+      "type" : "double"
+    },
+    "input_bytes" : {
+      "type" : "long"
+    },
+    "input_field_count" : {
+      "type" : "long"
+    },
+    "input_record_count" : {
+      "type" : "long"
+    },
+    "invalid_date_count" : {
+      "type" : "long"
+    },
+    "is_interim" : {
+      "type" : "boolean"
+    },
+    "job_id" : {
+      "type" : "keyword",
+      "copy_to" : [
+        "all_field_values"
+      ]
+    },
+    "last_data_time" : {
+      "type" : "date"
+    },
+    "latest_empty_bucket_timestamp" : {
+      "type" : "date"
+    },
+    "latest_record_time_stamp" : {
+      "type" : "date"
+    },
+    "latest_record_timestamp" : {
+      "type" : "date"
+    },
+    "latest_result_time_stamp" : {
+      "type" : "date"
+    },
+    "latest_sparse_bucket_timestamp" : {
+      "type" : "date"
+    },
+    "log_time" : {
+      "type" : "date"
+    },
+    "max_matching_length" : {
+      "type" : "long"
+    },
+    "maximum_bucket_processing_time_ms" : {
+      "type" : "double"
+    },
+    "memory_status" : {
+      "type" : "keyword"
+    },
+    "min_version" : {
+      "type" : "keyword"
+    },
+    "minimum_bucket_processing_time_ms" : {
+      "type" : "double"
+    },
+    "missing_field_count" : {
+      "type" : "long"
+    },
+    "mlcategory": {
+      "type": "keyword"
+    },
+    "model_bytes" : {
+      "type" : "long"
+    },
+    "model_feature" : {
+      "type" : "keyword"
+    },
+    "model_lower" : {
+      "type" : "double"
+    },
+    "model_median" : {
+      "type" : "double"
+    },
+    "model_size_stats" : {
+      "properties" : {
+        "assignment_memory_basis" : {
+          "type" : "keyword"
+        },
+        "bucket_allocation_failures_count" : {
+          "type" : "long"
+        },
+        "job_id" : {
+          "type" : "keyword"
+        },
+        "log_time" : {
+          "type" : "date"
+        },
+        "memory_status" : {
+          "type" : "keyword"
+        },
+        "model_bytes" : {
+          "type" : "long"
+        },
+        "peak_model_bytes" : {
+          "type" : "long"
+        },
+        "result_type" : {
+          "type" : "keyword"
+        },
+        "timestamp" : {
+          "type" : "date"
+        },
+        "total_by_field_count" : {
+          "type" : "long"
+        },
+        "total_over_field_count" : {
+          "type" : "long"
+        },
+        "total_partition_field_count" : {
+          "type" : "long"
+        }
+      }
+    },
+    "model_upper" : {
+      "type" : "double"
+    },
+    "multi_bucket_impact" : {
+      "type" : "double"
+    },
+    "num_matches": {
+      "type" : "long"
+    },
+    "out_of_order_timestamp_count" : {
+      "type" : "long"
+    },
+    "over_field_name" : {
+      "type" : "keyword"
+    },
+    "over_field_value" : {
+      "type" : "keyword",
+      "copy_to" : [
+        "all_field_values"
+      ]
+    },
+    "partition_field_name" : {
+      "type" : "keyword"
+    },
+    "partition_field_value" : {
+      "type" : "keyword",
+      "copy_to" : [
+        "all_field_values"
+      ]
+    },
+    "preferred_to_categories": {
+      "type": "long"
+    },
+    "probability" : {
+      "type" : "double"
+    },
+    "processed_field_count" : {
+      "type" : "long"
+    },
+    "processed_record_count" : {
+      "type" : "long"
+    },
+    "processing_time_ms" : {
+      "type" : "long"
+    },
+    "quantiles" : {
+      "type" : "object",
+      "enabled" : false
+    },
+    "raw_anomaly_score" : {
+      "type" : "double"
+    },
+    "record_score" : {
+      "type" : "double"
+    },
+    "regex" : {
+      "type" : "keyword"
+    },
+    "result_type" : {
+      "type" : "keyword"
+    },
+    "retain" : {
+      "type" : "boolean"
+    },
+    "scheduled_events" : {
+      "type" : "keyword"
+    },
+    "search_count" : {
+      "type" : "long"
+    },
+    "snapshot_doc_count" : {
+      "type" : "integer"
+    },
+    "snapshot_id" : {
+      "type" : "keyword"
+    },
+    "sparse_bucket_count" : {
+      "type" : "long"
+    },
+    "terms" : {
+      "type" : "text"
+    },
+    "timestamp" : {
+      "type" : "date"
+    },
+    "total_by_field_count" : {
+      "type" : "long"
+    },
+    "total_over_field_count" : {
+      "type" : "long"
+    },
+    "total_partition_field_count" : {
+      "type" : "long"
+    },
+    "total_search_time_ms" : {
+      "type" : "double"
+    },
+    "typical" : {
+      "type" : "double"
     }
   }
 }

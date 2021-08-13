@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.aggregations.support;
 
@@ -35,7 +36,7 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
-            if (!(indexFieldData instanceof IndexHistogramFieldData)) {
+            if ((indexFieldData instanceof IndexHistogramFieldData) == false) {
                 throw new IllegalArgumentException("Expected histogram type on field [" + fieldContext.field() +
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }

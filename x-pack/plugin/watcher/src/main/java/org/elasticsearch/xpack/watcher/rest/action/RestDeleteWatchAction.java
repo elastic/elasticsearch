@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
@@ -28,7 +30,10 @@ public class RestDeleteWatchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/_watcher/watch/{id}"));
+        return List.of(
+            Route.builder(DELETE, "/_watcher/watch/{id}")
+                .replaces(DELETE, "/_xpack/watcher/watch/{id}", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -28,12 +17,15 @@ import org.elasticsearch.client.security.ClearApiKeyCacheRequest;
 import org.elasticsearch.client.security.ClearPrivilegesCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.ClearServiceAccountTokenCacheRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
+import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -41,7 +33,10 @@ import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetServiceAccountCredentialsRequest;
+import org.elasticsearch.client.security.GetServiceAccountsRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.GrantApiKeyRequest;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
@@ -203,6 +198,17 @@ final class SecurityRequestConverters {
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
+    static Request clearServiceAccountTokenCache(ClearServiceAccountTokenCacheRequest clearServiceAccountTokenCacheRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/service")
+            .addPathPart(clearServiceAccountTokenCacheRequest.getNamespace(), clearServiceAccountTokenCacheRequest.getServiceName())
+            .addPathPartAsIs("credential/token")
+            .addCommaSeparatedPathParts(clearServiceAccountTokenCacheRequest.getTokenNames())
+            .addPathPart("_clear_cache")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
     static Request deleteRoleMapping(DeleteRoleMappingRequest deleteRoleMappingRequest) {
         final String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_security/role_mapping")
@@ -307,6 +313,15 @@ final class SecurityRequestConverters {
         return request;
     }
 
+    static Request grantApiKey(final GrantApiKeyRequest grantApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_security/api_key/grant");
+        request.setEntity(createEntity(grantApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
+        final RequestConverters.Params params = new RequestConverters.Params();
+        params.withRefreshPolicy(grantApiKeyRequest.getApiKeyRequest().getRefreshPolicy());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
     static Request getApiKey(final GetApiKeyRequest getApiKeyRequest) throws IOException {
         final Request request = new Request(HttpGet.METHOD_NAME, "/_security/api_key");
         if (Strings.hasText(getApiKeyRequest.getId())) {
@@ -329,5 +344,59 @@ final class SecurityRequestConverters {
         final Request request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key");
         request.setEntity(createEntity(invalidateApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request getServiceAccounts(final GetServiceAccountsRequest getServiceAccountsRequest) {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/service");
+        if (getServiceAccountsRequest.getNamespace() != null) {
+            endpointBuilder.addPathPart(getServiceAccountsRequest.getNamespace());
+            if (getServiceAccountsRequest.getServiceName() != null) {
+                endpointBuilder.addPathPart(getServiceAccountsRequest.getServiceName());
+            }
+        }
+        return new Request(HttpGet.METHOD_NAME, endpointBuilder.build());
+    }
+
+    static Request createServiceAccountToken(final CreateServiceAccountTokenRequest createServiceAccountTokenRequest) throws IOException {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/service")
+            .addPathPart(createServiceAccountTokenRequest.getNamespace(), createServiceAccountTokenRequest.getServiceName())
+            .addPathPartAsIs("credential/token");
+        if (createServiceAccountTokenRequest.getTokenName() != null) {
+            endpointBuilder.addPathPart(createServiceAccountTokenRequest.getTokenName());
+        }
+        final Request request = new Request(HttpPost.METHOD_NAME, endpointBuilder.build());
+        final RequestConverters.Params params = new RequestConverters.Params();
+        if (createServiceAccountTokenRequest.getRefreshPolicy() != null) {
+            params.withRefreshPolicy(createServiceAccountTokenRequest.getRefreshPolicy());
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request deleteServiceAccountToken(final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/service")
+            .addPathPart(deleteServiceAccountTokenRequest.getNamespace(), deleteServiceAccountTokenRequest.getServiceName())
+            .addPathPartAsIs("credential/token")
+            .addPathPart(deleteServiceAccountTokenRequest.getTokenName());
+
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpointBuilder.build());
+        final RequestConverters.Params params = new RequestConverters.Params();
+        if (deleteServiceAccountTokenRequest.getRefreshPolicy() != null) {
+            params.withRefreshPolicy(deleteServiceAccountTokenRequest.getRefreshPolicy());
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getServiceAccountCredentials(final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest) {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/service")
+            .addPathPart(getServiceAccountCredentialsRequest.getNamespace(), getServiceAccountCredentialsRequest.getServiceName())
+            .addPathPartAsIs("credential");
+
+        return new Request(HttpGet.METHOD_NAME, endpointBuilder.build());
     }
 }

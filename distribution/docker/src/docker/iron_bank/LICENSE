@@ -1,0 +1,280 @@
+ELASTIC LICENSE AGREEMENT
+
+PLEASE READ CAREFULLY THIS ELASTIC LICENSE AGREEMENT (THIS "AGREEMENT"), WHICH
+CONSTITUTES A LEGALLY BINDING AGREEMENT AND GOVERNS ALL OF YOUR USE OF ALL OF
+THE ELASTIC SOFTWARE WITH WHICH THIS AGREEMENT IS INCLUDED ("ELASTIC SOFTWARE")
+THAT IS PROVIDED IN OBJECT CODE FORMAT, AND, IN ACCORDANCE WITH SECTION 2 BELOW,
+CERTAIN OF THE ELASTIC SOFTWARE THAT IS PROVIDED IN SOURCE CODE FORMAT. BY
+INSTALLING OR USING ANY OF THE ELASTIC SOFTWARE GOVERNED BY THIS AGREEMENT, YOU
+ARE ASSENTING TO THE TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE
+WITH SUCH TERMS AND CONDITIONS, YOU MAY NOT INSTALL OR USE THE ELASTIC SOFTWARE
+GOVERNED BY THIS AGREEMENT. IF YOU ARE INSTALLING OR USING THE SOFTWARE ON
+BEHALF OF A LEGAL ENTITY, YOU REPRESENT AND WARRANT THAT YOU HAVE THE ACTUAL
+AUTHORITY TO AGREE TO THE TERMS AND CONDITIONS OF THIS AGREEMENT ON BEHALF OF
+SUCH ENTITY.
+
+Posted Date: April 20, 2018
+
+This Agreement is entered into by and between Elasticsearch BV ("Elastic") and
+You, or the legal entity on behalf of whom You are acting (as applicable,
+"You").
+
+1. OBJECT CODE END USER LICENSES, RESTRICTIONS AND THIRD PARTY OPEN SOURCE
+SOFTWARE
+
+  1.1 Object Code End User License. Subject to the terms and conditions of
+  Section 1.2 of this Agreement, Elastic hereby grants to You, AT NO CHARGE and
+  for so long as you are not in breach of any provision of this Agreement, a
+  License to the Basic Features and Functions of the Elastic Software.
+
+  1.2 Reservation of Rights; Restrictions. As between Elastic and You, Elastic
+  and its licensors own all right, title and interest in and to the Elastic
+  Software, and except as expressly set forth in Sections 1.1, and 2.1 of this
+  Agreement, no other license to the Elastic Software is granted to You under
+  this Agreement, by implication, estoppel or otherwise. You agree not to: (i)
+  reverse engineer or decompile, decrypt, disassemble or otherwise reduce any
+  Elastic Software provided to You in Object Code, or any portion thereof, to
+  Source Code, except and only to the extent any such restriction is prohibited
+  by applicable law, (ii) except as expressly permitted in this Agreement,
+  prepare derivative works from, modify, copy or use the Elastic Software Object
+  Code or the Commercial Software Source Code in any manner; (iii) except as
+  expressly permitted in Section 1.1 above, transfer, sell, rent, lease,
+  distribute, sublicense, loan or otherwise transfer, Elastic Software Object
+  Code, in whole or in part, to any third party; (iv) use Elastic Software
+  Object Code for providing time-sharing services, any software-as-a-service,
+  service bureau services or as part of an application services provider or
+  other service offering (collectively, "SaaS Offering") where obtaining access
+  to the Elastic Software or the features and functions of the Elastic Software
+  is a primary reason or substantial motivation for users of the SaaS Offering
+  to access and/or use the SaaS Offering ("Prohibited SaaS Offering"); (v)
+  circumvent the limitations on use of Elastic Software provided to You in
+  Object Code format that are imposed or preserved by any License Key, or (vi)
+  alter or remove any Marks and Notices in the Elastic Software. If You have any
+  question as to whether a specific SaaS Offering constitutes a Prohibited SaaS
+  Offering, or are interested in obtaining Elastic's permission to engage in
+  commercial or non-commercial distribution of the Elastic Software, please
+  contact elastic_license@elastic.co.
+
+  1.3 Third Party Open Source Software. The Commercial Software may contain or
+  be provided with third party open source libraries, components, utilities and
+  other open source software (collectively, "Open Source Software"), which Open
+  Source Software may have applicable license terms as identified on a website
+  designated by Elastic. Notwithstanding anything to the contrary herein, use of
+  the Open Source Software shall be subject to the license terms and conditions
+  applicable to such Open Source Software, to the extent required by the
+  applicable licensor (which terms shall not restrict the license rights granted
+  to You hereunder, but may contain additional rights). To the extent any
+  condition of this Agreement conflicts with any license to the Open Source
+  Software, the Open Source Software license will govern with respect to such
+  Open Source Software only. Elastic may also separately provide you with
+  certain open source software that is licensed by Elastic. Your use of such
+  Elastic open source software will not be governed by this Agreement, but by
+  the applicable open source license terms.
+
+2. COMMERCIAL SOFTWARE SOURCE CODE
+
+  2.1 Limited License. Subject to the terms and conditions of Section 2.2 of
+  this Agreement, Elastic hereby grants to You, AT NO CHARGE and for so long as
+  you are not in breach of any provision of this Agreement, a limited,
+  non-exclusive, non-transferable, fully paid up royalty free right and license
+  to the Commercial Software in Source Code format, without the right to grant
+  or authorize sublicenses, to prepare Derivative Works of the Commercial
+  Software, provided You (i) do not hack the licensing mechanism, or otherwise
+  circumvent the intended limitations on the use of Elastic Software to enable
+  features other than Basic Features and Functions or those features You are
+  entitled to as part of a Subscription, and (ii) use the resulting object code
+  only for reasonable testing purposes.
+
+  2.2 Restrictions. Nothing in Section 2.1 grants You the right to (i) use the
+  Commercial Software Source Code other than in accordance with Section 2.1
+  above, (ii) use a Derivative Work of the Commercial Software outside of a
+  Non-production Environment, in any production capacity, on a temporary or
+  permanent basis, or (iii) transfer, sell, rent, lease, distribute, sublicense,
+  loan or otherwise make available the Commercial Software Source Code, in whole
+  or in part, to any third party. Notwithstanding the foregoing, You may
+  maintain a copy of the repository in which the Source Code of the Commercial
+  Software resides and that copy may be publicly accessible, provided that you
+  include this Agreement with Your copy of the repository.
+
+3. TERMINATION
+
+  3.1 Termination. This Agreement will automatically terminate, whether or not
+  You receive notice of such Termination from Elastic, if You breach any of its
+  provisions.
+
+  3.2 Post Termination. Upon any termination of this Agreement, for any reason,
+  You shall promptly cease the use of the Elastic Software in Object Code format
+  and cease use of the Commercial Software in Source Code format. For the
+  avoidance of doubt, termination of this Agreement will not affect Your right
+  to use Elastic Software, in either Object Code or Source Code formats, made
+  available under the Apache License Version 2.0.
+
+  3.3 Survival. Sections 1.2, 2.2. 3.3, 4 and 5 shall survive any termination or
+  expiration of this Agreement.
+
+4. DISCLAIMER OF WARRANTIES AND LIMITATION OF LIABILITY
+
+  4.1 Disclaimer of Warranties. TO THE MAXIMUM EXTENT PERMITTED UNDER APPLICABLE
+  LAW, THE ELASTIC SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND,
+  AND ELASTIC AND ITS LICENSORS MAKE NO WARRANTIES WHETHER EXPRESSED, IMPLIED OR
+  STATUTORY REGARDING OR RELATING TO THE ELASTIC SOFTWARE. TO THE MAXIMUM EXTENT
+  PERMITTED UNDER APPLICABLE LAW, ELASTIC AND ITS LICENSORS SPECIFICALLY
+  DISCLAIM ALL IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+  PURPOSE AND NON-INFRINGEMENT WITH RESPECT TO THE ELASTIC SOFTWARE, AND WITH
+  RESPECT TO THE USE OF THE FOREGOING. FURTHER, ELASTIC DOES NOT WARRANT RESULTS
+  OF USE OR THAT THE ELASTIC SOFTWARE WILL BE ERROR FREE OR THAT THE USE OF THE
+  ELASTIC SOFTWARE WILL BE UNINTERRUPTED.
+
+  4.2 Limitation of Liability. IN NO EVENT SHALL ELASTIC OR ITS LICENSORS BE
+  LIABLE TO YOU OR ANY THIRD PARTY FOR ANY DIRECT OR INDIRECT DAMAGES,
+  INCLUDING, WITHOUT LIMITATION, FOR ANY LOSS OF PROFITS, LOSS OF USE, BUSINESS
+  INTERRUPTION, LOSS OF DATA, COST OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY
+  SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES OF ANY KIND, IN CONNECTION WITH
+  OR ARISING OUT OF THE USE OR INABILITY TO USE THE ELASTIC SOFTWARE, OR THE
+  PERFORMANCE OF OR FAILURE TO PERFORM THIS AGREEMENT, WHETHER ALLEGED AS A
+  BREACH OF CONTRACT OR TORTIOUS CONDUCT, INCLUDING NEGLIGENCE, EVEN IF ELASTIC
+  HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+5. MISCELLANEOUS
+
+  This Agreement completely and exclusively states the entire agreement of the
+  parties regarding the subject matter herein, and it supersedes, and its terms
+  govern, all prior proposals, agreements, or other communications between the
+  parties, oral or written, regarding such subject matter. This Agreement may be
+  modified by Elastic from time to time, and any such modifications will be
+  effective upon the "Posted Date" set forth at the top of the modified
+  Agreement. If any provision hereof is held unenforceable, this Agreement will
+  continue without said provision and be interpreted to reflect the original
+  intent of the parties. This Agreement and any non-contractual obligation
+  arising out of or in connection with it, is governed exclusively by Dutch law.
+  This Agreement shall not be governed by the 1980 UN Convention on Contracts
+  for the International Sale of Goods. All disputes arising out of or in
+  connection with this Agreement, including its existence and validity, shall be
+  resolved by the courts with jurisdiction in Amsterdam, The Netherlands, except
+  where mandatory law provides for the courts at another location in The
+  Netherlands to have jurisdiction. The parties hereby irrevocably waive any and
+  all claims and defenses either might otherwise have in any such action or
+  proceeding in any of such courts based upon any alleged lack of personal
+  jurisdiction, improper venue, forum non conveniens or any similar claim or
+  defense. A breach or threatened breach, by You of Section 2 may cause
+  irreparable harm for which damages at law may not provide adequate relief, and
+  therefore Elastic shall be entitled to seek injunctive relief without being
+  required to post a bond. You may not assign this Agreement (including by
+  operation of law in connection with a merger or acquisition), in whole or in
+  part to any third party without the prior written consent of Elastic, which
+  may be withheld or granted by Elastic in its sole and absolute discretion.
+  Any assignment in violation of the preceding sentence is void. Notices to
+  Elastic may also be sent to legal@elastic.co.
+
+6. DEFINITIONS
+
+  The following terms have the meanings ascribed:
+
+  6.1 "Affiliate" means, with respect to a party, any entity that controls, is
+  controlled by, or which is under common control with, such party, where
+  "control" means ownership of at least fifty percent (50%) of the outstanding
+  voting shares of the entity, or the contractual right to establish policy for,
+  and manage the operations of, the entity.
+
+  6.2 "Basic Features and Functions" means those features and functions of the
+  Elastic Software that are eligible for use under a Basic license, as set forth
+  at https://www.elastic.co/subscriptions, as may be modified by Elastic from
+  time to time.
+
+  6.3 "Commercial Software" means the Elastic Software Source Code in any file
+  containing a header stating the contents are subject to the Elastic License or
+  which is contained in the repository folder labeled "x-pack", unless a LICENSE
+  file present in the directory subtree declares a different license.
+
+  6.4 "Derivative Work of the Commercial Software" means, for purposes of this
+  Agreement, any modification(s) or enhancement(s) to the Commercial Software,
+  which represent, as a whole, an original work of authorship.
+
+  6.5 "License" means a limited, non-exclusive, non-transferable, fully paid up,
+  royalty free, right and license, without the right to grant or authorize
+  sublicenses, solely for Your internal business operations to (i) install and
+  use the applicable Features and Functions of the Elastic Software in Object
+  Code, and (ii) permit Contractors and Your Affiliates to use the Elastic
+  software as set forth in (i) above, provided that such use by Contractors must
+  be solely for Your benefit and/or the benefit of Your Affiliates, and You
+  shall be responsible for all acts and omissions of such Contractors and
+  Affiliates in connection with their use of the Elastic software that are
+  contrary to the terms and conditions of this Agreement.
+
+  6.6 "License Key" means a sequence of bytes, including but not limited to a
+  JSON blob, that is used to enable certain features and functions of the
+  Elastic Software.
+
+  6.7 "Marks and Notices" means all Elastic trademarks, trade names, logos and
+  notices present on the Documentation as originally provided by Elastic.
+
+  6.8 "Non-production Environment" means an environment for development, testing
+  or quality assurance, where software is not used for production purposes.
+
+  6.9 "Object Code" means any form resulting from mechanical transformation or
+  translation of Source Code form, including but not limited to compiled object
+  code, generated documentation, and conversions to other media types.
+
+  6.10 "Source Code" means the preferred form of computer software for making
+  modifications, including but not limited to software source code,
+  documentation source, and configuration files.
+
+  6.11 "Subscription" means the right to receive Support Services and a License
+  to the Commercial Software.
+
+
+GOVERNMENT END USER ADDENDUM TO THE ELASTIC LICENSE AGREEMENT
+
+	This ADDENDUM TO THE ELASTIC LICENSE AGREEMENT (this "Addendum") applies
+only to U.S. Federal Government, State Government, and Local Government
+entities ("Government End Users") of the Elastic Software.  This Addendum is
+subject to, and hereby incorporated into, the Elastic License Agreement,
+which is being entered into as of even date herewith, by Elastic and You (the
+"Agreement").  This Addendum sets forth additional terms and conditions
+related to Your use of the Elastic Software. Capitalized terms not defined in
+this Addendum have the meaning set forth in the Agreement.
+
+	1. LIMITED LICENSE TO DISTRIBUTE (DSOP ONLY).  Subject to the terms and
+conditions of the Agreement (including this Addendum), Elastic grants the
+Department of Defense Enterprise DevSecOps Initiative (DSOP) a royalty-free,
+non-exclusive, non-transferable, limited license to reproduce and distribute
+the Elastic Software solely through a software distribution repository
+controlled and managed by DSOP, provided that DSOP: (i) distributes the
+Elastic Software complete and unmodified, inclusive of the Agreement
+(including this Addendum) and (ii) does not remove or alter any proprietary
+legends or notices contained in the Elastic Software.
+
+	2. CHOICE OF LAW.  The choice of law and venue provisions set forth shall
+prevail over those set forth in Section 5 of the Agreement.
+
+	  "For U.S. Federal Government Entity End Users. This Agreement and any
+  non-contractual obligation arising out of or in connection with it, is
+  governed exclusively by U.S. Federal law.  To the extent permitted by
+  federal law, the laws of the State of Delaware (excluding Delaware choice
+  of law rules) will apply in the absence of applicable federal law.
+
+	  For State and Local Government Entity End Users. This Agreement and any
+  non-contractual obligation arising out of or in connection with it, is
+  governed exclusively by the laws of the state in which you are located
+  without reference to conflict of laws.  Furthermore, the Parties agree that
+  the Uniform Computer Information Transactions Act or any version  thereof,
+  adopted by any state in  any form ('UCITA'), shall not apply to  this
+  Agreement and, to the extent that UCITA is applicable, the Parties agree to
+  opt out of the applicability of UCITA pursuant to the opt-out provision(s)
+  contained therein."
+
+	3. ELASTIC LICENSE MODIFICATION.  Section 5 of the Agreement is hereby
+amended to replace
+
+	  "This Agreement may be modified by Elastic from time to time, and any
+  such modifications will be effective upon the "Posted Date" set forth at
+  the top of the modified Agreement."
+
+	    with:
+
+	  "This Agreement may be modified by Elastic from time to time; provided,
+  however, that any such modifications shall apply only to Elastic Software
+  that is installed after the "Posted Date" set forth at the top of the
+  modified Agreement."
+
+V100820.0

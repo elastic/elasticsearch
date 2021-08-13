@@ -1,34 +1,31 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.node;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.xcontent.ParsedMediaType;
+import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
@@ -38,18 +35,20 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RestCompatibilityPlugin;
-import org.elasticsearch.rest.CompatibleVersion;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -157,10 +156,10 @@ public class NodeTests extends ESTestCase {
     private static Settings.Builder baseSettings() {
         final Path tempDir = createTempDir();
         return Settings.builder()
-                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-                .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                .put(dataNode());
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+            .put(dataNode());
     }
 
     public void testCloseOnOutstandingTask() throws Exception {
@@ -171,7 +170,7 @@ public class NodeTests extends ESTestCase {
         final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             threadRunning.countDown();
-            while (shouldRun.get());
+            while (shouldRun.get()) ;
         });
         threadRunning.await();
         node.close();
@@ -194,7 +193,7 @@ public class NodeTests extends ESTestCase {
             }
             try {
                 threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-                    while (shouldRun.get());
+                    while (shouldRun.get()) ;
                 });
             } catch (RejectedExecutionException e) {
                 assertThat(e.getMessage(), containsString("[Terminated,"));
@@ -233,7 +232,7 @@ public class NodeTests extends ESTestCase {
         final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             threadRunning.countDown();
-            while (shouldRun.get());
+            while (shouldRun.get()) ;
         });
         threadRunning.await();
         node.close();
@@ -276,7 +275,7 @@ public class NodeTests extends ESTestCase {
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
         assertAcked(node.client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         Searcher searcher = shard.acquireSearcher("test");
@@ -292,7 +291,7 @@ public class NodeTests extends ESTestCase {
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
         assertAcked(node.client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         shard.store().incRef();
@@ -315,7 +314,7 @@ public class NodeTests extends ESTestCase {
             CircuitBreakerPlugin breakerPlugin = node.getPluginsService().filterPlugins(CircuitBreakerPlugin.class).get(0);
             assertTrue(breakerPlugin instanceof MockCircuitBreakerPlugin);
             assertSame("plugin circuit breaker instance is not the same as breaker service's instance",
-                ((MockCircuitBreakerPlugin)breakerPlugin).myCircuitBreaker.get(),
+                ((MockCircuitBreakerPlugin) breakerPlugin).myCircuitBreaker.get(),
                 service.getBreaker("test_breaker"));
         }
     }
@@ -344,55 +343,71 @@ public class NodeTests extends ESTestCase {
         }
     }
 
-    public static class TestRestCompatibility1 extends Plugin implements RestCompatibilityPlugin {
+    @SuppressWarnings("unchecked")
+    private static ContextParser<Object, Integer> mockContextParser() {
+        return Mockito.mock(ContextParser.class);
+    }
+
+    static NamedXContentRegistry.Entry compatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
+        new ParseField("name").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported())), mockContextParser());
+    static NamedXContentRegistry.Entry currentVersionEntries = new NamedXContentRegistry.Entry(Integer.class,
+        new ParseField("name2").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported())), mockContextParser());
+
+    public static class TestRestCompatibility1 extends Plugin {
         @Override
-        public Version getCompatibleVersion(ParsedMediaType acceptHeader, ParsedMediaType contentTypeHeader, boolean hasContent) {
-            return Version.CURRENT.previousMajor();
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return List.of(compatibleEntries);
         }
     }
 
-    public static class TestRestCompatibility2 extends Plugin implements RestCompatibilityPlugin {
+    public static class TestRestCompatibility2 extends Plugin {
         @Override
-        public Version getCompatibleVersion(ParsedMediaType acceptHeader, ParsedMediaType contentTypeHeader, boolean hasContent) {
-            return null;
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return List.of(currentVersionEntries);
         }
     }
 
+    // This test shows an example on how multiple plugins register namedXContent entries
     public void testLoadingMultipleRestCompatibilityPlugins() throws IOException {
         Settings.Builder settings = baseSettings();
-
-        // throw an exception when two plugins are registered
         List<Class<? extends Plugin>> plugins = basePlugins();
         plugins.add(TestRestCompatibility1.class);
         plugins.add(TestRestCompatibility2.class);
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new MockNode(settings.build(), plugins));
-        assertThat(e.getMessage(), equalTo("Only one RestCompatibilityPlugin is allowed"));
-    }
-
-    public void testCorrectUsageOfRestCompatibilityPlugin() throws IOException {
-        Settings.Builder settings = baseSettings();
-
-        // the correct usage expects one plugin
-        List<Class<? extends Plugin>> plugins = basePlugins();
-        plugins.add(TestRestCompatibility1.class);
-
         try (Node node = new MockNode(settings.build(), plugins)) {
-            CompatibleVersion restCompatibleFunction = node.getRestCompatibleFunction();
-            assertThat(restCompatibleFunction.get(null, null, false), equalTo(Version.CURRENT.previousMajor()));
+            final NamedXContentRegistry namedXContentRegistry = node.namedXContentRegistry;
+            RestRequest compatibleRequest = request(namedXContentRegistry, RestApiVersion.minimumSupported());
+            try (XContentParser p = compatibleRequest.contentParser()) {
+                NamedXContentRegistry.Entry field = namedXContentRegistry.lookupParser(Integer.class, "name", p);
+                assertTrue(RestApiVersion.minimumSupported().matches(field.restApiCompatibility));
+
+                field = namedXContentRegistry.lookupParser(Integer.class, "name2", p);
+                assertTrue(RestApiVersion.current().matches(field.restApiCompatibility));
+            }
+
+            RestRequest currentRequest = request(namedXContentRegistry, RestApiVersion.current());
+            try (XContentParser p = currentRequest.contentParser()) {
+                NamedXContentRegistry.Entry field = namedXContentRegistry.lookupParser(Integer.class, "name2", p);
+                assertTrue(RestApiVersion.minimumSupported().matches(field.restApiCompatibility));
+
+                expectThrows(NamedObjectNotFoundException.class, () -> namedXContentRegistry.lookupParser(Integer.class, "name", p));
+            }
         }
     }
 
+    private RestRequest request(NamedXContentRegistry namedXContentRegistry, RestApiVersion restApiVersion) throws IOException {
+        String mediaType = XContentType.VND_JSON.toParsedMediaType()
+            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME,
+                String.valueOf(restApiVersion.major)));
+        List<String> mediaTypeList = Collections.singletonList(mediaType);
+        XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent()).startObject().endObject();
 
-    public void testDefaultingRestCompatibilityPlugin() throws IOException {
-        Settings.Builder settings = baseSettings();
-
-        // default to CompatibleVersion.CURRENT_VERSION when no plugins provided
-        List<Class<? extends Plugin>> plugins = basePlugins();
-
-        try (Node node = new MockNode(settings.build(), plugins)) {
-            CompatibleVersion restCompatibleFunction = node.getRestCompatibleFunction();
-            assertThat(restCompatibleFunction.get(null, null, false), equalTo(Version.CURRENT));
-        }
+        return new FakeRestRequest.Builder(namedXContentRegistry)
+            .withContent(BytesReference.bytes(b), RestRequest.parseContentType(mediaTypeList))
+            .withPath("/foo")
+            .withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList))
+            .build();
     }
+
+
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.phase;
@@ -87,6 +76,7 @@ import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
 import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
 import org.elasticsearch.painless.symbol.Decorations.BeginLoop;
 import org.elasticsearch.painless.symbol.Decorations.BinaryType;
+import org.elasticsearch.painless.symbol.Decorations.CaptureBox;
 import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
 import org.elasticsearch.painless.symbol.Decorations.ComparisonType;
 import org.elasticsearch.painless.symbol.Decorations.CompoundType;
@@ -98,6 +88,8 @@ import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.GetterPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.InstanceCapturingFunctionRef;
+import org.elasticsearch.painless.symbol.Decorations.InstanceCapturingLambda;
 import org.elasticsearch.painless.symbol.Decorations.InstanceType;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
 import org.elasticsearch.painless.symbol.Decorations.IterablePainlessMethod;
@@ -127,6 +119,7 @@ import org.elasticsearch.painless.symbol.Decorations.StandardPainlessInstanceBin
 import org.elasticsearch.painless.symbol.Decorations.StandardPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ThisPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.TypeParameters;
 import org.elasticsearch.painless.symbol.Decorations.UnaryType;
 import org.elasticsearch.painless.symbol.Decorations.UpcastPainlessCast;
@@ -1722,6 +1715,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         ScriptScope scriptScope = semanticScope.getScriptScope();
 
         FunctionTable.LocalFunction localFunction = null;
+        PainlessMethod thisMethod = null;
         PainlessMethod importedMethod = null;
         PainlessClassBinding classBinding = null;
         int classBindingOffset = 0;
@@ -1737,41 +1731,46 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
 
         if (localFunction == null) {
-            importedMethod = scriptScope.getPainlessLookup().lookupImportedPainlessMethod(methodName, userArgumentsSize);
+            thisMethod = scriptScope.getPainlessLookup().lookupPainlessMethod(
+                    scriptScope.getScriptClassInfo().getBaseClass(), false, methodName, userArgumentsSize);
 
-            if (importedMethod == null) {
-                classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize);
+            if (thisMethod == null) {
+                importedMethod = scriptScope.getPainlessLookup().lookupImportedPainlessMethod(methodName, userArgumentsSize);
 
-                // check to see if this class binding requires an implicit this reference
-                if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
-                        classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
-                    classBinding = null;
-                }
+                if (importedMethod == null) {
+                    classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize);
 
-                if (classBinding == null) {
-                    // This extra check looks for a possible match where the class binding requires an implicit this
-                    // reference.  This is a temporary solution to allow the class binding access to data from the
-                    // base script class without need for a user to add additional arguments.  A long term solution
-                    // will likely involve adding a class instance binding where any instance can have a class binding
-                    // as part of its API.  However, the situation at run-time is difficult and will modifications that
-                    // are a substantial change if even possible to do.
-                    classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize + 1);
-
-                    if (classBinding != null) {
-                        if (classBinding.typeParameters.isEmpty() == false &&
-                                classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
-                            classBindingOffset = 1;
-                        } else {
-                            classBinding = null;
-                        }
+                    // check to see if this class binding requires an implicit this reference
+                    if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
+                            classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
+                        classBinding = null;
                     }
 
                     if (classBinding == null) {
-                        instanceBinding = scriptScope.getPainlessLookup().lookupPainlessInstanceBinding(methodName, userArgumentsSize);
+                        // This extra check looks for a possible match where the class binding requires an implicit this
+                        // reference.  This is a temporary solution to allow the class binding access to data from the
+                        // base script class without need for a user to add additional arguments.  A long term solution
+                        // will likely involve adding a class instance binding where any instance can have a class binding
+                        // as part of its API.  However, the situation at run-time is difficult and will modifications that
+                        // are a substantial change if even possible to do.
+                        classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, userArgumentsSize + 1);
 
-                        if (instanceBinding == null) {
-                            throw userCallLocalNode.createError(new IllegalArgumentException(
-                                    "Unknown call [" + methodName + "] with [" + userArgumentNodes + "] arguments."));
+                        if (classBinding != null) {
+                            if (classBinding.typeParameters.isEmpty() == false &&
+                                    classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
+                                classBindingOffset = 1;
+                            } else {
+                                classBinding = null;
+                            }
+                        }
+
+                        if (classBinding == null) {
+                            instanceBinding = scriptScope.getPainlessLookup().lookupPainlessInstanceBinding(methodName, userArgumentsSize);
+
+                            if (instanceBinding == null) {
+                                throw userCallLocalNode.createError(new IllegalArgumentException(
+                                        "Unknown call [" + methodName + "] with [" + userArgumentNodes + "] arguments."));
+                            }
                         }
                     }
                 }
@@ -1781,10 +1780,18 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         List<Class<?>> typeParameters;
 
         if (localFunction != null) {
+            semanticScope.setUsesInstanceMethod();
             semanticScope.putDecoration(userCallLocalNode, new StandardLocalFunction(localFunction));
 
             typeParameters = new ArrayList<>(localFunction.getTypeParameters());
             valueType = localFunction.getReturnType();
+        } else if (thisMethod != null) {
+            semanticScope.setUsesInstanceMethod();
+            semanticScope.putDecoration(userCallLocalNode, new ThisPainlessMethod(thisMethod));
+
+            scriptScope.markNonDeterministic(thisMethod.annotations.containsKey(NonDeterministicAnnotation.class));
+            typeParameters = new ArrayList<>(thisMethod.typeParameters);
+            valueType = thisMethod.returnType;
         } else if (importedMethod != null) {
             semanticScope.putDecoration(userCallLocalNode, new StandardPainlessMethod(importedMethod));
 
@@ -2062,51 +2069,52 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         Location location = userRegexNode.getLocation();
 
-        int constant = 0;
+        int regexFlags = 0;
 
         for (int i = 0; i < flags.length(); ++i) {
             char flag = flags.charAt(i);
 
             switch (flag) {
                 case 'c':
-                    constant |= Pattern.CANON_EQ;
+                    regexFlags |= Pattern.CANON_EQ;
                     break;
                 case 'i':
-                    constant |= Pattern.CASE_INSENSITIVE;
+                    regexFlags |= Pattern.CASE_INSENSITIVE;
                     break;
                 case 'l':
-                    constant |= Pattern.LITERAL;
+                    regexFlags |= Pattern.LITERAL;
                     break;
                 case 'm':
-                    constant |= Pattern.MULTILINE;
+                    regexFlags |= Pattern.MULTILINE;
                     break;
                 case 's':
-                    constant |= Pattern.DOTALL;
+                    regexFlags |= Pattern.DOTALL;
                     break;
                 case 'U':
-                    constant |= Pattern.UNICODE_CHARACTER_CLASS;
+                    regexFlags |= Pattern.UNICODE_CHARACTER_CLASS;
                     break;
                 case 'u':
-                    constant |= Pattern.UNICODE_CASE;
+                    regexFlags |= Pattern.UNICODE_CASE;
                     break;
                 case 'x':
-                    constant |= Pattern.COMMENTS;
+                    regexFlags |= Pattern.COMMENTS;
                     break;
                 default:
                     throw new IllegalArgumentException("invalid regular expression: unknown flag [" + flag + "]");
             }
         }
 
+        Pattern compiled;
         try {
-            Pattern.compile(pattern, constant);
+            compiled = Pattern.compile(pattern, regexFlags);
         } catch (PatternSyntaxException pse) {
             throw new Location(location.getSourceName(), location.getOffset() + 1 + pse.getIndex()).createError(
                     new IllegalArgumentException("invalid regular expression: " +
-                            "could not compile regex constant [" + pattern + "] with flags [" + flags + "]", pse));
+                            "could not compile regex constant [" + pattern + "] with flags [" + flags + "]: " + pse.getDescription(), pse));
         }
 
         semanticScope.putDecoration(userRegexNode, new ValueType(Pattern.class));
-        semanticScope.putDecoration(userRegexNode, new StandardConstant(constant));
+        semanticScope.putDecoration(userRegexNode, new StandardConstant(compiled));
     }
 
     /**
@@ -2204,6 +2212,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userBlockNode, LastSource.class);
         visit(userBlockNode, lambdaScope);
 
+        if (lambdaScope.usesInstanceMethod()) {
+            semanticScope.setCondition(userLambdaNode, InstanceCapturingLambda.class);
+        }
+
         if (semanticScope.getCondition(userBlockNode, MethodEscape.class) == false) {
             throw userLambdaNode.createError(new IllegalArgumentException("not all paths return a value for lambda"));
         }
@@ -2223,18 +2235,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         // desugar lambda body into a synthetic method
         String name = scriptScope.getNextSyntheticName("lambda");
-        scriptScope.getFunctionTable().addFunction(name, returnType, typeParametersWithCaptures, true, true);
+        boolean isStatic = lambdaScope.usesInstanceMethod() == false;
+        scriptScope.getFunctionTable().addFunction(name, returnType, typeParametersWithCaptures, true, isStatic);
 
         Class<?> valueType;
         // setup method reference to synthetic method
         if (targetType == null) {
-            String defReferenceEncoding = "Sthis." + name + "," + capturedVariables.size();
             valueType = String.class;
-            semanticScope.putDecoration(userLambdaNode, new EncodingDecoration(defReferenceEncoding));
+            semanticScope.putDecoration(userLambdaNode,
+                    new EncodingDecoration(true, lambdaScope.usesInstanceMethod(), "this", name, capturedVariables.size()));
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                     location, targetType.getTargetType(), "this", name, capturedVariables.size(),
-                    scriptScope.getCompilerSettings().asMap());
+                    scriptScope.getCompilerSettings().asMap(), lambdaScope.usesInstanceMethod());
             valueType = targetType.getTargetType();
             semanticScope.putDecoration(userLambdaNode, new ReferenceDecoration(ref));
         }
@@ -2265,7 +2278,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         TargetType targetType = semanticScope.getDecoration(userFunctionRefNode, TargetType.class);
         Class<?> valueType;
 
-        if (symbol.equals("this") || type != null)  {
+        boolean isInstanceReference = "this".equals(symbol);
+        if (isInstanceReference || type != null)  {
             if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {
                 throw userFunctionRefNode.createError(new IllegalArgumentException(
                         "invalid assignment: cannot assign a value to function reference [" + symbol + ":" + methodName + "]"));
@@ -2276,14 +2290,16 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         "not a statement: function reference [" + symbol + ":" + methodName + "] not used"));
             }
 
+            if (isInstanceReference) {
+                semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+            }
             if (targetType == null) {
                 valueType = String.class;
-                String defReferenceEncoding = "S" + symbol + "." + methodName + ",0";
-                semanticScope.putDecoration(userFunctionRefNode, new EncodingDecoration(defReferenceEncoding));
+                semanticScope.putDecoration(userFunctionRefNode, new EncodingDecoration(true, isInstanceReference, symbol, methodName, 0));
             } else {
                 FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                         location, targetType.getTargetType(), symbol, methodName, 0,
-                        scriptScope.getCompilerSettings().asMap());
+                        scriptScope.getCompilerSettings().asMap(), isInstanceReference);
                 valueType = targetType.getTargetType();
                 semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
             }
@@ -2300,24 +2316,29 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             SemanticScope.Variable captured = semanticScope.getVariable(location, symbol);
             semanticScope.putDecoration(userFunctionRefNode, new CapturesDecoration(Collections.singletonList(captured)));
+
+            if (captured.getType().isPrimitive()) {
+                semanticScope.setCondition(userFunctionRefNode, CaptureBox.class);
+            }
+
             if (targetType == null) {
-                String defReferenceEncoding;
+                EncodingDecoration encodingDecoration;
                 if (captured.getType() == def.class) {
                     // dynamic implementation
-                    defReferenceEncoding = "D" + symbol + "." + methodName + ",1";
+                    encodingDecoration = new EncodingDecoration(false, false, symbol, methodName, 1);
                 } else {
                     // typed implementation
-                    defReferenceEncoding = "S" + captured.getCanonicalTypeName() + "." + methodName + ",1";
+                    encodingDecoration = new EncodingDecoration(true, false, captured.getCanonicalTypeName(), methodName, 1);
                 }
                 valueType = String.class;
-                semanticScope.putDecoration(userFunctionRefNode, new EncodingDecoration(defReferenceEncoding));
+                semanticScope.putDecoration(userFunctionRefNode, encodingDecoration);
             } else {
                 valueType = targetType.getTargetType();
                 // static case
                 if (captured.getType() != def.class) {
                     FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(), location,
                             targetType.getTargetType(), captured.getCanonicalTypeName(), methodName, 1,
-                            scriptScope.getCompilerSettings().asMap());
+                            scriptScope.getCompilerSettings().asMap(), false);
                     semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
                 }
             }
@@ -2361,13 +2382,12 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.putDecoration(userNewArrayFunctionRefNode, new MethodNameDecoration(name));
 
         if (targetType == null) {
-            String defReferenceEncoding = "Sthis." + name + ",0";
             valueType = String.class;
-            scriptScope.putDecoration(userNewArrayFunctionRefNode, new EncodingDecoration(defReferenceEncoding));
+            scriptScope.putDecoration(userNewArrayFunctionRefNode, new EncodingDecoration(true, false, "this", name, 0));
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                     userNewArrayFunctionRefNode.getLocation(), targetType.getTargetType(), "this", name, 0,
-                    scriptScope.getCompilerSettings().asMap());
+                    scriptScope.getCompilerSettings().asMap(), false);
             valueType = targetType.getTargetType();
             semanticScope.putDecoration(userNewArrayFunctionRefNode, new ReferenceDecoration(ref));
         }
@@ -2461,220 +2481,239 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             String canonicalTypeName =
                     semanticScope.getDecoration(userPrefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "." + index;
-            Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+            Class<?> staticType = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
-            if (type == null) {
+            if (staticType == null) {
                 semanticScope.putDecoration(userDotNode, new PartialCanonicalTypeName(canonicalTypeName));
             } else {
                 if (write) {
                     throw userDotNode.createError(new IllegalArgumentException("invalid assignment: " +
-                            "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
+                            "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "]"));
                 }
 
-                semanticScope.putDecoration(userDotNode, new StaticType(type));
+                semanticScope.putDecoration(userDotNode, new StaticType(staticType));
             }
         } else {
-            Class<?> valueType = null;
+            Class<?> staticType = null;
 
-            if (prefixValueType != null && prefixValueType.getValueType().isArray()) {
-                if ("length".equals(index)) {
-                    if (write) {
-                        throw userDotNode.createError(new IllegalArgumentException(
-                                "invalid assignment: cannot assign a value write to read-only field [length] for an array."));
-                    }
-
-                    valueType = int.class;
-                } else {
-                    throw userDotNode.createError(new IllegalArgumentException(
-                            "Field [" + index + "] does not exist for type [" + prefixValueType.getValueCanonicalTypeName() + "]."));
-                }
-            } else if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
-                TargetType targetType = userDotNode.isNullSafe() ? null : semanticScope.getDecoration(userDotNode, TargetType.class);
-                // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-                valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
-                        semanticScope.getCondition(userDotNode, Explicit.class) ? def.class : targetType.getTargetType();
-
-                if (write) {
-                    semanticScope.setCondition(userDotNode, DefOptimized.class);
-                }
-            } else {
-                Class<?> prefixType;
-                String prefixCanonicalTypeName;
-                boolean isStatic;
-
-                if (prefixValueType != null) {
-                    prefixType = prefixValueType.getValueType();
-                    prefixCanonicalTypeName = prefixValueType.getValueCanonicalTypeName();
-                    isStatic = false;
-                } else if (prefixStaticType != null) {
-                    prefixType = prefixStaticType.getStaticType();
-                    prefixCanonicalTypeName = prefixStaticType.getStaticCanonicalTypeName();
-                    isStatic = true;
-                } else {
-                    throw userDotNode.createError(new IllegalStateException("value required: instead found no value"));
-                }
-
-                PainlessField field = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessField(prefixType, isStatic, index);
-
-                if (field == null) {
-                    PainlessMethod getter;
-                    PainlessMethod setter;
-
-                    getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
-                            "get" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
-
-                    if (getter == null) {
-                        getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
-                                "is" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
-                    }
-
-                    setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
-                            "set" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
-
-                    if (getter != null || setter != null) {
-                        if (getter != null && (getter.returnType == void.class || !getter.typeParameters.isEmpty())) {
-                            throw userDotNode.createError(new IllegalArgumentException(
-                                    "Illegal get shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
-                        }
-
-                        if (setter != null && (setter.returnType != void.class || setter.typeParameters.size() != 1)) {
-                            throw userDotNode.createError(new IllegalArgumentException(
-                                    "Illegal set shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
-                        }
-
-                        if (getter != null && setter != null && setter.typeParameters.get(0) != getter.returnType) {
-                            throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
-                        }
-
-                        if ((read == false || getter != null) && (write == false || setter != null)) {
-                            valueType = setter != null ? setter.typeParameters.get(0) : getter.returnType;
-                        } else {
-                            throw userDotNode.createError(new IllegalArgumentException(
-                                    "Illegal shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
-                        }
-
-                        if (getter != null) {
-                            semanticScope.putDecoration(userDotNode, new GetterPainlessMethod(getter));
-                        }
-
-                        if (setter != null) {
-                            semanticScope.putDecoration(userDotNode, new SetterPainlessMethod(setter));
-                        }
-
-                        semanticScope.setCondition(userDotNode, Shortcut.class);
-                    } else if (isStatic == false) {
-                        if (Map.class.isAssignableFrom(prefixValueType.getValueType())) {
-                            getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "get", 1);
-                            setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "put", 2);
-
-                            if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1)) {
-                                throw userDotNode.createError(new IllegalArgumentException(
-                                        "Illegal map get shortcut for type [" + prefixCanonicalTypeName + "]."));
-                            }
-
-                            if (setter != null && setter.typeParameters.size() != 2) {
-                                throw userDotNode.createError(new IllegalArgumentException(
-                                        "Illegal map set shortcut for type [" + prefixCanonicalTypeName + "]."));
-                            }
-
-                            if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) ||
-                                    getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
-                                throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
-                            }
-
-                            if ((read == false || getter != null) && (write == false || setter != null)) {
-                                valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
-                            } else {
-                                throw userDotNode.createError(new IllegalArgumentException(
-                                        "Illegal map shortcut for type [" + prefixCanonicalTypeName + "]."));
-                            }
-
-                            if (getter != null) {
-                                semanticScope.putDecoration(userDotNode, new GetterPainlessMethod(getter));
-                            }
-
-                            if (setter != null) {
-                                semanticScope.putDecoration(userDotNode, new SetterPainlessMethod(setter));
-                            }
-
-                            semanticScope.setCondition(userDotNode, MapShortcut.class);
-                        }
-
-                        if (List.class.isAssignableFrom(prefixType)) {
-                            try {
-                                scriptScope.putDecoration(userDotNode, new StandardConstant(Integer.parseInt(index)));
-                            } catch (NumberFormatException nfe) {
-                                throw userDotNode.createError(new IllegalArgumentException("invalid list index [" + index + "]", nfe));
-                            }
-
-                            getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "get", 1);
-                            setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "set", 2);
-
-                            if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
-                                    getter.typeParameters.get(0) != int.class)) {
-                                throw userDotNode.createError(new IllegalArgumentException(
-                                        "Illegal list get shortcut for type [" + prefixCanonicalTypeName + "]."));
-                            }
-
-                            if (setter != null && (setter.typeParameters.size() != 2 || setter.typeParameters.get(0) != int.class)) {
-                                throw userDotNode.createError(new IllegalArgumentException(
-                                        "Illegal list set shortcut for type [" + prefixCanonicalTypeName + "]."));
-                            }
-
-                            if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0))
-                                    || !getter.returnType.equals(setter.typeParameters.get(1)))) {
-                                throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
-                            }
-
-                            if ((read == false || getter != null) && (write == false || setter != null)) {
-                                valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
-                            } else {
-                                throw userDotNode.createError(new IllegalArgumentException(
-                                        "Illegal list shortcut for type [" + prefixCanonicalTypeName + "]."));
-                            }
-
-                            if (getter != null) {
-                                semanticScope.putDecoration(userDotNode, new GetterPainlessMethod(getter));
-                            }
-
-                            if (setter != null) {
-                                semanticScope.putDecoration(userDotNode, new SetterPainlessMethod(setter));
-                            }
-
-                            semanticScope.setCondition(userDotNode, ListShortcut.class);
-                        }
-                    }
-
-                    if (valueType == null) {
-                        if (prefixValueType != null) {
-                            throw userDotNode.createError(new IllegalArgumentException(
-                                    "field [" + prefixValueType.getValueCanonicalTypeName() + ", " + index + "] not found"));
-                        } else {
-                            throw userDotNode.createError(new IllegalArgumentException(
-                                    "field [" + prefixStaticType.getStaticCanonicalTypeName() + ", " + index + "] not found"));
-                        }
-                    }
-                } else {
-                    if (write && Modifier.isFinal(field.javaField.getModifiers())) {
-                        throw userDotNode.createError(new IllegalArgumentException(
-                                "invalid assignment: cannot assign a value to read-only field [" + field.javaField.getName() + "]"));
-                    }
-
-                    semanticScope.putDecoration(userDotNode, new StandardPainlessField(field));
-                    valueType = field.typeParameter;
-                }
+            if (prefixStaticType != null) {
+                String staticCanonicalTypeName = prefixStaticType.getStaticCanonicalTypeName() + "." + userDotNode.getIndex();
+                staticType = scriptScope.getPainlessLookup().canonicalTypeNameToType(staticCanonicalTypeName);
             }
 
-            semanticScope.putDecoration(userDotNode, new ValueType(valueType));
-
-            if (userDotNode.isNullSafe()) {
+            if (staticType != null) {
                 if (write) {
-                    throw userDotNode.createError(new IllegalArgumentException(
-                            "invalid assignment: cannot assign a value to a null safe operation [?.]"));
+                    throw userDotNode.createError(new IllegalArgumentException("invalid assignment: " +
+                            "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "]"));
                 }
 
-                if (valueType.isPrimitive()) {
-                    throw new IllegalArgumentException("Result of null safe operator must be nullable");
+                semanticScope.putDecoration(userDotNode, new StaticType(staticType));
+            } else {
+                Class<?> valueType = null;
+
+                if (prefixValueType != null && prefixValueType.getValueType().isArray()) {
+                    if ("length".equals(index)) {
+                        if (write) {
+                            throw userDotNode.createError(new IllegalArgumentException(
+                                    "invalid assignment: cannot assign a value write to read-only field [length] for an array."));
+                        }
+
+                        valueType = int.class;
+                    } else {
+                        throw userDotNode.createError(new IllegalArgumentException(
+                                "Field [" + index + "] does not exist for type [" + prefixValueType.getValueCanonicalTypeName() + "]."));
+                    }
+                } else if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
+                    TargetType targetType = userDotNode.isNullSafe() ? null : semanticScope.getDecoration(userDotNode, TargetType.class);
+                    // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
+                    valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
+                            semanticScope.getCondition(userDotNode, Explicit.class) ? def.class : targetType.getTargetType();
+
+                    if (write) {
+                        semanticScope.setCondition(userDotNode, DefOptimized.class);
+                    }
+                } else {
+                    Class<?> prefixType;
+                    String prefixCanonicalTypeName;
+                    boolean isStatic;
+
+                    if (prefixValueType != null) {
+                        prefixType = prefixValueType.getValueType();
+                        prefixCanonicalTypeName = prefixValueType.getValueCanonicalTypeName();
+                        isStatic = false;
+                    } else if (prefixStaticType != null) {
+                        prefixType = prefixStaticType.getStaticType();
+                        prefixCanonicalTypeName = prefixStaticType.getStaticCanonicalTypeName();
+                        isStatic = true;
+                    } else {
+                        throw userDotNode.createError(new IllegalStateException("value required: instead found no value"));
+                    }
+
+                    PainlessField field =
+                            semanticScope.getScriptScope().getPainlessLookup().lookupPainlessField(prefixType, isStatic, index);
+
+                    if (field == null) {
+                        PainlessMethod getter;
+                        PainlessMethod setter;
+
+                        getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
+                                "get" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
+
+                        if (getter == null) {
+                            getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
+                                    "is" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
+                        }
+
+                        setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, isStatic,
+                                "set" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
+
+                        if (getter != null || setter != null) {
+                            if (getter != null && (getter.returnType == void.class || getter.typeParameters.isEmpty() == false)) {
+                                throw userDotNode.createError(new IllegalArgumentException(
+                                        "Illegal get shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
+                            }
+
+                            if (setter != null && (setter.returnType != void.class || setter.typeParameters.size() != 1)) {
+                                throw userDotNode.createError(new IllegalArgumentException(
+                                        "Illegal set shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
+                            }
+
+                            if (getter != null && setter != null && setter.typeParameters.get(0) != getter.returnType) {
+                                throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
+                            }
+
+                            if ((read == false || getter != null) && (write == false || setter != null)) {
+                                valueType = setter != null ? setter.typeParameters.get(0) : getter.returnType;
+                            } else {
+                                throw userDotNode.createError(new IllegalArgumentException(
+                                        "Illegal shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
+                            }
+
+                            if (getter != null) {
+                                semanticScope.putDecoration(userDotNode, new GetterPainlessMethod(getter));
+                            }
+
+                            if (setter != null) {
+                                semanticScope.putDecoration(userDotNode, new SetterPainlessMethod(setter));
+                            }
+
+                            semanticScope.setCondition(userDotNode, Shortcut.class);
+                        } else if (isStatic == false) {
+                            if (Map.class.isAssignableFrom(prefixValueType.getValueType())) {
+                                getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "get", 1);
+                                setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "put", 2);
+
+                                if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1)) {
+                                    throw userDotNode.createError(new IllegalArgumentException(
+                                            "Illegal map get shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                }
+
+                                if (setter != null && setter.typeParameters.size() != 2) {
+                                    throw userDotNode.createError(new IllegalArgumentException(
+                                            "Illegal map set shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                }
+
+                                if (getter != null && setter != null &&
+                                        (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false ||
+                                        getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
+                                    throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
+                                }
+
+                                if ((read == false || getter != null) && (write == false || setter != null)) {
+                                    valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
+                                } else {
+                                    throw userDotNode.createError(new IllegalArgumentException(
+                                            "Illegal map shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                }
+
+                                if (getter != null) {
+                                    semanticScope.putDecoration(userDotNode, new GetterPainlessMethod(getter));
+                                }
+
+                                if (setter != null) {
+                                    semanticScope.putDecoration(userDotNode, new SetterPainlessMethod(setter));
+                                }
+
+                                semanticScope.setCondition(userDotNode, MapShortcut.class);
+                            }
+
+                            if (List.class.isAssignableFrom(prefixType)) {
+                                try {
+                                    scriptScope.putDecoration(userDotNode, new StandardConstant(Integer.parseInt(index)));
+                                } catch (NumberFormatException nfe) {
+                                    throw userDotNode.createError(new IllegalArgumentException("invalid list index [" + index + "]", nfe));
+                                }
+
+                                getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "get", 1);
+                                setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixType, false, "set", 2);
+
+                                if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
+                                        getter.typeParameters.get(0) != int.class)) {
+                                    throw userDotNode.createError(new IllegalArgumentException(
+                                            "Illegal list get shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                }
+
+                                if (setter != null && (setter.typeParameters.size() != 2 || setter.typeParameters.get(0) != int.class)) {
+                                    throw userDotNode.createError(new IllegalArgumentException(
+                                            "Illegal list set shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                }
+
+                                if (getter != null && setter != null &&
+                                        (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
+                                            || getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
+                                    throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
+                                }
+
+                                if ((read == false || getter != null) && (write == false || setter != null)) {
+                                    valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
+                                } else {
+                                    throw userDotNode.createError(new IllegalArgumentException(
+                                            "Illegal list shortcut for type [" + prefixCanonicalTypeName + "]."));
+                                }
+
+                                if (getter != null) {
+                                    semanticScope.putDecoration(userDotNode, new GetterPainlessMethod(getter));
+                                }
+
+                                if (setter != null) {
+                                    semanticScope.putDecoration(userDotNode, new SetterPainlessMethod(setter));
+                                }
+
+                                semanticScope.setCondition(userDotNode, ListShortcut.class);
+                            }
+                        }
+
+                        if (valueType == null) {
+                            if (prefixValueType != null) {
+                                throw userDotNode.createError(new IllegalArgumentException(
+                                        "field [" + prefixValueType.getValueCanonicalTypeName() + ", " + index + "] not found"));
+                            } else {
+                                throw userDotNode.createError(new IllegalArgumentException(
+                                        "field [" + prefixStaticType.getStaticCanonicalTypeName() + ", " + index + "] not found"));
+                            }
+                        }
+                    } else {
+                        if (write && Modifier.isFinal(field.javaField.getModifiers())) {
+                            throw userDotNode.createError(new IllegalArgumentException(
+                                    "invalid assignment: cannot assign a value to read-only field [" + field.javaField.getName() + "]"));
+                        }
+
+                        semanticScope.putDecoration(userDotNode, new StandardPainlessField(field));
+                        valueType = field.typeParameter;
+                    }
+                }
+
+                semanticScope.putDecoration(userDotNode, new ValueType(valueType));
+
+                if (userDotNode.isNullSafe()) {
+                    if (write) {
+                        throw userDotNode.createError(new IllegalArgumentException(
+                                "invalid assignment: cannot assign a value to a null safe operation [?.]"));
+                    }
+
+                    if (valueType.isPrimitive()) {
+                        throw new IllegalArgumentException("Result of null safe operator must be nullable");
+                    }
                 }
             }
         }
@@ -2737,7 +2776,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         "Illegal map set shortcut for type [" + canonicalClassName + "]."));
             }
 
-            if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) ||
+            if (getter != null && setter != null && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false ||
                     getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                 throw userBraceNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
             }
@@ -2783,8 +2822,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         "Illegal list set shortcut for type [" + canonicalClassName + "]."));
             }
 
-            if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0))
-                    || !getter.returnType.equals(setter.typeParameters.get(1)))) {
+            if (getter != null && setter != null && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
+                    || getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                 throw userBraceNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
             }
 

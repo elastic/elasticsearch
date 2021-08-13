@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.nio.BytesWriteHandler;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.FlushReadyWrite;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.Page;
-import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.TaskScheduler;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.test.ESTestCase;
@@ -22,7 +23,6 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
-import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -31,6 +31,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import javax.net.ssl.SSLException;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -54,7 +55,7 @@ public class SSLChannelContextTests extends ESTestCase {
     private NioSelector selector;
     private TaskScheduler nioTimer;
     private BiConsumer<Void, Exception> listener;
-    private Consumer exceptionHandler;
+    private Consumer<Exception> exceptionHandler;
     private SSLDriver sslDriver;
     private int messageLength;
     private Config.Socket socketConfig;
@@ -400,7 +401,7 @@ public class SSLChannelContextTests extends ESTestCase {
         };
     }
 
-    private Answer getReadAnswerForBytes(byte[] bytes) {
+    private Answer<Integer> getReadAnswerForBytes(byte[] bytes) {
         return invocationOnMock -> {
             InboundChannelBuffer appBuffer = (InboundChannelBuffer) invocationOnMock.getArguments()[1];
             appBuffer.ensureCapacity(appBuffer.getIndex() + bytes.length);

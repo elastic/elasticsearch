@@ -1,44 +1,31 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.collect.Tuple.tuple;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -91,8 +78,7 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple("alias2", List.of(tuple("index2", false), tuple("index3", true)))
         ));
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2").writeIndexOnly(true);
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         // should resolve the data stream and each alias to their respective write indices
@@ -112,8 +98,7 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple("alias2", List.of(tuple("index2", false), tuple("index3", true)))
         ));
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2");
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
@@ -135,8 +120,7 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple("alias2", List.of(tuple("index2", false), tuple("index3", true)))
         ));
         PutMappingRequest request = new PutMappingRequest().indices("foo", "index3").writeIndexOnly(true);
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
@@ -159,8 +143,7 @@ public class PutMappingRequestTests extends ESTestCase {
         ));
         PutMappingRequest request = new PutMappingRequest().indices("*").writeIndexOnly(true);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> TransportPutMappingAction.resolveIndices(cs2, request,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))));
+            () -> TransportPutMappingAction.resolveIndices(cs2, request, TestIndexNameExpressionResolver.newInstance()));
         assertThat(e.getMessage(), containsString("The index expression [*] and options provided did not point to a single write-index"));
     }
 
@@ -178,8 +161,7 @@ public class PutMappingRequestTests extends ESTestCase {
         ));
         PutMappingRequest request = new PutMappingRequest().indices("alias2").writeIndexOnly(true);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> TransportPutMappingAction.resolveIndices(cs2, request,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))));
+            () -> TransportPutMappingAction.resolveIndices(cs2, request, TestIndexNameExpressionResolver.newInstance()));
         assertThat(e.getMessage(), containsString("no write index is defined for alias [alias2]"));
     }
 

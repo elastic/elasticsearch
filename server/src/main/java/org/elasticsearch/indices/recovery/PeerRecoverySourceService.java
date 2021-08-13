@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.recovery;
@@ -31,17 +20,18 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -72,14 +62,19 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final TransportService transportService;
     private final IndicesService indicesService;
     private final RecoverySettings recoverySettings;
+    private final RecoveryPlannerService recoveryPlannerService;
 
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
     @Inject
-    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService, RecoverySettings recoverySettings) {
+    public PeerRecoverySourceService(TransportService transportService,
+                                     IndicesService indicesService,
+                                     RecoverySettings recoverySettings,
+                                     RecoveryPlannerService recoveryPlannerService) {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
+        this.recoveryPlannerService = recoveryPlannerService;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(Actions.START_RECOVERY, ThreadPool.Names.GENERIC, StartRecoveryRequest::new,
@@ -95,7 +90,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     @Override
     protected void doStart() {
         final ClusterService clusterService = indicesService.clusterService();
-        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+        if (DiscoveryNode.canContainData(clusterService.getSettings())) {
             clusterService.addListener(this);
         }
     }
@@ -103,7 +98,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     @Override
     protected void doStop() {
         final ClusterService clusterService = indicesService.clusterService();
-        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+        if (DiscoveryNode.canContainData(clusterService.getSettings())) {
             ongoingRecoveries.awaitEmpty();
             indicesService.clusterService().removeListener(this);
         }
@@ -329,7 +324,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 handler = new RecoverySourceHandler(shard, recoveryTarget, shard.getThreadPool(), request,
                     Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
                     recoverySettings.getMaxConcurrentFileChunks(),
-                    recoverySettings.getMaxConcurrentOperations());
+                    recoverySettings.getMaxConcurrentOperations(),
+                    recoveryPlannerService);
                 return Tuple.tuple(handler, recoveryTarget);
             }
         }

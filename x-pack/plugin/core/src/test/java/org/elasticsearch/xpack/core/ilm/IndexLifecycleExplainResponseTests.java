@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -20,9 +22,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -59,6 +59,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
             stepNull ? null : randomNonNegativeLong(),
             stepNull ? null : randomAlphaOfLength(10),
             stepNull ? null : randomAlphaOfLength(10),
+            stepNull ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
     }
@@ -78,6 +79,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : randomNonNegativeLong(),
+                randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
@@ -122,11 +124,12 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         Long stepTime = instance.getStepTime();
         String repositoryName = instance.getRepositoryName();
         String snapshotName = instance.getSnapshotName();
+        String shrinkIndexName = instance.getShrinkIndexName();
         boolean managed = instance.managedByILM();
         BytesReference stepInfo = instance.getStepInfo();
         PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
         if (managed) {
-            switch (between(0, 13)) {
+            switch (between(0, 14)) {
             case 0:
                 index = index + randomAlphaOfLengthBetween(1, 5);
                 break;
@@ -184,12 +187,15 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
             case 13:
                 snapshotName = randomValueOtherThan(snapshotName, () -> randomAlphaOfLengthBetween(5, 10));
                 break;
+            case 14:
+                shrinkIndexName = randomValueOtherThan(shrinkIndexName, () -> randomAlphaOfLengthBetween(5, 10));
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
             return IndexLifecycleExplainResponse.newManagedIndexResponse(index, policy, policyTime, phase, action, step, failedStep,
-                isAutoRetryableError, failedStepRetryCount, phaseTime, actionTime, stepTime, repositoryName, snapshotName, stepInfo,
-                phaseExecutionInfo);
+                isAutoRetryableError, failedStepRetryCount, phaseTime, actionTime, stepTime, repositoryName, snapshotName,
+                shrinkIndexName, stepInfo, phaseExecutionInfo);
         } else {
             switch (between(0, 1)) {
             case 0:
@@ -209,9 +215,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME), MockAction::parse));
-        return new NamedXContentRegistry(entries);
+        return new NamedXContentRegistry(CollectionUtils.appendToCopy(ClusterModule.getNamedXWriteables(),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME), MockAction::parse)));
     }
 
     private static class RandomStepInfo implements ToXContentObject {

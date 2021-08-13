@@ -1,31 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -36,31 +23,26 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotInfoTests;
+import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.CoreMatchers;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -80,8 +62,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MetadataIndexStateServiceTests extends ESTestCase {
 
@@ -328,34 +308,6 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         assertThat(failedIndices, equalTo(disappearedIndices));
     }
 
-    public void testCloseCurrentWriteIndexForDataStream() {
-        int numDataStreams = randomIntBetween(1, 3);
-        List<Tuple<String, Integer>> dataStreamsToCreate = new ArrayList<>();
-        List<String> writeIndices = new ArrayList<>();
-        for (int k = 0; k < numDataStreams; k++) {
-            String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-            int numBackingIndices = randomIntBetween(1, 5);
-            dataStreamsToCreate.add(new Tuple<>(dataStreamName, numBackingIndices));
-            writeIndices.add(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices));
-        }
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dataStreamsToCreate, List.of());
-
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(cs);
-
-        List<String> indicesToDelete = randomSubsetOf(randomIntBetween(1, numDataStreams), writeIndices);
-        Index[] indicesToDeleteArray = new Index[indicesToDelete.size()];
-        for (int k = 0; k < indicesToDelete.size(); k++) {
-            Index indexToDelete = cs.metadata().index(indicesToDelete.get(k)).getIndex();
-            indicesToDeleteArray[k] = indexToDelete;
-        }
-        MetadataIndexStateService service = new MetadataIndexStateService(clusterService, null, null, null, null, null, null);
-        CloseIndexClusterStateUpdateRequest request = new CloseIndexClusterStateUpdateRequest(0L).indices(indicesToDeleteArray);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> service.closeIndices(request, null));
-        assertThat(e.getMessage(), CoreMatchers.containsString("cannot close the following data stream write indices [" +
-                Strings.collectionToCommaDelimitedString(indicesToDelete) + "]"));
-    }
-
     public static ClusterState addOpenedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         return addIndex(state, index, numShards, numReplicas, IndexMetadata.State.OPEN, null);
     }
@@ -391,14 +343,17 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
 
         final ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
         for (ShardRouting shardRouting : newState.routingTable().index(index).randomAllActiveShardsIt()) {
-            shardsBuilder.put(shardRouting.shardId(), new SnapshotsInProgress.ShardSnapshotStatus(shardRouting.currentNodeId(), "1"));
+            shardsBuilder.put(shardRouting.shardId(), new SnapshotsInProgress.ShardSnapshotStatus(shardRouting.currentNodeId(),
+                new ShardGeneration(1L)));
         }
 
         final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         final SnapshotsInProgress.Entry entry =
             new SnapshotsInProgress.Entry(snapshot, randomBoolean(), false, SnapshotsInProgress.State.INIT,
-                Collections.singletonList(new IndexId(index, index)), Collections.emptyList(), randomNonNegativeLong(), randomLong(),
-                    shardsBuilder.build(), null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
+                Collections.singletonMap(index, new IndexId(index, index)), Collections.emptyList(), Collections.emptyList(),
+                randomNonNegativeLong(), randomLong(), shardsBuilder.build(), null, SnapshotInfoTestUtils.randomUserMetadata(),
+                VersionUtils.randomVersion(random())
+            );
         return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(List.of(entry))).build();
     }
 

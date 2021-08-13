@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.sequence;
@@ -10,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
 import org.elasticsearch.xpack.eql.execution.assembler.Criterion;
@@ -26,10 +27,15 @@ import org.elasticsearch.xpack.eql.util.ReversedIterator;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
 
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
 /**
  * Time-based window encapsulating query creation and advancement.
@@ -47,7 +53,22 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHi
  */
 public class TumblingWindow implements Executable {
 
+    private static final int CACHE_MAX_SIZE = 64;
+
     private final Logger log = LogManager.getLogger(TumblingWindow.class);
+
+    /**
+     * Simple cache for removing duplicate strings (such as index name or common keys).
+     * Designed to be low-effort, non-concurrent (not needed) and thus optimistic in nature.
+     * Thus it has a small, upper limit so that it doesn't require any cleaning up.
+     */
+    // start with the default size and allow growth until the max size
+    private final Map<String, String> stringCache = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+            return this.size() >= CACHE_MAX_SIZE;
+        }
+    };
 
     private final QueryClient client;
     private final List<Criterion<BoxedQueryRequest>> criteria;
@@ -57,10 +78,11 @@ public class TumblingWindow implements Executable {
     private final int maxStages;
     private final int windowSize;
 
+    private final boolean hasKeys;
+
     // flag used for DESC sequences to indicate whether
     // the window needs to restart (since the DESC query still has results)
     private boolean restartWindowFromTailQuery;
-    private final boolean earlyUntil;
 
     private long startTime;
 
@@ -89,8 +111,8 @@ public class TumblingWindow implements Executable {
 
         Criterion<BoxedQueryRequest> baseRequest = criteria.get(0);
         this.windowSize = baseRequest.queryRequest().searchSource().size();
+        this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
-        this.earlyUntil = baseRequest.descending();
     }
 
     @Override
@@ -120,27 +142,19 @@ public class TumblingWindow implements Executable {
         // for descending queries clean everything
         if (restartWindowFromTailQuery) {
             if (currentStage == 0) {
-                matcher.trim(true);
+                matcher.trim(null);
             }
         }
-        // trim to last
         else {
-           // check case when a rebase occurred and the current query
-           // has a lot more results than the first once and hasn't
-           // covered the whole window. Running a trim early data before
-           // the whole window is matched
-           boolean trimToLast = false;
-           if (currentStage == 0) {
-               trimToLast = true;
-           }
-           else {
-               Ordinal current = criteria.get(currentStage).queryRequest().after();
-               Ordinal previous = criteria.get(currentStage - 1).queryRequest().after();
-               trimToLast = current.after(previous);
-           }
-           if (trimToLast) {
-               matcher.trim(false);
-           }
+            // trim to last until the current window
+            // that's because some stages can be sparse, other dense
+            // and results from the sparse stage can be after those in the dense one
+            // trimming to last removes these results
+            // same applies for rebase
+            Ordinal marker = criteria.get(currentStage).queryRequest().after();
+            if (marker != null) {
+                matcher.trim(marker);
+            }
         }
 
         advance(currentStage, listener);
@@ -160,6 +174,11 @@ public class TumblingWindow implements Executable {
         // remove any potential upper limit (if a criteria has been promoted)
         base.queryRequest().to(null);
 
+        // add key constraints
+        if (hasKeys) {
+            addKeyConstraints(stage - 1, base.queryRequest());
+        }
+
         log.trace("{}", matcher);
         log.trace("Querying base stage [{}] {}", stage, base.queryRequest());
 
@@ -176,14 +195,13 @@ public class TumblingWindow implements Executable {
         log.trace("Found [{}] hits", hits.size());
 
         Ordinal begin = null, end = null;
-        final WindowInfo info;
+        WindowInfo info;
 
         // if there is at least one result, process it
         if (hits.isEmpty() == false) {
             // get borders for the rest of the queries - but only when at least one result is found
             begin = headOrdinal(hits, base);
             end = tailOrdinal(hits, base);
-            boolean desc = base.descending();
             // always create an ASC window
             info = new WindowInfo(baseStage, begin, end);
 
@@ -312,7 +330,7 @@ public class TumblingWindow implements Executable {
     }
 
     private void untilCriterion(WindowInfo window, ActionListener<Payload> listener, Runnable next) {
-        final BoxedQueryRequest request = until.queryRequest();
+        BoxedQueryRequest request = until.queryRequest();
         boxQuery(window, until);
 
         // in case the base query returns less results than the fetch window
@@ -352,10 +370,10 @@ public class TumblingWindow implements Executable {
     }
 
     private void secondaryCriterion(WindowInfo window, int currentStage, ActionListener<Payload> listener) {
-        final Criterion<BoxedQueryRequest> criterion = criteria.get(currentStage);
-        final BoxedQueryRequest request = criterion.queryRequest();
+        Criterion<BoxedQueryRequest> criterion = criteria.get(currentStage);
+        BoxedQueryRequest request = criterion.queryRequest();
 
-        //boxQuery(window, criterion);
+        boxQuery(window, criterion);
 
         log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
@@ -447,7 +465,7 @@ public class TumblingWindow implements Executable {
      * Box the query for the given (ASC) criterion based on the window information.
      */
     private void boxQuery(WindowInfo window, Criterion<BoxedQueryRequest> criterion) {
-        final BoxedQueryRequest request = criterion.queryRequest();
+        BoxedQueryRequest request = criterion.queryRequest();
         // for HEAD, it's the window upper limit that keeps changing
         // so check TO.
         if (window.end.equals(request.to()) == false) {
@@ -460,6 +478,11 @@ public class TumblingWindow implements Executable {
         if (request.from() == null) {
             request.from(window.begin);
             request.nextAfter(window.begin);
+        }
+
+        if (hasKeys) {
+            int stage = criterion == until ? Integer.MIN_VALUE : window.baseStage;
+            addKeyConstraints(stage, request);
         }
     }
 
@@ -494,6 +517,24 @@ public class TumblingWindow implements Executable {
         }
     }
 
+    private void addKeyConstraints(int keyStage, BoxedQueryRequest request) {
+        // add constraints if possible
+        if (keyStage >= 0 || keyStage == Integer.MIN_VALUE) {
+            // negative means all keys and is used by until
+            Set<SequenceKey> keys = keyStage == Integer.MIN_VALUE ? matcher.keys() : matcher.keys(keyStage);
+            int size = keys.size();
+            if (size > 0) {
+                request.keys(keys.stream().map(SequenceKey::asList).collect(toList()));
+            } else {
+                request.keys(null);
+            }
+        }
+        // otherwise make sure to reset any previous filters
+        else {
+            request.keys(null);
+        }
+    }
+
     private void payload(ActionListener<Payload> listener) {
         List<Sequence> completed = matcher.completed();
 
@@ -515,11 +556,33 @@ public class TumblingWindow implements Executable {
 
     private void close(ActionListener<Payload> listener) {
         matcher.clear();
-        client.close(ActionListener.delegateFailure(listener, (l, r) -> {}));
+        client.close(listener.delegateFailure((l, r) -> {}));
     }
 
     private TimeValue timeTook() {
         return new TimeValue(System.currentTimeMillis() - startTime);
+    }
+
+    private String cache(String string) {
+        String value = stringCache.putIfAbsent(string, string);
+        return value == null ? string : value;
+    }
+
+    private SequenceKey key(Object[] keys) {
+        SequenceKey key;
+        if (keys == null) {
+            key = SequenceKey.NONE;
+        } else {
+            for (int i = 0; i < keys.length; i++) {
+                Object o = keys[i];
+                if (o instanceof String) {
+                    keys[i] = cache((String) o);
+                }
+            }
+            key = new SequenceKey(keys);
+        }
+
+        return key;
     }
 
     private static Ordinal headOrdinal(List<SearchHit> hits, Criterion<BoxedQueryRequest> criterion) {
@@ -532,9 +595,9 @@ public class TumblingWindow implements Executable {
 
     Iterable<List<HitReference>> hits(List<Sequence> sequences) {
         return () -> {
-            final Iterator<Sequence> delegate = criteria.get(0).descending() != criteria.get(1).descending() ?
-                    new ReversedIterator<>(sequences) :
-                    sequences.iterator();
+            Iterator<Sequence> delegate = criteria.get(0).descending() != criteria.get(1).descending() ?
+                new ReversedIterator<>(sequences) :
+                sequences.iterator();
 
             return new Iterator<>() {
 
@@ -553,7 +616,7 @@ public class TumblingWindow implements Executable {
 
     Iterable<Tuple<KeyAndOrdinal, HitReference>> wrapValues(Criterion<?> criterion, List<SearchHit> hits) {
         return () -> {
-            final Iterator<SearchHit> delegate = criterion.descending() ? new ReversedIterator<>(hits) : hits.iterator();
+            Iterator<SearchHit> delegate = criterion.descending() ? new ReversedIterator<>(hits) : hits.iterator();
 
             return new Iterator<>() {
 
@@ -565,9 +628,9 @@ public class TumblingWindow implements Executable {
                 @Override
                 public Tuple<KeyAndOrdinal, HitReference> next() {
                     SearchHit hit = delegate.next();
-                    SequenceKey k = criterion.key(hit);
+                    SequenceKey k = key(criterion.key(hit));
                     Ordinal o = criterion.ordinal(hit);
-                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(hit));
+                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(qualifiedIndex(hit)), hit.getId()));
                 }
             };
         };
@@ -575,7 +638,7 @@ public class TumblingWindow implements Executable {
 
     <E> Iterable<KeyAndOrdinal> wrapUntilValues(Iterable<Tuple<KeyAndOrdinal, E>> iterable) {
         return () -> {
-            final Iterator<Tuple<KeyAndOrdinal, E>> delegate = iterable.iterator();
+            Iterator<Tuple<KeyAndOrdinal, E>> delegate = iterable.iterator();
 
             return new Iterator<>() {
 

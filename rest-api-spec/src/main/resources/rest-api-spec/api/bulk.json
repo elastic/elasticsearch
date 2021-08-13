@@ -5,6 +5,11 @@
       "description":"Allows to perform multiple index/update/delete operations in a single request."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/x-ndjson"]
+    },
     "url":{
       "paths":[
         {

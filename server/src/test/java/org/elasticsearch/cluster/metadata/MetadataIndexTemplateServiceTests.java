@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.lucene.search.Query;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -33,7 +22,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -41,18 +30,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -75,8 +60,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.innerRemoveComponentTemplate;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
@@ -88,6 +73,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
@@ -334,6 +322,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .map(IndexTemplateMetadata::name).collect(Collectors.toList()), contains("sneaky-hidden"));
     }
 
+    public void testFindTemplatesWithDateMathIndex() throws Exception {
+        client().admin().indices().prepareDeleteTemplate("*").get(); // Delete all existing templates
+        putTemplateDetail(new PutRequest("testFindTemplatesWithDateMathIndex", "foo-1").patterns(singletonList("test-*")).order(1));
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+
+        assertThat(MetadataIndexTemplateService.findV1Templates(state.metadata(), "<test-{now/d}>", false).stream()
+            .map(IndexTemplateMetadata::name).collect(Collectors.toList()), containsInAnyOrder("foo-1"));
+    }
+
     public void testPutGlobalTemplateWithIndexHiddenSetting() throws Exception {
         List<Throwable> errors = putTemplateDetail(new PutRequest("testPutGlobalTemplateWithIndexHiddenSetting", "sneaky-hidden")
             .patterns(singletonList("*")).settings(Settings.builder().put("index.hidden", true).build()));
@@ -467,6 +464,71 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo");
         assertNull(updatedState.metadata().templatesV2().get("foo"));
+    }
+
+    public void testRemoveIndexTemplateV2Wildcards() throws Exception {
+        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ClusterState result = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(ClusterState.EMPTY_STATE, "*");
+        assertThat(result, sameInstance(ClusterState.EMPTY_STATE));
+
+        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
+        assertThat(state.metadata().templatesV2().get("foo"), notNullValue());
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
+
+        Exception e = expectThrows(IndexTemplateMissingException.class,
+            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foob*"));
+        assertThat(e.getMessage(), equalTo("index_template [foob*] missing"));
+
+        ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo*");
+        assertThat(updatedState.metadata().templatesV2().get("foo"), nullValue());
+    }
+
+    public void testRemoveMultipleIndexTemplateV2() throws Exception {
+        ComposableIndexTemplate fooTemplate = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate barTemplate = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+
+        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", fooTemplate);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "bar", barTemplate);
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "baz", bazTemplate);
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+        assertNotNull(state.metadata().templatesV2().get("bar"));
+        assertNotNull(state.metadata().templatesV2().get("baz"));
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), fooTemplate);
+        assertTemplatesEqual(state.metadata().templatesV2().get("bar"), barTemplate);
+        assertTemplatesEqual(state.metadata().templatesV2().get("baz"), bazTemplate);
+
+        ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo", "baz");
+        assertNull(updatedState.metadata().templatesV2().get("foo"));
+        assertNotNull(updatedState.metadata().templatesV2().get("bar"));
+        assertNull(updatedState.metadata().templatesV2().get("baz"));
+    }
+
+    public void testRemoveMultipleIndexTemplateV2Wildcards() throws Exception {
+        ComposableIndexTemplate fooTemplate = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate barTemplate = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+
+        final ClusterState state;
+        {
+            ClusterState cs = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", fooTemplate);
+            cs = metadataIndexTemplateService.addIndexTemplateV2(cs, false, "bar", barTemplate);
+            state = metadataIndexTemplateService.addIndexTemplateV2(cs, false, "baz", bazTemplate);
+        }
+
+        Exception e = expectThrows(IndexTemplateMissingException.class,
+            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo", "b*", "k*", "*"));
+        assertThat(e.getMessage(), equalTo("index_template [b*,k*,*] missing"));
+
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+        assertNotNull(state.metadata().templatesV2().get("bar"));
+        assertNotNull(state.metadata().templatesV2().get("baz"));
+        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), fooTemplate);
+        assertTemplatesEqual(state.metadata().templatesV2().get("bar"), barTemplate);
+        assertTemplatesEqual(state.metadata().templatesV2().get("baz"), bazTemplate);
     }
 
     /**
@@ -726,6 +788,24 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", true);
+
+        assertThat(result, equalTo("my-template"));
+    }
+
+    public void testFindV2TemplatesForDateMathIndex() throws Exception {
+        String indexName = "<index-{now/d}>";
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+        assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), indexName, true));
+
+        ComponentTemplate ct = ComponentTemplateTests.randomInstance();
+        state = service.addComponentTemplate(state, true, "ct", ct);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("index-*"), null, List.of("ct"), 0L, 1L, null, null, null);
+        state = service.addIndexTemplateV2(state, true, "my-template", it);
+        ComposableIndexTemplate it2 = new ComposableIndexTemplate(List.of("*"), null, List.of("ct"), 10L, 2L, null, null, null);
+        state = service.addIndexTemplateV2(state, true, "my-template2", it2);
+
+        String result = MetadataIndexTemplateService.findV2Template(state.metadata(), indexName, true);
 
         assertThat(result, equalTo("my-template"));
     }
@@ -1114,7 +1194,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
+        List<Map<String, AliasMetadata>> resolvedAliases =
+            MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(List.of(a3, a1, a2)));
@@ -1153,37 +1234,53 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             "component templates [bad] that do not exist"));
     }
 
+    public void testRemoveComponentTemplate() throws Exception {
+        ComponentTemplate foo = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+        ComponentTemplate bar = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+        ComponentTemplate baz = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState temp = service.addComponentTemplate(ClusterState.EMPTY_STATE, false, "foo", foo);
+        temp = service.addComponentTemplate(temp, false, "bar", bar);
+        final ClusterState clusterState = service.addComponentTemplate(temp, false, "baz", baz);
+
+        ClusterState result = innerRemoveComponentTemplate(clusterState, "foo");
+        assertThat(result.metadata().componentTemplates().get("foo"), nullValue());
+        assertThat(result.metadata().componentTemplates().get("bar"), equalTo(bar));
+        assertThat(result.metadata().componentTemplates().get("baz"), equalTo(baz));
+
+        result = innerRemoveComponentTemplate(clusterState, "bar", "baz");
+        assertThat(result.metadata().componentTemplates().get("foo"), equalTo(foo));
+        assertThat(result.metadata().componentTemplates().get("bar"), nullValue());
+        assertThat(result.metadata().componentTemplates().get("baz"), nullValue());
+
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> innerRemoveComponentTemplate(clusterState, "foobar"));
+        assertThat(e.getMessage(), equalTo("foobar"));
+        e = expectThrows(ResourceNotFoundException.class, () -> innerRemoveComponentTemplate(clusterState, "foo", "barbaz", "foobar"));
+        assertThat(e.getMessage(), equalTo("barbaz,foobar"));
+
+        result = innerRemoveComponentTemplate(clusterState, "*");
+        assertThat(result.metadata().componentTemplates().size(), equalTo(0));
+
+        result = innerRemoveComponentTemplate(clusterState, "b*");
+        assertThat(result.metadata().componentTemplates().size(), equalTo(1));
+        assertThat(result.metadata().componentTemplates().get("foo"), equalTo(foo));
+
+        e = expectThrows(ResourceNotFoundException.class, () -> innerRemoveComponentTemplate(clusterState, "foo", "b*"));
+        assertThat(e.getMessage(), equalTo("b*"));
+    }
+
     public void testRemoveComponentTemplateInUse() throws Exception {
         ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("a"), null,
             Collections.singletonList("ct"), null, null, null);
         ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
 
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        CountDownLatch ctLatch = new CountDownLatch(1);
-        service.putComponentTemplate("api", false, "ct", TimeValue.timeValueSeconds(5), ct,
-            ActionListener.wrap(r -> ctLatch.countDown(), e -> fail("unexpected error")));
-        ctLatch.await(5, TimeUnit.SECONDS);
+        ClusterState clusterState = service.addComponentTemplate(ClusterState.EMPTY_STATE, false, "ct", ct);
+        clusterState = service.addIndexTemplateV2(clusterState, false, "template", template);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        service.putIndexTemplateV2("api", false, "template", TimeValue.timeValueSeconds(30), template,
-            ActionListener.wrap(r -> latch.countDown(), e -> fail("unexpected error")));
-        latch.await(5, TimeUnit.SECONDS);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> {
-                AtomicReference<Exception> err = new AtomicReference<>();
-                CountDownLatch errLatch = new CountDownLatch(1);
-                service.removeComponentTemplate("c*", TimeValue.timeValueSeconds(30),
-                    ActionListener.wrap(r -> fail("should have failed!"), exception -> {
-                        err.set(exception);
-                        errLatch.countDown();
-                    }));
-                errLatch.await(5, TimeUnit.SECONDS);
-                if (err.get() != null) {
-                    throw err.get();
-                }
-            });
-
+        final ClusterState cs = clusterState;
+        Exception e = expectThrows(IllegalArgumentException.class, () -> innerRemoveComponentTemplate(cs, "c*"));
         assertThat(e.getMessage(),
             containsString("component templates [ct] cannot be removed as they are still in use by index templates [template]"));
     }
@@ -1425,7 +1522,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry,
-                new SystemIndices(Collections.emptyMap()),
+                EmptySystemIndices.INSTANCE,
                 true
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(null, createIndexService,
@@ -1482,7 +1579,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry(),
-                new SystemIndices(Collections.emptyMap()),
+                EmptySystemIndices.INSTANCE,
                 true
         );
         return new MetadataIndexTemplateService(
@@ -1548,72 +1645,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-            return Map.of("_data_stream_timestamp", new MetadataFieldMapper.ConfigurableTypeParser(
-                c -> new MetadataTimestampFieldMapper(false),
-                c -> new MetadataTimestampFieldBuilder())
-            );
-        }
-    }
-
-    private static MetadataTimestampFieldMapper toType(FieldMapper in) {
-        return (MetadataTimestampFieldMapper) in;
-    }
-
-    public static class MetadataTimestampFieldBuilder extends MetadataFieldMapper.Builder {
-
-        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled, false);
-
-        protected MetadataTimestampFieldBuilder() {
-            super("_data_stream_timestamp");
-        }
-
-        @Override
-        protected List<FieldMapper.Parameter<?>> getParameters() {
-            return List.of(enabled);
-        }
-
-        @Override
-        public MetadataFieldMapper build() {
-            return new MetadataTimestampFieldMapper(enabled.getValue());
-        }
-    }
-
-    public static class MetadataTimestampFieldMapper extends MetadataFieldMapper {
-        final boolean enabled;
-
-        public MetadataTimestampFieldMapper(boolean enabled) {
-            super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Map.of()) {
-                @Override
-                public ValueFetcher valueFetcher(QueryShardContext context, String format) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public String typeName() {
-                    return "_data_stream_timestamp";
-                }
-
-                @Override
-                public Query termQuery(Object value, QueryShardContext context) {
-                    return null;
-                }
-
-                @Override
-                public Query existsQuery(QueryShardContext context) {
-                    return null;
-                }
-            });
-            this.enabled = enabled;
-        }
-
-        @Override
-        public FieldMapper.Builder getMergeBuilder() {
-            return new MetadataTimestampFieldBuilder().init(this);
-        }
-
-        @Override
-        protected String contentType() {
-            return "_data_stream_timestamp";
+            return Map.of(DataStreamTimestampFieldMapper.NAME, DataStreamTimestampFieldMapper.PARSER);
         }
     }
 }

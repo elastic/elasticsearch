@@ -1,29 +1,53 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xpack.eql.AbstractBWCWireSerializingTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearchResponse> {
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+
+public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<EqlSearchResponse> {
+
+    public void testFromXContent() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values()).canonical();
+        EqlSearchResponse response = randomEqlSearchResponse(xContentType);
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        EqlSearchResponse parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            parsed = EqlSearchResponse.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    }
 
     private static class RandomSource implements ToXContentObject {
 
@@ -77,7 +101,15 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
             hits = new ArrayList<>();
             for (int i = 0; i < size; i++) {
                 BytesReference bytes = new RandomSource(() -> randomAlphaOfLength(10)).toBytes(xType);
-                hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes));
+                Map<String, DocumentField> fetchFields = new HashMap<>();
+                int fieldsCount = randomIntBetween(0, 5);
+                for (int j = 0; j < fieldsCount; j++) {
+                    fetchFields.put(randomAlphaOfLength(10), randomDocumentField(xType).v1());
+                }
+                if (fetchFields.isEmpty() && randomBoolean()) {
+                    fetchFields = null;
+                }
+                hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes, fetchFields));
             }
         }
         if (randomBoolean()) {
@@ -86,9 +118,28 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         return null;
     }
 
-    @Override
-    protected EqlSearchResponse createXContextTestInstance(XContentType xContentType) {
-        return randomEqlSearchResponse(xContentType);
+    private static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xType) {
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                String fieldName = randomAlphaOfLengthBetween(3, 10);
+                Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xType);
+                DocumentField input = new DocumentField(fieldName, tuple.v1());
+                DocumentField expected = new DocumentField(fieldName, tuple.v2());
+                return Tuple.tuple(input, expected);
+            case 1:
+                List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, ESTestCase::randomInt));
+                DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
+                return Tuple.tuple(listField, listField);
+            case 2:
+                List<Object> objectValues = randomList(1, 5, () ->
+                    Map.of(randomAlphaOfLength(5), randomInt(),
+                        randomAlphaOfLength(5), randomBoolean(),
+                        randomAlphaOfLength(5), randomAlphaOfLength(10)));
+                DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
+                return Tuple.tuple(objectField, objectField);
+            default:
+                throw new IllegalStateException();
+        }
     }
 
     @Override
@@ -171,7 +222,30 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
     }
 
     @Override
-    protected EqlSearchResponse doParseInstance(XContentParser parser) {
-        return EqlSearchResponse.fromXContent(parser);
+    protected EqlSearchResponse mutateInstanceForVersion(EqlSearchResponse instance, Version version) {
+        List<Event> mutatedEvents = mutateEvents(instance.hits().events(), version);
+
+        List<Sequence> sequences = instance.hits().sequences();
+        List<Sequence> mutatedSequences = null;
+        if (sequences != null) {
+            mutatedSequences = new ArrayList<>(sequences.size());
+            for(Sequence s : sequences) {
+                mutatedSequences.add(new Sequence(s.joinKeys(), mutateEvents(s.events(), version)));
+            }
+        }
+
+        return new EqlSearchResponse(new EqlSearchResponse.Hits(mutatedEvents, mutatedSequences, instance.hits().totalHits()),
+            instance.took(), instance.isTimeout(), instance.id(), instance.isRunning(), instance.isPartial());
+    }
+
+    private List<Event> mutateEvents(List<Event> original, Version version) {
+        if (original == null || original.isEmpty()) {
+            return original;
+        }
+        List<Event> mutatedEvents = new ArrayList<>(original.size());
+        for(Event e : original) {
+            mutatedEvents.add(new Event(e.index(), e.id(), e.source(), version.onOrAfter(Version.V_7_13_0) ? e.fetchFields() : null));
+        }
+        return mutatedEvents;
     }
 }

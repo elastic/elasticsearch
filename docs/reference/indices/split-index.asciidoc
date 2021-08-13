@@ -29,11 +29,13 @@ POST /my-index-000001/_split/split-my-index-000001
 [[split-index-api-prereqs]]
 ==== {api-prereq-title}
 
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index.
 
-Before you can split an index:
+* Before you can split an index:
 
-* The index must be read-only.
-* The <<cluster-health, cluster health>> status must be green.
+** The index must be read-only.
+** The <<cluster-health, cluster health>> status must be green.
 
 You can do make an index read-only
 with the following request:
@@ -54,7 +56,7 @@ PUT /my_source_index/_settings
 
 The current write index on a data stream cannot be split. In order to split
 the current write index, the data stream must first be
-<<rollover-data-stream-ex,rolled over>> so that a new write index is created
+<<data-streams-rollover,rolled over>> so that a new write index is created
 and then the previous write index can be split.
 
 [[split-index-api-desc]]
@@ -70,7 +72,7 @@ original shard can be split into) is determined by the
 specifies the hashing space that is used internally to distribute documents
 across shards with consistent hashing. For instance, a 5 shard index with
 `number_of_routing_shards` set to `30` (`5 x 2 x 3`) could be split by a
-factor of `2` or `3`.  In other words, it could be split as follows:
+factor of `2` or `3`. In other words, it could be split as follows:
 
 * `5` -> `10` -> `30`  (split by 2, then by 3)
 * `5` -> `15` -> `30` (split by 3, then by 2)
@@ -110,7 +112,7 @@ maximum of 640 shards (with a single split action or multiple split actions).
 
 If the original index contains one primary shard (or a multi-shard index has
 been <<indices-shrink-index,shrunk>> down to a single primary shard), then the
-index may by split into an arbitrary number of shards greater than 1.  The
+index may by split into an arbitrary number of shards greater than 1. The
 properties of the default number of routing shards will then apply to the
 newly split index.
 
@@ -190,7 +192,7 @@ the cluster state -- it doesn't wait for the split operation to start.
 
 Indices can only be split if they satisfy the following requirements:
 
-* the target index must not exist
+* The target index must not exist
 
 * The source index must have fewer primary shards than the target index.
 
@@ -242,7 +244,7 @@ can be allocated on that node.
 
 Once the primary shard is allocated, it moves to state `initializing`, and the
 split process begins. When the split operation completes, the shard will
-become `active`. At that  point, Elasticsearch will try to allocate any
+become `active`. At that point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 
@@ -271,10 +273,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-
+[role="child_attributes"]
 [[split-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
+`aliases`::
+(Optional, object of objects) Aliases for the resulting index.
++
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]

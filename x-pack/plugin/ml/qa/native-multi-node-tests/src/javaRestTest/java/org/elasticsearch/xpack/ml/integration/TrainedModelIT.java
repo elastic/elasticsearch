@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -9,6 +10,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
@@ -22,6 +24,7 @@ import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,11 +46,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
+/**
+ * This test uses a mixture of HLRC and server side classes.
+ *
+ * The server classes have builders that set the one-time fields that
+ * can only be set on creation e.g. create_time. The HLRC classes must
+ * be used when creating PUT trained model requests as they do not set
+ * these one-time fields.
+ */
 public class TrainedModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE = UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user",
@@ -56,6 +66,11 @@ public class TrainedModelIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
     @Override
@@ -95,6 +110,7 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
         assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
         assertThat(response, containsString("\"estimated_heap_memory_usage\""));
+        assertThat(response, containsString("\"model_type\":\"tree_ensemble\""));
         assertThat(response, containsString("\"definition\""));
         assertThat(response, not(containsString("\"compressed_definition\"")));
         assertThat(response, containsString("\"count\":1"));

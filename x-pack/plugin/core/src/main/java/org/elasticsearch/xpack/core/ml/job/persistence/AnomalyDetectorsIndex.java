@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
@@ -10,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
@@ -17,8 +19,6 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
  * Methods for handling index naming related functions
  */
 public final class AnomalyDetectorsIndex {
-
-    public static final int CONFIG_INDEX_MAX_RESULTS_WINDOW = 10_000;
 
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
     private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
@@ -71,6 +71,7 @@ public final class AnomalyDetectorsIndex {
      */
     public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state,
                                                            IndexNameExpressionResolver resolver,
+                                                           TimeValue masterNodeTimeout,
                                                            final ActionListener<Boolean> finalListener) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
@@ -78,7 +79,12 @@ public final class AnomalyDetectorsIndex {
             resolver,
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
+            masterNodeTimeout,
             finalListener);
+    }
+
+    public static String wrappedResultsMapping() {
+        return "{\n\"_doc\" : " + resultsMapping() + "\n}";
     }
 
     public static String resultsMapping() {

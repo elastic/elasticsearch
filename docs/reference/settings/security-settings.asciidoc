@@ -46,7 +46,7 @@ recommend that you explicitly add this setting to avoid confusion.
 (<<static-cluster-setting,Static>>)
 A comma-separated list of settings that are omitted from the results of the
 <<cluster-nodes-info,cluster nodes info API>>. You can use wildcards to include
-multiple settings in the list.  For example, the following value hides all the
+multiple settings in the list. For example, the following value hides all the
 settings for the ad1 active_directory realm:
 `xpack.security.authc.realms.active_directory.ad1.*`.
 The API already omits all `ssl` settings, `bind_dn`, and `bind_password` due to
@@ -54,7 +54,7 @@ the sensitive nature of the information.
 
 `xpack.security.fips_mode.enabled`::
 (<<static-cluster-setting,Static>>)
-Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
+Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM. For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
 [discrete]
 [[password-hashing-settings]]
@@ -63,14 +63,16 @@ Enables fips mode of operation. Set this to `true` if you run this {es} instance
 `xpack.security.authc.password_hashing.algorithm`::
 (<<static-cluster-setting,Static>>)
 Specifies the hashing algorithm that is used for secure user credential storage.
-See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
+See <<password-hashing-algorithms>>.
+If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>), defaults to `pbkdf2_stretch`. 
+In all other cases, defaults to `bcrypt`.
 
 [discrete]
 [[anonymous-access-settings]]
 ==== Anonymous access settings
 
 You can configure the following anonymous access settings in
-`elasticsearch.yml`.  For more information, see <<anonymous-access>>.
+`elasticsearch.yml`. For more information, see <<anonymous-access>>.
 
 `xpack.security.authc.anonymous.username`::
 (<<static-cluster-setting,Static>>)
@@ -256,9 +258,8 @@ realm without removing its configuration information. Defaults to `true`.
 [[ref-native-settings]]
 [discrete]
 ===== Native realm settings
-For a native realm, the `type` must be set to `native`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
-the following optional settings:
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>,
+you can specify the following optional settings:
 
 `cache.ttl`::
 (<<static-cluster-setting,Static>>)
@@ -290,8 +291,7 @@ Defaults to `true`.
 [discrete]
 ===== File realm settings
 
-The `type` setting must be set to `file`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings:
 
 `cache.ttl`::
@@ -323,8 +323,7 @@ Defaults to `true`.
 [discrete]
 ===== LDAP realm settings
 
-The `type` setting must be set to `ldap`. In addition to the
-<<ref-realm-settings>>, you can specify the following settings:
+In addition to the <<ref-realm-settings>>, you can specify the following settings:
 
 `url`::
 (<<static-cluster-setting,Static>>)
@@ -473,14 +472,14 @@ only group considered. Defaults to  `sub_tree`.
 (<<static-cluster-setting,Static>>)
 Specifies a filter to use to look up a group.
 When not set, the realm searches for `group`, `groupOfNames`, `groupOfUniqueNames`,
-or `posixGroup` with the attributes `member`, `memberOf`, or `memberUid`.  Any
+or `posixGroup` with the attributes `member`, `memberOf`, or `memberUid`. Any
 instance of `{0}` in the filter is replaced by the user attribute defined in
 `group_search.user_attribute`.
 
 `group_search.user_attribute`::
 (<<static-cluster-setting,Static>>)
 Specifies the user attribute that is fetched and provided as a parameter to
-the filter.  If not set, the user DN is passed into the filter. Defaults to Empty.
+the filter. If not set, the user DN is passed into the filter. Defaults to Empty.
 
 `unmapped_groups_as_roles`::
 (<<static-cluster-setting,Static>>)
@@ -601,7 +600,7 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-p
 
 `ssl.truststore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
 (<<static-cluster-setting,Static>>)
@@ -648,9 +647,8 @@ Defaults to `true`.
 [discrete]
 ===== Active Directory realm settings
 
-The `type` setting must be set to `active_directory`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
-the following settings:
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>,
+you can specify the following settings:
 
 `url`::
 (<<static-cluster-setting,Static>>)
@@ -730,7 +728,7 @@ only user considered. Defaults to `sub_tree`.
 
 `user_search.filter`::
 (<<static-cluster-setting,Static>>)
-Specifies a filter to use to lookup a user given a username.  The default
+Specifies a filter to use to lookup a user given a username. The default
 filter looks up `user` objects with either `sAMAccountName` or
 `userPrincipalName`. If specified, this must be a valid LDAP user search filter.
 For example `(&(objectClass=user)(sAMAccountName={0}))`. For more information,
@@ -792,7 +790,7 @@ Defaults to `60s`.
 
 `group_search.base_dn`::
 (<<static-cluster-setting,Static>>)
-The context to search for groups in which the user has membership.  Defaults
+The context to search for groups in which the user has membership. Defaults
 to the root of the Active Directory domain.
 
 `group_search.scope`::
@@ -817,7 +815,7 @@ Defaults to `5s` (5 seconds ).
 `timeout.tcp_read`::
 (<<static-cluster-setting,Static>>)
 deprecated[7.7] The TCP read timeout period after establishing an LDAP
-connection.  This is equivalent to and is deprecated in favor of
+connection. This is equivalent to and is deprecated in favor of
 `timeout.response` and they cannot be used simultaneously. An `s` at the end
 indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
 `timeout.ldap_search`.
@@ -905,7 +903,7 @@ You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 `ssl.truststore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
 (<<static-cluster-setting,Static>>)
@@ -959,8 +957,7 @@ LDAP operation (such as `search`). Defaults to `true`.
 [discrete]
 ===== PKI realm settings
 
-The `type` setting must be set to `pki`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings:
 
 `username_pattern`::
@@ -996,7 +993,7 @@ for SSL. This setting cannot be used with `certificate_authorities`.
 `files.role_mapping`::
 (<<static-cluster-setting,Static>>)
 Specifies the <<security-files,location>> of the
-<<mapping-roles,YAML role  mapping configuration file>>.
+<<mapping-roles,YAML role mapping configuration file>>.
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `authorization_realms`::
@@ -1034,8 +1031,7 @@ Configuring authentication delegation for PKI realms>>.
 [discrete]
 ===== SAML realm settings
 // tag::saml-description-tag[]
-The `type` setting must be set to `saml`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings.
 // end::saml-description-tag[]
 
@@ -1173,7 +1169,7 @@ As per `attribute_patterns.principal`, but for the _dn_ property.
 `nameid_format` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The NameID format that should be requested when asking the IdP to authenticate
-the current user. The default is to not  include the `nameid_format` attribute.
+the current user. The default is to not include the `nameid_format` attribute.
 // end::saml-nameid-format-tag[]
 
 // tag::saml-nameid-allow-create-tag[]
@@ -1499,7 +1495,7 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-value
 [[ref-kerberos-settings]]
 ===== Kerberos realm settings
 // tag::kerberos-description-tag[]
-For a Kerberos realm, the `type` must be set to `kerberos`. In addition to the
+In addition to the
 <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings:
 // end::kerberos-description-tag[]
@@ -1632,6 +1628,23 @@ at the OpenID Connect Provider.
 (<<secure-settings,Secure>>)
 The OAuth 2.0 Client Secret that was assigned to {es} during registration
 at the OpenID Connect Provider.
+
+// tag::rp-client-auth-method-tag[]
+`rp.client_auth_method` {ess-icon}::
+(<<static-cluster-setting, Static>>)
+The client authentication method used by {es} to authenticate
+to the OpenID Connect Provider. Can be `client_secret_basic`, `client_secret_post`,
+or `client_secret_jwt`. Defaults to `client_secret_basic`.
+// end::rp-client-auth-method-tag[]
+
+// tag::rp-client-auth-jwt-signature-algorithm[]
+`rp.client_auth_signature_algorithm` {ess-icon}::
+(<<static-cluster-setting, Static>>)
+The signature algorithm that {es} uses to sign the JWT with which it authenticates
+as a client to the OpenID Connect Provider when `client_secret_jwt` is selected for
+`rp.client_auth_method`. Can be either `HS256`, `HS384`, or `HS512`. Defaults to 
+`HS384`. 
+// end::rp-client-auth-jwt-signature-algorithm[]
 
 // tag::rp-redirect-uri-tag[]
 `rp.redirect_uri` {ess-icon}::

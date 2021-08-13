@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots;
@@ -12,6 +13,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -20,7 +22,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -30,13 +31,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(TestSystemIndexPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TestSystemIndexPlugin.class);
     }
 
     public void testCannotMountSystemIndex() throws Exception {
@@ -44,7 +43,7 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
     }
 
     public void testCannotMountSnapshotBlobCacheIndex() throws Exception {
-        executeTest(SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX, client());
+        executeTest(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX, client());
     }
 
     private void executeTest(final String indexName, final Client client) throws Exception {
@@ -73,7 +72,8 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean()).build(),
             Strings.EMPTY_ARRAY,
-            true
+            true,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
 
         final ElasticsearchException exception = expectThrows(
@@ -90,6 +90,16 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return List.of(new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
+        }
+
+        @Override
+        public String getFeatureName() {
+            return SearchableSnapshotsSystemIndicesIntegTests.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin";
         }
     }
 }

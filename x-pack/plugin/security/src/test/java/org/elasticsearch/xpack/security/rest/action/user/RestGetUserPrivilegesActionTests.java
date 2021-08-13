@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.rest.action.user;
@@ -12,12 +13,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
@@ -39,19 +42,21 @@ import static org.mockito.Mockito.when;
 
 public class RestGetUserPrivilegesActionTests extends ESTestCase {
 
-    public void testBasicLicense() throws Exception {
+    public void testSecurityDisabled() throws Exception {
+        final Settings securityDisabledSettings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
         final RestGetUserPrivilegesAction action =
-            new RestGetUserPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
-        when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(false);
+            new RestGetUserPrivilegesAction(securityDisabledSettings, mock(SecurityContext.class), licenseState);
         final FakeRestRequest request = new FakeRestRequest();
         final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
             action.handleRequest(request, channel, nodeClient);
         }
         assertThat(channel.capturedResponse(), notNullValue());
-        assertThat(channel.capturedResponse().status(), equalTo(RestStatus.FORBIDDEN));
-        assertThat(channel.capturedResponse().content().utf8ToString(), containsString("current license is non-compliant for [security]"));
+        assertThat(channel.capturedResponse().status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(channel.capturedResponse().content().utf8ToString(),
+            containsString("Security is not enabled but a security rest handler is registered"));
     }
 
     public void testBuildResponse() throws Exception {
@@ -95,8 +100,8 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
             "{\"names\":[\"index-1\",\"index-2\",\"index-3-*\"]," +
             "\"privileges\":[\"read\",\"write\"]," +
             "\"field_security\":[" +
-            "{\"grant\":[\"public.*\"]}," +
-            "{\"grant\":[\"*\"],\"except\":[\"private.*\"]}" +
+            "{\"grant\":[\"*\"],\"except\":[\"private.*\"]}," +
+            "{\"grant\":[\"public.*\"]}" +
             "]," +
             "\"query\":[" +
             "\"{ \\\"term\\\": { \\\"access\\\": \\\"public\\\" } }\"," +

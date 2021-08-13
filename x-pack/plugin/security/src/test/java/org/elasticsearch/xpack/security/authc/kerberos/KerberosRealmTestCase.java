@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
@@ -9,7 +10,7 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -84,7 +85,6 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         settings = buildKerberosRealmSettings(REALM_NAME,
             writeKeyTab(dir.resolve("key.keytab"), "asa").toString(), 100, "10m", true, randomBoolean());
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
     }
 
@@ -94,6 +94,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         terminate(threadPool);
     }
 
+    @SuppressWarnings("unchecked")
     protected void mockKerberosTicketValidator(final byte[] decodedTicket, final Path keytabPath, final boolean krbDebug,
                                                final Tuple<String, String> value, final Exception e) {
         assert value != null || e != null;

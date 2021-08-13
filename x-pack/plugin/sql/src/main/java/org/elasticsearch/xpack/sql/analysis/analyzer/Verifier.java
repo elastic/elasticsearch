@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -46,10 +48,12 @@ import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
+import org.elasticsearch.xpack.sql.plan.logical.Having;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
@@ -69,7 +73,9 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
@@ -107,7 +113,7 @@ public final class Verifier {
             }
 
             // if the children are unresolved, so will this node; counting it will only add noise
-            if (!p.childrenResolved()) {
+            if (p.childrenResolved() == false) {
                 return;
             }
 
@@ -123,7 +129,7 @@ public final class Verifier {
                 localFailures.add(fail(p, "SELECT DISTINCT is not yet supported"));
             } else {
                 // then take a look at the expressions
-                p.forEachExpressions(e -> {
+                p.forEachExpression(e -> {
                     // everything is fine, skip expression
                     if (e.resolved()) {
                         return;
@@ -131,7 +137,7 @@ public final class Verifier {
 
                     e.forEachUp(ae -> {
                         // we're only interested in the children
-                        if (!ae.childrenResolved()) {
+                        if (ae.childrenResolved() == false) {
                             return;
                         }
                         // again the usual suspects
@@ -140,7 +146,7 @@ public final class Verifier {
                             if (ae instanceof UnresolvedAttribute) {
                                 UnresolvedAttribute ua = (UnresolvedAttribute) ae;
                                 // only work out the synonyms for raw unresolved attributes
-                                if (!ua.customMessage()) {
+                                if (ua.customMessage() == false) {
                                     boolean useQualifier = ua.qualifier() != null;
                                     List<String> potentialMatches = new ArrayList<>();
                                     for (Attribute a : p.inputSet()) {
@@ -152,7 +158,7 @@ public final class Verifier {
                                     }
 
                                     List<String> matches = StringUtils.findSimilar(ua.qualifiedName(), potentialMatches);
-                                    if (!matches.isEmpty()) {
+                                    if (matches.isEmpty() == false) {
                                         ae = ua.withUnresolvedMessage(UnresolvedAttribute.errorMessage(ua.qualifiedName(), matches));
                                     }
                                 }
@@ -186,12 +192,7 @@ public final class Verifier {
             // collect Attribute sources
             // only Aliases are interesting since these are the only ones that hide expressions
             // FieldAttribute for example are self replicating.
-            plan.forEachExpressionsUp(e -> {
-                if (e instanceof Alias) {
-                    Alias a = (Alias) e;
-                    collectRefs.put(a.toAttribute(), a.child());
-                }
-            });
+            plan.forEachExpressionUp(Alias.class, a -> collectRefs.put(a.toAttribute(), a.child()));
 
             AttributeMap<Expression> attributeRefs = collectRefs.build();
 
@@ -204,13 +205,16 @@ public final class Verifier {
                 }
 
                 // if the children are unresolved, so will this node; counting it will only add noise
-                if (!p.childrenResolved()) {
+                if (p.childrenResolved() == false) {
                     return;
                 }
 
+                checkFilterConditionType(p, localFailures);
                 checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures, attributeRefs);
                 checkFilterOnGrouping(p, localFailures, attributeRefs);
+
+                checkNestedAggregation(p, localFailures, attributeRefs);
 
                 if (groupingFailures.contains(p) == false) {
                     checkGroupBy(p, localFailures, attributeRefs, groupingFailures);
@@ -222,6 +226,7 @@ public final class Verifier {
                 checkPivot(p, localFailures, attributeRefs);
                 checkMatrixStats(p, localFailures);
                 checkCastOnInexact(p, localFailures);
+                checkBinaryHasDocValues(p, localFailures);
 
                 // everything checks out
                 // mark the plan as analyzed
@@ -263,15 +268,25 @@ public final class Verifier {
         return failures;
     }
 
+    private void checkNestedAggregation(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
+        if (p instanceof Aggregate) {
+            ((Aggregate) p).child()
+                .forEachDown(
+                    Aggregate.class,
+                    a -> { localFailures.add(fail(a, "Nested aggregations in sub-selects are not supported.")); }
+                );
+        }
+    }
+
     private void checkFullTextSearchInSelect(LogicalPlan plan, Set<Failure> localFailures) {
-        plan.forEachUp(p -> {
+        plan.forEachUp(Project.class, p -> {
             for (NamedExpression ne : p.projections()) {
-                ne.forEachUp((e) ->
-                        localFailures.add(fail(e, "Cannot use MATCH() or QUERY() full-text search " +
-                                "functions in the SELECT clause")),
-                        FullTextPredicate.class);
+                ne.forEachUp(FullTextPredicate.class, (e) ->
+                    localFailures.add(fail(e, "Cannot use MATCH() or QUERY() full-text search " +
+                        "functions in the SELECT clause"))
+                );
             }
-        }, Project.class);
+        });
     }
 
     /**
@@ -314,10 +329,11 @@ public final class Verifier {
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
 
                 o.order().forEach(oe -> {
-                    Expression e = oe.child();
+                    final Expression e = oe.child();
+                    final Expression resolvedE = attributeRefs.resolve(e, e);
 
                     // aggregates are allowed
-                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e))) {
+                    if (Functions.isAggregate(resolvedE)) {
                         return;
                     }
 
@@ -338,8 +354,12 @@ public final class Verifier {
                     // e.g.: if "GROUP BY f2(f1(field))" you can "ORDER BY f4(f3(f2(f1(field))))"
                     //
                     // Also, make sure to compare attributes directly
-                    if (e.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
-                        g -> expression.semanticEquals(expression instanceof Attribute ? Expressions.attribute(g) : g)))) {
+                    if (resolvedE.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
+                        g -> {
+                            Expression resolvedG = attributeRefs.resolve(g, g);
+                            resolvedG = expression instanceof Attribute ? Expressions.attribute(resolvedG) : resolvedG;
+                            return expression.semanticEquals(resolvedG);
+                        }))) {
                         return;
                     }
 
@@ -347,7 +367,7 @@ public final class Verifier {
                     missing.put(e, oe);
                 });
 
-                if (!missing.isEmpty()) {
+                if (missing.isEmpty() == false) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     // get the location of the first missing expression as the order by might be on a different line
                     localFailures.add(
@@ -365,18 +385,18 @@ public final class Verifier {
 
     private static boolean checkGroupByHaving(LogicalPlan p, Set<Failure> localFailures,
             Set<LogicalPlan> groupingFailures, AttributeMap<Expression> attributeRefs) {
-        if (p instanceof Filter) {
-            Filter f = (Filter) p;
-            if (f.child() instanceof Aggregate) {
-                Aggregate a = (Aggregate) f.child();
+        if (p instanceof Having) {
+            Having h = (Having) p;
+            if (h.child() instanceof Aggregate) {
+                Aggregate a = (Aggregate) h.child();
 
                 Set<Expression> missing = new LinkedHashSet<>();
                 Set<Expression> unsupported = new LinkedHashSet<>();
-                Expression condition = f.condition();
+                Expression condition = h.condition();
                 // variation of checkGroupMatch customized for HAVING, which requires just aggregations
                 condition.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, missing, unsupported, attributeRefs));
 
-                if (!missing.isEmpty()) {
+                if (missing.isEmpty() == false) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
                             fail(condition, "Cannot use HAVING filter on non-aggregate" + plural + " {}; use WHERE instead",
@@ -385,15 +405,15 @@ public final class Verifier {
                     return false;
                 }
 
-                if (!unsupported.isEmpty()) {
+                if (unsupported.isEmpty() == false) {
                     String plural = unsupported.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
                         fail(condition, "HAVING filter is unsupported for function" + plural + " {}",
                             Expressions.names(unsupported)));
                     groupingFailures.add(a);
                     return false;
+                }
             }
-        }
         }
         return true;
     }
@@ -404,7 +424,7 @@ public final class Verifier {
 
         // resolve FunctionAttribute to backing functions
         if (e instanceof ReferenceAttribute) {
-            e = attributeRefs.get(e);
+            e = attributeRefs.resolve(e);
         }
 
         // scalar functions can be a binary tree
@@ -464,14 +484,14 @@ public final class Verifier {
     private static boolean onlyExactFields(List<Expression> expressions, Set<Failure> localFailures) {
         Holder<Boolean> onlyExact = new Holder<>(Boolean.TRUE);
 
-        expressions.forEach(e -> e.forEachUp(c -> {
-                EsField.Exact exact = c.getExactInfo();
-                if (exact.hasExact() == false) {
+        expressions.forEach(e -> e.forEachUp(FieldAttribute.class, c -> {
+            EsField.Exact exact = c.getExactInfo();
+            if (exact.hasExact() == false) {
                 localFailures.add(fail(c, "Field [{}] of data type [{}] cannot be used for grouping; {}", c.sourceText(),
-                        c.dataType().typeName(), exact.errorMsg()));
+                    c.dataType().typeName(), exact.errorMsg()));
                 onlyExact.set(Boolean.FALSE);
-                }
-            }, FieldAttribute.class));
+            }
+        }));
 
         return onlyExact.get();
     }
@@ -482,7 +502,7 @@ public final class Verifier {
 
         expressions.forEach(e -> e.forEachDown(c -> {
             if (c instanceof ReferenceAttribute) {
-                c = attributeRefs.getOrDefault(c, c);
+                c = attributeRefs.resolve(c, c);
             }
             if (c instanceof Function) {
                 localFailures.add(fail(c, "No functions allowed (yet); encountered [{}]", c.sourceText()));
@@ -538,7 +558,7 @@ public final class Verifier {
                 }
             });
 
-            if (!localFailures.isEmpty()) {
+            if (localFailures.isEmpty() == false) {
                 return false;
             }
 
@@ -555,7 +575,7 @@ public final class Verifier {
             a.aggregates().forEach(ne ->
                 ne.collectFirstChildren(c -> checkGroupMatch(c, ne, a.groupings(), missing, attributeRefs)));
 
-            if (!missing.isEmpty()) {
+            if (missing.isEmpty() == false) {
                 String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                 localFailures.add(fail(missing.values().iterator().next(), "Cannot use non-grouped column" + plural + " {}, expected {}",
                         Expressions.names(missing.keySet()),
@@ -577,7 +597,7 @@ public final class Verifier {
 
         // resolve FunctionAttribute to backing functions
         if (e instanceof ReferenceAttribute) {
-            e = attributeRefs.get(e);
+            e = attributeRefs.resolve(e);
         }
 
         // scalar functions can be a binary tree
@@ -630,25 +650,24 @@ public final class Verifier {
         // check if the query has a grouping function (Histogram) but no GROUP BY
         if (p instanceof Project) {
             Project proj = (Project) p;
-            proj.projections().forEach(e -> e.forEachDown(f ->
-                localFailures.add(fail(f, "[{}] needs to be part of the grouping", Expressions.name(f))), GroupingFunction.class));
+            proj.projections().forEach(e -> e.forEachDown(GroupingFunction.class, f ->
+                localFailures.add(fail(f, "[{}] needs to be part of the grouping", Expressions.name(f)))));
         }
         // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms)
         else if (p instanceof Aggregate) {
             Aggregate a = (Aggregate) p;
-            a.aggregates().forEach(agg -> agg.forEachDown(e -> {
+            a.aggregates().forEach(agg -> agg.forEachDown(GroupingFunction.class, e -> {
                 if (a.groupings().size() == 0
-                        || Expressions.anyMatch(a.groupings(), g -> g instanceof Function && e.equals(g)) == false) {
+                    || Expressions.anyMatch(a.groupings(), g -> g instanceof Function && e.equals(g)) == false) {
                     localFailures.add(fail(e, "[{}] needs to be part of the grouping", Expressions.name(e)));
-                }
-                else {
+                } else {
                     checkGroupingFunctionTarget(e, localFailures);
                 }
-            }, GroupingFunction.class));
+            }));
 
-            a.groupings().forEach(g -> g.forEachDown(e -> {
+            a.groupings().forEach(g -> g.forEachDown(GroupingFunction.class, e -> {
                 checkGroupingFunctionTarget(e, localFailures);
-            }, GroupingFunction.class));
+            }));
         }
     }
 
@@ -664,13 +683,35 @@ public final class Verifier {
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
-            if ((filter.child() instanceof Aggregate) == false) {
-                filter.condition().forEachDown(e -> {
-                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e))) {
-                        localFailures.add(
-                                fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead", Expressions.name(e)));
+            if (filter.anyMatch(Aggregate.class::isInstance) == false) {
+                filter.condition().forEachDown(Expression.class, e -> {
+                    if (Functions.isAggregate(attributeRefs.resolve(e, e))) {
+                        if (filter.child() instanceof Project) {
+                            filter.condition().forEachDown(FieldAttribute.class,
+                                f -> localFailures.add(fail(e, "[{}] field must appear in the GROUP BY clause or in an aggregate function",
+                                        Expressions.name(f)))
+                            );
+                        } else {
+                            localFailures.add(fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead",
+                                Expressions.name(e)));
+
+                        }
                     }
-                }, Expression.class);
+                });
+            } else {
+                Set<Expression> unsupported = new LinkedHashSet<>();
+                filter.condition().forEachDown(Expression.class, e -> {
+                    Expression f = attributeRefs.resolve(e, e);
+                    if (f instanceof TopHits) {
+                        unsupported.add(f);
+                    }
+                });
+                if (unsupported.isEmpty() == false) {
+                    String plural = unsupported.size() > 1 ? "s" : StringUtils.EMPTY;
+                    localFailures.add(
+                            fail(filter.condition(), "filtering is unsupported for function" + plural + " {}",
+                                    Expressions.names(unsupported)));
+                }
             }
         }
     }
@@ -679,24 +720,24 @@ public final class Verifier {
     private static void checkFilterOnGrouping(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
-            filter.condition().forEachDown(e -> {
-                if (Functions.isGrouping(attributeRefs.getOrDefault(e, e))) {
+            filter.condition().forEachDown(Expression.class, e -> {
+                if (Functions.isGrouping(attributeRefs.resolve(e, e))) {
                     localFailures
-                            .add(fail(e, "Cannot filter on grouping function [{}], use its argument instead", Expressions.name(e)));
+                        .add(fail(e, "Cannot filter on grouping function [{}], use its argument instead", Expressions.name(e)));
                 }
-            }, Expression.class);
+            });
         }
     }
 
 
     private static void checkForScoreInsideFunctions(LogicalPlan p, Set<Failure> localFailures) {
-        // Make sure that SCORE is only used in "top level" functions
-        p.forEachExpressions(e ->
-            e.forEachUp((Function f) ->
-                f.arguments().stream()
-                    .filter(exp -> exp.anyMatch(Score.class::isInstance))
-                    .forEach(exp -> localFailures.add(fail(exp, "[SCORE()] cannot be an argument to a function"))),
-                Function.class));
+        // Make sure that SCORE is only used as a "top level" function
+        p.forEachExpression(Function.class, f ->
+            f.arguments().stream()
+                .filter(exp -> exp.anyMatch(Score.class::isInstance))
+                .forEach(exp -> localFailures.add(fail(exp,
+                    "[SCORE()] cannot be used in expressions, does not support further processing")))
+        );
     }
 
     private static void checkNestedUsedInGroupByOrHavingOrWhereOrOrderBy(LogicalPlan p, Set<Failure> localFailures,
@@ -708,52 +749,53 @@ public final class Verifier {
             }
         };
         Consumer<Expression> checkForNested = e ->
-                attributeRefs.getOrDefault(e, e).forEachUp(matchNested, FieldAttribute.class);
-        Consumer<ScalarFunction> checkForNestedInFunction =  f -> f.arguments().forEach(
-                arg -> arg.forEachUp(matchNested, FieldAttribute.class));
+            attributeRefs.resolve(e, e).forEachUp(FieldAttribute.class, matchNested);
+        Consumer<ScalarFunction> checkForNestedInFunction = f -> f.arguments().forEach(
+            arg -> arg.forEachUp(FieldAttribute.class, matchNested));
 
         // nested fields shouldn't be used in aggregates or having (yet)
-        p.forEachDown(a -> a.groupings().forEach(agg -> agg.forEachUp(checkForNested)), Aggregate.class);
-        if (!nested.isEmpty()) {
+        p.forEachDown(Aggregate.class, a -> a.groupings().forEach(agg -> agg.forEachUp(checkForNested)));
+        if (nested.isEmpty() == false) {
             localFailures.add(
                     fail(nested.get(0), "Grouping isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
             nested.clear();
         }
 
         // check in having
-        p.forEachDown(f -> f.forEachDown(a -> f.condition().forEachUp(checkForNested), Aggregate.class), Filter.class);
-        if (!nested.isEmpty()) {
+        p.forEachDown(Filter.class, f -> f.forEachDown(Aggregate.class, a -> f.condition().forEachUp(checkForNested)));
+        if (nested.isEmpty() == false) {
             localFailures.add(
-                    fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
+                fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
             nested.clear();
         }
 
         // check in where (scalars not allowed)
-        p.forEachDown(f -> f.condition().forEachUp(e ->
-                attributeRefs.getOrDefault(e, e).forEachUp(sf -> {
-                    if (sf instanceof BinaryComparison == false &&
-                            sf instanceof IsNull == false &&
-                            sf instanceof IsNotNull == false &&
-                            sf instanceof Not == false &&
-                            sf instanceof BinaryLogic== false) {
-                        checkForNestedInFunction.accept(sf);
-                    }}, ScalarFunction.class)
-        ), Filter.class);
-        if (!nested.isEmpty()) {
+        p.forEachDown(Filter.class, f -> f.condition().forEachUp(e ->
+            attributeRefs.resolve(e, e).forEachUp(ScalarFunction.class, sf -> {
+                if (sf instanceof BinaryComparison == false &&
+                    sf instanceof IsNull == false &&
+                    sf instanceof IsNotNull == false &&
+                    sf instanceof Not == false &&
+                    sf instanceof BinaryLogic == false) {
+                    checkForNestedInFunction.accept(sf);
+                }
+            })
+        ));
+        if (nested.isEmpty() == false) {
             localFailures.add(
-                    fail(nested.get(0), "WHERE isn't (yet) compatible with scalar functions on nested fields " +
-                            new AttributeSet(nested).names()));
+                fail(nested.get(0), "WHERE isn't (yet) compatible with scalar functions on nested fields " +
+                    new AttributeSet(nested).names()));
             nested.clear();
         }
 
         // check in order by (scalars not allowed)
-        p.forEachDown(ob -> ob.order().forEach(o -> o.forEachUp(e ->
-                attributeRefs.getOrDefault(e, e).forEachUp(checkForNestedInFunction, ScalarFunction.class)
-        )), OrderBy.class);
-        if (!nested.isEmpty()) {
+        p.forEachDown(OrderBy.class, ob -> ob.order().forEach(o -> o.forEachUp(e ->
+            attributeRefs.resolve(e, e).forEachUp(ScalarFunction.class, checkForNestedInFunction)
+        )));
+        if (nested.isEmpty() == false) {
             localFailures.add(
-                    fail(nested.get(0), "ORDER BY isn't (yet) compatible with scalar functions on nested fields " +
-                            new AttributeSet(nested).names()));
+                fail(nested.get(0), "ORDER BY isn't (yet) compatible with scalar functions on nested fields " +
+                    new AttributeSet(nested).names()));
         }
     }
 
@@ -762,44 +804,44 @@ public final class Verifier {
      */
     private static void checkForGeoFunctionsOnDocValues(LogicalPlan p, Set<Failure> localFailures) {
 
-        p.forEachDown(f -> {
-            f.condition().forEachUp(fa -> {
+        p.forEachDown(Filter.class, f -> {
+            f.condition().forEachUp(FieldAttribute.class, fa -> {
                 if (fa.field().getDataType() == GEO_SHAPE) {
                     localFailures.add(fail(fa, "geo shapes cannot be used for filtering"));
                 }
                 if (fa.field().getDataType() == SHAPE) {
                     localFailures.add(fail(fa, "shapes cannot be used for filtering"));
                 }
-            }, FieldAttribute.class);
-        }, Filter.class);
+            });
+        });
 
         // geo shape fields shouldn't be used in aggregates or having (yet)
-        p.forEachDown(a -> a.groupings().forEach(agg -> agg.forEachUp(fa -> {
+        p.forEachDown(Aggregate.class, a -> a.groupings().forEach(agg -> agg.forEachUp(FieldAttribute.class, fa -> {
             if (fa.field().getDataType() == GEO_SHAPE) {
                 localFailures.add(fail(fa, "geo shapes cannot be used in grouping"));
             }
             if (fa.field().getDataType() == SHAPE) {
                 localFailures.add(fail(fa, "shapes cannot be used in grouping"));
             }
-        }, FieldAttribute.class)), Aggregate.class);
+        })));
 
 
         // geo shape fields shouldn't be used in order by clauses
-        p.forEachDown(o -> o.order().forEach(agg -> agg.forEachUp(fa -> {
+        p.forEachDown(OrderBy.class, o -> o.order().forEach(agg -> agg.forEachUp(FieldAttribute.class, fa -> {
             if (fa.field().getDataType() == GEO_SHAPE) {
                 localFailures.add(fail(fa, "geo shapes cannot be used for sorting"));
             }
             if (fa.field().getDataType() == SHAPE) {
                 localFailures.add(fail(fa, "shapes cannot be used for sorting"));
             }
-        }, FieldAttribute.class)), OrderBy.class);
+        })));
     }
 
     private static void checkPivot(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
-        p.forEachDown(pv -> {
+        p.forEachDown(Pivot.class, pv -> {
             // check only exact fields are used inside PIVOTing
             if (onlyExactFields(combine(pv.groupingSet(), pv.column()), localFailures) == false
-                    || onlyRawFields(pv.groupingSet(), localFailures, attributeRefs) == false) {
+                || onlyRawFields(pv.groupingSet(), localFailures, attributeRefs) == false) {
                 // if that is not the case, no need to do further validation since the declaration is fundamentally wrong
                 return;
             }
@@ -850,36 +892,47 @@ public final class Verifier {
                 }
             });
 
-        }, Pivot.class);
+        });
     }
 
     private static void checkMatrixStats(LogicalPlan p, Set<Failure> localFailures) {
         // MatrixStats aggregate functions cannot operates on scalars
         // https://github.com/elastic/elasticsearch/issues/55344
-        p.forEachExpressions(e -> e.forEachUp((Kurtosis s) -> {
-            if (s.field() instanceof Function) {
+        p.forEachExpressionUp(NumericAggregate.class, s -> {
+            if ((s instanceof Kurtosis || s instanceof Skewness) && s.field() instanceof Function) {
                 localFailures.add(fail(s.field(), "[{}()] cannot be used on top of operators or scalars", s.functionName()));
             }
-        }, Kurtosis.class));
-        p.forEachExpressions(e -> e.forEachUp((Skewness s) -> {
-            if (s.field() instanceof Function) {
-                localFailures.add(fail(s.field(), "[{}()] cannot be used on top of operators or scalars", s.functionName()));
-            }
-        }, Skewness.class));
+        });
     }
 
     private static void checkCastOnInexact(LogicalPlan p, Set<Failure> localFailures) {
-        p.forEachDown(f -> f.forEachExpressionsUp(e -> e.forEachUp((Cast c) -> {
+        p.forEachDown(Filter.class, f -> f.forEachExpressionUp(Cast.class, c -> {
             if (c.field() instanceof FieldAttribute) {
                 EsField.Exact exactInfo = ((FieldAttribute) c.field()).getExactInfo();
                 if (exactInfo.hasExact() == false
-                        || ((FieldAttribute) c.field()).exactAttribute().equals(c.field()) == false) {
+                    || ((FieldAttribute) c.field()).exactAttribute().equals(c.field()) == false) {
                     localFailures.add(fail(c.field(),
-                            "[{}] of data type [{}] cannot be used for [{}()] inside the WHERE clause",
-                            c.field().sourceText(), c.field().dataType().typeName(), c.functionName()));
+                        "[{}] of data type [{}] cannot be used for [{}()] inside the WHERE clause",
+                        c.field().sourceText(), c.field().dataType().typeName(), c.functionName()));
                 }
-
             }
-        }, Cast.class)), Filter.class);
+        }));
+    }
+
+    // check that any binary field used in WHERE, GROUP BY, HAVING or ORDER BY has doc_values, for ES to allow querying it
+    private static void checkBinaryHasDocValues(LogicalPlan plan, Set<Failure> localFailures) {
+        List<Tuple<FieldAttribute, String>> fields = new ArrayList<>();
+
+        plan.forEachDown(Filter.class, e -> e.condition().forEachDown(FieldAttribute.class,
+            f -> fields.add(Tuple.tuple(f, "for filtering"))));
+        plan.forEachDown(Aggregate.class, e -> e.groupings().forEach(g -> g.forEachDown(FieldAttribute.class,
+            f -> fields.add(Tuple.tuple(f, "in aggregations")))));
+        plan.forEachDown(OrderBy.class, e -> e.order().forEach(o -> o.child().forEachDown(FieldAttribute.class,
+            f -> fields.add(Tuple.tuple(f, "for ordering")))));
+
+        fields.stream().filter(t -> t.v1().dataType() == BINARY && t.v1().field().isAggregatable() == false).forEach(t -> {
+            localFailures.add(fail(t.v1(), "Binary field [" + t.v1().name() + "] cannot be used " + t.v2() + " unless it has the "
+                + "doc_values setting enabled"));
+        });
     }
 }

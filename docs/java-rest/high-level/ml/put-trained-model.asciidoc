@@ -5,15 +5,14 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put trained models API
+=== Create trained models API
 
-beta::[]
 
 Creates a new trained model for inference.
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put trained models request
+==== Request
 
 A +{request}+ requires the following argument:
 
@@ -37,11 +36,12 @@ include-tagged::{doc-tests-file}[{api}-config]
 <2> Optionally, if the {infer} definition is large, you may choose to compress it for transport.
     Do not supply both the compressed and uncompressed definitions.
 <3> The unique model id
-<4> The input field names for the model definition
-<5> Optionally, a human-readable description
-<6> Optionally, an object map contain metadata about the model
-<7> Optionally, an array of tags to organize the model
-<8> The default inference config to use with the model. Must match the underlying
+<4> The type of model being configured. If not set the type is inferred from the model definition
+<5> The input field names for the model definition
+<6> Optionally, a human-readable description
+<7> Optionally, an object map contain metadata about the model
+<8> Optionally, an array of tags to organize the model
+<9> The default inference config to use with the model. Must match the underlying
     definition target_type.
 
 include::../execution.asciidoc[]

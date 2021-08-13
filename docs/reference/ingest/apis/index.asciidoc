@@ -1,15 +1,31 @@
 [[ingest-apis]]
 == Ingest APIs
 
-The following ingest APIs are available for managing pipelines:
+Use ingest APIs to manage tasks and resources related to <<ingest,ingest
+pipelines>> and processors.
 
-* <<put-pipeline-api>> to add or update a pipeline
-* <<get-pipeline-api>> to return a specific pipeline
+[discrete]
+[[ingest-pipeline-apis]]
+=== Ingest pipeline APIs
+
+Use the following APIs to create, manage, and test ingest pipelines:
+
+* <<put-pipeline-api>> to create or update a pipeline
+* <<get-pipeline-api>> to retrieve a pipeline configuration
 * <<delete-pipeline-api>> to delete a pipeline
-* <<simulate-pipeline-api>> to simulate a call to a pipeline
+* <<simulate-pipeline-api>> to test a pipeline
 
+[discrete]
+[[ingest-stat-apis]]
+=== Stat APIs
+
+Use the following APIs to get statistics about ingest processing:
+
+* <<geoip-stats-api>> to get download statistics for GeoIP2 databases used with
+the <<geoip-processor,`geoip` processor>>.
 
 include::put-pipeline.asciidoc[]
-include::get-pipeline.asciidoc[]
 include::delete-pipeline.asciidoc[]
+include::geoip-stats-api.asciidoc[]
+include::get-pipeline.asciidoc[]
 include::simulate-pipeline.asciidoc[]

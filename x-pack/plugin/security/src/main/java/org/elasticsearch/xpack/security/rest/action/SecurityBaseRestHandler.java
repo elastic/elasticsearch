@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
@@ -58,8 +56,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     /**
      * Check whether the given request is allowed within the current license state and setup,
      * and return the name of any unlicensed feature.
-     * By default this returns an exception if security is not available by the current license or
-     * security is not enabled.
+     * By default this returns an exception if security is not enabled.
      * Sub-classes can override this method if they have additional requirements.
      *
      * @return {@code null} if all required features are available, otherwise an exception to be
@@ -68,13 +65,6 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     protected Exception checkFeatureAvailable(RestRequest request) {
         if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             return new IllegalStateException("Security is not enabled but a security rest handler is registered");
-        } else if (licenseState.checkFeature(XPackLicenseState.Feature.SECURITY) == false) {
-            return LicenseUtils.newComplianceException(XPackField.SECURITY);
-        } else if (licenseState.isSecurityEnabled() == false) {
-            return new ElasticsearchException("Security must be explicitly enabled when using a [" +
-                    licenseState.getOperationMode().description() + "] license. " +
-                    "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
-                    "and restart the node.");
         } else {
             return null;
         }

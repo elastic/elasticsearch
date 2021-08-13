@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -20,7 +22,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
@@ -70,18 +71,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
                 ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-            cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                @Override
-                public void onResponse(boolean complete) {
-                    assertThat(complete, is(true));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail("expecting the step to report success if repository information is missing from the ILM execution state as there" +
-                        " is no snapshot to delete");
-                }
-            });
+            assertTrue(PlainActionFuture.get(f -> cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
         }
 
         {
@@ -97,18 +87,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
                 ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-            cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                @Override
-                public void onResponse(boolean complete) {
-                    assertThat(complete, is(true));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail("expecting the step to report success if the snapshot name is missing from the ILM execution state as there is " +
-                        "no snapshot to delete");
-                }
-            });
+            assertTrue(PlainActionFuture.get(f -> cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
         }
     }
 
@@ -129,9 +108,9 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
 
         try (NoOpClient client = getDeleteSnapshotRequestAssertingClient(snapshotName)) {
             CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+            step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
                 @Override
-                public void onResponse(boolean complete) {
+                public void onResponse(Boolean complete) {
                 }
 
                 @Override

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -15,7 +16,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -40,8 +41,8 @@ import static org.hamcrest.Matchers.greaterThan;
 public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
 
     private final String index = "bulk-failure-retry";
-    private long now = System.currentTimeMillis();
-    private static long DAY = Duration.ofDays(1).toMillis();
+    private final long now = System.currentTimeMillis();
+    private static final long DAY = Duration.ofDays(1).toMillis();
     private final String jobId = "bulk-failure-retry-job";
     private final String resultsIndex = ".ml-anomalies-custom-bulk-failure-retry-job";
 
@@ -65,6 +66,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
                 .putNull("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob")
                 .putNull("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister")
                 .putNull("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output")
+                .putNull("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService")
                 .build()).get();
         cleanUp();
     }
@@ -102,10 +104,8 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedConfigBuilder =
             createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
         long twoDaysAgo = now - 2 * DAY;
         startDatafeed(datafeedConfig.getId(), 0L, twoDaysAgo);
@@ -121,6 +121,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
             .setTransientSettings(Settings.builder()
                 .put("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output", "TRACE")
                 .put("xpack.ml.persist_results_max_retries", "15")
                 .build()).get();
@@ -146,7 +147,6 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
 
     private Job.Builder createJob(String id, TimeValue bucketSpan, String function, String field, String summaryCountField) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeField("time");
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
 

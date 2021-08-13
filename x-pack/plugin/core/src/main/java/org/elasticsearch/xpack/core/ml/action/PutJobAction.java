@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,18 +33,18 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         super(NAME, Response::new);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> {
 
-        public static Request parseRequest(String jobId, XContentParser parser) {
+        public static Request parseRequest(String jobId, XContentParser parser, IndicesOptions indicesOptions) {
             Job.Builder jobBuilder = Job.STRICT_PARSER.apply(parser, null);
             if (jobBuilder.getId() == null) {
                 jobBuilder.setId(jobId);
-            } else if (!Strings.isNullOrEmpty(jobId) && !jobId.equals(jobBuilder.getId())) {
+            } else if (Strings.isNullOrEmpty(jobId) == false && jobId.equals(jobBuilder.getId()) == false) {
                 // If we have both URI and body jobBuilder ID, they must be identical
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(),
                         jobBuilder.getId(), jobId));
             }
-
+            jobBuilder.setDatafeedIndicesOptionsIfRequired(indicesOptions);
             return new Request(jobBuilder);
         }
 
@@ -87,12 +89,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            jobBuilder.toXContent(builder, params);
-            return builder;
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -103,11 +99,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         @Override
         public int hashCode() {
             return Objects.hash(jobBuilder);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
         }
     }
 

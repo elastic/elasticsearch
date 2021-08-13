@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -10,15 +11,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -33,9 +37,20 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
     public static final String NAME = "check-shrink-allocation";
 
     private static final Logger logger = LogManager.getLogger(CheckShrinkReadyStep.class);
+    private boolean completable = true;
 
     CheckShrinkReadyStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
+    public boolean isCompletable() {
+        return completable;
     }
 
     @Override
@@ -58,6 +73,12 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
             throw new IllegalStateException("Cannot check shrink allocation as there are no allocation rules by _id");
         }
 
+        boolean nodeBeingRemoved = NodesShutdownMetadata.getShutdowns(clusterState)
+            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
+            .map(shutdownMetadataMap -> shutdownMetadataMap.get(idShardsShouldBeOn))
+            .map(singleNodeShutdown -> singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REMOVE)
+            .orElse(false);
+
         final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
         int foundShards = 0;
         for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.STARTED)) {
@@ -75,6 +96,12 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
                 index, expectedShardCount, idShardsShouldBeOn, getKey().getAction());
             return new Result(true, null);
         } else {
+            if (nodeBeingRemoved) {
+                completable = false;
+                return new Result(false, new SingleMessageFieldInfo("node with id [" + idShardsShouldBeOn +
+                    "] is currently marked as shutting down for removal"));
+            }
+
             logger.trace("{} failed to find {} allocated shards (found {}) on node [{}] for shrink readiness ({})",
                 index, expectedShardCount, foundShards, idShardsShouldBeOn, getKey().getAction());
             return new Result(false, new CheckShrinkReadyStep.Info(idShardsShouldBeOn, expectedShardCount,

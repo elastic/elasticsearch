@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
@@ -24,7 +13,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +22,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -73,7 +62,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 /**
  * An immutable settings implementation.
@@ -397,7 +386,9 @@ public final class Settings implements ToXContentFragment {
         final Object valueFromPrefix = settings.get(key);
         if (valueFromPrefix != null) {
             if (valueFromPrefix instanceof List) {
-                return Collections.unmodifiableList((List<String>) valueFromPrefix);
+                @SuppressWarnings("unchecked")
+                final List<String> valuesAsList = (List<String>) valueFromPrefix;
+                return Collections.unmodifiableList(valuesAsList);
             } else if (commaDelimited) {
                 String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
@@ -429,7 +420,7 @@ public final class Settings implements ToXContentFragment {
      * Returns group settings for the given setting prefix.
      */
     public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
-        if (!Strings.hasLength(settingPrefix)) {
+        if (Strings.hasLength(settingPrefix) == false) {
             throw new IllegalArgumentException("illegal setting prefix " + settingPrefix);
         }
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
@@ -535,7 +526,9 @@ public final class Settings implements ToXContentFragment {
             if (value == null) {
                 builder.putNull(key);
             } else if (value instanceof List) {
-                builder.putList(key, (List<String>) value);
+                @SuppressWarnings("unchecked")
+                List<String> stringList = (List<String>) value;
+                builder.putList(key, stringList);
             } else {
                 builder.put(key, value.toString());
             }
@@ -558,7 +551,7 @@ public final class Settings implements ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Settings settings = SettingsFilter.filterSettings(params, this);
-        if (!params.paramAsBoolean("flat_settings", false)) {
+        if (params.paramAsBoolean("flat_settings", false) == false) {
             for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
@@ -591,7 +584,7 @@ public final class Settings implements ToXContentFragment {
             // ensure we reached the end of the stream
             XContentParser.Token lastToken = null;
             try {
-                while (!parser.isClosed() && (lastToken = parser.nextToken()) == null) ;
+                while (parser.isClosed() == false && (lastToken = parser.nextToken()) == null) ;
             } catch (Exception e) {
                 throw new ElasticsearchParseException(
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
@@ -843,7 +836,9 @@ public final class Settings implements ToXContentFragment {
             }
             final Object value = source.settings.get(sourceKey);
             if (value instanceof List) {
-                return putList(key, (List)value);
+                @SuppressWarnings("unchecked")
+                final List<String> stringList = (List<String>) value;
+                return putList(key, stringList);
             } else if (value == null) {
                 return putNull(key);
             } else {
@@ -1123,7 +1118,7 @@ public final class Settings implements ToXContentFragment {
 
                 @Override
                 public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
-                    return !placeholderName.startsWith("prompt.");
+                    return placeholderName.startsWith("prompt.") == false;
                 }
             };
 
@@ -1135,6 +1130,7 @@ public final class Settings implements ToXContentFragment {
                     continue;
                 }
                 if (entry.getValue() instanceof List) {
+                    @SuppressWarnings("unchecked")
                     final ListIterator<String> li = ((List<String>) entry.getValue()).listIterator();
                     while (li.hasNext()) {
                         final String settingValueRaw = li.next();

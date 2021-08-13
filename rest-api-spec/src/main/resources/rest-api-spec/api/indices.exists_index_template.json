@@ -5,6 +5,10 @@
       "description":"Returns information about whether a particular index template exists."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

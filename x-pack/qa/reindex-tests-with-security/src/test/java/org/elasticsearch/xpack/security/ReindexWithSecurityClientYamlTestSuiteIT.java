@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -20,13 +21,11 @@ import java.io.FileNotFoundException;
 import java.net.URL;
 import java.nio.file.Path;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 public class ReindexWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
 
-    private static Path httpTrustStore;
+    private static Path httpCertificateAuthority;
 
     public ReindexWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -38,17 +37,17 @@ public class ReindexWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteT
     }
 
     @BeforeClass
-    public static void findTrustStore( ) throws Exception {
-        final URL resource = ReindexWithSecurityClientYamlTestSuiteIT.class.getResource("/ssl/ca.p12");
+    public static void findTrustedCaCertificate( ) throws Exception {
+        final URL resource = ReindexWithSecurityClientYamlTestSuiteIT.class.getResource("/ssl/ca.crt");
         if (resource == null) {
-            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.p12");
+            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
         }
-        httpTrustStore = PathUtils.get(resource.toURI());
+        httpCertificateAuthority = PathUtils.get(resource.toURI());
     }
 
     @AfterClass
     public static void cleanupStatics() {
-        httpTrustStore = null;
+        httpCertificateAuthority = null;
     }
 
     @Override
@@ -64,8 +63,7 @@ public class ReindexWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteT
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
-                .put(TRUSTSTORE_PATH , httpTrustStore)
-                .put(TRUSTSTORE_PASSWORD, "password")
+                .put(CERTIFICATE_AUTHORITIES , httpCertificateAuthority)
                 .build();
     }
 }

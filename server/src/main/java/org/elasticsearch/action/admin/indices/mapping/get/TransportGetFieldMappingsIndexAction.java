@@ -1,26 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.support.ActionFilters;
@@ -39,7 +27,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.ShardId;
@@ -93,12 +80,11 @@ public class TransportGetFieldMappingsIndexAction
     protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) {
         assert shardId != null;
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        Version indexCreatedVersion = indexService.mapperService().getIndexSettings().getIndexVersionCreated();
-        Predicate<String> metadataFieldPredicate = (f) -> indicesService.isMetadataField(indexCreatedVersion, f);
+        Predicate<String> metadataFieldPredicate = (f) -> indexService.mapperService().isMetadataField(f);
         Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
 
-        DocumentMapper documentMapper = indexService.mapperService().documentMapper();
-        Map<String, FieldMappingMetadata> fieldMapping = findFieldMappings(fieldPredicate, documentMapper, request);
+        MappingLookup mappingLookup = indexService.mapperService().mappingLookup();
+        Map<String, FieldMappingMetadata> fieldMapping = findFieldMappings(fieldPredicate, mappingLookup, request);
         return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), fieldMapping));
     }
 
@@ -150,15 +136,11 @@ public class TransportGetFieldMappingsIndexAction
     };
 
     private static Map<String, FieldMappingMetadata> findFieldMappings(Predicate<String> fieldPredicate,
-                                                                             DocumentMapper documentMapper,
-                                                                             GetFieldMappingsIndexRequest request) {
-        if (documentMapper == null) {
-            return Collections.emptyMap();
-        }
+                                                                       MappingLookup mappingLookup,
+                                                                       GetFieldMappingsIndexRequest request) {
         //TODO the logic here needs to be reworked to also include runtime fields. Though matching is against mappers rather
         // than field types, and runtime fields are mixed with ordinary fields in FieldTypeLookup
         Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
-        final MappingLookup mappingLookup = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (Mapper fieldMapper : mappingLookup.fieldMappers()) {

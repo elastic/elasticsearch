@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.join.mapper;
@@ -31,15 +20,16 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -53,13 +43,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * A {@link FieldMapper} that creates hierarchical joins (parent-join) between documents in the same index.
- * Only one parent-join field can be defined per index. The verification of this assumption is done
- * through the {@link MetaJoinFieldMapper} which declares a meta field called "_parent_join".
- * This field is only used to ensure that there is a single parent-join field defined in the mapping and
- * cannot be used to index or query any data.
+ * Only one parent-join field can be defined per index.
  */
 public final class ParentJoinFieldMapper extends FieldMapper {
 
@@ -126,10 +114,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             relations.get().stream()
                 .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent, eagerGlobalOrdinals.get()))
                 .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
-            MetaJoinFieldMapper unique = new MetaJoinFieldMapper(name);
             Joiner joiner = new Joiner(name(), relations.get());
             return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(contentPath), joiner, meta.get()),
-                unique, Collections.unmodifiableMap(parentIdFields), eagerGlobalOrdinals.get(), relations.get());
+                Collections.unmodifiableMap(parentIdFields), eagerGlobalOrdinals.get(), relations.get());
         }
     }
 
@@ -158,11 +145,14 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
             return SourceValueFetcher.identity(name(), context, format);
         }
 
@@ -182,20 +172,16 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         return pj.canMerge(cj, s -> conflicts.addConflict("relations", s));
     }
 
-    // The meta field that ensures that there is no other parent-join in the mapping
-    private final MetaJoinFieldMapper uniqueFieldMapper;
     private final Map<String, ParentIdFieldMapper> parentIdFields;
     private final boolean eagerGlobalOrdinals;
     private final List<Relations> relations;
 
     protected ParentJoinFieldMapper(String simpleName,
                                     MappedFieldType mappedFieldType,
-                                    MetaJoinFieldMapper uniqueFieldMapper,
                                     Map<String, ParentIdFieldMapper> parentIdFields,
                                     boolean eagerGlobalOrdinals, List<Relations> relations) {
         super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
-        this.uniqueFieldMapper = uniqueFieldMapper;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         this.relations = relations;
     }
@@ -213,17 +199,16 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     @Override
     public Iterator<Mapper> iterator() {
         List<Mapper> mappers = new ArrayList<>(parentIdFields.values());
-        mappers.add(uniqueFieldMapper);
         return mappers.iterator();
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
         throw new UnsupportedOperationException("parsing is implemented in parse(), this method should NEVER be called");
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public void parse(DocumentParserContext context) throws IOException {
         context.path().add(simpleName());
         XContentParser.Token token = context.parser().currentToken();
         String name = null;
@@ -271,15 +256,13 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             if (context.sourceToParse().routing() == null) {
                 throw new IllegalArgumentException("[routing] is missing for join field [" + name() + "]");
             }
-            ParseContext externalContext = context.createExternalValueContext(parent);
             String fieldName = fieldType().joiner.parentJoinField(name);
-            parentIdFields.get(fieldName).parse(externalContext);
+            parentIdFields.get(fieldName).indexValue(context, parent);
         }
         if (fieldType().joiner.parentTypeExists(name)) {
             // Index the document as a parent
-            ParseContext externalContext = context.createExternalValueContext(context.sourceToParse().id());
             String fieldName = fieldType().joiner.childJoinField(name);
-            parentIdFields.get(fieldName).parse(externalContext);
+            parentIdFields.get(fieldName).indexValue(context, context.sourceToParse().id());
         }
 
         BytesRef binaryValue = new BytesRef(name);
@@ -290,7 +273,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("type", contentType());
         builder.field("eager_global_ordinals", eagerGlobalOrdinals);
         builder.startObject("relations");
@@ -309,4 +292,12 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         return new Builder(simpleName()).init(this);
     }
 
+    @Override
+    protected void doValidate(MappingLookup mappingLookup) {
+        List<String> joinFields = mappingLookup.getMatchingFieldNames("*").stream().map(mappingLookup::getFieldType)
+            .filter(ft -> ft instanceof JoinFieldType).map(MappedFieldType::name).collect(Collectors.toList());
+        if (joinFields.size() > 1) {
+            throw new IllegalArgumentException("Only one [parent-join] field can be defined per index, got " + joinFields);
+        }
+    }
 }

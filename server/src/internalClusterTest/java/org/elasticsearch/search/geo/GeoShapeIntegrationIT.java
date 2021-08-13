@@ -1,30 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -33,6 +23,7 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -44,13 +35,18 @@ import static org.hamcrest.Matchers.instanceOf;
 public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                // Check that only geo-shape queries on legacy PrefixTree based
-                // geo shapes are disallowed.
-                .put("search.allow_expensive_queries", false)
-                .put(super.nodeSettings(nodeOrdinal))
-                .build();
+            // Check that only geo-shape queries on legacy PrefixTree based
+            // geo shapes are disallowed.
+            .put("search.allow_expensive_queries", false)
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .build();
     }
 
     /**
@@ -88,10 +84,10 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
 
         GeoShapeFieldMapper.GeoShapeFieldType gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;
-        ShapeBuilder.Orientation orientation = gsfm.orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+        Orientation orientation = gsfm.orientation();
+        assertThat(orientation, equalTo(Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.LEFT));
+        assertThat(orientation, equalTo(Orientation.CW));
 
         // right orientation test
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
@@ -101,9 +97,9 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
         gsfm = (GeoShapeFieldMapper.GeoShapeFieldType)fieldType;
         orientation = gsfm.orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.RIGHT));
+        assertThat(orientation, equalTo(Orientation.CCW));
     }
 
     /**
@@ -136,17 +132,17 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
-    public void testMappingUpdate() throws Exception {
+    public void testMappingUpdate() {
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .setMapping("shape", "type=geo_shape").get());
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(version).build())
+            .setMapping("shape", "type=geo_shape,strategy=recursive").get());
         ensureGreen();
 
         String update ="{\n" +
             "  \"properties\": {\n" +
             "    \"shape\": {\n" +
-            "      \"type\": \"geo_shape\",\n" +
-            "      \"strategy\": \"recursive\"\n" +
+            "      \"type\": \"geo_shape\"" +
             "    }\n" +
             "  }\n" +
             "}";
@@ -154,7 +150,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices()
             .preparePutMapping("test")
             .setSource(update, XContentType.JSON).get());
-        assertThat(e.getMessage(), containsString("mapper [shape] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
+        assertThat(e.getMessage(), containsString("mapper [shape] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
     }
 
     /**
@@ -195,33 +191,35 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
     public void testIndexPolygonDateLine() throws Exception {
         String mappingVector = "{\n" +
-                "    \"properties\": {\n" +
-                "      \"shape\": {\n" +
-                "        \"type\": \"geo_shape\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }";
+            "    \"properties\": {\n" +
+            "      \"shape\": {\n" +
+            "        \"type\": \"geo_shape\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }";
 
         String mappingQuad = "{\n" +
-                "    \"properties\": {\n" +
-                "      \"shape\": {\n" +
-                "        \"type\": \"geo_shape\",\n" +
-                "        \"tree\": \"quadtree\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }";
+            "    \"properties\": {\n" +
+            "      \"shape\": {\n" +
+            "        \"type\": \"geo_shape\",\n" +
+            "        \"tree\": \"quadtree\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }";
 
 
         // create index
         assertAcked(client().admin().indices().prepareCreate("vector").setMapping(mappingVector).get());
         ensureGreen();
 
-        assertAcked(client().admin().indices().prepareCreate("quad").setMapping(mappingQuad).get());
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        assertAcked(client().admin().indices().prepareCreate("quad")
+            .setSettings(settings(version).build()).setMapping(mappingQuad).get());
         ensureGreen();
 
         String source = "{\n" +
-                "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\""+
-                "}";
+            "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\""+
+            "}";
 
         indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, XContentType.JSON));
         indexRandom(true, client().prepareIndex("vector").setId("0").setSource(source, XContentType.JSON));
@@ -232,25 +230,25 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
             SearchResponse searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(-179.75, 1))
+                geoShapeQuery("shape", new PointBuilder(-179.75, 1))
             ).get();
 
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
             searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(90, 1))
+                geoShapeQuery("shape", new PointBuilder(90, 1))
             ).get();
 
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
             searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(-180, 1))
+                geoShapeQuery("shape", new PointBuilder(-180, 1))
             ).get();
 
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
             searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(180, 1))
+                geoShapeQuery("shape", new PointBuilder(180, 1))
             ).get();
 
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));

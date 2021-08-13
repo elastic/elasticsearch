@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -9,12 +10,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validateGeneratedSnapshotName;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -86,7 +87,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         assertThat(generateSnapshotName("name"), startsWith("name-"));
         assertThat(generateSnapshotName("name").length(), greaterThan("name-".length()));
 
-        GenerateSnapshotNameStep.ResolverContext resolverContext = new GenerateSnapshotNameStep.ResolverContext(time);
+        IndexNameExpressionResolver.ResolverContext resolverContext = new IndexNameExpressionResolver.ResolverContext(time);
         assertThat(generateSnapshotName("<name-{now}>", resolverContext), startsWith("name-2019.03.15-"));
         assertThat(generateSnapshotName("<name-{now}>", resolverContext).length(), greaterThan("name-2019.03.15-".length()));
 

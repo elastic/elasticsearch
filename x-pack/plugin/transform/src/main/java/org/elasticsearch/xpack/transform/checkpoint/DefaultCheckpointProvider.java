@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.checkpoint;
@@ -164,7 +165,19 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                     new IndicesStatsRequest().indices(indices).clear().indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN),
                     ActionListener.wrap(response -> {
                         if (response.getFailedShards() != 0) {
-                            listener.onFailure(new CheckpointException("Source has [" + response.getFailedShards() + "] failed shards"));
+                            for (int i = 0; i < response.getShardFailures().length; ++i) {
+                                logger.warn(
+                                    new ParameterizedMessage(
+                                        "Source has [{}] failed shards, shard failure [{}]",
+                                        response.getFailedShards(), i).getFormattedMessage(),
+                                    response.getShardFailures()[i]);
+                            }
+                            listener.onFailure(
+                                new CheckpointException(
+                                    "Source has [{}] failed shards, first shard failure: {}",
+                                    response.getShardFailures()[0],
+                                    response.getFailedShards(),
+                                    response.getShardFailures()[0].toString()));
                             return;
                         }
                         listener.onResponse(extractIndexCheckPoints(response.getShards(), userIndices, prefix));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -14,7 +15,7 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -79,6 +81,12 @@ public class TransformTaskTests extends ESTestCase {
             transformsConfigManager,
             auditor
         );
+        TransformServices transformServices = new TransformServices(
+            transformsConfigManager,
+            transformsCheckpointService,
+            auditor,
+            mock(SchedulerEngine.class)
+        );
 
         TransformState transformState = new TransformState(
             TransformTaskState.FAILED,
@@ -112,10 +120,7 @@ public class TransformTaskTests extends ESTestCase {
         ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder();
         indexerBuilder.setClient(new ParentTaskAssigningClient(client, TaskId.EMPTY_TASK_ID))
             .setTransformConfig(transformConfig)
-            .setAuditor(auditor)
-            .setTransformsConfigManager(transformsConfigManager)
-            .setTransformsCheckpointService(transformsCheckpointService)
-            .setFieldMappings(Collections.emptyMap());
+            .setTransformServices(transformServices);
 
         transformTask.initializeIndexer(indexerBuilder);
         TransformState state = transformTask.getState();

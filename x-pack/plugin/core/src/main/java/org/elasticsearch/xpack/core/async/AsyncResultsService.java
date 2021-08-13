@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.async;
@@ -15,7 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -111,7 +112,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                                            long expirationTimeMillis,
                                            ActionListener<Response> listener) {
         try {
-            final Task task = store.getTask(taskManager, searchId, asyncTaskClass);
+            final Task task = store.getTaskAndCheckAuthentication(taskManager, searchId, asyncTaskClass);
             if (task == null) {
                 getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
                 return;
@@ -125,17 +126,8 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             if (expirationTimeMillis != -1) {
                 task.setExpirationTime(expirationTimeMillis);
             }
-            addCompletionListener.apply(task, new ActionListener<>() {
-                @Override
-                public void onResponse(Response response) {
-                    sendFinalResponse(request, response, nowInMillis, listener);
-                }
-
-                @Override
-                public void onFailure(Exception exc) {
-                    listener.onFailure(exc);
-                }
-            }, request.getWaitForCompletionTimeout());
+            addCompletionListener.apply(task, listener.delegateFailure((l, response) ->
+                    sendFinalResponse(request, response, nowInMillis, l)), request.getWaitForCompletionTimeout());
         } catch (Exception exc) {
             listener.onFailure(exc);
         }
@@ -145,18 +137,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                                             GetAsyncResultRequest request,
                                             long nowInMillis,
                                             ActionListener<Response> listener) {
-        store.getResponse(searchId, true,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Response response) {
-                    sendFinalResponse(request, response, nowInMillis, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+        store.getResponse(searchId, true, listener.delegateFailure((l, response) -> sendFinalResponse(request, response, nowInMillis, l)));
     }
 
     private void sendFinalResponse(GetAsyncResultRequest request,

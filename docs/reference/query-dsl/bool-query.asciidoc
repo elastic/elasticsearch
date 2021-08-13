@@ -23,7 +23,7 @@ and clauses are considered for caching.
 |`should` |The clause (query) should appear in the matching document.
 
 |`must_not` |The clause (query) must not appear in the matching
-documents.  Clauses are executed in <<query-filter-context,filter context>> meaning
+documents. Clauses are executed in <<query-filter-context,filter context>> meaning
 that scoring is ignored and clauses are considered for caching. Because scoring is
 ignored, a score of `0` for all documents is returned.
 |=======================================================================
@@ -77,8 +77,8 @@ For other valid values, see the
 ==== Scoring with `bool.filter`
 
 Queries specified under the `filter` element have no effect on scoring --
-scores are returned as `0`.  Scores are only affected by the query that has
-been specified.  For instance, all three of the following queries return
+scores are returned as `0`. Scores are only affected by the query that has
+been specified. For instance, all three of the following queries return
 all documents where the `status` field contains the term `active`.
 
 This first query assigns a score of `0` to all documents, as no scoring

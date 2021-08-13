@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.Objects;
+import java.util.Set;
 
 public class ScrollDataExtractorFactory implements DataExtractorFactory {
     private final Client client;
@@ -54,7 +56,8 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 start,
                 end,
                 datafeedConfig.getHeaders(),
-                datafeedConfig.getIndicesOptions()
+                datafeedConfig.getIndicesOptions(),
+                datafeedConfig.getRuntimeMappings()
         );
         return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter);
     }
@@ -89,11 +92,16 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         // Step 1. Get field capabilities necessary to build the information of how to extract fields
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
         fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
+
+        // Cannot get field caps on RT fields defined at search
+        Set<String> runtimefields = datafeed.getRuntimeMappings().keySet();
+
         // We need capabilities for all fields matching the requested fields' parents so that we can work around
         // multi-fields that are not in source.
         String[] requestFields = job.allInputFields()
             .stream()
             .map(f -> MlStrings.getParentField(f) + "*")
+            .filter(f -> runtimefields.contains(f) == false)
             .toArray(String[]::new);
         fieldCapabilitiesRequest.fields(requestFields);
         ClientHelper.<FieldCapabilitiesResponse> executeWithHeaders(datafeed.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {

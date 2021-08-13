@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
@@ -25,7 +26,7 @@ public class TriangleTreeTests extends ESTestCase {
         Geometry geometry = GeometryTestUtils.randomGeometryWithoutCircle(randomIntBetween(1, 10), false);
         // write tree
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-        List<IndexableField> fieldList = indexer.indexShape(null, indexer.prepareForIndexing(geometry));
+        List<IndexableField> fieldList = indexer.indexShape(geometry);
         ByteBuffersDataOutput output = new ByteBuffersDataOutput();
         TriangleTreeWriter.writeTo(output, fieldList);
         // read tree

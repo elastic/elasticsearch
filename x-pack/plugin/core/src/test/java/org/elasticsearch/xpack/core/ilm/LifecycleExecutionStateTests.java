@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -136,52 +137,65 @@ public class LifecycleExecutionStateTests extends ESTestCase {
 
     private static LifecycleExecutionState mutate(LifecycleExecutionState toMutate) {
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder(toMutate);
-        boolean changed = false;
-        if (randomBoolean()) {
-            newState.setPhase(randomValueOtherThan(toMutate.getPhase(), () -> randomAlphaOfLengthBetween(5, 20)));
-            changed = true;
+        switch (randomIntBetween(0, 17)) {
+            case 0:
+                newState.setPhase(randomValueOtherThan(toMutate.getPhase(), () -> randomAlphaOfLengthBetween(5, 20)));
+                break;
+            case 1:
+                newState.setAction(randomValueOtherThan(toMutate.getAction(), () -> randomAlphaOfLengthBetween(5, 20)));
+                break;
+            case 2:
+                newState.setStep(randomValueOtherThan(toMutate.getStep(), () -> randomAlphaOfLengthBetween(5, 20)));
+                break;
+            case 3:
+                newState.setPhaseDefinition(randomValueOtherThan(toMutate.getPhaseDefinition(), () -> randomAlphaOfLengthBetween(5, 20)));
+                break;
+            case 4:
+                newState.setFailedStep(randomValueOtherThan(toMutate.getFailedStep(), () -> randomAlphaOfLengthBetween(5, 20)));
+                break;
+            case 5:
+                newState.setStepInfo(randomValueOtherThan(toMutate.getStepInfo(), () -> randomAlphaOfLengthBetween(5, 20)));
+                break;
+            case 6:
+                newState.setPhaseTime(randomValueOtherThan(toMutate.getPhaseTime(), ESTestCase::randomLong));
+                break;
+            case 7:
+                newState.setActionTime(randomValueOtherThan(toMutate.getActionTime(), ESTestCase::randomLong));
+                break;
+            case 8:
+                newState.setStepTime(randomValueOtherThan(toMutate.getStepTime(), ESTestCase::randomLong));
+                break;
+            case 9:
+                newState.setIndexCreationDate(randomValueOtherThan(toMutate.getLifecycleDate(), ESTestCase::randomLong));
+                break;
+            case 10:
+                newState.setShrinkIndexName(randomValueOtherThan(toMutate.getShrinkIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
+                break;
+            case 11:
+                newState.setSnapshotRepository(randomValueOtherThan(toMutate.getSnapshotRepository(),
+                    () -> randomAlphaOfLengthBetween(5, 20)));
+                break;
+            case 12:
+                newState.setSnapshotIndexName(randomValueOtherThan(toMutate.getSnapshotIndexName(),
+                    () -> randomAlphaOfLengthBetween(5, 20)));
+                break;
+            case 13:
+                newState.setSnapshotName(randomValueOtherThan(toMutate.getSnapshotName(), () -> randomAlphaOfLengthBetween(5, 20)));
+                break;
+            case 14:
+                newState.setRollupIndexName(randomValueOtherThan(toMutate.getRollupIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
+                break;
+            case 15:
+                newState.setIsAutoRetryableError(randomValueOtherThan(toMutate.isAutoRetryableError(), ESTestCase::randomBoolean));
+                break;
+            case 16:
+                newState.setFailedStepRetryCount(randomValueOtherThan(toMutate.getFailedStepRetryCount(), ESTestCase::randomInt));
+                break;
+            case 17:
+                return LifecycleExecutionState.builder().build();
+            default:
+                throw new IllegalStateException("unknown randomization branch");
         }
-        if (randomBoolean()) {
-            newState.setAction(randomValueOtherThan(toMutate.getAction(), () -> randomAlphaOfLengthBetween(5, 20)));
-            changed = true;
-        }
-        if (randomBoolean()) {
-            newState.setStep(randomValueOtherThan(toMutate.getStep(), () -> randomAlphaOfLengthBetween(5, 20)));
-            changed = true;
-        }
-        if (randomBoolean()) {
-            newState.setPhaseDefinition(randomValueOtherThan(toMutate.getPhaseDefinition(), () -> randomAlphaOfLengthBetween(5, 20)));
-            changed = true;
-        }
-        if (randomBoolean()) {
-            newState.setFailedStep(randomValueOtherThan(toMutate.getFailedStep(), () -> randomAlphaOfLengthBetween(5, 20)));
-            changed = true;
-        }
-        if (randomBoolean()) {
-            newState.setStepInfo(randomValueOtherThan(toMutate.getStepInfo(), () -> randomAlphaOfLengthBetween(5, 20)));
-            changed = true;
-        }
-        if (randomBoolean()) {
-            newState.setPhaseTime(randomValueOtherThan(toMutate.getPhaseTime(), ESTestCase::randomLong));
-            changed = true;
-        }
-        if (randomBoolean()) {
-            newState.setActionTime(randomValueOtherThan(toMutate.getActionTime(), ESTestCase::randomLong));
-            changed = true;
-        }
-        if (randomBoolean()) {
-            newState.setStepTime(randomValueOtherThan(toMutate.getStepTime(), ESTestCase::randomLong));
-            changed = true;
-        }
-        if (randomBoolean()) {
-            newState.setIndexCreationDate(randomValueOtherThan(toMutate.getLifecycleDate(), ESTestCase::randomLong));
-            changed = true;
-        }
-
-        if (changed == false) {
-            return LifecycleExecutionState.builder().build();
-        }
-
         return newState.build();
     }
 
@@ -194,6 +208,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         String phaseDefinition = randomAlphaOfLengthBetween(15, 50);
         String repositoryName = randomAlphaOfLengthBetween(10, 20);
         String snapshotName = randomAlphaOfLengthBetween(10, 20);
+        String snapshotIndexName = randomAlphaOfLengthBetween(10, 20);
         long indexCreationDate = randomLong();
         long phaseTime = randomLong();
         long actionTime = randomLong();
@@ -212,6 +227,11 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         customMetadata.put("step_time", String.valueOf(stepTime));
         customMetadata.put("snapshot_repository", repositoryName);
         customMetadata.put("snapshot_name", snapshotName);
+        customMetadata.put("snapshot_index_name", snapshotIndexName);
+        customMetadata.put("shrink_index_name", randomAlphaOfLengthBetween(5, 20));
+        customMetadata.put("rollup_index_name", randomAlphaOfLengthBetween(5, 20));
+        customMetadata.put("is_auto_retryable_error", String.valueOf(randomBoolean()));
+        customMetadata.put("failed_step_retry_count", String.valueOf(randomInt()));
         return customMetadata;
     }
 }

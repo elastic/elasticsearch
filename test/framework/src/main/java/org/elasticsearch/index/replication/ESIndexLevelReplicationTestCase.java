@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.replication;
@@ -61,10 +50,10 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -84,9 +73,10 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -170,7 +160,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         private volatile ReplicationTargets replicationTargets;
 
         private final PrimaryReplicaSyncer primaryReplicaSyncer = new PrimaryReplicaSyncer(
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            new MockTransport().createTransportService(Settings.EMPTY, threadPool,
+                    TransportService.NOOP_TRANSPORT_INTERCEPTOR, address -> null, null, Collections.emptySet()),
             (request, parentTask, primaryAllocationId, primaryTerm, listener) -> {
                 try {
                     new ResyncAction(request, listener, ReplicationGroup.this).execute();
@@ -249,7 +240,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             DocWriteRequest<?> writeRequest, WriteRequest.RefreshPolicy refreshPolicy) throws Exception {
             PlainActionFuture<BulkItemResponse> listener = new PlainActionFuture<>();
             final ActionListener<BulkShardResponse> wrapBulkListener =
-                ActionListener.map(listener, bulkShardResponse -> bulkShardResponse.getResponses()[0]);
+                    listener.map(bulkShardResponse -> bulkShardResponse.getResponses()[0]);
             BulkItemRequest[] items = new BulkItemRequest[1];
             items[0] = new BulkItemRequest(0, writeRequest);
             BulkShardRequest request = new BulkShardRequest(shardId, refreshPolicy, items);
@@ -487,6 +478,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public Iterator<IndexShard> iterator() {
             return Iterators.concat(replicas.iterator(), Collections.singleton(primary).iterator());
         }
@@ -527,7 +519,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
             new SyncRetentionLeases(new RetentionLeaseSyncAction.Request(shardId, leases), this,
-                ActionListener.map(listener, r -> new ReplicationResponse())).execute();
+                    listener.map(r -> new ReplicationResponse())).execute();
         }
 
         public synchronized RetentionLease addRetentionLease(String id, long retainingSequenceNumber, String source,
@@ -602,7 +594,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public void execute() {
             try {
                 new ReplicationOperation<>(request, new PrimaryRef(),
-                    ActionListener.map(listener, result -> {
+                    listener.map(result -> {
                         adaptResponse(result.finalResponse, getPrimaryShard());
                         return result.finalResponse;
                     }),
@@ -700,7 +692,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     getPrimaryShard().getPendingPrimaryTerm(),
                     globalCheckpoint,
                     maxSeqNoOfUpdatesOrDeletes,
-                    ActionListener.delegateFailure(listener, (delegatedListener, releasable) -> {
+                    listener.delegateFailure((delegatedListener, releasable) -> {
                         try {
                             performOnReplica(request, replica);
                             releasable.close();
@@ -763,7 +755,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected void performOnPrimary(IndexShard primary, BulkShardRequest request, ActionListener<PrimaryResult> listener) {
             executeShardBulkOnPrimary(primary, request,
-                ActionListener.map(listener, result -> new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful)));
+                listener.map(result -> new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful)));
         }
 
         @Override
@@ -795,13 +787,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
     }
 
-    private <Request extends ReplicatedWriteRequest & DocWriteRequest> BulkShardRequest executeReplicationRequestOnPrimary(
-            IndexShard primary, Request request) throws Exception {
+    private <
+        Request extends ReplicatedWriteRequest<Request> & DocWriteRequest<Request>> BulkShardRequest executeReplicationRequestOnPrimary(
+            IndexShard primary,
+            Request request
+        ) throws Exception {
         final BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, request.getRefreshPolicy(),
             new BulkItemRequest[]{new BulkItemRequest(0, request)});
         final PlainActionFuture<BulkShardRequest> res = new PlainActionFuture<>();
-        executeShardBulkOnPrimary(
-            primary, bulkShardRequest, ActionListener.map(res, TransportReplicationAction.PrimaryResult::replicaRequest));
+        executeShardBulkOnPrimary(primary, bulkShardRequest, res.map(TransportReplicationAction.PrimaryResult::replicaRequest));
         return res.get();
     }
 

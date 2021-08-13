@@ -1,10 +1,10 @@
-[[alias]]
+[[field-alias]]
 === Alias field type
 ++++
 <titleabbrev>Alias</titleabbrev>
 ++++
 
-An `alias` mapping defines an alternate name for a field in the  index.
+An `alias` mapping defines an alternate name for a field in the index.
 The alias can be used in place of the target field in <<search, search>> requests,
 and selected other APIs like <<search-field-caps, field capabilities>>.
 

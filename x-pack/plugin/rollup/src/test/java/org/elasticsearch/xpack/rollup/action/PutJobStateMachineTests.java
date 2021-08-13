@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.action;
 
@@ -421,7 +422,9 @@ public class PutJobStateMachineTests extends ESTestCase {
     }
 
     public void testDeprecatedTimeZone() {
-        GroupConfig groupConfig = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, "Japan"));
+        GroupConfig groupConfig = new GroupConfig(
+            new DateHistogramGroupConfig.FixedInterval("foo", new DateHistogramInterval("1h"), null, "Japan")
+        );
         RollupJobConfig config = new RollupJobConfig("foo", randomAlphaOfLength(5), "rollup", ConfigTestHelpers.randomCron(),
             100, groupConfig, Collections.emptyList(), null);
         PutRollupJobAction.Request request = new PutRollupJobAction.Request(config);
@@ -431,7 +434,9 @@ public class PutJobStateMachineTests extends ESTestCase {
     }
 
     public void testTimeZone() {
-        GroupConfig groupConfig = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, "EST"));
+        GroupConfig groupConfig = new GroupConfig(
+            new DateHistogramGroupConfig.FixedInterval("foo", new DateHistogramInterval("1h"), null, "EST")
+        );
         RollupJobConfig config = new RollupJobConfig("foo", randomAlphaOfLength(5), "rollup", ConfigTestHelpers.randomCron(),
             100, groupConfig, Collections.emptyList(), null);
         PutRollupJobAction.Request request = new PutRollupJobAction.Request(config);

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
@@ -35,7 +24,7 @@ import java.nio.charset.StandardCharsets;
  * in order to avoid a duplication of configuration in log4j2.properties
  */
 @Plugin(name = "ECSJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
-public class ECSJsonLayout  {
+public class ECSJsonLayout {
 
     @PluginBuilderFactory
     public static ECSJsonLayout.Builder newBuilder() {
@@ -45,8 +34,8 @@ public class ECSJsonLayout  {
     public static class Builder extends AbstractStringLayout.Builder<Builder>
         implements org.apache.logging.log4j.core.util.Builder<EcsLayout> {
 
-        @PluginAttribute("type_name")
-        String type;
+        @PluginAttribute("dataset")
+        String dataset;
 
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
@@ -64,21 +53,21 @@ public class ECSJsonLayout  {
         }
 
         private KeyValuePair[] additionalFields() {
-            return new KeyValuePair[]{
-                new KeyValuePair("type",type),
-                new KeyValuePair("cluster.uuid","%cluster_id"),
-                new KeyValuePair("node.id","%node_id"),
-                new KeyValuePair("node.name","%ESnode_name"),
-                new KeyValuePair("cluster.name","${sys:es.logs.cluster_name}"),
-            };
+            return new KeyValuePair[] {
+                new KeyValuePair("event.dataset", dataset),
+                new KeyValuePair("trace.id", "%trace_id"),
+                new KeyValuePair("elasticsearch.cluster.uuid", "%cluster_id"),
+                new KeyValuePair("elasticsearch.node.id", "%node_id"),
+                new KeyValuePair("elasticsearch.node.name", "%ESnode_name"),
+                new KeyValuePair("elasticsearch.cluster.name", "${sys:es.logs.cluster_name}"), };
+    }
+
+        public String getDataset() {
+            return dataset;
         }
 
-        public String getType() {
-            return type;
-        }
-
-        public Builder setType(final String type) {
-            this.type = type;
+        public Builder setDataset(final String dataset) {
+            this.dataset = dataset;
             return asBuilder();
         }
     }

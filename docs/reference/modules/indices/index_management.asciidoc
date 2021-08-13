@@ -32,3 +32,22 @@ IMPORTANT: Closed indices are a data loss risk because they are not included whe
 (<<static-cluster-setting,Static>>)
 Specifies the hosts that can be <<reindex-from-remote,reindexed from remotely>>. Expects a YAML array of `host:port` strings. Consists of a comma-delimited list of `host:port` entries. Defaults to `["\*.io:*", "\*.com:*"]`.
 // end::reindex-remote-whitelist[]
+
+[[stack-templates-enabled]]
+`stack.templates.enabled` {ess-icon}::
++
+--
+(<<dynamic-cluster-setting,Dynamic>>)
+If `true`, enables built-in index and component templates.
+{fleet-guide}/fleet-overview.html[{agent}] uses these templates to create data
+streams. If `false`, {es} disables these index and component templates. Defaults
+to `true`.
+
+This setting affects the following built-in index templates:
+
+include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-template-patterns]
+
+This setting also affects the following built-in component templates:
+
+include::{es-repo-dir}/indices/put-component-template.asciidoc[tag=built-in-component-templates]
+--

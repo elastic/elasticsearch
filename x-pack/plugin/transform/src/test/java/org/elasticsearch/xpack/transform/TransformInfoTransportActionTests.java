@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,29 +27,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransformInfoTransportActionTests extends ESTestCase {
-    private XPackLicenseState licenseState;
-
-    @Before
-    public void init() {
-        licenseState = mock(XPackLicenseState.class);
-    }
 
     public void testAvailable() {
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class),
-            mock(ActionFilters.class),
-            licenseState
+            mock(ActionFilters.class)
         );
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+        assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabledDefault() {
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class),
-            mock(ActionFilters.class),
-            licenseState
+            mock(ActionFilters.class)
         );
         assertTrue(featureSet.enabled());
     }
@@ -66,18 +55,20 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             1,  // numPages
             2,  // numInputDocuments
             3,  // numOutputDocuments
-            4,  // numInvocations
-            5,  // indexTime
-            6,  // searchTime
-            7,  // processingTime
-            8,  // indexTotal
-            9,  // searchTotal
-            10, // processingTotal
-            11, // indexFailures
-            12, // searchFailures
-            13.0,  // exponential_avg_checkpoint_duration_ms
-            14.0,  // exponential_avg_documents_indexed
-            15.0   // exponential_avg_documents_processed
+            4,  // numDeletedDocuments
+            5,  // numInvocations
+            6,  // indexTime
+            7,  // searchTime
+            8,  // processingTime
+            9,  // deleteTime
+            10,  // indexTotal
+            11,  // searchTotal
+            12, // processingTotal
+            13, // indexFailures
+            14, // searchFailures
+            15.0,  // exponential_avg_checkpoint_duration_ms
+            16.0,  // exponential_avg_documents_indexed
+            17.0   // exponential_avg_documents_processed
         );
 
         int currentStat = 1;

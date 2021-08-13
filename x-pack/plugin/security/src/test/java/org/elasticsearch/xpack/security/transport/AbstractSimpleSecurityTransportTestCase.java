@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -29,7 +30,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
-import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
@@ -237,12 +238,10 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 .put("xpack.security.transport.ssl.verification_mode", "none")
                 .build();
             try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
-                serviceC.acceptIncomingRequests();
-
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
-                    DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+                    DiscoveryNodeRole.roles(), Version.CURRENT);
 
                 new Thread(() -> {
                     try {
@@ -284,12 +283,10 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 .put("xpack.security.transport.ssl.verification_mode", "none")
                 .build();
             try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
-                serviceC.acceptIncomingRequests();
-
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
-                    DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+                    DiscoveryNodeRole.roles(), Version.CURRENT);
 
                 ConnectTransportException connectException = expectThrows(ConnectTransportException.class,
                     () -> connectToNode(serviceC, node, TestProfiles.LIGHT_PROFILE));
@@ -311,7 +308,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         assertThat(sslEngine.getWantClientAuth(), is(false));
 
         // test required client authentication
-        String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT));
+        String value = randomCapitalization(SslClientAuthenticationMode.REQUIRED);
         Settings settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_REQUIRED_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
@@ -323,7 +320,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
 
         // test no client authentication
-        value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
+        value = randomCapitalization(SslClientAuthenticationMode.NONE);
         settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_NO_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
@@ -335,7 +332,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
 
         // test optional client authentication
-        value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
+        value = randomCapitalization(SslClientAuthenticationMode.OPTIONAL);
         settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
         try (MockTransportService service = buildService("TS_OPTIONAL_CLIENT_AUTH", Version.CURRENT, settings)) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
@@ -347,7 +344,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
 
         // test profile required client authentication
-        value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT));
+        value = randomCapitalization(SslClientAuthenticationMode.REQUIRED);
         settings = Settings.builder()
             .put("transport.profiles.client.port", "8000-9000")
             .put("transport.profiles.client.xpack.security.ssl.enabled", true)
@@ -368,7 +365,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
 
         // test profile no client authentication
-        value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
+        value = randomCapitalization(SslClientAuthenticationMode.NONE);
         settings = Settings.builder()
             .put("transport.profiles.client.port", "8000-9000")
             .put("transport.profiles.client.xpack.security.ssl.enabled", true)
@@ -389,7 +386,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
 
         // test profile optional client authentication
-        value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
+        value = randomCapitalization(SslClientAuthenticationMode.OPTIONAL);
         settings = Settings.builder()
             .put("transport.profiles.client.port", "8000-9000")
             .put("transport.profiles.client.xpack.security.ssl.enabled", true)
@@ -408,6 +405,10 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 assertThat(sslEngine.getWantClientAuth(), is(true));
             }
         }
+    }
+
+    public static String randomCapitalization(SslClientAuthenticationMode mode) {
+        return randomFrom(mode.name(), mode.name().toLowerCase(Locale.ROOT));
     }
 
     private SSLEngine getEngineFromAcceptedChannel(TcpTransport transport, Transport.Connection connection) throws Exception {

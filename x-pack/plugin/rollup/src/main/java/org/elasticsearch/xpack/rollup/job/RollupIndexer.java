@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.job;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -50,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.rollup.RollupField.formatFieldName;
 
@@ -66,28 +68,26 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     /**
      * Ctr
      * @param threadPool ThreadPool to use to fire the first request of a background job.
-     * @param executorName Name of the executor to use to fire the first request of a background job.
      * @param job The rollup job
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
      */
-    RollupIndexer(ThreadPool threadPool, String executorName, RollupJob job, AtomicReference<IndexerState> initialState,
+    RollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
                   Map<String, Object> initialPosition) {
-        this(threadPool, executorName, job, initialState, initialPosition, new RollupIndexerJobStats());
+        this(threadPool, job, initialState, initialPosition, new RollupIndexerJobStats());
     }
 
     /**
      * Ctr
      * @param threadPool ThreadPool to use to fire the first request of a background job.
-     * @param executorName Name of the executor to use to fire the first request of a background job.
      * @param job The rollup job
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
      * @param jobStats jobstats instance for collecting stats
      */
-    RollupIndexer(ThreadPool threadPool, String executorName, RollupJob job, AtomicReference<IndexerState> initialState,
+    RollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
                   Map<String, Object> initialPosition, RollupIndexerJobStats jobStats) {
-        super(threadPool, executorName, initialState, initialPosition, jobStats);
+        super(threadPool, initialState, initialPosition, jobStats);
         this.job = job;
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
     }
@@ -131,7 +131,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
 
         if (response.getBuckets().isEmpty()) {
             // do not reset the position as we want to continue from where we stopped
-            return new IterationResult<>(Collections.emptyList(), getPosition(), true);
+            return new IterationResult<>(Stream.empty(), getPosition(), true);
         }
 
         return new IterationResult<>(
@@ -228,7 +228,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         } else if (dateHistogram instanceof DateHistogramGroupConfig.CalendarInterval) {
             dateHistogramBuilder.calendarInterval(dateHistogram.getInterval());
         } else {
-            dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+            throw new IllegalStateException("[date_histogram] must use either [fixed_interval] or [calendar_interval]");
         }
         dateHistogramBuilder.field(dateHistogramField);
         dateHistogramBuilder.timeZone(ZoneId.of(dateHistogram.getTimeZone()));

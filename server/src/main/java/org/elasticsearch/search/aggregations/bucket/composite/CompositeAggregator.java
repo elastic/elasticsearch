@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -43,7 +32,8 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -56,7 +46,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 
@@ -89,7 +79,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
     private boolean earlyTerminated;
 
-    CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
+    CompositeAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
                         Map<String, Object> metadata,
                         int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
@@ -97,9 +87,9 @@ final class CompositeAggregator extends BucketsAggregator {
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
-        this.sources = new SingleDimensionValuesSource[sourceConfigs.length];
+        this.sources = new SingleDimensionValuesSource<?>[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
-        int bucketLimit = context.aggregations().multiBucketConsumer().getLimit();
+        int bucketLimit = context.multiBucketConsumer().getLimit();
         if (size > bucketLimit) {
             throw new MultiBucketConsumerService.TooManyBucketsException("Trying to create too many buckets. Must be less than or equal" +
                 " to: [" + bucketLimit + "] but was [" + size + "]. This limit can be set by changing the [" + MAX_BUCKET_SETTING.getKey() +
@@ -114,7 +104,15 @@ final class CompositeAggregator extends BucketsAggregator {
                 this::addRequestCircuitBreakerBytes
             );
         }
-        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
+        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size);
+        if (rawAfterKey != null) {
+            try {
+                this.queue.setAfterKey(rawAfterKey);
+            } catch (IllegalArgumentException ex) {
+                throw new ElasticsearchParseException("Cannot set after key in the composite aggregation [" + name + "] - " +
+                    ex.getMessage(), ex);
+            }
+        }
         this.rawAfterKey = rawAfterKey;
     }
 
@@ -129,16 +127,19 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected void doPreCollection() throws IOException {
-        List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        deferredCollectors = MultiBucketCollector.wrap(collectors);
+        deferredCollectors = MultiBucketCollector.wrap(false, Arrays.asList(subAggregators));
         collectableSubAggregators = BucketCollector.NO_OP_COLLECTOR;
+    }
+
+    @Override
+    protected void doPostCollection() throws IOException {
+        finishLeaf();
     }
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         // Composite aggregator must be at the top of the aggregation tree
         assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0L;
-        finishLeaf();
         if (deferredCollectors != NO_OP_COLLECTOR) {
             // Replay all documents that contain at least one top bucket (collected during the first pass).
             runDeferredCollections();
@@ -347,7 +348,7 @@ final class CompositeAggregator extends BucketsAggregator {
             formats[i] = sources[i].format;
         }
         FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(new SortAndFormats(indexSortPrefix, formats),
-            Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length));
+            Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length), null);
         if (indexSortPrefix.getSort().length < sources.length) {
             // include all docs that belong to the partial bucket
             fieldDoc.doc = -1;
@@ -381,7 +382,7 @@ final class CompositeAggregator extends BucketsAggregator {
         Sort indexSortPrefix = buildIndexSortPrefix(ctx);
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
-        SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0  ?
+        SortedDocsProducer sortedDocsProducer = (sortPrefixLen == 0 && parent == null) ?
             sources[0].createSortedDocsProducerOrNull(ctx.reader(), topLevelQuery()) : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates
@@ -395,7 +396,7 @@ final class CompositeAggregator extends BucketsAggregator {
             // Throwing this exception will terminate the execution of the search for this root aggregation,
             // see {@link MultiCollector} for more details on how we handle early termination in aggregations.
             earlyTerminated = true;
-            throw new CollectionTerminatedException();
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         } else {
             if (fillDocIdSet) {
                 currentLeaf = ctx;
@@ -405,10 +406,22 @@ final class CompositeAggregator extends BucketsAggregator {
                 // We have an after key and index sort is applicable so we jump directly to the doc
                 // that is after the index sort prefix using the rawAfterKey and we start collecting
                 // document from there.
-                processLeafFromQuery(ctx, indexSortPrefix);
-                throw new CollectionTerminatedException();
+                try {
+                    processLeafFromQuery(ctx, indexSortPrefix);
+                } catch (CollectionTerminatedException e) {
+                    /*
+                     * Signal that there isn't anything to collect. We're going
+                     * to return noop collector anyway so we can ignore it.
+                     */
+                }
+                return LeafBucketCollector.NO_OP_COLLECTOR;
             } else {
-                final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
+                final LeafBucketCollector inner;
+                try {
+                    inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
+                } catch (CollectionTerminatedException e) {
+                    return LeafBucketCollector.NO_OP_COLLECTOR;
+                }
                 return new LeafBucketCollector() {
                     @Override
                     public void collect(int doc, long zeroBucket) throws IOException {
@@ -430,7 +443,7 @@ final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 try {
-                    long docCount = docCountProvider.getDocCount(doc);
+                    int docCount = docCountProvider.getDocCount(doc);
                     if (queue.addIfCompetitive(indexSortPrefix, docCount)) {
                         if (builder != null && lastDoc != doc) {
                             builder.add(doc);
@@ -482,6 +495,7 @@ final class CompositeAggregator extends BucketsAggregator {
                 collector.collect(docID);
             }
         }
+        deferredCollectors.postCollection();
     }
 
     /**

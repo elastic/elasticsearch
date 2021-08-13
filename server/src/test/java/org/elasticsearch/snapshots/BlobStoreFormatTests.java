@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
@@ -28,14 +17,11 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,7 +29,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
-import static org.hamcrest.Matchers.containsString;
+
 import static org.hamcrest.Matchers.greaterThan;
 
 public class BlobStoreFormatTests extends ESTestCase {
@@ -70,20 +56,9 @@ public class BlobStoreFormatTests extends ESTestCase {
             }
             if (token == XContentParser.Token.START_OBJECT) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token != XContentParser.Token.FIELD_NAME) {
-                        throw new ElasticsearchParseException("unexpected token [{}]", token);
-                    }
-                    String currentFieldName = parser.currentName();
-                    token = parser.nextToken();
-                    if (token.isValue()) {
-                        if ("text" .equals(currentFieldName)) {
-                            text = parser.text();
-                        } else {
-                            throw new ElasticsearchParseException("unexpected field [{}]", currentFieldName);
-                        }
-                    } else {
-                        throw new ElasticsearchParseException("unexpected token [{}]", token);
-                    }
+                    XContentParserUtils.ensureFieldName(parser, token, "text");
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
+                    text = parser.text();
                 }
             }
             if (text == null) {
@@ -101,32 +76,40 @@ public class BlobStoreFormatTests extends ESTestCase {
 
     public void testBlobStoreOperations() throws IOException {
         BlobStore blobStore = createTestBlobStore();
-        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
-        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
+        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
+        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(
+            BLOB_CODEC,
+            "%s",
+            (repoName, parser) -> BlobObj.fromXContent(parser)
+        );
 
         // Write blobs in different formats
-        checksumSMILE.write(new BlobObj("checksum smile"), blobContainer, "check-smile", false, MockBigArrays.NON_RECYCLING_INSTANCE);
-        checksumSMILE.write(new BlobObj("checksum smile compressed"), blobContainer, "check-smile-comp", true,
-                MockBigArrays.NON_RECYCLING_INSTANCE);
+        final String randomText = randomAlphaOfLengthBetween(0, 1024 * 8 * 3);
+        final String normalText = "checksum smile: " + randomText;
+        checksumSMILE.write(new BlobObj(normalText), blobContainer, "check-smile", false);
+        final String compressedText = "checksum smile compressed: " + randomText;
+        checksumSMILE.write(new BlobObj(compressedText), blobContainer, "check-smile-comp", true);
 
         // Assert that all checksum blobs can be read
-        assertEquals(checksumSMILE.read(blobContainer, "check-smile", xContentRegistry(), MockBigArrays.NON_RECYCLING_INSTANCE).getText(),
-                "checksum smile");
-        assertEquals(checksumSMILE.read(blobContainer, "check-smile-comp", xContentRegistry(),
-                MockBigArrays.NON_RECYCLING_INSTANCE).getText(), "checksum smile compressed");
+        assertEquals(normalText, checksumSMILE.read("repo", blobContainer, "check-smile", xContentRegistry()).getText());
+        assertEquals(compressedText, checksumSMILE.read("repo", blobContainer, "check-smile-comp", xContentRegistry()).getText());
     }
 
     public void testCompressionIsApplied() throws IOException {
         BlobStore blobStore = createTestBlobStore();
-        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
+        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
         StringBuilder veryRedundantText = new StringBuilder();
         for (int i = 0; i < randomIntBetween(100, 300); i++) {
             veryRedundantText.append("Blah ");
         }
-        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
+        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(
+            BLOB_CODEC,
+            "%s",
+            (repo, parser) -> BlobObj.fromXContent(parser)
+        );
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
-        checksumFormat.write(blobObj, blobContainer, "blob-comp", true, MockBigArrays.NON_RECYCLING_INSTANCE);
-        checksumFormat.write(blobObj, blobContainer, "blob-not-comp", false, MockBigArrays.NON_RECYCLING_INSTANCE);
+        checksumFormat.write(blobObj, blobContainer, "blob-comp", true);
+        checksumFormat.write(blobObj, blobContainer, "blob-not-comp", false);
         Map<String, BlobMetadata> blobs = blobContainer.listBlobsByPrefix("blob-");
         assertEquals(blobs.size(), 2);
         assertThat(blobs.get("blob-not-comp").length(), greaterThan(blobs.get("blob-comp").length()));
@@ -134,21 +117,23 @@ public class BlobStoreFormatTests extends ESTestCase {
 
     public void testBlobCorruption() throws IOException {
         BlobStore blobStore = createTestBlobStore();
-        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
+        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
         String testString = randomAlphaOfLength(randomInt(10000));
         BlobObj blobObj = new BlobObj(testString);
-        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
-        checksumFormat.write(blobObj, blobContainer, "test-path", randomBoolean(), MockBigArrays.NON_RECYCLING_INSTANCE);
-        assertEquals(checksumFormat.read(blobContainer, "test-path", xContentRegistry(), MockBigArrays.NON_RECYCLING_INSTANCE).getText(),
-                testString);
+
+        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(
+            BLOB_CODEC,
+            "%s",
+            (repo, parser) -> BlobObj.fromXContent(parser)
+        );
+        checksumFormat.write(blobObj, blobContainer, "test-path", randomBoolean());
+        assertEquals(checksumFormat.read("repo", blobContainer, "test-path", xContentRegistry()).getText(), testString);
         randomCorruption(blobContainer, "test-path");
         try {
-            checksumFormat.read(blobContainer, "test-path", xContentRegistry(), MockBigArrays.NON_RECYCLING_INSTANCE);
+            checksumFormat.read("repo", blobContainer, "test-path", xContentRegistry());
             fail("Should have failed due to corruption");
-        } catch (ElasticsearchCorruptionException ex) {
-            assertThat(ex.getMessage(), containsString("test-path"));
-        } catch (EOFException ex) {
-            // This can happen if corrupt the byte length
+        } catch (ElasticsearchCorruptionException | EOFException ex) {
+            // expected exceptions from random byte corruption
         }
     }
 
@@ -157,27 +142,24 @@ public class BlobStoreFormatTests extends ESTestCase {
     }
 
     protected void randomCorruption(BlobContainer blobContainer, String blobName) throws IOException {
-        byte[] buffer = new byte[(int) blobContainer.listBlobsByPrefix(blobName).get(blobName).length()];
-        long originalChecksum = checksum(buffer);
+        final byte[] buffer = new byte[(int) blobContainer.listBlobsByPrefix(blobName).get(blobName).length()];
         try (InputStream inputStream = blobContainer.readBlob(blobName)) {
             Streams.readFully(inputStream, buffer);
         }
-        do {
-            int location = randomIntBetween(0, buffer.length - 1);
-            buffer[location] = (byte) (buffer[location] ^ 42);
-        } while (originalChecksum == checksum(buffer));
-        BytesArray bytesArray = new BytesArray(buffer);
-        try (StreamInput stream = bytesArray.streamInput()) {
-            blobContainer.writeBlob(blobName, stream, bytesArray.length(), false);
+        final BytesArray corruptedBytes;
+        final int location = randomIntBetween(0, buffer.length - 1);
+        if (randomBoolean()) {
+            // flipping bits in a single byte will always invalidate the file: CRC-32 certainly detects all eight-bit-burst errors; we don't
+            // checksum the last 8 bytes but we do verify that they contain the checksum preceded by 4 zero bytes so in any case this will
+            // be a detectable error:
+            buffer[location] = (byte) (buffer[location] ^ between(1, 255));
+            corruptedBytes = new BytesArray(buffer);
+        } else {
+            // truncation will invalidate the file: the last 12 bytes should start with 8 zero bytes but by construction we won't have
+            // another sequence of 8 zero bytes anywhere in the file, let alone such a sequence followed by a correct checksum.
+            corruptedBytes = new BytesArray(buffer, 0, location);
         }
+        blobContainer.writeBlob(blobName, corruptedBytes, false);
     }
 
-    private long checksum(byte[] buffer) throws IOException {
-        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-            try (BufferedChecksumStreamOutput checksumOutput = new BufferedChecksumStreamOutput(streamOutput)) {
-                checksumOutput.write(buffer);
-                return checksumOutput.getChecksum();
-            }
-        }
-    }
 }

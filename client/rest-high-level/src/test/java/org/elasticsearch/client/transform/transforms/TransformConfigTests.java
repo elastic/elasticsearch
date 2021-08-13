@@ -1,29 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.transform.TransformNamedXContentProvider;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfig;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfigTests;
+import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
@@ -41,15 +33,26 @@ import static org.elasticsearch.client.transform.transforms.SourceConfigTests.ra
 public class TransformConfigTests extends AbstractXContentTestCase<TransformConfig> {
 
     public static TransformConfig randomTransformConfig() {
+        PivotConfig pivotConfig;
+        LatestConfig latestConfig;
+        if (randomBoolean()) {
+            pivotConfig = PivotConfigTests.randomPivotConfig();
+            latestConfig = null;
+        } else {
+            pivotConfig = null;
+            latestConfig = LatestConfigTests.randomLatestConfig();
+        }
         return new TransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             randomSourceConfig(),
             randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1000, 1000000)),
             randomBoolean() ? null : randomSyncConfig(),
-            PivotConfigTests.randomPivotConfig(),
+            pivotConfig,
+            latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),
             SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );
@@ -57,6 +60,10 @@ public class TransformConfigTests extends AbstractXContentTestCase<TransformConf
 
     public static SyncConfig randomSyncConfig() {
         return TimeSyncConfigTests.randomTimeSyncConfig();
+    }
+
+    public static RetentionPolicyConfig randomRetentionPolicyConfig() {
+        return TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig();
     }
 
     @Override
@@ -77,7 +84,7 @@ public class TransformConfigTests extends AbstractXContentTestCase<TransformConf
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // allow unknown fields in the root of the object only
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override

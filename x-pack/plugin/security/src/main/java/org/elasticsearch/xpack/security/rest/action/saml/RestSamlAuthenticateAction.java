@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -17,16 +19,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
-import org.elasticsearch.rest.RestRequestFilter;
 
 import java.io.IOException;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -68,15 +69,9 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
-            new ReplacedRoute(POST, "/_security/saml/authenticate",
-                POST, "/_xpack/security/saml/authenticate")
+        return List.of(
+            Route.builder(POST, "/_security/saml/authenticate")
+                .replaces(POST, "/_xpack/security/saml/authenticate", RestApiVersion.V_7).build()
         );
     }
 

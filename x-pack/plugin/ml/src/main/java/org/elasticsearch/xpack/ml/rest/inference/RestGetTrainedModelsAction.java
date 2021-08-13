@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -21,7 +24,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,29 +37,26 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetTrainedModelsAction.class);
+    private static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return List.of(
-            new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"),
-            new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models",
-                GET, MachineLearning.BASE_PATH + "inference"));
+            Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
+                .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8).build(),
+            Route.builder(GET, BASE_PATH + "trained_models")
+                .replaces(GET, BASE_PATH + "inference", RestApiVersion.V_8).build()
+        );
     }
 
     private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES =
         Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, Boolean.toString(true));
+
     @Override
     public String getName() {
         return "ml_get_trained_models_action";
@@ -76,13 +75,14 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
                     GetTrainedModelsAction.Request.INCLUDE.getPreferredName(),
                     Strings.EMPTY_ARRAY)));
         final GetTrainedModelsAction.Request request;
-        if (restRequest.hasParam(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION)) {
+        if (restRequest.hasParam(INCLUDE_MODEL_DEFINITION)) {
             deprecationLogger.deprecate(
-                GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION,
+                DeprecationCategory.API,
+                INCLUDE_MODEL_DEFINITION,
                 "[{}] parameter is deprecated! Use [include=definition] instead.",
-                GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION);
+                INCLUDE_MODEL_DEFINITION);
             request = new GetTrainedModelsAction.Request(modelId,
-                restRequest.paramAsBoolean(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION, false),
+                restRequest.paramAsBoolean(INCLUDE_MODEL_DEFINITION, false),
                 tags);
         } else {
             request = new GetTrainedModelsAction.Request(modelId, tags, includes);

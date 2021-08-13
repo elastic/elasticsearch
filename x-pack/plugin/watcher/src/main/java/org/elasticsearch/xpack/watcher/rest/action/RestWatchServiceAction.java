@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -21,7 +23,10 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_watcher/_start"));
+        return List.of(
+            Route.builder(POST, "/_watcher/_start")
+                .replaces(POST, "/_xpack/watcher/_start", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -39,7 +44,10 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(new Route(POST, "/_watcher/_stop"));
+            return List.of(
+                Route.builder(POST, "/_watcher/_stop")
+                    .replaces(POST, "/_xpack/watcher/_stop", RestApiVersion.V_7).build()
+            );
         }
 
         @Override
@@ -48,9 +56,10 @@ public class RestWatchServiceAction extends BaseRestHandler {
         }
 
         @Override
-        public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-            return channel ->
-                client.execute(WatcherServiceAction.INSTANCE, new WatcherServiceRequest().stop(), new RestToXContentListener<>(channel));
+        public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+            final WatcherServiceRequest request = new WatcherServiceRequest().stop();
+            request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+            return channel -> client.execute(WatcherServiceAction.INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }
 }

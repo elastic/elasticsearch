@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.block;
@@ -23,7 +12,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -337,7 +326,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         public Builder blocks(ClusterBlocks blocks) {
             global.addAll(blocks.global());
             for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : blocks.indices()) {
-                if (!indices.containsKey(entry.key)) {
+                if (indices.containsKey(entry.key) == false) {
                     indices.put(entry.key, new HashSet<>());
                 }
                 indices.get(entry.key).addAll(entry.value);
@@ -391,7 +380,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
 
         public Builder addIndexBlock(String index, ClusterBlock block) {
-            if (!indices.containsKey(index)) {
+            if (indices.containsKey(index) == false) {
                 indices.put(index, new HashSet<>());
             }
             indices.get(index).add(block);
@@ -399,7 +388,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
 
         public Builder removeIndexBlocks(String index) {
-            if (!indices.containsKey(index)) {
+            if (indices.containsKey(index) == false) {
                 return this;
             }
             indices.remove(index);
@@ -411,7 +400,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
 
         public Builder removeIndexBlock(String index, ClusterBlock block) {
-            if (!indices.containsKey(index)) {
+            if (indices.containsKey(index) == false) {
                 return this;
             }
             indices.get(index).remove(block);

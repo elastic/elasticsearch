@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -24,7 +13,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,6 +21,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +33,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 
 /**
  * A Query that matches documents matching boolean combinations of other queries.
@@ -59,6 +50,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private static final ParseField MUST = new ParseField("must");
     private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
     private static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
+    private static int maxNestedDepth = 20;
 
     private final List<QueryBuilder> mustClauses = new ArrayList<>();
 
@@ -89,6 +81,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         filterClauses.addAll(readQueries(in));
         adjustPureNegative = in.readBoolean();
         minimumShouldMatch = in.readOptionalString();
+    }
+
+    /**
+     * Set the maximum nested depth of bool queries.
+     * Default value is 20.
+     */
+    public static void setMaxNestedDepth(int maxNestedDepth) {
+        if (maxNestedDepth < 1) {
+            throw new IllegalArgumentException("maxNestedDepth must be >= 1");
+        }
+        BoolQueryBuilder.maxNestedDepth = maxNestedDepth;
     }
 
     @Override
@@ -222,7 +225,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * Otherwise <code>false</code>.
      */
     public boolean hasClauses() {
-        return !(mustClauses.isEmpty() && shouldClauses.isEmpty() && mustNotClauses.isEmpty() && filterClauses.isEmpty());
+        return (mustClauses.isEmpty() && shouldClauses.isEmpty() && mustNotClauses.isEmpty() && filterClauses.isEmpty()) == false;
     }
 
     /**
@@ -249,7 +252,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         doXArrayContent(FILTER, filterClauses, builder, params);
         doXArrayContent(MUST_NOT, mustNotClauses, builder, params);
         doXArrayContent(SHOULD, shouldClauses, builder, params);
-        if (adjustPureNegative != ADJUST_PURE_NEGATIVE_DEFAULT) {
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
+        } else if (adjustPureNegative != ADJUST_PURE_NEGATIVE_DEFAULT) {
             builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
         }
         if (minimumShouldMatch != null) {
@@ -271,15 +276,15 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         builder.endArray();
     }
 
-    private static final ObjectParser<BoolQueryBuilder, Void> PARSER = new ObjectParser<>("bool", BoolQueryBuilder::new);
+    private static final ObjectParser<BoolQueryBuilder, Integer> PARSER = new ObjectParser<>("bool", BoolQueryBuilder::new);
     static {
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::must), (p, c) -> parseInnerQueryBuilder(p),
+        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::must), (p, c) -> parseInnerQueryBuilder(p, c),
             MUST);
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::should), (p, c) -> parseInnerQueryBuilder(p),
+        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::should), (p, c) -> parseInnerQueryBuilder(p, c),
             SHOULD);
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::mustNot), (p, c) -> parseInnerQueryBuilder(p),
+        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::mustNot), (p, c) -> parseInnerQueryBuilder(p, c),
             MUST_NOT);
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::filter), (p, c) -> parseInnerQueryBuilder(p),
+        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::filter), (p, c) -> parseInnerQueryBuilder(p, c),
             FILTER);
         PARSER.declareBoolean(BoolQueryBuilder::adjustPureNegative, ADJUST_PURE_NEGATIVE);
         PARSER.declareField(BoolQueryBuilder::minimumShouldMatch, (p, c) -> p.textOrNull(),
@@ -288,8 +293,13 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         PARSER.declareFloat(BoolQueryBuilder::boost, BOOST_FIELD);
     }
 
-    public static BoolQueryBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
-        return PARSER.parse(parser, null);
+    public static BoolQueryBuilder fromXContent(XContentParser parser, Integer nestedDepth) throws IOException, ParsingException {
+        nestedDepth++;
+        if (nestedDepth > maxNestedDepth) {
+            throw new IllegalArgumentException("The nested depth of the query exceeds the maximum nested depth for bool queries set in [" +
+                INDICES_MAX_NESTED_DEPTH_SETTING.getKey() + "]");
+        }
+        return PARSER.parse(parser, nestedDepth);
     }
 
     @Override
@@ -298,7 +308,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
         addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST);
         addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT);
@@ -313,7 +323,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
     }
 
-    private static void addBooleanClauses(QueryShardContext context, BooleanQuery.Builder booleanQueryBuilder,
+    private static void addBooleanClauses(SearchExecutionContext context, BooleanQuery.Builder booleanQueryBuilder,
                                           List<QueryBuilder> clauses, Occur occurs) throws IOException {
         for (QueryBuilder query : clauses) {
             Query luceneQuery = query.toQuery(context);

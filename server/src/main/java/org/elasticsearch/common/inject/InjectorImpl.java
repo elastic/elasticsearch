@@ -147,13 +147,13 @@ class InjectorImpl implements Injector, Lookups {
      */
     static boolean isMembersInjector(Key<?> key) {
         return key.getTypeLiteral().getRawType().equals(MembersInjector.class)
-                && !key.hasAnnotationType();
+                && key.hasAnnotationType() == false;
     }
 
     private <T> BindingImpl<MembersInjector<T>> createMembersInjectorBinding(
             Key<MembersInjector<T>> key, Errors errors) throws ErrorsException {
         Type membersInjectorType = key.getTypeLiteral().getType();
-        if (!(membersInjectorType instanceof ParameterizedType)) {
+        if ((membersInjectorType instanceof ParameterizedType) == false) {
             throw errors.cannotInjectRawMembersInjector().toException();
         }
 
@@ -179,7 +179,7 @@ class InjectorImpl implements Injector, Lookups {
         Type providerType = key.getTypeLiteral().getType();
 
         // If the Provider has no type parameter (raw Provider)...
-        if (!(providerType instanceof ParameterizedType)) {
+        if ((providerType instanceof ParameterizedType) == false) {
             throw errors.cannotInjectRawProvider().toException();
         }
 
@@ -206,7 +206,7 @@ class InjectorImpl implements Injector, Lookups {
             final Provider<T> provider = providedBinding.getProvider();
             return new InternalFactory<Provider<T>>() {
                 @Override
-                public Provider<T> get(Errors errors, InternalContext context, Dependency dependency) {
+                public Provider<T> get(Errors errors, InternalContext context, Dependency<?> dependency) {
                     return provider;
                 }
             };
@@ -248,7 +248,7 @@ class InjectorImpl implements Injector, Lookups {
         // Find a constant string binding.
         Key<String> stringKey = key.ofType(String.class);
         BindingImpl<String> stringBinding = state.getExplicitBinding(stringKey);
-        if (stringBinding == null || !stringBinding.isConstant()) {
+        if (stringBinding == null || stringBinding.isConstant() == false) {
             return null;
         }
 
@@ -274,7 +274,7 @@ class InjectorImpl implements Injector, Lookups {
                         .toException();
             }
 
-            if (!type.getRawType().isInstance(converted)) {
+            if (type.getRawType().isInstance(converted) == false) {
                 throw errors.conversionTypeError(stringValue, source, type, matchingConverter, converted)
                         .toException();
             }
@@ -356,7 +356,7 @@ class InjectorImpl implements Injector, Lookups {
                 ((ConstructorBindingImpl) binding).initialize(this, errors);
                 successful = true;
             } finally {
-                if (!successful) {
+                if (successful == false) {
                     jitBindings.remove(key);
                 }
             }
@@ -410,7 +410,7 @@ class InjectorImpl implements Injector, Lookups {
             throw errors.cannotInjectInnerClass(rawType).toException();
         }
 
-        if (!scoping.isExplicitlyScoped()) {
+        if (scoping.isExplicitlyScoped() == false) {
             Class<? extends Annotation> scopeAnnotation = findScopeAnnotation(errors, rawType);
             if (scopeAnnotation != null) {
                 scoping = Scopes.makeInjectable(Scoping.forAnnotation(scopeAnnotation),
@@ -428,7 +428,7 @@ class InjectorImpl implements Injector, Lookups {
     private <T> BindingImpl<TypeLiteral<T>> createTypeLiteralBinding(
             Key<TypeLiteral<T>> key, Errors errors) throws ErrorsException {
         Type typeLiteralType = key.getTypeLiteral().getType();
-        if (!(typeLiteralType instanceof ParameterizedType)) {
+        if ((typeLiteralType instanceof ParameterizedType) == false) {
             throw errors.cannotInjectRawTypeLiteral().toException();
         }
 
@@ -437,9 +437,9 @@ class InjectorImpl implements Injector, Lookups {
 
         // this is unfortunate. We don't support building TypeLiterals for type variable like 'T'. If
         // this proves problematic, we can probably fix TypeLiteral to support type variables
-        if (!(innerType instanceof Class)
-                && !(innerType instanceof GenericArrayType)
-                && !(innerType instanceof ParameterizedType)) {
+        if ((innerType instanceof Class) == false
+                && (innerType instanceof GenericArrayType) == false
+                && (innerType instanceof ParameterizedType) == false) {
             throw errors.cannotInjectTypeLiteralOf(innerType).toException();
         }
 
@@ -473,14 +473,14 @@ class InjectorImpl implements Injector, Lookups {
 
         InternalFactory<T> internalFactory = new InternalFactory<T>() {
             @Override
-            public T get(Errors errors, InternalContext context, Dependency dependency)
+            public T get(Errors errors, InternalContext context, Dependency<?> dependency)
                     throws ErrorsException {
                 errors = errors.withSource(providerKey);
                 Provider<?> provider = providerBinding.getInternalFactory().get(
                         errors, context, dependency);
                 try {
                     Object o = provider.get();
-                    if (o != null && !rawType.isInstance(o)) {
+                    if (o != null && rawType.isInstance(o) == false) {
                         throw errors.subtypeNotProvided(providerType, rawType).toException();
                     }
                     @SuppressWarnings("unchecked") // protected by isInstance() check above
@@ -516,7 +516,7 @@ class InjectorImpl implements Injector, Lookups {
         }
 
         // Make sure implementationType extends type.
-        if (!rawType.isAssignableFrom(implementationType)) {
+        if (rawType.isAssignableFrom(implementationType) == false) {
             throw errors.notASubtype(implementationType, rawType).toException();
         }
 
@@ -585,7 +585,7 @@ class InjectorImpl implements Injector, Lookups {
             // These casts are safe. We know T extends Provider<X> and that given Key<Provider<X>>,
             // createProviderBinding() will return BindingImpl<Provider<X>>.
             @SuppressWarnings("unchecked")
-            BindingImpl binding = createProviderBinding((Key) key, errors);
+            BindingImpl<T> binding = (BindingImpl<T>) createProviderBinding((Key<Provider<T>>) key, errors);
             return binding;
         }
 
@@ -594,7 +594,7 @@ class InjectorImpl implements Injector, Lookups {
             // These casts are safe. T extends MembersInjector<X> and that given Key<MembersInjector<X>>,
             // createMembersInjectorBinding() will return BindingImpl<MembersInjector<X>>.
             @SuppressWarnings("unchecked")
-            BindingImpl binding = createMembersInjectorBinding((Key) key, errors);
+            BindingImpl<T> binding = (BindingImpl<T>) createMembersInjectorBinding((Key<MembersInjector<T>>) key, errors);
             return binding;
         }
 
@@ -701,9 +701,9 @@ class InjectorImpl implements Injector, Lookups {
     MembersInjectorStore membersInjectorStore;
 
     @Override
-    @SuppressWarnings("unchecked") // the members injector type is consistent with instance's type
     public void injectMembers(Object instance) {
-        MembersInjector membersInjector = getMembersInjector(instance.getClass());
+        @SuppressWarnings("unchecked") // the members injector type is consistent with instance's type
+        MembersInjector<Object> membersInjector = getMembersInjector((Class<Object>) instance.getClass());
         membersInjector.injectMembers(instance);
     }
 
@@ -733,9 +733,10 @@ class InjectorImpl implements Injector, Lookups {
         if (factory instanceof InternalFactory.Instance) {
             return new Provider<T>() {
                 @Override
+                @SuppressWarnings("unchecked")
                 public T get() {
                     try {
-                        return (T) ((InternalFactory.Instance) factory).get(null, null, null);
+                        return (T) ((InternalFactory.Instance<?>) factory).get(null, null, null);
                     } catch (ErrorsException e) {
                         // ignore
                     }

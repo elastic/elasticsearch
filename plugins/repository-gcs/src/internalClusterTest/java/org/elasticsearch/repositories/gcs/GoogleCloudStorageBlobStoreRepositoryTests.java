@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.gcs;
@@ -33,11 +22,12 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -67,6 +57,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BASE_PATH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
 
@@ -79,12 +70,15 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     }
 
     @Override
-    protected Settings repositorySettings() {
-        return Settings.builder()
-            .put(super.repositorySettings())
-            .put(BUCKET.getKey(), "bucket")
-            .put(CLIENT_NAME.getKey(), "test")
-            .build();
+    protected Settings repositorySettings(String repoName) {
+        Settings.Builder settingsBuilder = Settings.builder()
+                .put(super.repositorySettings(repoName))
+                .put(BUCKET.getKey(), "bucket")
+                .put(CLIENT_NAME.getKey(), "test");
+        if (randomBoolean()) {
+            settingsBuilder.put(BASE_PATH.getKey(), randomFrom("test", "test/1"));
+        }
+        return settingsBuilder.build();
     }
 
     @Override
@@ -106,9 +100,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Settings.Builder settings = Settings.builder();
-        settings.put(super.nodeSettings(nodeOrdinal));
+        settings.put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl());
         settings.put(TOKEN_URI_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl() + "/token");
 
@@ -120,12 +114,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     }
 
     public void testDeleteSingleItem() {
-        final String repoName = createRepository(randomName());
+        final String repoName = createRepository(randomRepositoryName());
         final RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () ->
-            repository.blobStore().blobContainer(repository.basePath()).deleteBlobsIgnoringIfNotExists(Collections.singletonList("foo"))
-        )));
+            repository.blobStore().blobContainer(repository.basePath()).deleteBlobsIgnoringIfNotExists(Iterators.single("foo")))));
     }
 
     public void testChunkSize() {
@@ -168,7 +161,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
     public void testWriteReadLarge() throws IOException {
         try (BlobStore store = newBlobStore()) {
-            final BlobContainer container = store.blobContainer(new BlobPath());
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             byte[] data = randomBytes(GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE + 1);
             writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
             if (randomBoolean()) {
@@ -233,7 +226,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore(
-                                metadata.settings().get("bucket"), "test", metadata.name(), storageService,
+                                metadata.settings().get("bucket"), "test", metadata.name(), storageService, bigArrays,
                             randomIntBetween(1, 8) * 1024) {
                             @Override
                             long getLargeBlobThresholdInBytes() {

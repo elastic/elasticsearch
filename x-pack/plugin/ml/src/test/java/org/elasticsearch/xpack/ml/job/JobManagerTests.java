@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job;
 
@@ -37,6 +38,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
@@ -48,6 +50,7 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -90,6 +93,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -583,10 +587,68 @@ public class JobManagerTests extends ESTestCase {
         assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
     }
 
+    public void testValidateCategorizationAnalyzer_GivenValid() throws IOException {
+
+        List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
+        CategorizationAnalyzerConfig c = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(categorizationFilters);
+        Job.Builder jobBuilder = createCategorizationJob(c, null);
+        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT);
+
+        Job job = jobBuilder.build(new Date());
+        assertThat(job.getAnalysisConfig().getCategorizationAnalyzerConfig(),
+            equalTo(CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(categorizationFilters)));
+    }
+
+    public void testValidateCategorizationAnalyzer_GivenInvalid() {
+
+        CategorizationAnalyzerConfig c = new CategorizationAnalyzerConfig.Builder().setAnalyzer("does_not_exist").build();
+        Job.Builder jobBuilder = createCategorizationJob(c, null);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT));
+
+        assertThat(e.getMessage(), equalTo("Failed to find global analyzer [does_not_exist]"));
+    }
+
+    public void testSetDefaultCategorizationAnalyzer_GivenAllNewNodes() throws IOException {
+
+        List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
+        Job.Builder jobBuilder = createCategorizationJob(null, categorizationFilters);
+        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT);
+
+        Job job = jobBuilder.build(new Date());
+        assertThat(job.getAnalysisConfig().getCategorizationAnalyzerConfig(),
+            equalTo(CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(categorizationFilters)));
+    }
+
+    // TODO: This test can be deleted from branches that would never have to talk to a 7.13 node
+    public void testSetDefaultCategorizationAnalyzer_GivenOldNodeInCluster() throws IOException {
+
+        List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
+        Job.Builder jobBuilder = createCategorizationJob(null, categorizationFilters);
+        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.V_7_13_0);
+
+        Job job = jobBuilder.build(new Date());
+        assertThat(job.getAnalysisConfig().getCategorizationAnalyzerConfig(), nullValue());
+    }
+
+    private Job.Builder createCategorizationJob(CategorizationAnalyzerConfig categorizationAnalyzerConfig,
+                                                List<String> categorizationFilters) {
+        Detector.Builder d = new Detector.Builder("count", null).setByFieldName("mlcategory");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d.build()))
+            .setCategorizationFieldName("message")
+            .setCategorizationAnalyzerConfig(categorizationAnalyzerConfig)
+            .setCategorizationFilters(categorizationFilters);
+
+        Job.Builder builder = new Job.Builder();
+        builder.setId("cat");
+        builder.setAnalysisConfig(ac);
+        builder.setDataDescription(new DataDescription.Builder());
+        return builder;
+    }
+
     private Job.Builder createJob() {
-        Detector.Builder d1 = new Detector.Builder("info_content", "domain");
-        d1.setOverFieldName("client");
-        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d1.build()));
+        Detector.Builder d = new Detector.Builder("info_content", "domain").setOverFieldName("client");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
 
         Job.Builder builder = new Job.Builder();
         builder.setId("foo");
@@ -606,7 +668,9 @@ public class JobManagerTests extends ESTestCase {
             threadPool,
             client,
             updateJobProcessNotifier,
-            xContentRegistry());
+            xContentRegistry(),
+            TestIndexNameExpressionResolver.newInstance()
+        );
     }
 
     private ClusterState createClusterState() {

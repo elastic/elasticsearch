@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -9,14 +9,13 @@ final Project fixture = project(':test:fixtures:azure-fixture')
 final Project repositoryPlugin = project(':plugins:repository-azure')
 
 dependencies {
-  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   testImplementation repositoryPlugin
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'searchable_snapshots'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots'
   }
 }
 
@@ -42,7 +41,7 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'azure-fixture-other')
 }
 
-integTest {
+tasks.named("integTest").configure {
   systemProperty 'test.azure.container', azureContainer
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
 }
@@ -60,6 +59,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   }
 
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'false'
 
   if (useFixture) {
     def fixtureAddress = { fixtureName ->
@@ -69,11 +69,14 @@ testClusters.matching { it.name == "integTest" }.configureEach {
       '127.0.0.1:' + ephemeralPort
     }
     setting 'azure.client.searchable_snapshots.endpoint_suffix',
-      { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-other')}" }, IGNORE_VALUE
+      { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-other')}/azure_integration_test_account" }, IGNORE_VALUE
 
   } else {
     println "Using an external service to test " + project.name
   }
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
 }
 
 tasks.register("azureThirdPartyTest") {

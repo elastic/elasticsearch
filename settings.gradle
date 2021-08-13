@@ -1,17 +1,19 @@
 plugins {
-  id "com.gradle.enterprise" version "3.5"
+  id "com.gradle.enterprise" version "3.6.2"
 }
 
-String dirName = rootProject.projectDir.name
-rootProject.name = dirName
+includeBuild "build-conventions"
+includeBuild "build-tools"
+includeBuild "build-tools-internal"
+
+rootProject.name = "elasticsearch"
 
 List projects = [
-  'build-tools',
-  'build-tools:reaper',
   'rest-api-spec',
   'docs',
   'client:rest',
   'client:rest-high-level',
+  'client:rest-high-level:qa:ssl-enabled',
   'client:sniffer',
   'client:transport',
   'client:test',
@@ -19,44 +21,27 @@ List projects = [
   'client:benchmark',
   'benchmarks',
   'distribution:archives:integ-test-zip',
-  'distribution:archives:oss-windows-zip',
   'distribution:archives:windows-zip',
-  'distribution:archives:oss-no-jdk-windows-zip',
   'distribution:archives:no-jdk-windows-zip',
-  'distribution:archives:oss-darwin-tar',
   'distribution:archives:darwin-tar',
-  'distribution:archives:oss-no-jdk-darwin-tar',
+  'distribution:archives:darwin-aarch64-tar',
   'distribution:archives:no-jdk-darwin-tar',
-  'distribution:archives:oss-linux-aarch64-tar',
-  'distribution:archives:oss-linux-tar',
+  'distribution:archives:no-jdk-darwin-aarch64-tar',
   'distribution:archives:linux-aarch64-tar',
   'distribution:archives:linux-tar',
-  'distribution:archives:oss-no-jdk-linux-tar',
   'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
-  'distribution:docker:docker-aarch64-build-context',
   'distribution:docker:docker-aarch64-export',
-  'distribution:docker:docker-build-context',
   'distribution:docker:docker-export',
-  'distribution:docker:ironbank-docker-build-context',
-  'distribution:docker:oss-docker-aarch64-build-context',
-  'distribution:docker:oss-docker-aarch64-export',
-  'distribution:docker:oss-docker-build-context',
-  'distribution:docker:oss-docker-export',
+  'distribution:docker:ironbank-docker-aarch64-export',
+  'distribution:docker:ironbank-docker-export',
   'distribution:docker:ubi-docker-aarch64-export',
-  'distribution:docker:ubi-docker-build-context',
   'distribution:docker:ubi-docker-export',
-  'distribution:packages:aarch64-oss-deb',
-  'distribution:packages:oss-deb',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
-  'distribution:packages:oss-no-jdk-deb',
   'distribution:packages:no-jdk-deb',
-  'distribution:packages:aarch64-oss-rpm',
-  'distribution:packages:oss-rpm',
   'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
-  'distribution:packages:oss-no-jdk-rpm',
   'distribution:packages:no-jdk-rpm',
   'distribution:bwc:bugfix',
   'distribution:bwc:maintenance',
@@ -66,6 +51,7 @@ List projects = [
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
+  'distribution:tools:geoip-cli',
   'server',
   'server:cli',
   'test:framework',
@@ -76,6 +62,9 @@ List projects = [
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
+  'test:fixtures:geoip-fixture',
+  'test:fixtures:url-fixture',
+  'test:fixtures:nginx-fixture',
   'test:logger-usage'
 ]
 
@@ -118,13 +107,7 @@ addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 
-List startTasks = gradle.startParameter.taskNames
-
-
 include projects.toArray(new String[0])
-
-project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
-project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'buildSrc/reaper')
 
 project(":libs").children.each { libsProject ->
   libsProject.name = "elasticsearch-${libsProject.name}"
@@ -135,7 +118,7 @@ project(":test:external-modules").children.each { testProject ->
 }
 
 // look for extra plugins for elasticsearch
-File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
+File extraProjects = new File(rootProject.projectDir.parentFile, "${rootProject.projectDir.name}-extra")
 if (extraProjects.exists()) {
   for (File extraProjectDir : extraProjects.listFiles()) {
     addSubProjects('', extraProjectDir)

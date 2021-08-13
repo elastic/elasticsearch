@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
@@ -15,7 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -62,7 +63,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                 .field("field");
 
             MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -85,12 +86,12 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType("another_field",
-                    true, true, Orientation.RIGHT, null, Collections.emptyMap());
+                    true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
                 InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
 
                 fieldType = new GeoShapeWithDocValuesFieldType("field",
-                    true, true, Orientation.RIGHT, null, Collections.emptyMap());
+                    true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
                 result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
@@ -115,7 +116,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType("another_field",
-                    true, true, Orientation.RIGHT, null, Collections.emptyMap());
+                    true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
                 InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertThat(result.centroid(), equalTo(expectedCentroid));
                 assertTrue(AggregationInspectionHelper.hasValue(result));
@@ -178,7 +179,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
 
     private void assertCentroid(RandomIndexWriter w, GeoPoint expectedCentroid) throws IOException {
         MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType("field",
-            true, true, Orientation.RIGHT, null, Collections.emptyMap());
+            true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
         GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg")
             .field("field");
         try (IndexReader reader = w.getReader()) {

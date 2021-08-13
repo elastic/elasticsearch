@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
@@ -33,11 +22,11 @@ import java.util.regex.Pattern;
  * I.e. txt used in path _sql?format=txt will return TextFormat.PLAIN_TEXT
  *
  * Multiple header representations may map to a single {@link MediaType} for example, "application/json"
- * and "application/vnd.elasticsearch+json" both represent a JSON MediaType.
+ * and "application/x-ndjson" both represent a JSON MediaType.
  * A MediaType can have only one query parameter representation.
  * For example "json" (case insensitive) maps back to a JSON media type.
  *
- * Additionally, a http header may optionally have parameters. For example "application/json; charset=utf-8".
+ * Additionally, a http header may optionally have parameters. For example "application/vnd.elasticsearch+json; compatible-with=7".
  * This class also allows to define a regular expression for valid values of charset.
  */
 public class MediaTypeRegistry<T extends MediaType> {

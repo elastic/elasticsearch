@@ -36,28 +36,34 @@ ES_HOME=`dirname "$ES_HOME"`
 ES_CLASSPATH="$ES_HOME/lib/*"
 
 # now set the path to java
-if [ ! -z "$JAVA_HOME" ]; then
-  JAVA="$JAVA_HOME/bin/java"
-  JAVA_TYPE="JAVA_HOME"
+if [ ! -z "$ES_JAVA_HOME" ]; then
+  JAVA="$ES_JAVA_HOME/bin/java"
+  JAVA_TYPE="ES_JAVA_HOME"
 else
+  # use the bundled JDK (default)
   if [ "$(uname -s)" = "Darwin" ]; then
     # macOS has a different structure
     JAVA="$ES_HOME/jdk.app/Contents/Home/bin/java"
   else
     JAVA="$ES_HOME/jdk/bin/java"
   fi
-  JAVA_TYPE="bundled jdk"
+  JAVA_TYPE="bundled JDK"
 fi
 
 if [ ! -x "$JAVA" ]; then
-    echo "could not find java in $JAVA_TYPE at $JAVA" >&2
-    exit 1
-  fi
+  echo "could not find java in $JAVA_TYPE at $JAVA" >&2
+  exit 1
+fi
 
 # do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
 if [ ! -z "$JAVA_TOOL_OPTIONS" ]; then
   echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
   unset JAVA_TOOL_OPTIONS
+fi
+
+# warn that we are not observing the value of JAVA_HOME
+if [ ! -z "$JAVA_HOME" ]; then
+  echo "warning: ignoring JAVA_HOME=$JAVA_HOME; using $JAVA_TYPE" >&2
 fi
 
 # JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
@@ -78,7 +84,7 @@ fi
 
 export HOSTNAME=$HOSTNAME
 
-${source.path.env}
+@source.path.env@
 
 if [ -z "$ES_PATH_CONF" ]; then
   echo "ES_PATH_CONF must be set to the configuration path"
@@ -88,9 +94,9 @@ fi
 # now make ES_PATH_CONF absolute
 ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
-ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
-ES_DISTRIBUTION_TYPE=${es.distribution.type}
-ES_BUNDLED_JDK=${es.bundled_jdk}
+ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
+ES_DISTRIBUTION_TYPE=@es.distribution.type@
+ES_BUNDLED_JDK=@es.bundled_jdk@
 
 if [[ "$ES_BUNDLED_JDK" == "false" ]]; then
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
@@ -105,7 +111,7 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
 
   # Parse Docker env vars to customize Elasticsearch
   #
-  # e.g. Setting the env var cluster.name=testcluster
+  # e.g. Setting the env var cluster.name=testcluster or ES_CLUSTER_NAME=testcluster
   #
   # will cause Elasticsearch to be invoked with -Ecluster.name=testcluster
   #
@@ -116,14 +122,21 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
   while IFS='=' read -r envvar_key envvar_value
   do
     # Elasticsearch settings need to have at least two dot separated lowercase
-    # words, e.g. `cluster.name`
-    if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
-      if [[ ! -z $envvar_value ]]; then
+    # words, e.g. `cluster.name`, or uppercased with underscore separators and
+    # prefixed with `ES_SETTING_`, e.g. `ES_SETTING_CLUSTER_NAME`. Underscores in setting names
+    # are escaped by writing them as a double-underscore e.g. "__"
+    if [[ ! -z "$envvar_value" ]]; then
+      if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
         es_opt="-E${envvar_key}=${envvar_value}"
         es_arg_array+=("${es_opt}")
+      elif [[ "$envvar_key" =~ ^ES_SETTING(_{1,2}[A-Z]+)+$ ]]; then
+          # The long-hand sed `y` command works in any sed variant.
+          envvar_key="$(echo "$envvar_key" | sed -e 's/^ES_SETTING_//; s/_/./g ; s/\.\./_/g; y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' )"
+          es_opt="-E${envvar_key}=${envvar_value}"
+          es_arg_array+=("${es_opt}")
       fi
     fi
-  done < <(env)
+  done <<< "$(env)"
 
   # Reset the positional parameters to the es_arg_array values and any existing positional params
   set -- "$@" "${es_arg_array[@]}"

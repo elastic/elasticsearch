@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -35,8 +24,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -44,9 +31,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
@@ -77,8 +67,13 @@ import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.DummyShardLock;
@@ -91,6 +86,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -123,7 +119,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state) {
+        public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
 
         }
 
@@ -401,7 +397,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     Arrays.asList(listeners),
                     globalCheckpointSyncer,
                     retentionLeaseSyncer,
-                    breakerService);
+                    breakerService,
+                    IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
         } finally {
@@ -578,7 +575,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected DiscoveryNode getFakeDiscoNode(String id) {
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES,
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), DiscoveryNodeRole.roles(),
             Version.CURRENT);
     }
 
@@ -638,9 +635,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
             logger, rNode, recoveryTarget, startingSeqNo);
         int fileChunkSizeInBytes = Math.toIntExact(
             randomBoolean() ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes() : randomIntBetween(1, 10 * 1024 * 1024));
+        final RecoveryPlannerService recoveryPlannerService = SourceOnlyRecoveryPlannerService.INSTANCE;
         final RecoverySourceHandler recovery = new RecoverySourceHandler(primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()), threadPool,
-            request, fileChunkSizeInBytes, between(1, 8), between(1, 8));
+            request, fileChunkSizeInBytes, between(1, 8), between(1, 8), recoveryPlannerService);
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
             currentClusterStateVersion.incrementAndGet(), inSyncIds, routingTable);
         try {
@@ -725,7 +723,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         final Engine engine = shard.getEngineOrNull();
         if (engine != null) {
-            EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, shard.mapperService());
+            EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
         }
     }
 
@@ -741,7 +739,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                           String routing)
         throws IOException {
         SourceToParse sourceToParse = new SourceToParse(
-            shard.shardId().getIndexName(), id, new BytesArray(source), xContentType, routing);
+            shard.shardId().getIndexName(), id, new BytesArray(source), xContentType, routing, Map.of());
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
@@ -833,7 +831,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *
      * @return new shard generation
      */
-    protected String snapshotShard(final IndexShard shard,
+    protected ShardGeneration snapshotShard(final IndexShard shard,
                                    final Snapshot snapshot,
                                    final Repository repository) throws IOException {
         final Index index = shard.shardId().getIndex();
@@ -841,13 +839,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
             ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).shardGenerations().getShardGen(
                 indexId, shard.shardId().getId()));
-        final PlainActionFuture<String> future = PlainActionFuture.newFuture();
-        final String shardGen;
+        final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+        final ShardGeneration shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
-            repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
-                indexCommitRef.getIndexCommit(), null, snapshotStatus, Version.CURRENT,
-                Collections.emptyMap(), future);
-            shardGen = future.actionGet();
+            repository.snapshotShard(new SnapshotShardContext(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
+                indexCommitRef, null, snapshotStatus, Version.CURRENT, Collections.emptyMap(), future));
+            shardGen = future.actionGet().getGeneration();
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();

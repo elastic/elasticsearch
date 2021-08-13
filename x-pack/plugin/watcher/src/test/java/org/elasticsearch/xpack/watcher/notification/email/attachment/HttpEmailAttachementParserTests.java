@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser.EmailAttachment;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.junit.Before;
 
@@ -43,7 +45,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
 
     private HttpClient httpClient;
     private EmailAttachmentsParser emailAttachmentsParser;
-    private Map<String, EmailAttachmentParser> attachmentParsers;
+    private Map<String, EmailAttachmentParser<? extends EmailAttachment>> attachmentParsers;
 
     @Before
     public void init() throws Exception {
@@ -88,7 +90,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         assertThat(emailAttachments.getAttachments(), hasSize(1));
 
         XContentBuilder toXcontentBuilder = jsonBuilder().startObject();
-        List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>(emailAttachments.getAttachments());
+        List<EmailAttachment> attachments = new ArrayList<>(emailAttachments.getAttachments());
         attachments.get(0).toXContent(toXcontentBuilder, ToXContent.EMPTY_PARAMS);
         toXcontentBuilder.endObject();
         assertThat(Strings.toString(toXcontentBuilder), is(Strings.toString(builder)));
@@ -105,7 +107,12 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         WatchExecutionContext ctx = createWatchExecutionContext();
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> attachmentParsers.get(HttpEmailAttachementParser.TYPE).toAttachment(ctx, new Payload.Simple(), attachment));
+                () -> {
+                    @SuppressWarnings("unchecked")
+                    EmailAttachmentParser<HttpRequestAttachment> parser =
+                        (EmailAttachmentParser<HttpRequestAttachment>) attachmentParsers.get(HttpEmailAttachementParser.TYPE);
+                    parser.toAttachment(ctx, new Payload.Simple(), attachment);
+                });
         assertThat(exception.getMessage(), is("Watch[watch1] attachment[someid] HTTP error status host[localhost], port[80], " +
                 "method[GET], path[foo], status[403]"));
     }
@@ -119,7 +126,12 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         WatchExecutionContext ctx = createWatchExecutionContext();
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> attachmentParsers.get(HttpEmailAttachementParser.TYPE).toAttachment(ctx, new Payload.Simple(), attachment));
+                () -> {
+                    @SuppressWarnings("unchecked")
+                    EmailAttachmentParser<HttpRequestAttachment> parser =
+                        (EmailAttachmentParser<HttpRequestAttachment>) attachmentParsers.get(HttpEmailAttachementParser.TYPE);
+                    parser.toAttachment(ctx, new Payload.Simple(), attachment);
+                });
         assertThat(exception.getMessage(), is("Watch[watch1] attachment[someid] HTTP empty response body host[localhost], port[80], " +
                 "method[GET], path[foo], status[200]"));
     }
@@ -132,7 +144,12 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         WatchExecutionContext ctx = createWatchExecutionContext();
 
         IOException exception = expectThrows(IOException.class,
-                () -> attachmentParsers.get(HttpEmailAttachementParser.TYPE).toAttachment(ctx, new Payload.Simple(), attachment));
+            () -> {
+                @SuppressWarnings("unchecked")
+                EmailAttachmentParser<HttpRequestAttachment> parser =
+                    (EmailAttachmentParser<HttpRequestAttachment>) attachmentParsers.get(HttpEmailAttachementParser.TYPE);
+                parser.toAttachment(ctx, new Payload.Simple(), attachment);
+            });
         assertThat(exception.getMessage(), is("whatever"));
     }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -39,7 +28,6 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
-import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -51,9 +39,9 @@ import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -129,7 +117,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             query.tieBreaker(randomFloat());
         }
         if (randomBoolean()) {
-            query.zeroTermsQuery(randomFrom(MatchQuery.ZeroTermsQuery.NONE, MatchQuery.ZeroTermsQuery.ALL));
+            query.zeroTermsQuery(randomFrom(ZeroTermsQueryOption.NONE, ZeroTermsQueryOption.ALL));
         }
         if (randomBoolean()) {
             query.autoGenerateSynonymsPhraseQuery(randomBoolean());
@@ -155,7 +143,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     @Override
-    protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         // we rely on integration tests for deeper checks here
         assertThat(query, anyOf(Arrays.asList(
             instanceOf(BoostQuery.class),
@@ -181,16 +169,16 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryBoost() throws IOException {
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder("test");
         multiMatchQueryBuilder.field(TEXT_FIELD_NAME, 5f);
-        Query query = multiMatchQueryBuilder.toQuery(shardContext);
+        Query query = multiMatchQueryBuilder.toQuery(searchExecutionContext);
         assertTermOrBoostQuery(query, TEXT_FIELD_NAME, "test", 5f);
 
         multiMatchQueryBuilder = new MultiMatchQueryBuilder("test");
         multiMatchQueryBuilder.field(TEXT_FIELD_NAME, 5f);
         multiMatchQueryBuilder.boost(2f);
-        query = multiMatchQueryBuilder.toQuery(shardContext);
+        query = multiMatchQueryBuilder.toQuery(searchExecutionContext);
         assertThat(query, instanceOf(BoostQuery.class));
         BoostQuery boostQuery = (BoostQuery) query;
         assertThat(boostQuery.getBoost(), equalTo(2f));
@@ -198,7 +186,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryMultipleTermsBooleanQuery() throws Exception {
-        Query query = multiMatchQuery("test1 test2").field(TEXT_FIELD_NAME).toQuery(createShardContext());
+        Query query = multiMatchQuery("test1 test2").field(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext());
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) query;
         assertThat(bQuery.clauses().size(), equalTo(2));
@@ -208,17 +196,17 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
     public void testToQueryMultipleFieldsDisableDismax() throws Exception {
         Query query = multiMatchQuery("test").field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).tieBreaker(1.0f)
-                .toQuery(createShardContext());
+                .toQuery(createSearchExecutionContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
         assertThat(dQuery.getTieBreakerMultiplier(), equalTo(1.0f));
         assertThat(dQuery.getDisjuncts().size(), equalTo(2));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(KEYWORD_FIELD_NAME, "test")));
+        assertThat(dQuery.getDisjuncts(),
+            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))));
     }
 
     public void testToQueryMultipleFieldsDisMaxQuery() throws Exception {
-        Query query = multiMatchQuery("test").field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).toQuery(createShardContext());
+        Query query = multiMatchQuery("test").field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).toQuery(createSearchExecutionContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
         assertThat(disMaxQuery.getTieBreakerMultiplier(), equalTo(0.0f));
@@ -230,26 +218,26 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryFieldsWildcard() throws Exception {
-        Query query = multiMatchQuery("test").field("mapped_str*").tieBreaker(1.0f).toQuery(createShardContext());
+        Query query = multiMatchQuery("test").field("mapped_str*").tieBreaker(1.0f).toQuery(createSearchExecutionContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
         assertThat(dQuery.getTieBreakerMultiplier(), equalTo(1.0f));
         assertThat(dQuery.getDisjuncts().size(), equalTo(2));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(KEYWORD_FIELD_NAME, "test")));
+        assertThat(dQuery.getDisjuncts(),
+            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))));
     }
 
     public void testToQueryFieldMissing() throws Exception {
-        assertThat(multiMatchQuery("test").field(MISSING_WILDCARD_FIELD_NAME).toQuery(createShardContext()),
+        assertThat(multiMatchQuery("test").field(MISSING_WILDCARD_FIELD_NAME).toQuery(createSearchExecutionContext()),
             instanceOf(MatchNoDocsQuery.class));
-        assertThat(multiMatchQuery("test").field(MISSING_FIELD_NAME).toQuery(createShardContext()),
+        assertThat(multiMatchQuery("test").field(MISSING_FIELD_NAME).toQuery(createSearchExecutionContext()),
             instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testToQueryBooleanPrefixSingleField() throws IOException {
         final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar", TEXT_FIELD_NAME);
         builder.type(Type.BOOL_PREFIX);
-        final Query query = builder.toQuery(createShardContext());
+        final Query query = builder.toQuery(createSearchExecutionContext());
         assertThat(query, instanceOf(BooleanQuery.class));
         final BooleanQuery booleanQuery = (BooleanQuery) query;
         assertThat(booleanQuery.clauses(), hasSize(2));
@@ -262,15 +250,24 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             // STRING_FIELD_NAME_2 is a keyword field
             final MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder("foo bar", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME);
             queryBuilder.type(Type.BOOL_PREFIX);
-            final Query query = queryBuilder.toQuery(createShardContext());
+            final Query query = queryBuilder.toQuery(createSearchExecutionContext());
             assertThat(query, instanceOf(DisjunctionMaxQuery.class));
             final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
             assertThat(disMaxQuery.getDisjuncts(), hasSize(2));
-            final BooleanQuery firstDisjunct = assertDisjunctionSubQuery(disMaxQuery, BooleanQuery.class, 0);
-            assertThat(firstDisjunct.clauses(), hasSize(2));
-            assertThat(assertBooleanSubQuery(firstDisjunct, TermQuery.class, 0).getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "foo")));
-            final PrefixQuery secondDisjunct = assertDisjunctionSubQuery(disMaxQuery, PrefixQuery.class, 1);
-            assertThat(secondDisjunct.getPrefix(), equalTo(new Term(KEYWORD_FIELD_NAME, "foo bar")));
+            for (Query disjunct : disMaxQuery.getDisjuncts()) {
+                if (disjunct instanceof BooleanQuery) {
+                    final BooleanQuery firstDisjunct = (BooleanQuery) disjunct;
+                    assertThat(firstDisjunct.clauses(), hasSize(2));
+                    assertThat(assertBooleanSubQuery(firstDisjunct, TermQuery.class, 0).getTerm(),
+                        equalTo(new Term(TEXT_FIELD_NAME, "foo")));
+                } else if (disjunct instanceof PrefixQuery) {
+                    final PrefixQuery secondDisjunct = (PrefixQuery) disjunct;
+                    assertThat(secondDisjunct.getPrefix(), equalTo(new Term(KEYWORD_FIELD_NAME, "foo bar")));
+                } else {
+                    throw new AssertionError();
+                }
+                assertThat(disjunct, either(instanceOf(BooleanQuery.class)).or(instanceOf(PrefixQuery.class)));
+            }
         }
     }
 
@@ -339,18 +336,18 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testExceptionUsingAnalyzerOnNumericField() {
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder(6.075210893508043E-4);
         multiMatchQueryBuilder.field(DOUBLE_FIELD_NAME);
         multiMatchQueryBuilder.analyzer("simple");
-        NumberFormatException e = expectThrows(NumberFormatException.class, () -> multiMatchQueryBuilder.toQuery(shardContext));
+        NumberFormatException e = expectThrows(NumberFormatException.class, () -> multiMatchQueryBuilder.toQuery(searchExecutionContext));
         assertEquals("For input string: \"e\"", e.getMessage());
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {
         MultiMatchQueryBuilder query = new MultiMatchQueryBuilder(42).field(INT_FIELD_NAME).field(BOOLEAN_FIELD_NAME);
         query.fuzziness(randomFuzziness(INT_FIELD_NAME));
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> query.toQuery(context));
         assertThat(e.getMessage(), containsString("Can only use fuzzy queries on keyword and text fields"));
@@ -372,7 +369,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         qb.maxExpansions(5);
         qb.fuzzyTranspositions(false);
 
-        Query query = qb.toQuery(createShardContext());
+        Query query = qb.toQuery(createSearchExecutionContext());
         FuzzyQuery expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "text"), 2, 2,
             5, false);
 
@@ -380,7 +377,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testDefaultField() throws Exception {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("hello");
         // default value `*` sets leniency to true
         Query query = builder.toQuery(context);
@@ -443,7 +440,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testAllFieldsWildcard() throws Exception {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         Query query = new MultiMatchQueryBuilder("hello")
             .field("*")
             .toQuery(context);
@@ -461,7 +458,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         Query query = new MultiMatchQueryBuilder("the quick fox")
             .field(TEXT_FIELD_NAME)
             .analyzer("stop")
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         Query expected = new BooleanQuery.Builder()
             .add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term(TEXT_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
@@ -472,7 +469,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             .field(TEXT_FIELD_NAME)
             .field(KEYWORD_FIELD_NAME)
             .analyzer("stop")
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         expected = new DisjunctionMaxQuery(
             Arrays.asList(
                 new BooleanQuery.Builder()
@@ -490,7 +487,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             .field(TEXT_FIELD_NAME)
             .field(KEYWORD_FIELD_NAME)
             .analyzer("stop")
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         expected = new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f);
         assertEquals(expected, query);
 
@@ -500,7 +497,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     .field(TEXT_FIELD_NAME)
                     .analyzer("stop")
             )
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         expected = new BooleanQuery.Builder()
             .add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD)
             .build();
@@ -513,7 +510,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     .field(KEYWORD_FIELD_NAME)
                     .analyzer("stop")
             )
-            .toQuery(createShardContext());
+            .toQuery(createSearchExecutionContext());
         expected = new BooleanQuery.Builder()
             .add(new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()),
                 0f), BooleanClause.Occur.SHOULD)
@@ -526,7 +523,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             () -> new MultiMatchQueryBuilder("the quick fox")
                 .field(TEXT_FIELD_NAME, -1.0f)
                 .field(KEYWORD_FIELD_NAME)
-                .toQuery(createShardContext()));
+                .toQuery(createSearchExecutionContext()));
         assertThat(exc.getMessage(), containsString("negative [boost]"));
     }
 
@@ -557,21 +554,21 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     public void testCachingStrategiesWithNow() throws IOException {
         // if we hit a date field with "now", this should diable cachability
         MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder("now", DATE_FIELD_NAME);
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         assert context.isCacheable();
         /*
          * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
          * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
          * actual lucene query
          */
-        QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        QueryBuilder rewritten = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewritten.toQuery(context));
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     public void testLenientFlag() throws Exception {
         MultiMatchQueryBuilder query = new MultiMatchQueryBuilder("test", BINARY_FIELD_NAME);
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals("Field [mapped_binary] of type [binary] does not support match queries", e.getMessage());
         query.lenient(true);

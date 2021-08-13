@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
@@ -9,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -38,7 +39,7 @@ import java.util.function.Consumer;
 
 public class NativeAutodetectProcessFactory implements AutodetectProcessFactory {
 
-    private static final Logger LOGGER = LogManager.getLogger(NativeAutodetectProcessFactory.class);
+    private static final Logger logger = LogManager.getLogger(NativeAutodetectProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
 
     private final Environment env;
@@ -58,9 +59,9 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
-        this.clusterService = clusterService;
-        this.resultsPersisterService = resultsPersisterService;
-        this.auditor = auditor;
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
+        this.auditor = Objects.requireNonNull(auditor);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
             this::setProcessConnectTimeout);
@@ -78,8 +79,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                                                      Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, AutodetectBuilder.AUTODETECT,
-            pipelineId, null, false, true, true, params.modelSnapshot() != null,
-            AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.get(settings) == false);
+            pipelineId, null, false, true, true, params.modelSnapshot() != null, true);
         createNativeProcess(job, params, processPipes, filesToDelete);
         boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
             && job.getAnalysisConfig().getCategorizationFieldName() != null;
@@ -97,11 +97,11 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             return autodetect;
         } catch (IOException | EsRejectedExecutionException e) {
             String msg = "Failed to connect to autodetect for job " + job.getId();
-            LOGGER.error(msg);
+            logger.error(msg);
             try {
                 IOUtils.close(autodetect);
             } catch (IOException ioe) {
-                LOGGER.error("Can't close autodetect", ioe);
+                logger.error("Can't close autodetect", ioe);
             }
             throw ExceptionsHelper.serverError(msg, e);
         }
@@ -117,7 +117,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                     clusterService.getClusterSettings().get(AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC))
                 .build();
 
-            AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, LOGGER, env,
+            AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, logger, env,
                 updatedSettings, nativeController, processPipes)
                     .referencedFilters(autodetectParams.filters())
                     .scheduledEvents(autodetectParams.scheduledEvents());
@@ -130,11 +130,11 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             autodetectBuilder.build();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.warn("[{}] Interrupted while launching autodetect", job.getId());
+            logger.warn("[{}] Interrupted while launching autodetect", job.getId());
         } catch (IOException e) {
             String msg = "[" + job.getId() + "] Failed to launch autodetect";
-            LOGGER.error(msg);
-            throw ExceptionsHelper.serverError(msg, e);
+            logger.error(msg);
+            throw ExceptionsHelper.serverError(msg + " on [" + clusterService.getNodeName() + "]", e);
         }
     }
 

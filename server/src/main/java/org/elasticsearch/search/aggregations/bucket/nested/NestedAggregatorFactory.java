@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -27,17 +16,16 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class NestedAggregatorFactory extends AggregatorFactory {
 
-    private final ObjectMapper parentObjectMapper;
-    private final ObjectMapper childObjectMapper;
+    private final NestedObjectMapper parentObjectMapper;
+    private final NestedObjectMapper childObjectMapper;
 
-    NestedAggregatorFactory(String name, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
+    NestedAggregatorFactory(String name, NestedObjectMapper parentObjectMapper, NestedObjectMapper childObjectMapper,
                             AggregationContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactories,
                             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, subFactories, metadata);
@@ -46,21 +34,18 @@ public class NestedAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         if (childObjectMapper == null) {
-            return new Unmapped(name, searchContext, parent, factories, metadata);
+            return new Unmapped(name, context, parent, factories, metadata);
         }
-        return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, searchContext, parent,
-            cardinality, metadata);
+        return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, context, parent, cardinality, metadata);
     }
 
     private static final class Unmapped extends NonCollectingAggregator {
 
         Unmapped(String name,
-                    SearchContext context,
+                    AggregationContext context,
                     Aggregator parent,
                     AggregatorFactories factories,
                     Map<String, Object> metadata) throws IOException {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.recovery;
@@ -40,20 +29,19 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -66,9 +54,12 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardRelocatedException;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transports;
@@ -86,7 +77,6 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -117,16 +107,18 @@ public class RecoverySourceHandler {
     private final int maxConcurrentFileChunks;
     private final int maxConcurrentOperations;
     private final ThreadPool threadPool;
+    private final RecoveryPlannerService recoveryPlannerService;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
 
     public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, ThreadPool threadPool,
                                  StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks,
-                                 int maxConcurrentOperations) {
+                                 int maxConcurrentOperations, RecoveryPlannerService recoveryPlannerService) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.threadPool = threadPool;
+        this.recoveryPlannerService = recoveryPlannerService;
         this.request = request;
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
@@ -140,7 +132,7 @@ public class RecoverySourceHandler {
     }
 
     public void addListener(ActionListener<RecoveryResponse> listener) {
-        future.addListener(listener, EsExecutors.newDirectExecutorService());
+        future.addListener(listener);
     }
 
     /**
@@ -218,7 +210,7 @@ public class RecoverySourceHandler {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
                 startingSeqNo = request.startingSeqNo();
                 if (retentionLeaseRef.get() == null) {
-                    createRetentionLease(startingSeqNo, ActionListener.map(sendFileStep, ignored -> SendFileResult.EMPTY));
+                    createRetentionLease(startingSeqNo, sendFileStep.map(ignored -> SendFileResult.EMPTY));
                 } else {
                     sendFileStep.onResponse(SendFileResult.EMPTY);
                 }
@@ -251,7 +243,7 @@ public class RecoverySourceHandler {
                     sendFileStep.whenComplete(r -> IOUtils.close(safeCommitRef, releaseStore), e -> {
                         try {
                             IOUtils.close(safeCommitRef, releaseStore);
-                        } catch (final IOException ex) {
+                        } catch (Exception ex) {
                             logger.warn("releasing snapshot caused exception", ex);
                         }
                     });
@@ -302,7 +294,8 @@ public class RecoverySourceHandler {
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
                 logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
-                final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot("peer-recovery", startingSeqNo, Long.MAX_VALUE, false);
+                final Translog.Snapshot phase2Snapshot =
+                    shard.newChangesSnapshot("peer-recovery", startingSeqNo, Long.MAX_VALUE, false, false);
                 resources.add(phase2Snapshot);
                 retentionLock.close();
 
@@ -347,7 +340,7 @@ public class RecoverySourceHandler {
     }
 
     private int estimateNumberOfHistoryOperations(long startingSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = shard.newChangesSnapshot("peer-recover", startingSeqNo, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = shard.newChangesSnapshot("peer-recover", startingSeqNo, Long.MAX_VALUE, false, true)) {
             return snapshot.totalOperations();
         }
     }
@@ -407,12 +400,7 @@ public class RecoverySourceHandler {
      */
     private Engine.IndexCommitRef acquireSafeCommit(IndexShard shard) {
         final Engine.IndexCommitRef commitRef = shard.acquireSafeIndexCommit();
-        final AtomicBoolean closed = new AtomicBoolean(false);
-        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> {
-            if (closed.compareAndSet(false, true)) {
-                runWithGenericThreadPool(commitRef::close);
-            }
-        });
+        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> runWithGenericThreadPool(commitRef::close));
     }
 
     private void runWithGenericThreadPool(CheckedRunnable<Exception> task) {
@@ -481,82 +469,17 @@ public class RecoverySourceHandler {
                 }
             }
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
-                final List<String> phase1FileNames = new ArrayList<>();
-                final List<Long> phase1FileSizes = new ArrayList<>();
-                final List<String> phase1ExistingFileNames = new ArrayList<>();
-                final List<Long> phase1ExistingFileSizes = new ArrayList<>();
-
-                // Total size of segment files that are recovered
-                long totalSizeInBytes = 0;
-                // Total size of segment files that were able to be re-used
-                long existingTotalSizeInBytes = 0;
-
-                // Generate a "diff" of all the identical, different, and missing
-                // segment files on the target node, using the existing files on
-                // the source node
-                final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
-                for (StoreFileMetadata md : diff.identical) {
-                    phase1ExistingFileNames.add(md.name());
-                    phase1ExistingFileSizes.add(md.length());
-                    existingTotalSizeInBytes += md.length();
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("recovery [phase1]: not recovering [{}], exist in local store and has checksum [{}]," +
-                                        " size [{}]", md.name(), md.checksum(), md.length());
-                    }
-                    totalSizeInBytes += md.length();
-                }
-                List<StoreFileMetadata> phase1Files = new ArrayList<>(diff.different.size() + diff.missing.size());
-                phase1Files.addAll(diff.different);
-                phase1Files.addAll(diff.missing);
-                for (StoreFileMetadata md : phase1Files) {
-                    if (request.metadataSnapshot().asMap().containsKey(md.name())) {
-                        logger.trace("recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
-                            md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
-                    } else {
-                        logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
-                    }
-                    phase1FileNames.add(md.name());
-                    phase1FileSizes.add(md.length());
-                    totalSizeInBytes += md.length();
-                }
-
-                logger.trace("recovery [phase1]: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
-                    phase1FileNames.size(), new ByteSizeValue(totalSizeInBytes),
-                    phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSizeInBytes));
-                final StepListener<Void> sendFileInfoStep = new StepListener<>();
-                final StepListener<Void> sendFilesStep = new StepListener<>();
-                final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
-                final StepListener<Void> cleanFilesStep = new StepListener<>();
                 cancellableThreads.checkForCancel();
-                recoveryTarget.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames,
-                        phase1ExistingFileSizes, translogOps.getAsInt(), sendFileInfoStep);
-
-                sendFileInfoStep.whenComplete(r ->
-                    sendFiles(store, phase1Files.toArray(new StoreFileMetadata[0]), translogOps, sendFilesStep), listener::onFailure);
-
-                sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
-
-                createRetentionLeaseStep.whenComplete(retentionLease ->
-                    {
-                        final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
-                        assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
-                            : retentionLease + " vs " + lastKnownGlobalCheckpoint;
-                        // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
-                        // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
-                        // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on
-                        // the primary, and in these cases the max seqno would be too high to be valid as a global checkpoint.
-                        cleanFiles(store, recoverySourceMetadata, translogOps, lastKnownGlobalCheckpoint, cleanFilesStep);
-                    },
-                    listener::onFailure);
-
-                final long totalSize = totalSizeInBytes;
-                final long existingTotalSize = existingTotalSizeInBytes;
-                cleanFilesStep.whenComplete(r -> {
-                    final TimeValue took = stopWatch.totalTime();
-                    logger.trace("recovery [phase1]: took [{}]", took);
-                    listener.onResponse(new SendFileResult(phase1FileNames, phase1FileSizes, totalSize, phase1ExistingFileNames,
-                        phase1ExistingFileSizes, existingTotalSize, took));
-                }, listener::onFailure);
+                recoveryPlannerService.computeRecoveryPlan(shard.shardId(),
+                    recoverySourceMetadata,
+                    request.metadataSnapshot(),
+                    startingSeqNo,
+                    translogOps.getAsInt(),
+                    getRequest().targetNode().getVersion(),
+                    false,
+                    ActionListener.wrap(plan ->
+                        recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
+                );
             } else {
                 logger.trace("skipping [phase1] since source and target have identical sync id [{}]", recoverySourceMetadata.getSyncId());
 
@@ -576,6 +499,96 @@ public class RecoverySourceHandler {
         }
     }
 
+    void recoverFilesFromSourceAndSnapshot(ShardRecoveryPlan shardRecoveryPlan,
+                                           Store store,
+                                           StopWatch stopWatch,
+                                           ActionListener<SendFileResult> listener) {
+        cancellableThreads.checkForCancel();
+
+        final List<String> filesToRecoverNames = shardRecoveryPlan.getFilesToRecoverNames();
+        final List<Long> filesToRecoverSizes = shardRecoveryPlan.getFilesToRecoverSizes();
+        final List<String> phase1ExistingFileNames = shardRecoveryPlan.getFilesPresentInTargetNames();
+        final List<Long> phase1ExistingFileSizes = shardRecoveryPlan.getFilesPresentInTargetSizes();
+        final long totalSize = shardRecoveryPlan.getTotalSize();
+        final long existingTotalSize = shardRecoveryPlan.getExistingSize();
+
+        if (logger.isTraceEnabled()) {
+            for (StoreFileMetadata md : shardRecoveryPlan.getFilesPresentInTarget()) {
+                logger.trace("recovery [phase1]: not recovering [{}], exist in local store and has checksum [{}]," +
+                    " size [{}]", md.name(), md.checksum(), md.length());
+            }
+
+            for (StoreFileMetadata md : shardRecoveryPlan.getSourceFilesToRecover()) {
+                if (request.metadataSnapshot().asMap().containsKey(md.name())) {
+                    logger.trace("recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
+                } else {
+                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                }
+            }
+
+            for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : shardRecoveryPlan.getSnapshotFilesToRecover()) {
+                final StoreFileMetadata md = fileInfo.metadata();
+                if (request.metadataSnapshot().asMap().containsKey(md.name())) {
+                    logger.trace("recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
+                } else {
+                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                }
+            }
+
+            logger.trace("recovery [phase1]: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
+                filesToRecoverNames.size(), new ByteSizeValue(totalSize),
+                phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSize));
+        }
+
+        final StepListener<Void> sendFileInfoStep = new StepListener<>();
+        final StepListener<Void> sendFilesStep = new StepListener<>();
+        final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
+        final StepListener<Void> cleanFilesStep = new StepListener<>();
+
+        final int translogOps = shardRecoveryPlan.getTranslogOps();
+        recoveryTarget.receiveFileInfo(filesToRecoverNames,
+            filesToRecoverSizes,
+            phase1ExistingFileNames,
+            phase1ExistingFileSizes,
+            translogOps,
+            sendFileInfoStep
+        );
+
+        final List<StoreFileMetadata> sourceFiles = shardRecoveryPlan.getSourceFilesToRecover();
+
+        sendFileInfoStep.whenComplete(r ->
+            sendFiles(store,
+                sourceFiles.toArray(new StoreFileMetadata[0]), shardRecoveryPlan::getTranslogOps, sendFilesStep), listener::onFailure);
+
+        final long startingSeqNo = shardRecoveryPlan.getStartingSeqNo();
+        sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
+
+        final Store.MetadataSnapshot recoverySourceMetadata = shardRecoveryPlan.getSourceMetadataSnapshot();
+        createRetentionLeaseStep.whenComplete(retentionLease ->
+            {
+                final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
+                assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
+                    : retentionLease + " vs " + lastKnownGlobalCheckpoint;
+                // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
+                // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
+                // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on
+                // the primary, and in these cases the max seqno would be too high to be valid as a global checkpoint.
+                cleanFiles(store, recoverySourceMetadata, () -> translogOps, lastKnownGlobalCheckpoint, cleanFilesStep);
+            },
+            listener::onFailure);
+
+        cleanFilesStep.whenComplete(r -> {
+            final TimeValue took = stopWatch.totalTime();
+            logger.trace("recovery [phase1]: took [{}]", took);
+            listener.onResponse(
+                new SendFileResult(filesToRecoverNames, filesToRecoverSizes, totalSize,
+                    phase1ExistingFileNames, phase1ExistingFileSizes, existingTotalSize, took)
+            );
+        }, listener::onFailure);
+    }
+
     void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
         runUnderPrimaryPermit(() -> {
                 // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
@@ -593,7 +606,7 @@ public class RecoverySourceHandler {
                         new ThreadedActionListener<>(logger, shard.getThreadPool(),
                             ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false));
                     logger.trace("cloned primary's retention lease as [{}]", clonedLease);
-                    cloneRetentionLeaseStep.whenComplete(rr -> listener.onResponse(clonedLease), listener::onFailure);
+                    cloneRetentionLeaseStep.addListener(listener.map(rr -> clonedLease));
                 } catch (RetentionLeaseNotFoundException e) {
                     // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                     // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
@@ -605,7 +618,7 @@ public class RecoverySourceHandler {
                     final RetentionLease newLease = shard.addPeerRecoveryRetentionLease(request.targetNode().getId(),
                         estimatedGlobalCheckpoint, new ThreadedActionListener<>(logger, shard.getThreadPool(),
                             ThreadPool.Names.GENERIC, addRetentionLeaseStep, false));
-                    addRetentionLeaseStep.whenComplete(rr -> listener.onResponse(newLease), listener::onFailure);
+                    addRetentionLeaseStep.addListener(listener.map(rr -> newLease));
                     logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
                 }
             }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]",
@@ -779,7 +792,7 @@ public class RecoverySourceHandler {
                 maxSeqNoOfUpdatesOrDeletes,
                 retentionLeases,
                 mappingVersion,
-                ActionListener.delegateFailure(listener, (l, newCheckpoint) -> {
+                listener.delegateFailure((l, newCheckpoint) -> {
                     targetLocalCheckpoint.updateAndGet(curr -> SequenceNumbers.max(curr, newCheckpoint));
                     l.onResponse(null);
                 }));
@@ -900,63 +913,73 @@ public class RecoverySourceHandler {
 
     void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetadata::length)); // send smallest first
+        Releasable temporaryStoreRef = acquireStore(store);
+        try {
+            final Releasable storeRef = temporaryStoreRef;
+            final MultiChunkTransfer<StoreFileMetadata, FileChunk> multiFileSender =
+                new MultiChunkTransfer<>(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
-        final MultiChunkTransfer<StoreFileMetadata, FileChunk> multiFileSender =
-            new MultiChunkTransfer<>(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
+                    final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
+                    final AtomicInteger liveBufferCount = new AtomicInteger(); // only used in assertions to verify proper recycling
+                    IndexInput currentInput = null;
+                    long offset = 0;
 
-                final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
-                InputStreamIndexInput currentInput = null;
-                long offset = 0;
-
-                @Override
-                protected void onNewResource(StoreFileMetadata md) throws IOException {
-                    offset = 0;
-                    IOUtils.close(currentInput, () -> currentInput = null);
-                    final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);
-                    currentInput = new InputStreamIndexInput(indexInput, md.length()) {
-                        @Override
-                        public void close() throws IOException {
-                            IOUtils.close(indexInput, super::close); // InputStreamIndexInput's close is a noop
-                        }
-                    };
-                }
-
-                @Override
-                protected FileChunk nextChunkRequest(StoreFileMetadata md) throws IOException {
-                    assert Transports.assertNotTransportThread("read file chunk");
-                    cancellableThreads.checkForCancel();
-                    final byte[] buffer = Objects.requireNonNullElseGet(buffers.pollFirst(), () -> new byte[chunkSizeInBytes]);
-                    final int bytesRead = currentInput.read(buffer);
-                    if (bytesRead == -1) {
-                        throw new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name());
+                    @Override
+                    protected void onNewResource(StoreFileMetadata md) throws IOException {
+                        offset = 0;
+                        IOUtils.close(currentInput);
+                        currentInput = store.directory().openInput(md.name(), IOContext.READONCE);
                     }
-                    final boolean lastChunk = offset + bytesRead == md.length();
-                    final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), offset, lastChunk,
-                        () -> buffers.addFirst(buffer));
-                    offset += bytesRead;
-                    return chunk;
-                }
 
-                @Override
-                protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
-                    cancellableThreads.checkForCancel();
-                    recoveryTarget.writeFileChunk(
-                        request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(),
-                        ActionListener.runBefore(listener, request::close));
-                }
+                    @Override
+                    protected FileChunk nextChunkRequest(StoreFileMetadata md) throws IOException {
+                        assert Transports.assertNotTransportThread("read file chunk");
+                        cancellableThreads.checkForCancel();
+                        final byte[] buffer = Objects.requireNonNullElseGet(buffers.pollFirst(), () -> new byte[chunkSizeInBytes]);
+                        assert liveBufferCount.incrementAndGet() > 0;
+                        final int toRead = Math.toIntExact(Math.min(md.length() - offset, buffer.length));
+                        currentInput.readBytes(buffer, 0, toRead, false);
+                        final boolean lastChunk = offset + toRead == md.length();
+                        final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, toRead), offset, lastChunk,
+                            () -> {
+                                assert liveBufferCount.decrementAndGet() >= 0;
+                                buffers.addFirst(buffer);
+                            });
+                        offset += toRead;
+                        return chunk;
+                    }
 
-                @Override
-                protected void handleError(StoreFileMetadata md, Exception e) throws Exception {
-                    handleErrorOnSendFiles(store, e, new StoreFileMetadata[]{md});
-                }
+                    @Override
+                    protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
+                        cancellableThreads.checkForCancel();
+                        final ReleasableBytesReference content = new ReleasableBytesReference(request.content, request);
+                        recoveryTarget.writeFileChunk(
+                            request.md, request.position, content, request.lastChunk,
+                                translogOps.getAsInt(), ActionListener.runBefore(listener, content::close));
+                    }
 
-                @Override
-                public void close() throws IOException {
-                    IOUtils.close(currentInput, () -> currentInput = null);
-                }
-            };
-        resources.add(multiFileSender);
-        multiFileSender.start();
+                    @Override
+                    protected void handleError(StoreFileMetadata md, Exception e) throws Exception {
+                        handleErrorOnSendFiles(store, e, new StoreFileMetadata[]{md});
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        IOUtils.close(currentInput, storeRef);
+                    }
+
+                    @Override
+                    protected boolean assertOnSuccess() {
+                        assert liveBufferCount.get() == 0 : "leaked [" + liveBufferCount + "] buffers";
+                        return true;
+                    }
+                };
+            resources.add(multiFileSender);
+            temporaryStoreRef = null; // now owned by multiFileSender, tracked in resources, so won't be leaked
+            multiFileSender.start();
+        } finally {
+            Releasables.close(temporaryStoreRef);
+        }
     }
 
     private void cleanFiles(Store store, Store.MetadataSnapshot sourceMetadata, IntSupplier translogOps,
@@ -971,7 +994,7 @@ public class RecoverySourceHandler {
         // are deleted
         cancellableThreads.checkForCancel();
         recoveryTarget.cleanFiles(translogOps.getAsInt(), globalCheckpoint, sourceMetadata,
-            ActionListener.delegateResponse(listener, (l, e) -> ActionListener.completeWith(l, () -> {
+            listener.delegateResponse((l, e) -> ActionListener.completeWith(l, () -> {
                 StoreFileMetadata[] mds = StreamSupport.stream(sourceMetadata.spliterator(), false).toArray(StoreFileMetadata[]::new);
                 ArrayUtil.timSort(mds, Comparator.comparingLong(StoreFileMetadata::length)); // check small files first
                 handleErrorOnSendFiles(store, e, mds);

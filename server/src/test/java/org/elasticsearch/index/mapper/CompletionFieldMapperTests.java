@@ -1,23 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -35,6 +25,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -83,6 +74,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "standard"));
         checker.registerConflictCheck("preserve_separators", b -> b.field("preserve_separators", false));
@@ -126,7 +122,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
         MappedFieldType completionFieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
 
-        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) ((CompletionFieldMapper) fieldMapper).indexAnalyzers().values().iterator().next();
+        NamedAnalyzer indexAnalyzer = ((CompletionFieldMapper) fieldMapper).indexAnalyzers().values().iterator().next();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
         assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
@@ -155,7 +151,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
         MappedFieldType completionFieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
 
-        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) ((CompletionFieldMapper) fieldMapper).indexAnalyzers().values().iterator().next();
+        NamedAnalyzer indexAnalyzer = ((CompletionFieldMapper) fieldMapper).indexAnalyzers().values().iterator().next();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
         assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
@@ -245,7 +241,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.array("field", "key1", "key2", "key3")));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
 
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
             keywordField("key1"),
@@ -306,7 +302,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }));
 
-            ParseContext.Document indexableFields = parsedDocument.rootDoc();
+            LuceneDocument indexableFields = parsedDocument.rootDoc();
             assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
                 contextSuggestField("timmy"),
                 contextSuggestField("starbucks")
@@ -315,6 +311,13 @@ public class CompletionFieldMapperTests extends MapperTestCase {
                 contextSuggestField("timmy"),
                 contextSuggestField("starbucks")
             ));
+            // check that the indexable fields produce tokenstreams without throwing an exception
+            // if this breaks it is likely a problem with setting contexts
+            try (TokenStream ts = indexableFields.getFields("field.subsuggest")[0].tokenStream(Lucene.WHITESPACE_ANALYZER, null)) {
+                ts.reset();
+                while (ts.incrementToken()) {}
+                ts.end();
+            }
             //unable to assert about context, covered in a REST test
         }
 
@@ -324,7 +327,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
                 b.array("cat", "cafe", "food");
             }));
 
-            ParseContext.Document indexableFields = parsedDocument.rootDoc();
+            LuceneDocument indexableFields = parsedDocument.rootDoc();
             assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
                 contextSuggestField("timmy"),
                 contextSuggestField("starbucks")
@@ -351,7 +354,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         //"41.12,-71.34"
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "drm3btev3e86")));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
         assertThat(indexableFields.getFields("field"), arrayWithSize(2));
         assertThat(indexableFields.getFields("field.analyzed"), arrayContainingInAnyOrder(
             suggestField("drm3btev3e86")
@@ -372,7 +375,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "suggestion")));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
             suggestField("suggestion")
         ));
@@ -401,7 +404,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
             suggestField("New York"),
             suggestField("NY")
@@ -433,7 +436,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
             suggestField("New York"),
             suggestField("NY")
@@ -460,7 +463,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "suggestion")));
 
-        ParseContext.Document indexableFields = parsedDocument.rootDoc();
+        LuceneDocument indexableFields = parsedDocument.rootDoc();
         assertThat(indexableFields.getFields("field"), arrayContainingInAnyOrder(
             suggestField("suggestion")
         ));
@@ -789,4 +792,9 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         };
     }
 
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("We don't have doc values or fielddata", true);
+        return null;
+    }
 }

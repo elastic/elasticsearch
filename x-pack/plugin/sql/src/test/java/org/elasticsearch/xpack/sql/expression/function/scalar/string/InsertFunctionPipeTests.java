@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
@@ -29,11 +30,11 @@ public class InsertFunctionPipeTests extends AbstractNodeTestCase<InsertFunction
     protected InsertFunctionPipe randomInstance() {
         return randomInsertFunctionPipe();
     }
-    
+
     private Expression randomInsertFunctionExpression() {
         return randomInsertFunctionPipe().expression();
     }
-    
+
     public static InsertFunctionPipe randomInsertFunctionPipe() {
         return (InsertFunctionPipe) (new Insert(randomSource(),
                             randomStringLiteral(),
@@ -56,19 +57,19 @@ public class InsertFunctionPipeTests extends AbstractNodeTestCase<InsertFunction
                 b1.start(),
                 b1.length(),
                 b1.replacement());
-        assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+        assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
+
         InsertFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new InsertFunctionPipe(
-                newLoc,
-                b2.expression(),
-                b2.input(),
-                b2.start(),
-                b2.length(),
-                b2.replacement());
+            newLoc,
+            b2.expression(),
+            b2.input(),
+            b2.start(),
+            b2.length(),
+            b2.replacement());
         assertEquals(newB,
-                b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+            b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override
@@ -81,7 +82,7 @@ public class InsertFunctionPipeTests extends AbstractNodeTestCase<InsertFunction
         InsertFunctionPipe newB =
                 new InsertFunctionPipe(b.source(), b.expression(), b.input(), b.start(), b.length(), b.replacement());
         InsertFunctionPipe transformed = null;
-        
+
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 5; i++) {
             for(BitSet comb : new Combinations(4, i)) {
@@ -103,7 +104,7 @@ public class InsertFunctionPipeTests extends AbstractNodeTestCase<InsertFunction
     @Override
     protected InsertFunctionPipe mutate(InsertFunctionPipe instance) {
         List<Function<InsertFunctionPipe, InsertFunctionPipe>> randoms = new ArrayList<>();
-        
+
         for(int i = 1; i < 5; i++) {
             for(BitSet comb : new Combinations(4, i)) {
                 randoms.add(f -> new InsertFunctionPipe(

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
@@ -202,6 +191,7 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(ioStats.getTotalReadOperations(), deserializedIoStats.getTotalReadOperations());
                     assertEquals(ioStats.getTotalWriteKilobytes(), deserializedIoStats.getTotalWriteKilobytes());
                     assertEquals(ioStats.getTotalWriteOperations(), deserializedIoStats.getTotalWriteOperations());
+                    assertEquals(ioStats.getTotalIOTimeMillis(), deserializedIoStats.getTotalIOTimeMillis());
                     assertEquals(ioStats.getDevicesStats().length, deserializedIoStats.getDevicesStats().length);
                     for (int i = 0; i < ioStats.getDevicesStats().length; i++) {
                         FsInfo.DeviceStats deviceStats = ioStats.getDevicesStats()[i];
@@ -211,6 +201,7 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(deviceStats.readOperations(), deserializedDeviceStats.readOperations());
                         assertEquals(deviceStats.writeKilobytes(), deserializedDeviceStats.writeKilobytes());
                         assertEquals(deviceStats.writeOperations(), deserializedDeviceStats.writeOperations());
+                        assertEquals(deviceStats.ioTimeInMillis(), deserializedDeviceStats.ioTimeInMillis());
                     }
                 }
                 if (nodeStats.getTransport() == null) {
@@ -425,10 +416,12 @@ public class NodeStatsTests extends ESTestCase {
             for (int i = 0; i < numDeviceStats; i++) {
                 FsInfo.DeviceStats previousDeviceStats = randomBoolean() ? null :
                         new FsInfo.DeviceStats(randomInt(), randomInt(), randomAlphaOfLengthBetween(3, 10),
-                                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), null);
+                            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                            randomNonNegativeLong(), null);
                 deviceStatsArray[i] =
                     new FsInfo.DeviceStats(randomInt(), randomInt(), randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong(),
-                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), previousDeviceStats);
+                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        previousDeviceStats);
             }
             FsInfo.IoStats ioStats = new FsInfo.IoStats(deviceStatsArray);
             int numPaths = randomIntBetween(0, 10);
@@ -441,7 +434,28 @@ public class NodeStatsTests extends ESTestCase {
         }
         TransportStats transportStats = frequently() ? new TransportStats(randomNonNegativeLong(), randomNonNegativeLong(),
                 randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
-        HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        HttpStats httpStats = null;
+        if (frequently()) {
+            int numClients = randomIntBetween(0, 50);
+            List<HttpStats.ClientStats> clientStats = new ArrayList<>(numClients);
+            for (int k = 0; k < numClients; k++) {
+                var cs = new HttpStats.ClientStats(
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    randomNonNegativeLong(),
+                    randomBoolean() ? -1 : randomNonNegativeLong(),
+                    randomBoolean() ? -1 : randomNonNegativeLong(),
+                    randomLongBetween(0, 100),
+                    randomLongBetween(0, 99999999)
+                );
+                clientStats.add(cs);
+            }
+            httpStats = new HttpStats(clientStats, randomNonNegativeLong(), randomNonNegativeLong());
+        }
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
             int numCircuitBreakerStats = randomIntBetween(0, 10);
@@ -481,21 +495,34 @@ public class NodeStatsTests extends ESTestCase {
             : null;
         IngestStats ingestStats = null;
         if (frequently()) {
-            IngestStats.Stats totalStats = new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                    randomNonNegativeLong());
             int numPipelines = randomIntBetween(0, 10);
             int numProcessors = randomIntBetween(0, 10);
+            long maxStatValue = Long.MAX_VALUE / Math.max(1, numPipelines) / Math.max(1, numProcessors);
+            IngestStats.Stats totalStats = new IngestStats.Stats(
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue)
+            );
             List<IngestStats.PipelineStat> ingestPipelineStats = new ArrayList<>(numPipelines);
             Map<String, List<IngestStats.ProcessorStat>> ingestProcessorStats = new HashMap<>(numPipelines);
             for (int i = 0; i < numPipelines; i++) {
                 String pipelineId = randomAlphaOfLengthBetween(3, 10);
-                ingestPipelineStats.add(new IngestStats.PipelineStat(pipelineId,  new IngestStats.Stats
-                    (randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())));
+                ingestPipelineStats.add(new IngestStats.PipelineStat(pipelineId,  new IngestStats.Stats(
+                    randomLongBetween(0, maxStatValue),
+                    randomLongBetween(0, maxStatValue),
+                    randomLongBetween(0, maxStatValue),
+                    randomLongBetween(0, maxStatValue))
+                ));
 
                 List<IngestStats.ProcessorStat> processorPerPipeline = new ArrayList<>(numProcessors);
                 for (int j =0; j < numProcessors;j++) {
-                    IngestStats.Stats processorStats = new IngestStats.Stats
-                        (randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+                    IngestStats.Stats processorStats = new IngestStats.Stats(
+                        randomLongBetween(0, maxStatValue),
+                        randomLongBetween(0, maxStatValue),
+                        randomLongBetween(0, maxStatValue),
+                        randomLongBetween(0, maxStatValue)
+                    );
                     processorPerPipeline.add(new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10), processorStats));
                 }

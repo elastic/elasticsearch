@@ -10,12 +10,7 @@ https://www.docker.elastic.co[www.docker.elastic.co]. The source files
 are in
 https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
-These images are free to use under the Elastic license. They contain open source
-and free commercial features and access to paid commercial features.
-{kibana-ref}/managing-licenses.html[Start a 30-day trial] to try out all of the
-paid commercial features. See the
-https://www.elastic.co/subscriptions[Subscriptions] page for information about
-Elastic license levels.
+include::license.asciidoc[]
 
 ==== Pulling the image
 
@@ -35,10 +30,6 @@ ifeval::["{release-state}"!="unreleased"]
 --------------------------------------------
 docker pull {docker-repo}:{version}
 --------------------------------------------
-
-Alternatively, you can download other Docker images that contain only features
-available under the Apache 2.0 license. To download the images, go to
-https://www.docker.elastic.co[www.docker.elastic.co].
 
 endif::[]
 
@@ -85,6 +76,10 @@ include::docker-compose.yml[]
 --------------------------------------------
 endif::[]
 
+NOTE: This sample `docker-compose.yml` file uses the `ES_JAVA_OPTS`
+environment variable to manually set the heap size to 512MB. We do not recommend
+using `ES_JAVA_OPTS` in production. See <<docker-set-heap-size>>.
+
 This sample Docker Compose file brings up a three-node {es} cluster.
 Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
 
@@ -94,7 +89,7 @@ potentially ignoring any firewall settings. If you don't want to expose port 920
 a reverse proxy, replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
 {es} will then only be accessible from the host machine itself.
 
-The  https://docs.docker.com/storage/volumes[Docker named volumes]
+The https://docs.docker.com/storage/volumes[Docker named volumes]
 `data01`, `data02`, and `data03` store the node data directories so the data persists across restarts.
 If they don't already exist, `docker-compose` creates them when you bring up the cluster.
 --
@@ -117,12 +112,14 @@ docker-compose up
 +
 [source,sh]
 --------------------------------------------------
-curl -X GET "localhost:9200/_cat/nodes?v&pretty"
+curl -X GET "localhost:9200/_cat/nodes?v=true&pretty"
 --------------------------------------------------
 // NOTCONSOLE
 
 Log messages go to the console and are handled by the configured Docker logging driver.
-By default you can access logs with `docker logs`.
+By default you can access logs with `docker logs`. If you would prefer the {es}
+container to write logs to disk, set the `ES_LOG_STYLE` environment variable to `file`.
+This causes {es} to use the same logging configuration as other {es} distribution formats.
 
 To stop the cluster, run `docker-compose down`.
 The data in the Docker volumes is preserved and loaded
@@ -166,7 +163,7 @@ sysctl -w vm.max_map_count=262144
 --------------------------------------------
 --
 
-* macOS with  https://docs.docker.com/docker-for-mac[Docker for Mac]
+* macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
 +
 --
 The `vm.max_map_count` setting must be set within the xhyve virtual machine:
@@ -236,7 +233,7 @@ chgrp 0 esdatadir
 --------------------------------------------
 
 You can also run an {es} container using both a custom UID and GID. Unless you
-bind-mount each of the `config`, data` and `logs` directories, you must pass
+bind-mount each of the `config`, `data` and `logs` directories, you must pass
 the command line option `--group-add 0` to `docker run`. This ensures that the user
 under which {es} is running is also a member of the `root` (GID 0) group inside the
 container.
@@ -284,24 +281,23 @@ published ports with `--publish-all` is recommended,
 unless you are pinning one container per host.
 
 [[docker-set-heap-size]]
-===== Set the heap size
+===== Manually set the heap size
 
-To configure the heap size, you can bind mount a <<jvm-options,JVM options>>
-file under `/usr/share/elasticsearch/config/jvm.options.d` that includes your
-desired <<heap-size,heap size>> settings. Note that while the default root
-`jvm.options` file sets a default heap of 1 GB, any value you set in a
-bind-mounted JVM options file will override it.
+By default, {es} automatically sizes JVM heap based on a nodes's
+<<node-roles,roles>> and the total memory available to the node's container. We
+recommend this default sizing for most production environments. If needed, you
+can override default sizing by manually setting JVM heap size.
 
-While setting the heap size via bind-mounted JVM options is the recommended
-method, you can also configure this by using the `ES_JAVA_OPTS` environment
-variable to set the heap size. For example, to use 16 GB, specify
-`-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. Note that while the
-default root `jvm.options` file sets a default heap of 1 GB, any value you set
-in `ES_JAVA_OPTS` will override it. The `docker-compose.yml` file above sets the heap size to 512 MB.
+To manually set the heap size in production, bind mount a <<set-jvm-options,JVM
+options>> file under `/usr/share/elasticsearch/config/jvm.options.d` that
+includes your desired <<set-jvm-heap-size,heap size>> settings.
 
-IMPORTANT: You must <<heap-size,configure the heap size>> even if you are
-https://docs.docker.com/config/containers/resource_constraints/#limit-a-containers-access-to-memory[limiting
-memory access] to the container.
+For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
+environment variable. For example, to use 16GB, specify `-e
+ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
+overrides all other JVM options. The `ES_JAVA_OPTS` variable overrides all other
+JVM options. We do not recommend using `ES_JAVA_OPTS` in production. The
+`docker-compose.yml` file above sets the heap size to 512MB.
 
 ===== Pin deployments to a specific image version
 
@@ -312,7 +308,7 @@ example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
 
 You should use a volume bound on `/usr/share/elasticsearch/data` for the following reasons:
 
-.  The data of your {es} node won't be lost if the container is killed
+. The data of your {es} node won't be lost if the container is killed
 
 . {es} is I/O sensitive and the Docker storage driver is not ideal for fast I/O
 
@@ -343,11 +339,24 @@ over the configuration files in the image.
 
 You can set individual {es} configuration parameters using Docker environment variables.
 The <<docker-compose-file, sample compose file>> and the
-<<docker-cli-run-dev-mode, single-node example>> use this method.
+<<docker-cli-run-dev-mode, single-node example>> use this method. You can
+use the setting name directly as the environment variable name. If
+you cannot do this, for example because your orchestration platform forbids
+periods in environment variable names, then you can use an alternative
+style by converting the setting name as follows.
 
-To use the contents of a file to set an environment variable, suffix the environment
-variable name with `_FILE`. This is useful for passing secrets such as passwords to {es}
-without specifying them directly.
+. Change the setting name to uppercase
+. Prefix it with `ES_SETTING_`
+. Escape any underscores (`_`) by duplicating them
+. Convert all periods (`.`) to underscores (`_`)
+
+For example, `-e bootstrap.memory_lock=true` becomes
+`-e ES_SETTING_BOOTSTRAP_MEMORY__LOCK=true`.
+
+You can use the contents of a file to set the value of the
+`ELASTIC_PASSWORD` or `KEYSTORE_PASSWORD` environment variables, by
+suffixing the environment variable name with `_FILE`. This is useful for
+passing secrets such as passwords to {es} without specifying them directly.
 
 For example, to set the {es} bootstrap password from a file, you can bind mount the
 file and set the `ELASTIC_PASSWORD_FILE` environment variable to the mount location.
@@ -358,7 +367,7 @@ If you mount the password file to `/run/secrets/bootstrapPassword.txt`, specify:
 -e ELASTIC_PASSWORD_FILE=/run/secrets/bootstrapPassword.txt
 --------------------------------------------
 
-You can also override the default command for the image to pass {es} configuration
+You can override the default command for the image to pass {es} configuration
 parameters as command line options. For example:
 
 [source,sh]

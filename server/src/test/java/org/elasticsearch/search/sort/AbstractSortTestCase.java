@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.sort;
@@ -26,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,14 +29,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptEngine;
@@ -154,7 +142,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
      * we would get when parsing the xContent the sort builder is rendering out
      */
     public void testBuildSortField() throws IOException {
-        QueryShardContext mockShardContext = createMockShardContext();
+        SearchExecutionContext mockShardContext = createMockSearchExecutionContext();
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
             SortFieldAndFormat sortField = Rewriteable.rewrite(sortBuilder, mockShardContext)
@@ -187,11 +175,11 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         }
     }
 
-    protected final QueryShardContext createMockShardContext() {
-        return createMockShardContext(null);
+    protected final SearchExecutionContext createMockSearchExecutionContext() {
+        return createMockSearchExecutionContext(null);
     }
 
-    protected final QueryShardContext createMockShardContext(IndexSearcher searcher) {
+    protected final SearchExecutionContext createMockSearchExecutionContext(IndexSearcher searcher) {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
@@ -201,8 +189,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
-                null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
+        return new SearchExecutionContext(0, 0, idxSettings, bitsetFilterCache, indexFieldDataLookup,
+                null, null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
                 () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
 
             @Override
@@ -212,7 +200,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
             @Override
             public ObjectMapper getObjectMapper(String name) {
-                return new ObjectMapper.Builder(name, Version.CURRENT).nested(Nested.newNested()).build(new ContentPath());
+                return new NestedObjectMapper.Builder(name, Version.CURRENT).build(new ContentPath());
             }
         };
     }

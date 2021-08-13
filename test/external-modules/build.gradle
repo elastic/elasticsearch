@@ -1,13 +1,13 @@
 
-import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 
 subprojects {
-  apply plugin: 'elasticsearch.esplugin'
+  apply plugin: 'elasticsearch.internal-es-plugin'
   apply plugin: 'elasticsearch.yaml-rest-test'
 
   esplugin {
     name it.name
-    licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+    licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
     noticeFile rootProject.file('NOTICE.txt')
   }
 

@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -34,12 +24,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -64,6 +55,22 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     private static final Instant T1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
     private static final Instant T2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
+
+    public void testBooleanFieldDeprecated() throws IOException {
+        final String fieldName = "bogusBoolean";
+        testCase(
+            new DateRangeAggregationBuilder("name").field(fieldName).addRange("false", "true"),
+            new MatchAllDocsQuery(),
+            iw -> {
+                Document d = new Document();
+                d.add(new SortedNumericDocValuesField(fieldName, 0));
+                iw.addDocument(d);
+            },
+            a -> {},
+            new BooleanFieldMapper.BooleanFieldType(fieldName)
+        );
+        assertWarnings("Running Range or DateRange aggregations on [boolean] fields is deprecated");
+    }
 
     public void testNoMatchingField() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {
@@ -181,7 +188,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                 Resolution.MILLISECONDS,
                 null,
-                null
+                null,
+                Collections.emptyMap()
             )
         );
     }
@@ -326,7 +334,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
     private void testBothResolutions(
         Query query,
         CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.Resolution, IOException> buildIndex,
-        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify
     ) throws IOException {
         testCase(
             query,
@@ -344,10 +352,10 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
+                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify,
                           DateFieldMapper.Resolution resolution) throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, null, Collections.emptyMap());
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
         DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("test_range_agg");
         aggregationBuilder.field(DATE_FIELD_NAME);
         aggregationBuilder.addRange("2015-01-01", "2015-12-31");
@@ -358,7 +366,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
     private void testCase(DateRangeAggregationBuilder aggregationBuilder,
                           Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
+                          Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify,
                           MappedFieldType fieldType) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -368,7 +376,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> agg = searchAndReduce(indexSearcher,
+                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>> agg = searchAndReduce(indexSearcher,
                     query, aggregationBuilder, fieldType);
                 verify.accept(agg);
 

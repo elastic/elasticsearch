@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.topmetrics;
@@ -73,7 +74,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         InternalTopMetrics longMetrics = buildFilled(1, top(SortValue.from(7), randomDouble()));
         InternalTopMetrics reduced = reduce(doubleMetrics, longMetrics);
         // Doubles sort first.
-        InternalTopMetrics winner = doubleMetrics.getSortOrder() == SortOrder.ASC ? doubleMetrics : longMetrics; 
+        InternalTopMetrics winner = doubleMetrics.getSortOrder() == SortOrder.ASC ? doubleMetrics : longMetrics;
         assertThat(reduced.getName(), equalTo("test"));
         assertThat(reduced.getMetricNames(), equalTo(singletonList("test")));
         assertThat(reduced.getSortOrder(), equalTo(doubleMetrics.getSortOrder()));

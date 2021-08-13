@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.test;
@@ -9,10 +10,10 @@ package org.elasticsearch.xpack.idp.saml.test;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FileMatchers;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
@@ -33,11 +34,6 @@ import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.security.x509.X509Credential;
 import org.w3c.dom.Element;
 
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerException;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StringWriter;
@@ -45,8 +41,8 @@ import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
-import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +50,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
@@ -86,6 +87,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     protected static void mockRegisteredServiceProvider(SamlIdentityProvider idp, String entityId, SamlServiceProvider sp) {
         Mockito.doAnswer(inv -> {
             final Object[] args = inv.getArguments();
@@ -100,6 +102,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
             Mockito.any(ActionListener.class));
     }
 
+    @SuppressWarnings("unchecked")
     protected static void mockRegisteredServiceProvider(SamlServiceProviderResolver resolverMock, String entityId,
                                                         SamlServiceProvider sp) {
         Mockito.doAnswer(inv -> {
@@ -114,7 +117,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
         }).when(resolverMock).resolve(Mockito.eq(entityId), Mockito.any(ActionListener.class));
     }
 
-    protected List<X509Credential> readCredentials() throws CertificateException, IOException {
+    protected List<X509Credential> readCredentials() throws GeneralSecurityException, IOException {
         List<X509Credential> list = new ArrayList<>(2);
         list.add(readCredentials("RSA", 1024));
         list.add(readCredentials("RSA", 2048));
@@ -122,7 +125,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
         return list;
     }
 
-    protected X509Credential readCredentials(String type, int size) throws CertificateException, IOException {
+    protected X509Credential readCredentials(String type, int size) throws GeneralSecurityException, IOException {
         Path certPath = getDataPath("/keypair/keypair_" + type + "_" + size + ".crt");
         Path keyPath = getDataPath("/keypair/keypair_" + type + "_" + size + ".key");
         assertThat(certPath, FileMatchers.isRegularFile());

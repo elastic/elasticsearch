@@ -29,20 +29,23 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 
 By default, all data streams and indices in the snapshot are restored, but the cluster state is
 *not* restored. Use the `indices` parameter to restore only specific data streams or indices. This parameter
-supports <<multi-index,multi-target syntax>>. To include the global cluster state, set
+supports <<api-multi-index,multi-target syntax>>. To include the global cluster state, set
 `include_global_state` to `true` in the restore request body.
+
+Because all indices in the snapshot are restored by default, all system indices will be restored
+by default as well.
 
 [WARNING]
 ====
 Each data stream requires a matching
-<<create-a-data-stream-template,index template>>. The stream uses this
+<<create-index-template,index template>>. The stream uses this
 template to create new backing indices.
 
 When restoring a data stream, ensure a matching template exists for the stream.
 You can do this using one of the following methods:
 
 * Check for existing templates that match the stream. If no matching template
-  exists, <<create-a-data-stream-template,create one>>.
+  exists, <<create-index-template,create one>>.
 
 * Restore a global cluster state that includes a matching template for the
   stream.
@@ -59,7 +62,8 @@ using regular expression that supports referencing the original text, according 
 // tag::rename-restored-data-stream-tag[]
 If you rename a restored data stream, its backing indices are also
 renamed. For example, if you rename the `logs` data stream to `restored-logs`,
-the backing index `.ds-logs-000005` is renamed to `.ds-restored-logs-000005`.
+the backing index `.ds-logs-2099.03.09-000005` is renamed to
+`.ds-restored-logs-2099.03.09-000005`.
 
 [WARNING]
 ====
@@ -69,8 +73,8 @@ name. If no index template matches the stream, it cannot
 ====
 // end::rename-restored-data-stream-tag[]
 
-Set `include_aliases` to `false` to prevent aliases from being restored together
-with associated indices.
+To prevent aliases from being restored with their associated data streams and
+indices, set `include_aliases` to `false`.
 
 [source,console]
 -----------------------------------
@@ -87,15 +91,17 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 // TEST[continued]
 
 <1> By default, `include_global_state` is `false`, meaning the snapshot's
-cluster state is not restored.
+cluster state and feature states are not restored.
 +
-If `true`, the snapshot's persistent settings, index templates, ingest
-pipelines, and {ilm-init} policies are restored into the current cluster. This
-overwrites any existing cluster settings, templates, pipelines and {ilm-init}
-policies whose names match those in the snapshot.
+If `true` then the restore operation merges the legacy index templates in your
+cluster with the templates contained in the snapshot, replacing any existing
+ones whose name matches one in the snapshot. It completely removes all
+persistent settings, non-legacy index templates, ingest pipelines and
+{ilm-init} lifecycle policies that exist in your cluster and replaces them with
+the corresponding items from the snapshot.
 
 The restore operation must be performed on a functioning cluster. However, an
-existing index can be only restored if it's <<indices-close,closed>> and
+existing index can only be restored if it's <<indices-close,closed>> and
 has the same number of shards as the index in the snapshot. The restore
 operation automatically opens restored indices if they were closed and creates
 new indices if they didn't exist in the cluster.
@@ -103,14 +109,11 @@ new indices if they didn't exist in the cluster.
 If a data stream is restored, its backing indices are also restored. The restore
 operation automatically opens restored backing indices if they were closed.
 
-NOTE: You cannot restore a data stream if a stream with the same name already
-exists.
-
 In addition to entire data streams, you can restore only specific backing
 indices from a snapshot. However, restored backing indices are not automatically
-added to any existing data streams. For example, if only the `.ds-logs-000003`
-backing index is restored from a snapshot, it is not automatically added to the
-existing `logs` data stream.
+added to any existing data streams. For example, if only the
+`.ds-logs-2099.03.08-000003` backing index is restored from a snapshot, it is
+not automatically added to the existing `logs` data stream.
 
 [discrete]
 === Partial restore
@@ -157,7 +160,7 @@ indices.
 The `index_settings` and `ignore_index_settings` parameters affect
 restored backing indices only. New backing indices created for a stream use the index
 settings specified in the stream's matching
-<<create-a-data-stream-template,index template>>.
+<<create-index-template,index template>>.
 
 If you change index settings during a restore, we recommend you make similar
 changes in the stream's matching index template. This ensures new backing

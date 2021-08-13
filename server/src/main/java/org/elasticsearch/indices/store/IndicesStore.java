@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.store;
@@ -35,14 +24,14 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -104,7 +93,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             new ShardActiveRequestHandler());
         this.deleteShardTimeout = INDICES_STORE_DELETE_SHARD_TIMEOUT.get(settings);
         // Doesn't make sense to delete shards on non-data nodes
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             // we double check nothing has changed when responses come back from other nodes.
             // it's easier to do that check when the current cluster state is visible.
             // also it's good in general to let things settle down
@@ -114,14 +103,14 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
     @Override
     public void close() {
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             clusterService.removeListener(this);
         }
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (!event.routingTableChanged()) {
+        if (event.routingTableChanged() == false) {
             return;
         }
 
@@ -134,7 +123,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         // remove entries from cache that don't exist in the routing table anymore (either closed or deleted indices)
         // - removing shard data of deleted indices is handled by IndicesClusterStateService
         // - closed indices don't need to be removed from the cache but we do it anyway for code simplicity
-        folderNotFoundCache.removeIf(shardId -> !routingTable.hasIndex(shardId.getIndex()));
+        folderNotFoundCache.removeIf(shardId -> routingTable.hasIndex(shardId.getIndex()) == false);
         // remove entries from cache which are allocated to this node
         final String localNodeId = event.state().nodes().getLocalNodeId();
         RoutingNode localRoutingNode = event.state().getRoutingNodes().node(localNodeId);
@@ -364,7 +353,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
         private IndexShard getShard(ShardActiveRequest request) {
             ClusterName thisClusterName = clusterService.getClusterName();
-            if (!thisClusterName.equals(request.clusterName)) {
+            if (thisClusterName.equals(request.clusterName) == false) {
                 logger.trace("shard exists request meant for cluster[{}], but this is cluster[{}], ignoring request",
                     request.clusterName, thisClusterName);
                 return null;

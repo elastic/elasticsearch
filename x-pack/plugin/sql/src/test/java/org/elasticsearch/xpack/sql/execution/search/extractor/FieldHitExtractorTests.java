@@ -1,41 +1,38 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.StringJoiner;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
@@ -46,7 +43,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     public static FieldHitExtractor randomFieldHitExtractor() {
         String hitName = randomAlphaOfLength(5);
         String name = randomAlphaOfLength(5) + "." + hitName;
-        return new FieldHitExtractor(name, null, null, randomZone(), randomBoolean(), hitName, false);
+        return new FieldHitExtractor(name, null, randomZone(), hitName, false);
     }
 
     @Override
@@ -68,12 +65,11 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     protected FieldHitExtractor mutateInstance(FieldHitExtractor instance) {
         return new FieldHitExtractor(
             instance.fieldName() + "mutated",
-            instance.fullFieldName() + "mutated",
             randomValueOtherThan(instance.dataType(), () -> randomFrom(SqlDataTypes.types())),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
-            randomBoolean(),
             instance.hitName() + "mutated",
-            randomBoolean());
+            randomBoolean()
+        );
     }
 
     public void testGetDottedValueWithDocValues() {
@@ -82,7 +78,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         String child = randomAlphaOfLength(5);
         String fieldName = grandparent + "." + parent + "." + child;
 
-        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, true);
+        FieldHitExtractor extractor = getFieldHitExtractor(fieldName);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -99,52 +95,9 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         }
     }
 
-    public void testGetDottedValueWithSource() throws Exception {
-        String grandparent = randomAlphaOfLength(5);
-        String parent = randomAlphaOfLength(5);
-        String child = randomAlphaOfLength(5);
-        String fieldName = grandparent + "." + parent + "." + child;
-
-        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, false);
-
-        int times = between(1, 1000);
-        for (int i = 0; i < times; i++) {
-            /* We use values that are parsed from json as "equal" to make the
-             * test simpler. */
-            Object value = randomValue();
-            SearchHit hit = new SearchHit(1);
-            XContentBuilder source = JsonXContent.contentBuilder();
-            boolean hasGrandparent = randomBoolean();
-            boolean hasParent = randomBoolean();
-            boolean hasChild = randomBoolean();
-            boolean hasSource = hasGrandparent && hasParent && hasChild;
-
-            source.startObject();
-            if (hasGrandparent) {
-                source.startObject(grandparent);
-                if (hasParent) {
-                    source.startObject(parent);
-                    if (hasChild) {
-                        source.field(child, value);
-                        if (randomBoolean()) {
-                            source.field(fieldName + randomAlphaOfLength(3), value + randomAlphaOfLength(3));
-                        }
-                    }
-                    source.endObject();
-                }
-                source.endObject();
-            }
-            source.endObject();
-            BytesReference sourceRef = BytesReference.bytes(source);
-            hit.sourceRef(sourceRef);
-            Object extract = extractor.extract(hit);
-            assertFieldHitEquals(hasSource ? value : null, extract);
-        }
-    }
-
     public void testGetDocValue() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, true);
+        FieldHitExtractor extractor = getFieldHitExtractor(fieldName);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -161,471 +114,109 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
     public void testGetDate() {
         ZoneId zoneId = randomZone();
-        long millis = 1526467911780L;
-        List<Object> documentFieldValues = Collections.singletonList(Long.toString(millis));
-        DocumentField field = new DocumentField("my_date_field", documentFieldValues);
-        SearchHit hit = new SearchHit(1, null, singletonMap("my_date_field", field), null);
-        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DATETIME, zoneId, true);
-        assertEquals(DateUtils.asDateTime(millis, zoneId), extractor.extract(hit));
-    }
-
-    public void testGetSource() throws IOException {
-        String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, false);
-
-        int times = between(1, 1000);
-        for (int i = 0; i < times; i++) {
-            /* We use values that are parsed from json as "equal" to make the
-             * test simpler. */
-            Object value = randomValue();
-            SearchHit hit = new SearchHit(1);
-            XContentBuilder source = JsonXContent.contentBuilder();
-            source.startObject(); {
-                source.field(fieldName, value);
-                if (randomBoolean()) {
-                    source.field(fieldName + "_random_junk", value + "_random_junk");
-                }
-            }
-            source.endObject();
-            BytesReference sourceRef = BytesReference.bytes(source);
-            hit.sourceRef(sourceRef);
-            assertFieldHitEquals(value, extractor.extract(hit));
-        }
+        long totalNanos = randomLongBetween(72000000000000L, Long.MAX_VALUE);
+        long millis = toMilliSeconds(totalNanos);
+        long nanosOnly = (int) (totalNanos % 1_000_000_000);
+        ZonedDateTime zdt = DateUtils.asDateTimeWithMillis(millis, zoneId).plusNanos(nanosOnly);
+        List<Object> documentFieldValues = Collections.singletonList(StringUtils.toString(zdt));
+        DocumentField field = new DocumentField("my_date_nanos_field", documentFieldValues);
+        SearchHit hit = new SearchHit(1, null, singletonMap("my_date_nanos_field", field), null);
+        FieldHitExtractor extractor = new FieldHitExtractor("my_date_nanos_field", DATETIME, zoneId, true);
+        assertEquals(zdt, extractor.extract(hit));
     }
 
     public void testToString() {
-        assertEquals("hit.field@hit@Europe/Berlin",
-                new FieldHitExtractor("hit.field", null, null, ZoneId.of("Europe/Berlin"), true, "hit", false).toString());
+        assertEquals(
+            "hit.field@hit@Europe/Berlin",
+            new FieldHitExtractor("hit.field", null, ZoneId.of("Europe/Berlin"), "hit", false).toString()
+        );
     }
 
     public void testMultiValuedDocValue() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = getFieldHitExtractor(fieldName, true);
+        FieldHitExtractor fe = getFieldHitExtractor(fieldName);
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
         SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
-    public void testMultiValuedSourceValue() throws IOException {
-        String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
-        SearchHit hit = new SearchHit(1);
-        XContentBuilder source = JsonXContent.contentBuilder();
-        source.startObject(); {
-            source.field(fieldName, asList("a", "b"));
-        }
-        source.endObject();
-        BytesReference sourceRef = BytesReference.bytes(source);
-        hit.sourceRef(sourceRef);
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
-        assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
-    }
-
-    public void testSingleValueArrayInSource() throws IOException {
-        String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
-        SearchHit hit = new SearchHit(1);
-        XContentBuilder source = JsonXContent.contentBuilder();
-        Object value = randomValue();
-        source.startObject(); {
-            source.field(fieldName, Collections.singletonList(value));
-        }
-        source.endObject();
-        BytesReference sourceRef = BytesReference.bytes(source);
-        hit.sourceRef(sourceRef);
-        assertFieldHitEquals(value, fe.extract(hit));
-    }
-
     public void testExtractSourcePath() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c");
         Object value = randomValue();
-        Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
-        assertThat(fe.extractFromSource(map), is(value));
+        DocumentField field = new DocumentField("a.b.c", singletonList(value));
+        SearchHit hit = new SearchHit(1, null, null, singletonMap("a.b.c", field), null);
+        assertThat(fe.extract(hit), is(value));
     }
-
-    public void testExtractSourceIncorrectPath() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d", false);
-        Object value = randomNonNullValue();
-        Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
-        assertThat(ex.getMessage(), is("Cannot extract value [a.b.c.d] from source"));
-    }
-
+    
     public void testMultiValuedSource() {
-        FieldHitExtractor fe = getFieldHitExtractor("a", false);
+        FieldHitExtractor fe = getFieldHitExtractor("a");
         Object value = randomValue();
-        Map<String, Object> map = singletonMap("a", asList(value, value));
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
+        DocumentField field = new DocumentField("a", asList(value, value));
+        SearchHit hit = new SearchHit(1, null, null, singletonMap("a", field), null);
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
     }
-
+    
     public void testMultiValuedSourceAllowed() {
-        FieldHitExtractor fe = new FieldHitExtractor("a", null, UTC, false, true);
+        FieldHitExtractor fe = new FieldHitExtractor("a", null, UTC, true);
         Object valueA = randomValue();
         Object valueB = randomValue();
-        Map<String, Object> map = singletonMap("a", asList(valueA, valueB));
-        assertEquals(valueA, fe.extractFromSource(map));
-    }
-
-    public void testFieldWithDots() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b", false);
-        Object value = randomValue();
-        Map<String, Object> map = singletonMap("a.b", value);
-        assertEquals(value, fe.extractFromSource(map));
-    }
-
-    public void testNestedFieldWithDots() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
-        Object value = randomValue();
-        Map<String, Object> map = singletonMap("a", singletonMap("b.c", value));
-        assertEquals(value, fe.extractFromSource(map));
-    }
-
-    public void testNestedFieldWithDotsWithNestedField() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d", false);
-        Object value = randomValue();
-        Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d", value)));
-        assertEquals(value, fe.extractFromSource(map));
-    }
-
-    public void testNestedFieldWithDotsWithNestedFieldWithDots() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e", false);
-        Object value = randomValue();
-        Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d.e", value)));
-        assertEquals(value, fe.extractFromSource(map));
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    public void testNestedFieldsWithDotsAndRandomHierarchy() {
-        String[] path = new String[100];
-        StringJoiner sj = new StringJoiner(".");
-        for (int i = 0; i < 100; i++) {
-            path[i] = randomAlphaOfLength(randomIntBetween(1, 10));
-            sj.add(path[i]);
-        }
-        boolean arrayLeniency = randomBoolean();
-        FieldHitExtractor fe = new FieldHitExtractor(sj.toString(), null, UTC, false, arrayLeniency);
-
-        List<String> paths = new ArrayList<>(path.length);
-        int start = 0;
-        while (start < path.length) {
-            int end = randomIntBetween(start + 1, path.length);
-            sj = new StringJoiner(".");
-            for (int j = start; j < end; j++) {
-                sj.add(path[j]);
-            }
-            paths.add(sj.toString());
-            start = end;
-        }
-
-        /*
-         * Randomize how many values the field to look for will have (1 - 3). It's not really relevant how many values there are in the list
-         * but that the list has one element or more than one.
-         * If it has one value, then randomize the way it's indexed: as a single-value array or not e.g.: "a":"value" or "a":["value"].
-         * If it has more than one value, it will always be an array e.g.: "a":["v1","v2","v3"].
-         */
-        int valuesCount = randomIntBetween(1, 3);
-        Object value = randomValue();
-        if (valuesCount == 1) {
-            value = randomBoolean() ? singletonList(value) : value;
-        } else {
-            value = new ArrayList(valuesCount);
-            for(int i = 0; i < valuesCount; i++) {
-                ((List) value).add(randomValue());
-            }
-        }
-
-        // the path to the randomly generated fields path
-        StringBuilder expected = new StringBuilder(paths.get(paths.size() - 1));
-        // the actual value we will be looking for in the test at the end
-        Map<String, Object> map = singletonMap(paths.get(paths.size() - 1), value);
-        // build the rest of the path and the expected path to check against in the error message
-        for (int i = paths.size() - 2; i >= 0; i--) {
-            map = singletonMap(paths.get(i), randomBoolean() ? singletonList(map) : map);
-            expected.insert(0, paths.get(i) + ".");
-        }
-
-        if (valuesCount == 1 || arrayLeniency) {
-            // if the number of generated values is 1, just check we return the correct value
-            assertEquals(value instanceof List ? ((List) value).get(0) : value, fe.extractFromSource(map));
-        } else {
-            // if we have an array with more than one value in it, check that we throw the correct exception and exception message
-            final Map<String, Object> map2 = Collections.unmodifiableMap(map);
-            QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map2));
-            assertThat(ex.getMessage(), is("Arrays (returned by [" + expected + "]) are not supported"));
-        }
-    }
-
-    public void testExtractSourceIncorrectPathWithFieldWithDots() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e", false);
-        Object value = randomNonNullValue();
-        Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d", value)));
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
-        assertThat(ex.getMessage(), is("Cannot extract value [a.b.c.d.e] from source"));
-    }
-
-    public void testFieldWithDotsAndCommonPrefix() {
-        FieldHitExtractor fe1 = getFieldHitExtractor("a.d", false);
-        FieldHitExtractor fe2 = getFieldHitExtractor("a.b.c", false);
-        Object value = randomNonNullValue();
-        Map<String, Object> map = new HashMap<>();
-        map.put("a", singletonMap("d", value));
-        map.put("a.b", singletonMap("c", value));
-        assertEquals(value, fe1.extractFromSource(map));
-        assertEquals(value, fe2.extractFromSource(map));
-    }
-
-    public void testFieldWithDotsAndCommonPrefixes() {
-        FieldHitExtractor fe1 = getFieldHitExtractor("a1.b.c.d1.e.f.g1", false);
-        FieldHitExtractor fe2 = getFieldHitExtractor("a2.b.c.d2.e.f.g2", false);
-        Object value = randomNonNullValue();
-        Map<String, Object> map = new HashMap<>();
-        map.put("a1", singletonMap("b.c", singletonMap("d1", singletonMap("e.f", singletonMap("g1", value)))));
-        map.put("a2", singletonMap("b.c", singletonMap("d2", singletonMap("e.f", singletonMap("g2", value)))));
-        assertEquals(value, fe1.extractFromSource(map));
-        assertEquals(value, fe2.extractFromSource(map));
-    }
-
-    public void testFieldWithDotsAndSamePathButDifferentHierarchy() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e.f.g", false);
-        Object value = randomNonNullValue();
-        Map<String, Object> map = new HashMap<>();
-        map.put("a.b", singletonMap("c", singletonMap("d.e", singletonMap("f.g", value))));
-        map.put("a", singletonMap("b.c", singletonMap("d.e", singletonMap("f", singletonMap("g", value)))));
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
-        assertThat(ex.getMessage(), is("Multiple values (returned by [a.b.c.d.e.f.g]) are not supported"));
-    }
-
-    public void testFieldsWithSingleValueArrayAsSubfield() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b", false);
-        Object value = randomNonNullValue();
-        Map<String, Object> map = new HashMap<>();
-        // "a" : [{"b" : "value"}]
-        map.put("a", singletonList(singletonMap("b", value)));
-        assertEquals(value, fe.extractFromSource(map));
-    }
-
-    public void testFieldsWithMultiValueArrayAsSubfield() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b", false);
-        Map<String, Object> map = new HashMap<>();
-        // "a" : [{"b" : "value1"}, {"b" : "value2"}]
-        map.put("a", asList(singletonMap("b", randomNonNullValue()), singletonMap("b", randomNonNullValue())));
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
-        assertThat(ex.getMessage(), is("Arrays (returned by [a.b]) are not supported"));
-    }
-
-    public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
-        Object value = randomNonNullValue();
-        Map<String, Object> map = new HashMap<>();
-        // "a" : [{"b" : [{"c" : "value"}]}]
-        map.put("a", singletonList(singletonMap("b", singletonList(singletonMap("c", value)))));
-        assertEquals(value, fe.extractFromSource(map));
-    }
-
-    public void testFieldsWithMultiValueArrayAsSubfield_ThreeNestedLists() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
-        Map<String, Object> map = new HashMap<>();
-        // "a" : [{"b" : [{"c" : ["value1", "value2"]}]}]
-        map.put("a", singletonList(singletonMap("b", singletonList(singletonMap("c", asList("value1", "value2"))))));
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
-        assertThat(ex.getMessage(), is("Arrays (returned by [a.b.c]) are not supported"));
-    }
-
-    public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists2() {
-        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
-        Object value = randomNonNullValue();
-        Map<String, Object> map = new HashMap<>();
-        // "a" : [{"b" : {"c" : ["value"]}]}]
-        map.put("a", singletonList(singletonMap("b", singletonMap("c", singletonList(value)))));
-        assertEquals(value, fe.extractFromSource(map));
-    }
-
-    public void testObjectsForSourceValue() throws IOException {
-        String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
-        SearchHit hit = new SearchHit(1);
-        XContentBuilder source = JsonXContent.contentBuilder();
-        source.startObject(); {
-            source.startObject(fieldName); {
-                source.field("b", "c");
-            }
-            source.endObject();
-        }
-        source.endObject();
-        BytesReference sourceRef = BytesReference.bytes(source);
-        hit.sourceRef(sourceRef);
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
-        assertThat(ex.getMessage(), is("Objects (returned by [" + fieldName + "]) are not supported"));
+        DocumentField field = new DocumentField("a", asList(valueA, valueB));
+        SearchHit hit = new SearchHit(1, null, null, singletonMap("a", field), null);
+        assertEquals(valueA, fe.extract(hit));
     }
 
     public void testGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false);
-        Map<String, Object> map = new HashMap<>();
-        map.put(fieldName, "POINT (1 2)");
-        assertEquals(new GeoShape(1, 2), fe.extractFromSource(map));
 
-        map = new HashMap<>();
-        assertNull(fe.extractFromSource(map));
+        Map<String, Object> map = new HashMap<>(2);
+        map.put("coordinates", asList(1d, 2d));
+        map.put("type", "Point");
+        DocumentField field = new DocumentField(fieldName, singletonList(map));
+        SearchHit hit = new SearchHit(1, null, null, singletonMap(fieldName, field), null);
+
+        assertEquals(new GeoShape(1, 2), fe.extract(hit));
     }
-
-
+    
     public void testMultipleGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false);
-        Map<String, Object> map = new HashMap<>();
-        map.put(fieldName, "POINT (1 2)");
-        assertEquals(new GeoShape(1, 2), fe.extractFromSource(map));
-
-        map = new HashMap<>();
-        assertNull(fe.extractFromSource(map));
-
-        Map<String, Object> map2 = new HashMap<>();
-        map2.put(fieldName, Arrays.asList("POINT (1 2)", "POINT (3 4)"));
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map2));
-        assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
-
-        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName,
-                randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false, true);
-        assertEquals(new GeoShape(1, 2), lenientFe.extractFromSource(map2));
-    }
-
-    public void testGeoPointExtractionFromSource() throws IOException {
-        int layers = randomIntBetween(1, 3);
-        String pathCombined = "";
-        double lat = randomDoubleBetween(-90, 90, true);
-        double lon = randomDoubleBetween(-180, 180, true);
-        SearchHit hit = new SearchHit(1);
-        XContentBuilder source = JsonXContent.contentBuilder();
-        boolean[] arrayWrap = new boolean[layers - 1];
-        source.startObject(); {
-            for (int i = 0; i < layers - 1; i++) {
-                arrayWrap[i] = randomBoolean();
-                String name = randomAlphaOfLength(10);
-                source.field(name);
-                if (arrayWrap[i]) {
-                    source.startArray();
-                }
-                source.startObject();
-                pathCombined = pathCombined + name + ".";
-            }
-            String name = randomAlphaOfLength(10);
-            pathCombined = pathCombined + name;
-            source.field(name, randomPoint(lat, lon));
-            for (int i = layers - 2; i >= 0; i--) {
-                source.endObject();
-                if (arrayWrap[i]) {
-                    source.endArray();
-                }
-            }
-        }
-        source.endObject();
-        BytesReference sourceRef = BytesReference.bytes(source);
-        hit.sourceRef(sourceRef);
-
-        FieldHitExtractor fe = new FieldHitExtractor(pathCombined, GEO_POINT, UTC, false);
-        assertEquals(new GeoShape(lon, lat), fe.extract(hit));
-    }
-
-    public void testMultipleGeoPointExtractionFromSource() throws IOException {
-        double lat = randomDoubleBetween(-90, 90, true);
-        double lon = randomDoubleBetween(-180, 180, true);
-        SearchHit hit = new SearchHit(1);
-        String fieldName = randomAlphaOfLength(5);
-        int arraySize = randomIntBetween(2, 4);
-        XContentBuilder source = JsonXContent.contentBuilder();
-        source.startObject(); {
-            source.startArray(fieldName);
-            source.value(randomPoint(lat, lon));
-            for (int i = 1; i < arraySize; i++) {
-                source.value(randomPoint(lat, lon));
-            }
-            source.endArray();
-        }
-        source.endObject();
-        BytesReference sourceRef = BytesReference.bytes(source);
-        hit.sourceRef(sourceRef);
-
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, false);
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
-        assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
-
-        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, false, true);
-        assertEquals(new GeoShape(lon, lat), lenientFe.extract(hit));
-    }
-
-    public void testGeoPointExtractionFromDocValues() {
-        String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, true);
-        DocumentField field = new DocumentField(fieldName, singletonList("2, 1"));
+    
+        Map<String, Object> map1 = new HashMap<>(2);
+        map1.put("coordinates", asList(1d, 2d));
+        map1.put("type", "Point");
+        Map<String, Object> map2 = new HashMap<>(2);
+        map2.put("coordinates", asList(3d, 4d));
+        map2.put("type", "Point");
+        DocumentField field = new DocumentField(fieldName, asList(map1, map2));
         SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
-        assertEquals(new GeoShape(1, 2), fe.extract(hit));
-        hit = new SearchHit(1);
-        assertNull(fe.extract(hit));
-    }
 
-    public void testGeoPointExtractionFromMultipleDocValues() {
-        String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, true);
-        SearchHit hit = new SearchHit(1, null, singletonMap(fieldName,
-            new DocumentField(fieldName, Arrays.asList("2,1", "3,4"))), null);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
-
-        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, true, true);
-        assertEquals(new GeoShape(1, 2), lenientFe.extract(hit));
+    
+        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, true);
+        assertEquals(new GeoShape(3, 4), lenientFe.extract(new SearchHit(1, null, null, singletonMap(fieldName,
+            new DocumentField(fieldName, singletonList(map2))), null)));
     }
 
-    private FieldHitExtractor getFieldHitExtractor(String fieldName, boolean useDocValue) {
-        return new FieldHitExtractor(fieldName, null, UTC, useDocValue);
+    private FieldHitExtractor getFieldHitExtractor(String fieldName) {
+        return new FieldHitExtractor(fieldName, null, UTC);
     }
 
     private Object randomValue() {
-        Supplier<Object> value = randomFrom(Arrays.asList(
+        Supplier<Object> value = randomFrom(
+            Arrays.asList(
                 () -> randomAlphaOfLength(10),
                 ESTestCase::randomLong,
                 ESTestCase::randomDouble,
                 ESTestCase::randomInt,
                 () -> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
                 () -> new BigDecimal("20012312345621343256123456254.20012312345621343256123456254"),
-                () -> null));
-        return value.get();
-    }
-
-    private Object randomNonNullValue() {
-        Supplier<Object> value = randomFrom(Arrays.asList(
-                () -> randomAlphaOfLength(10),
-                ESTestCase::randomLong,
-                ESTestCase::randomDouble,
-                ESTestCase::randomInt,
-                () -> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
-                () -> new BigDecimal("20012312345621343256123456254.20012312345621343256123456254")));
-        return value.get();
-    }
-
-    private void assertFieldHitEquals(Object expected, Object actual) {
-        if (expected instanceof BigDecimal) {
-            // parsing will, by default, build a Double even if the initial value is BigDecimal
-            // Elasticsearch does this the same when returning the results
-            assertEquals(((BigDecimal) expected).doubleValue(), actual);
-        } else {
-            assertEquals(expected, actual);
-        }
-    }
-
-    private Object randomPoint(double lat, double lon) {
-        Supplier<Object> value = randomFrom(Arrays.asList(
-            () -> lat + "," + lon,
-            () -> Arrays.asList(lon, lat),
-            () -> {
-                Map<String, Object> map1 = new HashMap<>();
-                map1.put("lat", lat);
-                map1.put("lon", lon);
-                return map1;
-            }
-        ));
+                () -> null
+            )
+        );
         return value.get();
     }
 }

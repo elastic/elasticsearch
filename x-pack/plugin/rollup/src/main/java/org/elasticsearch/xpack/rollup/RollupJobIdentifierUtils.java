@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup;
 
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -162,43 +163,6 @@ public class RollupJobIdentifierUtils {
 
                             // Note that this ignores CALENDER_INTERVAL on purpose, it would not be compatible
 
-                        } else if (source.dateHistogramInterval() != null) {
-                            // The histo used a deprecated interval method, so meaning is ambiguous.
-                            // Use legacy method of preferring calendar over fixed
-                            final DateHistogramInterval requestInterval = source.dateHistogramInterval();
-
-                            // Try to use explicit calendar_interval on config if it exists
-                            // Both must be calendar intervals
-                            if (validateCalendarInterval(requestInterval, configCalendarInterval)) {
-                                localCaps.add(cap);
-                                break;
-                            }
-
-                            // Otherwise fall back to old style where we prefer calendar over fixed (e.g. `1h` == calendar)
-                            // Need to verify that the config interval is in fact calendar here
-                            if (isCalendarInterval(configLegacyInterval)
-                                && validateCalendarInterval(requestInterval, configLegacyInterval)) {
-
-                                localCaps.add(cap);
-                                break;
-                            }
-
-                            // The histo's interval couldn't be parsed as a calendar, so it is assumed fixed.
-                            // Try to use explicit fixed_interval on config if it exists
-                            if (validateFixedInterval(requestInterval, configFixedInterval)) {
-                                localCaps.add(cap);
-                                break;
-                            }
-
-                        } else if (source.interval() != 0) {
-                            // Otherwise fall back to old style interval millis
-                            // Need to verify that the config interval is not calendar here
-                            if (isCalendarInterval(configLegacyInterval) == false
-                                && validateFixedInterval(new DateHistogramInterval(source.interval() + "ms"), configLegacyInterval)) {
-
-                                localCaps.add(cap);
-                                break;
-                            }
                         } else {
                             // This _should not_ happen, but if miraculously it does we need to just quit
                             throw new IllegalArgumentException("An interval of some variety must be configured on " +
@@ -237,10 +201,6 @@ public class RollupJobIdentifierUtils {
             throw new IllegalStateException("Could not find interval in agg cap: " + agg.toString());
         }
         return interval;
-    }
-
-    private static boolean isCalendarInterval(DateHistogramInterval interval) {
-        return interval != null && DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(interval.toString());
     }
 
     static boolean validateCalendarInterval(DateHistogramInterval requestInterval,

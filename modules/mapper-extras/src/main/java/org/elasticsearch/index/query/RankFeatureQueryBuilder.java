@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -22,10 +11,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RankFeatureFieldMapper.RankFeatureFieldType;
@@ -104,7 +94,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
             }
 
             @Override
-            Query toQuery(String field, String feature, boolean positiveScoreImpact) throws IOException {
+            Query toQuery(String field, String feature, boolean positiveScoreImpact) {
                 if (positiveScoreImpact == false) {
                     throw new IllegalArgumentException("Cannot use the [log] function with a field that has a negative score impact as " +
                             "it would trigger negative scores");
@@ -175,7 +165,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
             }
 
             @Override
-            Query toQuery(String field, String feature, boolean positiveScoreImpact) throws IOException {
+            Query toQuery(String field, String feature, boolean positiveScoreImpact) {
                 if (pivot == null) {
                     return FeatureField.newSaturationQuery(field, feature);
                 } else {
@@ -240,8 +230,53 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
             }
 
             @Override
-            Query toQuery(String field, String feature, boolean positiveScoreImpact) throws IOException {
+            Query toQuery(String field, String feature, boolean positiveScoreImpact) {
                 return FeatureField.newSigmoidQuery(field, feature, DEFAULT_BOOST, pivot, exp);
+            }
+        }
+
+        /**
+         * A scoring function that scores documents as simply {@code S}
+         * where S is the indexed value of the static feature.
+         */
+        public static class Linear extends ScoreFunction {
+
+            private static final ObjectParser<Linear, Void> PARSER = new ObjectParser<>("linear", Linear::new);
+
+            public Linear() {
+            }
+
+            private Linear(StreamInput in) {
+                this();
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (obj == null || getClass() != obj.getClass()) {
+                    return false;
+                }
+                return true;
+            }
+
+            @Override
+            public int hashCode() {
+                return getClass().hashCode();
+            }
+
+            @Override
+            void writeTo(StreamOutput out) throws IOException {
+                out.writeByte((byte) 3);
+            }
+
+            @Override
+            void doXContent(XContentBuilder builder) throws IOException {
+                builder.startObject("linear");
+                builder.endObject();
+            }
+
+            @Override
+            Query toQuery(String field, String feature, boolean positiveScoreImpact) {
+                return FeatureField.newLinearQuery(field, feature, DEFAULT_BOOST);
             }
         }
     }
@@ -255,6 +290,8 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
             return new ScoreFunction.Saturation(in);
         case 2:
             return new ScoreFunction.Sigmoid(in);
+        case 3:
+            return new ScoreFunction.Linear(in);
         default:
             throw new IOException("Illegal score function id: " + b);
         }
@@ -268,7 +305,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
                 long numNonNulls = Arrays.stream(args, 3, args.length).filter(Objects::nonNull).count();
                 final RankFeatureQueryBuilder query;
                 if (numNonNulls > 1) {
-                    throw new IllegalArgumentException("Can only specify one of [log], [saturation] and [sigmoid]");
+                    throw new IllegalArgumentException("Can only specify one of [log], [saturation], [sigmoid] and [linear]");
                 } else if (numNonNulls == 0) {
                     query = new RankFeatureQueryBuilder(field, new ScoreFunction.Saturation());
                 } else {
@@ -292,6 +329,8 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
                 ScoreFunction.Saturation.PARSER, new ParseField("saturation"));
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
                 ScoreFunction.Sigmoid.PARSER, new ParseField("sigmoid"));
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
+                ScoreFunction.Linear.PARSER, new ParseField("linear"));
     }
 
     public static final String NAME = "rank_feature";
@@ -336,7 +375,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         final MappedFieldType ft = context.getFieldType(field);
 
         if (ft instanceof RankFeatureFieldType) {

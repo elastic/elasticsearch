@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.datastreams.mapper;
@@ -11,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
@@ -18,7 +20,7 @@ import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -26,16 +28,13 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testValidateTimestampFieldMapping() throws Exception {
         String mapping = generateMapping("@timestamp", "date");
-        validateTimestampFieldMapping("@timestamp", createMapperService(mapping));
+        validateTimestampFieldMapping(createMappingLookup(mapping));
         mapping = generateMapping("@timestamp", "date_nanos");
-        validateTimestampFieldMapping("@timestamp", createMapperService(mapping));
+        validateTimestampFieldMapping(createMappingLookup(mapping));
     }
 
     public void testValidateTimestampFieldMappingNoFieldMapping() {
-        Exception e = expectThrows(
-            IllegalStateException.class,
-            () -> validateTimestampFieldMapping("@timestamp", createMapperService("{}"))
-        );
+        Exception e = expectThrows(IllegalStateException.class, () -> validateTimestampFieldMapping(createMappingLookup("{}")));
         assertThat(e.getMessage(), equalTo("[_data_stream_timestamp] meta field has been disabled"));
         String mapping1 = "{\n"
             + "      \"_data_stream_timestamp\": {\n"
@@ -47,27 +46,24 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             + "        }\n"
             + "      }\n"
             + "    }";
-        e = expectThrows(IllegalStateException.class, () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping1)));
+        e = expectThrows(IllegalStateException.class, () -> validateTimestampFieldMapping(createMappingLookup(mapping1)));
         assertThat(e.getMessage(), equalTo("[_data_stream_timestamp] meta field has been disabled"));
 
         String mapping2 = generateMapping("@timestamp2", "date");
-        e = expectThrows(IllegalArgumentException.class, () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping2)));
+        e = expectThrows(IllegalArgumentException.class, () -> validateTimestampFieldMapping(createMappingLookup(mapping2)));
         assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] does not exist"));
     }
 
     public void testValidateTimestampFieldMappingInvalidFieldType() {
         String mapping = generateMapping("@timestamp", "keyword");
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping))
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> validateTimestampFieldMapping(createMappingLookup(mapping)));
         assertThat(
             e.getMessage(),
             equalTo("data stream timestamp field [@timestamp] is of type [keyword], " + "but [date,date_nanos] is expected")
         );
     }
 
-    MapperService createMapperService(String mapping) throws IOException {
+    MappingLookup createMappingLookup(String mapping) throws IOException {
         String indexName = "test";
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(
@@ -87,7 +83,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             indexName
         );
         mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
-        return mapperService;
+        return mapperService.mappingLookup();
     }
-
 }

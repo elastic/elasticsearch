@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -25,11 +14,14 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
+import org.elasticsearch.client.security.CreateApiKeyRequestTests;
+import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -37,7 +29,10 @@ import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetServiceAccountCredentialsRequest;
+import org.elasticsearch.client.security.GetServiceAccountsRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.GrantApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -55,7 +50,7 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -436,23 +431,53 @@ public class SecurityRequestConvertersTests extends ESTestCase {
     }
 
     public void testCreateApiKey() throws IOException {
-        final String name = randomAlphaOfLengthBetween(4, 7);
-        final List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
-                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
-        final TimeValue expiration = randomBoolean() ? null : TimeValue.timeValueHours(24);
-        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final CreateApiKeyRequest createApiKeyRequest = buildCreateApiKeyRequest();
+
         final Map<String, String> expectedParams;
+        final RefreshPolicy refreshPolicy = createApiKeyRequest.getRefreshPolicy();
         if (refreshPolicy != RefreshPolicy.NONE) {
             expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
         } else {
             expectedParams = Collections.emptyMap();
         }
-        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+
         final Request request = SecurityRequestConverters.createApiKey(createApiKeyRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_security/api_key", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(createApiKeyRequest, request.getEntity());
+    }
+
+    private CreateApiKeyRequest buildCreateApiKeyRequest() {
+        final String name = randomAlphaOfLengthBetween(4, 7);
+        final List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        final TimeValue expiration = randomBoolean() ? null : TimeValue.timeValueHours(24);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, Object> metadata = CreateApiKeyRequestTests.randomMetadata();
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy, metadata);
+        return createApiKeyRequest;
+    }
+
+    public void testGrantApiKey() throws IOException {
+        final CreateApiKeyRequest createApiKeyRequest = buildCreateApiKeyRequest();
+        final GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest(randomBoolean()
+            ? GrantApiKeyRequest.Grant.accessTokenGrant(randomAlphaOfLength(24))
+            : GrantApiKeyRequest.Grant.passwordGrant(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(14, 18).toCharArray()),
+            createApiKeyRequest);
+        final Map<String, String> expectedParams;
+        final RefreshPolicy refreshPolicy = createApiKeyRequest.getRefreshPolicy();
+        if (refreshPolicy != RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
+        } else {
+            expectedParams = Collections.emptyMap();
+        }
+
+        final Request request = SecurityRequestConverters.grantApiKey(grantApiKeyRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/api_key/grant", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(grantApiKeyRequest, request.getEntity());
     }
 
     public void testGetApiKey() throws IOException {
@@ -477,5 +502,61 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_security/api_key", request.getEndpoint());
         assertToXContentBody(invalidateApiKeyRequest, request.getEntity());
+    }
+
+    public void testGetServiceAccounts() throws IOException {
+        final String namespace = randomBoolean() ? randomAlphaOfLengthBetween(3, 8) : null;
+        final String serviceName = namespace == null ? null : randomAlphaOfLengthBetween(3, 8);
+        final GetServiceAccountsRequest getServiceAccountsRequest = new GetServiceAccountsRequest(namespace, serviceName);
+        final Request request = SecurityRequestConverters.getServiceAccounts(getServiceAccountsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        if (namespace == null) {
+            assertEquals("/_security/service", request.getEndpoint());
+        } else if (serviceName == null) {
+            assertEquals("/_security/service/" + namespace, request.getEndpoint());
+        } else {
+            assertEquals("/_security/service/" + namespace + "/" + serviceName, request.getEndpoint());
+        }
+    }
+
+    public void testCreateServiceAccountToken() throws IOException {
+        final String namespace = randomAlphaOfLengthBetween(3, 8);
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
+        final String tokenName = randomBoolean() ? randomAlphaOfLengthBetween(3, 8) : null;
+        final RefreshPolicy refreshPolicy = randomBoolean() ? randomFrom(RefreshPolicy.values()) : null;
+        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+            new CreateServiceAccountTokenRequest(namespace, serviceName, tokenName, refreshPolicy);
+        final Request request = SecurityRequestConverters.createServiceAccountToken(createServiceAccountTokenRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        final String url =
+            "/_security/service/" + namespace + "/" + serviceName + "/credential/token" + (tokenName == null ? "" : "/" + tokenName);
+        assertEquals(url, request.getEndpoint());
+        if (refreshPolicy != null && refreshPolicy != RefreshPolicy.NONE) {
+            assertEquals(refreshPolicy.getValue(), request.getParameters().get("refresh"));
+        }
+    }
+
+    public void testDeleteServiceAccountToken() throws IOException {
+        final String namespace = randomAlphaOfLengthBetween(3, 8);
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
+        final String tokenName = randomAlphaOfLengthBetween(3, 8);
+        final RefreshPolicy refreshPolicy = randomBoolean() ? randomFrom(RefreshPolicy.values()) : null;
+        final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest =
+            new DeleteServiceAccountTokenRequest(namespace, serviceName, tokenName, refreshPolicy);
+        final Request request = SecurityRequestConverters.deleteServiceAccountToken(deleteServiceAccountTokenRequest);
+        assertEquals("/_security/service/" + namespace + "/" + serviceName + "/credential/token/" + tokenName, request.getEndpoint());
+        if (refreshPolicy != null && refreshPolicy != RefreshPolicy.NONE) {
+            assertEquals(refreshPolicy.getValue(), request.getParameters().get("refresh"));
+        }
+    }
+
+    public void testGetServiceAccountCredentials() {
+        final String namespace = randomAlphaOfLengthBetween(3, 8);
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
+        final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest =
+            new GetServiceAccountCredentialsRequest(namespace, serviceName);
+        final Request request = SecurityRequestConverters.getServiceAccountCredentials(getServiceAccountCredentialsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/service/" + namespace + "/" + serviceName + "/credential", request.getEndpoint());
     }
  }

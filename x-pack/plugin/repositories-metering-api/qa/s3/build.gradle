@@ -1,5 +1,5 @@
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -9,14 +9,13 @@ final Project fixture = project(':test:fixtures:s3-fixture')
 final Project repositoryPlugin = project(':plugins:repository-s3')
 
 dependencies {
-  testImplementation project(path: xpackModule('repositories-metering-api'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
   testImplementation repositoryPlugin
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'repositories-metering-api'
+    include 'indices', 'bulk', 'snapshot', 'nodes', '_common', 'repositories-metering-api'
   }
 }
 
@@ -27,8 +26,8 @@ String s3Bucket = System.getenv("amazon_s3_bucket")
 String s3BasePath = System.getenv("amazon_s3_base_path")
 
 if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
-  s3AccessKey = 'access_key'
-  s3SecretKey = 'secret_key'
+  s3AccessKey = 's3_test_access_key'
+  s3SecretKey = 's3_test_secret_key'
   s3Bucket = 'bucket'
   s3BasePath = null
   useFixture = true
@@ -42,15 +41,15 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 's3-fixture-repositories-metering')
 }
 
-integTest {
-  dependsOn repositoryPlugin.bundlePlugin
+tasks.named("integTest").configure {
+  dependsOn ':plugins:repository-s3:bundlePlugin'
   systemProperty 'test.s3.bucket', s3Bucket
   nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_repositories_metering" + BuildParams.testSeed : 'base_path'
 }
 
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.bundlePlugin.archiveFile
+  plugin ':plugins:repository-s3'
 
   keystore 's3.client.repositories_metering.access_key', s3AccessKey
   keystore 's3.client.repositories_metering.secret_key', s3SecretKey
@@ -68,8 +67,9 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   } else {
     println "Using an external service to test " + project.name
   }
+  setting 'xpack.security.enabled', 'false'
 }
 
-task s3ThirdPartyTest {
-  dependsOn integTest
+tasks.register("s3ThirdPartyTest").configure {
+  dependsOn "integTest"
 }

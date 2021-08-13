@@ -3,6 +3,7 @@
 ++++
 <titleabbrev>Geo-polygon</titleabbrev>
 ++++
+deprecated::[7.12,Use <<query-dsl-geo-shape-query>> instead where polygons are defined in GeoJSON or http://docs.opengeospatial.org/is/18-010r7/18-010r7.html[Well-Known Text (WKT)].]
 
 A query returning hits that only fall within a polygon of
 points. Here is an example:
@@ -31,6 +32,7 @@ GET /_search
   }
 }
 --------------------------------------------------
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 [discrete]
 ==== Query Options
@@ -80,6 +82,7 @@ GET /_search
   }
 }
 --------------------------------------------------
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 [discrete]
 ===== Lat Lon as String
@@ -110,6 +113,7 @@ GET /_search
   }
 }
 --------------------------------------------------
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 [discrete]
 ===== Geohash
@@ -138,9 +142,10 @@ GET /_search
   }
 }
 --------------------------------------------------
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 [discrete]
-==== geo_point Type
+==== `geo_point` type
 
 The query *requires* the <<geo-point,`geo_point`>> type to be set on the
 relevant field.

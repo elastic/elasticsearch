@@ -1,7 +1,7 @@
 Contributing to elasticsearch
 =============================
 
-Elasticsearch is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
+Elasticsearch is a free and open project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
 
 If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
 make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
@@ -38,14 +38,14 @@ Contributing code and documentation changes
 -------------------------------------------
 
 If you would like to contribute a new feature or a bug fix to Elasticsearch,
-please discuss your idea first on the Github issue. If there is no Github issue
+please discuss your idea first on the GitHub issue. If there is no GitHub issue
 for your idea, please open one. It may be that somebody is already working on
 it, or that there are particular complexities that you should know about before
 starting the implementation. There are often a number of ways to fix a problem
 and it is important to find the right approach before spending time on a PR
 that cannot be merged.
 
-We add the `help wanted` label to existing Github issues for which community
+We add the `help wanted` label to existing GitHub issues for which community
 contributions are particularly welcome, and we use the `good first issue` label
 to mark issues that we think will be suitable for new contributors.
 
@@ -110,23 +110,24 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 14 is required to build Elasticsearch. You must have a JDK 14 installation
+JDK 16 is required to build Elasticsearch. You must have a JDK 16 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 16 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 14 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 16 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
+and `JAVA11_HOME`, `JAVA12_HOME`, `JAVA13_HOME`, `JAVA14_HOME`, and `JAVA15_HOME`
+available so that the tests can pass.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
-We support development in IntelliJ versions IntelliJ 2019.2 and
+We support development in IntelliJ versions IntelliJ 2020.1 and
 onwards and Eclipse 2020-3 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
@@ -146,13 +147,12 @@ and then run `curl` in another window like this:
     curl -u elastic:password localhost:9200
 
 
-
 ### Importing the project into IntelliJ IDEA
 
 The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
-Elasticsearch builds using Java 14. When importing into IntelliJ you will need
+Elasticsearch builds using Java 16. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"14"** so that the project import will detect it automatically. For more details
+"16"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will
@@ -164,9 +164,45 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
  - In the subsequent dialog navigate to the root `build.gradle` file
  - In the subsequent dialog select **Open as Project**
 
+#### Checkstyle
+
+If you have the [Checkstyle] plugin installed, you can configure IntelliJ to
+check the Elasticsearch code. However, the Checkstyle configuration file does
+not work by default with the IntelliJ plugin, so instead an IDE-specific config
+file is generated automatically after IntelliJ finishes syncing. You can
+manually generate the file with `./gradlew configureIdeCheckstyle` in case
+it is removed due to a `./gradlew clean` or other action.
+
+IntelliJ should be automatically configured to use the generated rules after
+import via the `.idea/checkstyle-idea.xml` configuration file. No further
+action is required.
+
+#### Formatting
+
+We are in the process of migrating towards automatic formatting Java file
+using [spotless], backed by the Eclipse formatter. **We strongly recommend
+installing using the [Eclipse Code Formatter] plugin** so that you can
+apply the correct formatting directly in IntelliJ.  The configuration for
+the plugin is held in `.idea/eclipseCodeFormatter.xml` and should be
+automatically applied, but manual instructions are below in case you you
+need them.
+
+   1. Open **Preferences > Other Settings > Eclipse Code Formatter**
+   2. Click "Use the Eclipse Code Formatter"
+   3. Under "Eclipse formatter config", select "Eclipse workspace/project
+      folder or config file"
+   4. Click "Browse", and navigate to the file `build-tools-internal/formatterConfig.xml`
+   5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
+   6. Click "OK"
+
+Note that only some sub-projects in the Elasticsearch project are currently
+fully-formatted. You can see a list of project that **are not**
+automatically formatted in
+[build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle](build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle).
+
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 14. When importing into Eclipse you
+Elasticsearch builds using Gradle and Java 16. When importing into Eclipse you
 will either need to use an appropriate JDK to run Eclipse itself (e.g. by
 specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
 defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
@@ -196,7 +232,7 @@ Next you'll want to import our auto-formatter:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Formatter**
  - Click **Import**
- - Import the file at **buildSrc/formatterConfig.xml**
+ - Import the file at **build-tools-internal/formatterConfig.xml**
  - Make sure it is the **Active profile**
 
 Finally, set up import order:
@@ -204,7 +240,7 @@ Finally, set up import order:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Organize Imports**
  - Click **Import...**
- - Import the file at **buildSrc/elastic.importorder**
+ - Import the file at **build-tools-internal/elastic.importorder**
  - Set the **Number of imports needed for `.*`** to ***9999***
  - Set the **Number of static imports needed for `.*`** to ***9999*** as well
  - Apply that
@@ -238,12 +274,10 @@ form.
 
 ### Java Language Formatting Guidelines
 
-Java files in the Elasticsearch codebase are formatted with the Eclipse JDT
-formatter, using the [Spotless
-Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle)
-plugin. This plugin is configured on a project-by-project basis, via
-`build.gradle` in the root of the repository. The formatting check can be
-run explicitly with:
+Java files in the Elasticsearch codebase are automatically formatted using
+the [Spotless Gradle] plugin. All new projects are automatically formatted,
+while existing projects are gradually being opted-in. The formatting check
+can be run explicitly with:
 
     ./gradlew spotlessJavaCheck
 
@@ -274,36 +308,20 @@ Please follow these formatting guidelines:
   decrease in consistency.
 * Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
   but line comments i.e `// ...` are.
-* There is an implicit rule that negative boolean expressions should use
-  the form `foo == false` instead of `!foo` for better readability of the
-  code. While this isn't strictly enforced, if might get called out in PR
-  reviews as something to change.
+* Negative boolean expressions must use the form `foo == false` instead of
+  `!foo` for better readability of the code. This is enforced via
+  Checkstyle. Conversely, you should not write e.g. `if (foo == true)`, but
+  just `if (foo)`.
 
 #### Editor / IDE Support
 
 IntelliJ IDEs can
 [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
-the same settings file, and / or use the [Eclipse Code
-Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
-plugin.
+the same settings file, and / or use the [Eclipse Code Formatter] plugin.
 
 You can also tell Spotless to [format a specific
 file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files)
 from the command line.
-
-#### Formatting failures
-
-Sometimes Spotless will report a "misbehaving rule which can't make up its
-mind" and will recommend enabling the `paddedCell()` setting. If you
-enabled this setting and run the format check again,
-Spotless will write files to
-`$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
-different copies of the formatted files, so that you can see how they
-differ and infer what is the problem.
-
-The `paddedCell()` option is disabled for normal operation so that any
-misbehaviour is detected, and not just suppressed. You can enabled the
-option from the command line by running Gradle with `-Dspotless.paddedcell`.
 
 ### Javadoc
 
@@ -386,11 +404,16 @@ is to be helpful, not to turn writing code into a chore.
        regular comments in the code. Remember as well that Elasticsearch
        has extensive [user documentation](./docs), and it is not the role
        of Javadoc to replace that.
+        * If a method's performance is "unexpected" then it's good to call that
+           out in the Javadoc. This is especially helpful if the method is usually fast but sometimes
+           very slow (shakes fist at caching).
    12. Please still try to make class, method or variable names as
        descriptive and concise as possible, as opposed to relying solely on
        Javadoc to describe something.
-   13. Use `@link` and `@see` to add references, either to related
-       resources in the codebase or to relevant external resources.
+   13. Use `@link` to add references to related resources in the codebase. Or
+       outside the code base.
+       1. `@see` is much more limited than `@link`. You can use it but most of
+          the time `@link` flows better.
    14. If you need help writing Javadoc, just ask!
 
 Finally, use your judgement! Base your decisions on what will help other
@@ -404,33 +427,23 @@ top-level `x-pack` directory, all contributed code should have the following
 license header unless instructed otherwise:
 
     /*
-     * Licensed to Elasticsearch under one or more contributor
-     * license agreements. See the NOTICE file distributed with
-     * this work for additional information regarding copyright
-     * ownership. Elasticsearch licenses this file to you under
-     * the Apache License, Version 2.0 (the "License"); you may
-     * not use this file except in compliance with the License.
-     * You may obtain a copy of the License at
-     *
-     *    http://www.apache.org/licenses/LICENSE-2.0
-     *
-     * Unless required by applicable law or agreed to in writing,
-     * software distributed under the License is distributed on an
-     * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-     * KIND, either express or implied.  See the License for the
-     * specific language governing permissions and limitations
-     * under the License.
+     * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+     * or more contributor license agreements. Licensed under the Elastic License
+     * 2.0 and the Server Side Public License, v 1; you may not use this file except
+     * in compliance with, at your election, the Elastic License 2.0 or the Server
+     * Side Public License, v 1.
      */
 
 The top-level `x-pack` directory contains code covered by the [Elastic
-license](licenses/ELASTIC-LICENSE.txt). Community contributions to this code are
+license](licenses/ELASTIC-LICENSE-2.0.txt). Community contributions to this code are
 welcome, and should have the following license header unless instructed
 otherwise:
 
     /*
      * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-     * or more contributor license agreements. Licensed under the Elastic License;
-     * you may not use this file except in compliance with the Elastic License.
+     * or more contributor license agreements. Licensed under the Elastic License
+     * 2.0; you may not use this file except in compliance with the Elastic License
+     * 2.0.
      */
 
 It is important that the only code covered by the Elastic licence is contained
@@ -441,52 +454,63 @@ checks if contributed code does not have the appropriate license headers.
 > be automatically configured to add the correct license header to new source
 > files based on the source location.
 
+### Type-checking, generics and casting
+
+You should try to write code that does not require suppressing any warnings from
+the compiler, e.g. suppressing type-checking, raw generics, and so on. However,
+this isn't always possible or practical. In such cases, you should use the
+`@SuppressWarnings` annotations to silence the compiler warning, trying to keep
+the scope of the suppression as small as possible. Where a piece of code
+requires a lot of suppressions, it may be better to apply a single suppression
+at a higher level e.g. at the method or even class level. Use your judgement.
+
+There are also cases where the compiler simply refuses to accept an assignment
+or cast of any kind, because it lacks the information to know that the types are
+OK. In such cases, you can use
+the [`Types.forciblyCast`](libs/core/src/main/java/org/elasticsearch/core/Types.java)
+utility method. As the name suggests, you can coerce any type to any other type,
+so please use it as a last resort.
+
 ### Creating A Distribution
 
 Run all build commands from within the root directory:
 
-```sh
-cd elasticsearch/
-```
+    cd elasticsearch/
 
 To build a darwin-tar distribution, run this command:
 
-```sh
-./gradlew -p distribution/archives/darwin-tar assemble
-```
+    ./gradlew -p distribution/archives/darwin-tar assemble
 
 You will find the distribution under:
-`./distribution/archives/darwin-tar/build/distributions/`
+
+    ./distribution/archives/darwin-tar/build/distributions/
 
 To create all build artifacts (e.g., plugins and Javadocs) as well as
 distributions in all formats, run this command:
 
-```sh
-./gradlew assemble
-```
+    ./gradlew assemble
 
-> **NOTE:** Running the task above will fail if you don't have a available
+> **NOTE:** Running the task above will fail if you don't have an available
 > Docker installation.
 
 The package distributions (Debian and RPM) can be found under:
-`./distribution/packages/(deb|rpm|oss-deb|oss-rpm)/build/distributions/`
+
+    ./distribution/packages/(deb|rpm|oss-deb|oss-rpm)/build/distributions/
 
 The archive distributions (tar and zip) can be found under:
-`./distribution/archives/(darwin-tar|linux-tar|windows-zip|oss-darwin-tar|oss-linux-tar|oss-windows-zip)/build/distributions/`
+
+    ./distribution/archives/(darwin-tar|linux-tar|windows-zip|oss-darwin-tar|oss-linux-tar|oss-windows-zip)/build/distributions/
 
 ### Running The Full Test Suite
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 
-```sh
-./gradlew check
-```
+    ./gradlew check
 
 If your changes affect only the documentation, run:
 
-```sh
-./gradlew -p docs check
-```
+    ./gradlew -p docs check
+
 For more information about testing code examples in the documentation, see
 https://github.com/elastic/elasticsearch/blob/master/docs/README.asciidoc
 
@@ -699,3 +723,7 @@ non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
+[Checkstyle]: https://plugins.jetbrains.com/plugin/1065-checkstyle-idea
+[spotless]: https://github.com/diffplug/spotless
+[Eclipse Code Formatter]: https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter
+[Spotless Gradle]: https://github.com/diffplug/spotless/tree/master/plugin-gradle

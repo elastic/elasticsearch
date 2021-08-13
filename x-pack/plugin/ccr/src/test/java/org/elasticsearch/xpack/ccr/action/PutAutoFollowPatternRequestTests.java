@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -48,6 +49,11 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         if (randomBoolean()) {
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
+        if (randomBoolean()) {
+            request.setLeaderIndexExclusionPatterns(
+                Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 20), false))
+            );
+        }
         ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
     }
@@ -61,6 +67,11 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         request.setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
         if (randomBoolean()) {
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));
+        }
+        if (randomBoolean()) {
+            request.setLeaderIndexExclusionPatterns(
+                Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 20), false))
+            );
         }
         ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -25,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -32,6 +22,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -50,11 +41,14 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
+        LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
+        long translogInMemorySegmentCountExpected = 0;
         Engine.IndexResult test = indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals(new String(testGet.source(), StandardCharsets.UTF_8), "{\"foo\" : \"bar\"}");
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
@@ -65,6 +59,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we read from the translog
         }
@@ -80,10 +75,12 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
         final long primaryTerm = primary.getOperationPrimaryTerm();
         testGet1 = primary.getService().getForUpdate("1", test2.getSeqNo(), primaryTerm);
         assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
         expectThrows(VersionConflictEngineException.class, () ->
             primary.getService().getForUpdate("1", test2.getSeqNo() + 1, primaryTerm));
@@ -120,6 +117,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
         recoverShardFromStore(primary);
+        LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
+        long translogInMemorySegmentCountExpected = 0;
         Engine.IndexResult test = indexDoc(primary, "test", "0", docToIndex);
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
@@ -135,6 +134,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertEquals(new String(testGet1.source() == null ? new byte[0] : testGet1.source(), StandardCharsets.UTF_8), expectedResult);
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we read from the translog
         }
@@ -151,6 +151,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(testGet2.getFields().containsKey(RoutingFieldMapper.NAME));
         assertTrue(testGet2.getFields().containsKey("foo"));
         assertEquals(expectedFooVal, testGet2.getFields().get("foo").getValue());
+        assertEquals(++translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals(searcher.getIndexReader().maxDoc(), 2); // we read from the translog
         }
@@ -165,6 +166,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(testGet2.getFields().containsKey(RoutingFieldMapper.NAME));
         assertTrue(testGet2.getFields().containsKey("foo"));
         assertEquals(expectedFooVal, testGet2.getFields().get("foo").getValue());
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
         closeShards(primary);
     }

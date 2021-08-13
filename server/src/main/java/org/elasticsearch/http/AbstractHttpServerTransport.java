@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http;
@@ -26,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -41,10 +31,14 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -86,9 +80,19 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private volatile BoundTransportAddress boundAddress;
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
     private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
+    private final RefCounted refCounted = new AbstractRefCounted("abstract-http-server-transport") {
+        @Override
+        protected void closeInternal() {
+            allClientsClosedListener.onResponse(null);
+        }
+    };
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final HttpClientStatsTracker httpClientStatsTracker;
 
     private final HttpTracer tracer;
+
+    private volatile long slowLogThresholdMs;
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
@@ -114,6 +118,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.tracer = new HttpTracer(settings, clusterSettings);
+        clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
+                slowLogThreshold -> this.slowLogThresholdMs = slowLogThreshold.getMillis());
+        slowLogThresholdMs = TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings).getMillis();
+        httpClientStatsTracker = new HttpClientStatsTracker(settings, clusterSettings, threadPool);
     }
 
     @Override
@@ -132,12 +140,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     public HttpStats stats() {
-        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
+        return new HttpStats(httpClientStatsTracker.getClientStats(), httpChannels.size(), totalChannelsAccepted.get());
     }
 
     protected void bindServer() {
         // Bind and start to accept incoming connections.
-        InetAddress hostAddresses[];
+        final InetAddress[] hostAddresses;
         try {
             hostAddresses = networkService.resolveBindHostAddresses(bindHosts);
         } catch (IOException e) {
@@ -178,7 +186,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             }
             return true;
         });
-        if (!success) {
+        if (success == false) {
             throw new BindHttpException(
                 "Failed to bind to " + NetworkAddress.format(hostAddress, port),
                 lastException.get()
@@ -206,14 +214,19 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
         }
-
         try {
+            refCounted.decRef();
             CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
         } catch (Exception e) {
             logger.warn("unexpected exception while closing http channels", e);
         }
-        httpChannels.clear();
 
+        try {
+            allClientsClosedListener.get();
+        } catch (Exception e) {
+            assert false : e;
+            logger.warn("unexpected exception while waiting for http channels to close", e);
+        }
         stopInternal();
     }
 
@@ -294,8 +307,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
+        refCounted.incRef();
+        httpChannel.addCloseListener(ActionListener.wrap(() -> {
+            httpChannels.remove(httpChannel);
+            refCounted.decRef();
+        }));
         totalChannelsAccepted.incrementAndGet();
-        httpChannel.addCloseListener(ActionListener.wrap(() -> httpChannels.remove(httpChannel)));
+        httpClientStatsTracker.addClientStats(httpChannel);
         logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
     }
 
@@ -306,7 +324,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+        httpClientStatsTracker.updateClientStats(httpRequest, httpChannel);
+        final long startTime = threadPool.relativeTimeInMillis();
+        try {
+            handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+        } finally {
+            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long logThreshold = slowLogThresholdMs;
+            if (logThreshold > 0 && took > logThreshold) {
+                logger.warn("handling request [{}][{}][{}][{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                    httpRequest.header(Task.X_OPAQUE_ID), httpRequest.method(), httpRequest.uri(), httpChannel, took, logThreshold);
+            }
+        }
     }
 
     // Visible for testing

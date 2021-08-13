@@ -4,24 +4,30 @@
 <titleabbrev>cat aliases</titleabbrev>
 ++++
 
-Returns information about currently configured aliases to indices, including
-filter and routing information.
-
+Retrieves the cluster's <<alias,index aliases>>, including filter and routing
+information. The API does not return data stream aliases.
 
 [[cat-alias-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/aliases/<alias>`
+`GET _cat/aliases/<alias>`
 
-`GET /_cat/aliases`
+`GET _cat/aliases`
+
+[[cat-alias-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for any alias you retrieve.
 
 [[cat-alias-api-path-params]]
 ==== {api-path-parms-title}
 
 `<alias>`::
-(Optional, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias]
-
+(Optional, string) Comma-separated list of aliases to retrieve. Supports
+wildcards (`*`). To retrieve all aliases, omit this parameter or use `*` or
+`_all`.
 
 [[cat-alias-api-query-params]]
 ==== {api-query-parms-title}
@@ -40,14 +46,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
-
 [[cat-alias-api-example]]
 ==== {api-examples-title}
 
 ////
 Hidden setup for example:
 [source,console,id=cat-aliases-example]
---------------------------------------------------
+----
 PUT test1
 {
   "aliases": {
@@ -68,25 +73,25 @@ PUT test1
     }
   }
 }
---------------------------------------------------
+----
 ////
 
 [source,console]
---------------------------------------------------
-GET /_cat/aliases?v
---------------------------------------------------
+----
+GET _cat/aliases?v=true
+----
 // TEST[continued]
 
 The API returns the following response:
 
 [source,txt]
---------------------------------------------------
+----
 alias  index filter routing.index routing.search is_write_index
 alias1 test1 -      -            -              -
 alias2 test1 *      -            -              -
 alias3 test1 -      1            1              -
 alias4 test1 -      2            1,2            -
---------------------------------------------------
+----
 // TESTRESPONSE[s/[*]/[*]/ non_json]
 
 This response shows that `alias2` has configured a filter, and specific routing

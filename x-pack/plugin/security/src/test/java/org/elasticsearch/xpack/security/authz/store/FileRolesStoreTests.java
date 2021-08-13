@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.store;
 
@@ -9,7 +10,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -289,7 +290,6 @@ public class FileRolesStoreTests extends ESTestCase {
         List<String> events = CapturingLogger.output(logger.getName(), Level.WARN);
         events.clear();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, licenseState, xContentRegistry());
         assertThat(roles, notNullValue());
@@ -377,7 +377,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 writer.append("    - 'MONITOR'");
             }
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("Waited too long for the updated file to be picked up");
             }
 

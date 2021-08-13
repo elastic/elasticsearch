@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -35,6 +24,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -93,7 +83,7 @@ public final class Def {
         static int getArrayLength(final Object[] array)  { return array.length; }
 
         static MethodHandle arrayLengthGetter(Class<?> arrayType) {
-            if (!arrayType.isArray()) {
+            if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
             return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
@@ -230,9 +220,12 @@ public final class Def {
          int upTo = 1;
          for (int i = 1; i < numArguments; i++) {
              if (lambdaArgs.get(i - 1)) {
-                 String signature = (String) args[upTo++];
-                 int numCaptures = Integer.parseInt(signature.substring(signature.indexOf(',')+1));
-                 arity -= numCaptures;
+                 Def.Encoding signature = new Def.Encoding((String) args[upTo++]);
+                 arity -= signature.numCaptures;
+                 // arity in painlessLookup does not include 'this' reference
+                 if (signature.needsInstance) {
+                     arity--;
+                 }
              }
          }
 
@@ -258,16 +251,10 @@ public final class Def {
          for (int i = 1; i < numArguments; i++) {
              // its a functional reference, replace the argument with an impl
              if (lambdaArgs.get(i - 1)) {
-                 // decode signature of form 'type.call,2'
-                 String signature = (String) args[upTo++];
-                 int separator = signature.lastIndexOf('.');
-                 int separator2 = signature.indexOf(',');
-                 String type = signature.substring(1, separator);
-                 String call = signature.substring(separator+1, separator2);
-                 int numCaptures = Integer.parseInt(signature.substring(separator2+1));
+                 Def.Encoding defEncoding = new Encoding((String) args[upTo++]);
                  MethodHandle filter;
-                 Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced);
-                 if (signature.charAt(0) == 'S') {
+                 Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced - (defEncoding.needsInstance ? 1 : 0));
+                 if (defEncoding.isStatic) {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
                      filter = lookupReferenceInternal(painlessLookup,
@@ -275,15 +262,16 @@ public final class Def {
                                                       constants,
                                                       methodHandlesLookup,
                                                       interfaceType,
-                                                      type,
-                                                      call,
-                                                      numCaptures
+                                                      defEncoding.symbol,
+                                                      defEncoding.methodName,
+                                                      defEncoding.numCaptures,
+                                                      defEncoding.needsInstance
                      );
-                 } else if (signature.charAt(0) == 'D') {
+                } else {
                      // the interface type is now known, but we need to get the implementation.
                      // this is dynamically based on the receiver type (and cached separately, underneath
                      // this cache). It won't blow up since we never nest here (just references)
-                     Class<?>[] captures = new Class<?>[numCaptures];
+                     Class<?>[] captures = new Class<?>[defEncoding.numCaptures];
                      for (int capture = 0; capture < captures.length; capture++) {
                          captures[capture] = callSiteType.parameterType(i + 1 + capture);
                      }
@@ -292,20 +280,18 @@ public final class Def {
                                                               functions,
                                                               constants,
                                                               methodHandlesLookup,
-                                                              call,
+                                                              defEncoding.methodName,
                                                               nestedType,
                                                               0,
                                                               DefBootstrap.REFERENCE,
                                                               PainlessLookupUtility.typeToCanonicalTypeName(interfaceType));
                      filter = nested.dynamicInvoker();
-                 } else {
-                     throw new AssertionError();
-                 }
+                }
                  // the filter now ignores the signature (placeholder) on the stack
                  filter = MethodHandles.dropArguments(filter, 0, String.class);
-                 handle = MethodHandles.collectArguments(handle, i, filter);
-                 i += numCaptures;
-                 replaced += numCaptures;
+                 handle = MethodHandles.collectArguments(handle, i - (defEncoding.needsInstance ? 1 : 0), filter);
+                 i += defEncoding.numCaptures;
+                 replaced += defEncoding.numCaptures;
              }
          }
 
@@ -339,20 +325,23 @@ public final class Def {
 
         return lookupReferenceInternal(painlessLookup, functions, constants,
                 methodHandlesLookup, interfaceType, PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
-                implMethod.javaMethod.getName(), 1);
+                implMethod.javaMethod.getName(), 1, false);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
     private static MethodHandle lookupReferenceInternal(
             PainlessLookup painlessLookup, FunctionTable functions, Map<String, Object> constants,
-            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures
-            ) throws Throwable {
+            MethodHandles.Lookup methodHandlesLookup, Class<?> clazz, String type, String call, int captures,
+            boolean needsScriptInstance) throws Throwable {
 
-        final FunctionRef ref = FunctionRef.create(painlessLookup, functions, null, clazz, type, call, captures, constants);
+        final FunctionRef ref =
+                FunctionRef.create(painlessLookup, functions, null, clazz, type, call, captures, constants, needsScriptInstance);
+        Class<?>[] parameters = ref.factoryMethodParameters(needsScriptInstance ? methodHandlesLookup.lookupClass() : null);
+        MethodType factoryMethodType = MethodType.methodType(clazz, parameters);
         final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
                 methodHandlesLookup,
                 ref.interfaceMethodName,
-                ref.factoryMethodType,
+                factoryMethodType,
                 ref.interfaceMethodType,
                 ref.delegateClassName,
                 ref.delegateInvokeType,
@@ -362,7 +351,7 @@ public final class Def {
                 ref.isDelegateAugmented ? 1 : 0,
                 ref.delegateInjections
         );
-        return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, ref.factoryMethodType.parameterArray()));
+        return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, parameters));
      }
 
     /**
@@ -622,7 +611,7 @@ public final class Def {
         }
 
         static MethodHandle newIterator(Class<?> arrayType) {
-            if (!arrayType.isArray()) {
+            if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
             return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
@@ -1269,7 +1258,7 @@ public final class Def {
         static int normalizeIndex(final Object[] array, final int index) { return index >= 0 ? index : index + array.length; }
 
         static MethodHandle arrayIndexNormalizer(Class<?> arrayType) {
-            if (!arrayType.isArray()) {
+            if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
             return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
@@ -1278,5 +1267,114 @@ public final class Def {
         }
 
         private ArrayIndexNormalizeHelper() {}
+    }
+
+
+    public static class Encoding {
+        public final boolean isStatic;
+        public final boolean needsInstance;
+        public final String symbol;
+        public final String methodName;
+        public final int numCaptures;
+
+        /**
+         * Encoding is passed to invokedynamic to help DefBootstrap find the method.  invokedynamic can only take
+         * "Class, java.lang.invoke.MethodHandle, java.lang.invoke.MethodType, String, int, long, float, or double" types to
+         * help find the callsite, which is why this object is encoded as a String for indy.
+         * See: https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
+         * */
+        public final String encoding;
+
+        private static final String FORMAT = "[SD][tf]symbol.methodName,numCaptures";
+
+        public Encoding(boolean isStatic, boolean needsInstance, String symbol, String methodName, int numCaptures) {
+            this.isStatic = isStatic;
+            this.needsInstance = needsInstance;
+            this.symbol = Objects.requireNonNull(symbol);
+            this.methodName = Objects.requireNonNull(methodName);
+            this.numCaptures = numCaptures;
+            this.encoding = (isStatic ? "S" : "D") + (needsInstance ? "t" : "f") +
+                    symbol + "." +
+                    methodName + "," +
+                    numCaptures;
+
+
+            if ("this".equals(symbol)) {
+                if (isStatic == false) {
+                    throw new IllegalArgumentException("Def.Encoding must be static if symbol is 'this', encoding [" + encoding + "]");
+                }
+            } else {
+                if (needsInstance) {
+                    throw new IllegalArgumentException("Def.Encoding symbol must be 'this', not [" + symbol + "] if needsInstance," +
+                        " encoding [" + encoding + "]");
+                }
+            }
+
+            if (methodName.isEmpty()) {
+                throw new IllegalArgumentException("methodName must be non-empty, encoding [" + encoding + "]");
+            }
+            if (numCaptures < 0) {
+                throw new IllegalArgumentException("numCaptures must be non-negative, not [" + numCaptures + "]," +
+                    " encoding: [" + encoding + "]");
+            }
+        }
+
+        // Parsing constructor, does minimal validation to avoid extra work during runtime
+        public Encoding(String encoding) {
+            this.encoding = Objects.requireNonNull(encoding);
+            if (encoding.length() < 6) {
+                throw new IllegalArgumentException("Encoding too short. Minimum 6, given [" + encoding.length() + "]," +
+                    " encoding: [" + encoding + "], format: " + FORMAT + "");
+            }
+
+            // 'S' or 'D'
+            this.isStatic = encoding.charAt(0) == 'S';
+
+            // 't' or 'f'
+            this.needsInstance = encoding.charAt(1) == 't';
+
+            int dotIndex = encoding.lastIndexOf('.');
+            if (dotIndex < 2) {
+                throw new IllegalArgumentException("Invalid symbol, could not find '.' at expected position after index 1, instead found" +
+                    " index [" + dotIndex + "], encoding: [" + encoding + "], format: " + FORMAT);
+            }
+
+            this.symbol = encoding.substring(2, dotIndex);
+
+            int commaIndex = encoding.indexOf(',');
+            if (commaIndex <= dotIndex) {
+                throw new IllegalArgumentException("Invalid symbol, could not find ',' at expected position after '.' at" +
+                    " [" + dotIndex + "], instead found index [" + commaIndex + "], encoding: [" + encoding + "], format: " + FORMAT);
+            }
+
+            this.methodName = encoding.substring(dotIndex + 1, commaIndex);
+
+            if (commaIndex == encoding.length() - 1) {
+                throw new IllegalArgumentException("Invalid symbol, could not find ',' at expected position, instead found" +
+                    " index [" + commaIndex + "], encoding: [" + encoding + "], format: " + FORMAT);
+            }
+
+            this.numCaptures = Integer.parseUnsignedInt(encoding.substring(commaIndex + 1));
+        }
+
+        @Override
+        public String toString() {
+            return encoding;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if ((o instanceof Encoding) == false) return false;
+            Encoding encoding1 = (Encoding) o;
+            return isStatic == encoding1.isStatic && needsInstance == encoding1.needsInstance && numCaptures == encoding1.numCaptures
+                && Objects.equals(symbol, encoding1.symbol) && Objects.equals(methodName, encoding1.methodName)
+                && Objects.equals(encoding, encoding1.encoding);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(isStatic, needsInstance, symbol, methodName, numCaptures, encoding);
+        }
     }
 }

@@ -1,13 +1,14 @@
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-import java.nio.file.Files
 import java.nio.file.Paths
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 archivesBaseName = 'x-pack-core'
 
@@ -38,11 +39,6 @@ dependencies {
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:4.0.8'
-  api project(path: ':modules:transport-netty4')
-  api( project(path: ':plugins:transport-nio')) {
-    // TODO: core exclusion should not be necessary, since it is a transitive dep of all plugins
-    exclude group: "org.elasticsearch", module: "elasticsearch-core"
-  }
 
   testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
@@ -53,10 +49,15 @@ dependencies {
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(":client:rest-high-level")
+  // Needed for Fips140ProviderVerificationTests
+  testCompileOnly('org.bouncycastle:bc-fips:1.0.2')
 
   testImplementation(project(':x-pack:license-tools')) {
     transitive = false
   }
+
+  // Needed for usage API cancellation test. TODO: do this another way or at least isolate!
+  internalClusterTestImplementation project(path: ':plugins:transport-nio')
 
   yamlRestTestImplementation project(':x-pack:plugin:core')
 
@@ -74,9 +75,9 @@ tasks.named("processResources").configure {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     exclude '**/public.key'
     inputs.properties(expansions)
-    MavenFilteringHack.filter(it, expansions)
+    filter("tokens" : expansions, ReplaceTokens.class)
   }
-  String licenseKey = System.getProperty("license.key")
+  String licenseKey = providers.systemProperty("license.key").forUseAtConfigurationTime().getOrNull()
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
   } else if (BuildParams.isSnapshotBuild()) {
@@ -84,10 +85,11 @@ tasks.named("processResources").configure {
   } else {
     throw new IllegalArgumentException('Property license.key must be set for release build')
   }
-  if (Files.exists(Paths.get(licenseKey)) == false) {
+  File licenseKeyFile = rootProject.file(licenseKey)
+  if (licenseKeyFile.exists() == false) {
     throw new IllegalArgumentException('license.key at specified path [' + licenseKey + '] does not exist')
   }
-  from(licenseKey) {
+  from(licenseKeyFile) {
     rename { String filename -> 'public.key' }
   }
 }
@@ -103,38 +105,10 @@ tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/hasher-signatures.txt')
 }
 
-tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-}
 
 // make LicenseSigner available for testing signed licenses
 sourceSets.test.resources {
   srcDir 'src/main/config'
-}
-
-tasks.named("test").configure {
-  /*
-   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-   * other if we allow them to set the number of available processors as it's set-once in Netty.
-   */
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-// TODO: don't publish test artifacts just to run messy tests, fix the tests!
-// https://github.com/elastic/x-plugins/issues/724
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives tasks.named("jar")
-  testArtifacts testJar
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -151,15 +125,14 @@ tasks.named("thirdPartyAudit").configure {
 
 restResources {
   restApi {
-    includeCore '*'
+    include '*'
   }
 }
 
-testClusters.yamlRestTest {
+testClusters.all {
   testDistribution = 'default'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
 }
-

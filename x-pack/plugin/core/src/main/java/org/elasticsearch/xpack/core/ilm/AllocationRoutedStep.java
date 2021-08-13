@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -35,11 +36,13 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
 
     private static final Logger logger = LogManager.getLogger(AllocationRoutedStep.class);
 
-    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(Collections.singletonList(
-        new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
-
     AllocationRoutedStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     @Override
@@ -55,7 +58,11 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
                 getKey().getAction(), index.getName());
             return new Result(false, waitingForActiveShardsAllocationInfo(idxMeta.getNumberOfReplicas()));
         }
-        int allocationPendingAllShards = getPendingAllocations(index, ALLOCATION_DECIDERS, clusterState);
+
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singletonList(
+            new FilterAllocationDecider(clusterState.getMetadata().settings(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
+        int allocationPendingAllShards = getPendingAllocations(index, allocationDeciders, clusterState);
 
         if (allocationPendingAllShards > 0) {
             logger.debug("{} lifecycle action [{}] waiting for [{}] shards to be allocated to nodes matching the given filters",

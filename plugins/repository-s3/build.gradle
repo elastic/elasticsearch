@@ -1,31 +1,21 @@
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.rest.YamlRestTestPlugin
-import org.elasticsearch.gradle.test.InternalClusterTestPlugin
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
@@ -58,9 +48,18 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
 }
 
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
+tasks.named("internalClusterTestJar").configure {
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
+}
+
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+    include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
   }
 }
 
@@ -112,8 +111,8 @@ boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(BuildParam
 // credentials hard-coded in.
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
-  s3PermanentAccessKey = 'access_key'
-  s3PermanentSecretKey = 'secret_key'
+  s3PermanentAccessKey = 's3_test_access_key'
+  s3PermanentSecretKey = 's3_test_secret_key'
   s3PermanentBucket = 'bucket'
   s3PermanentBasePath = 'base_path'
 
@@ -154,18 +153,18 @@ tasks.named("processYamlRestTestResources").configure {
     'ec2_base_path'           : s3EC2BasePath,
     'ecs_bucket'              : s3ECSBucket,
     'ecs_base_path'           : s3ECSBasePath,
-    'disable_chunked_encoding': s3DisableChunkedEncoding,
+    'disable_chunked_encoding': s3DisableChunkedEncoding
   ]
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
-internalClusterTest {
+tasks.named("internalClusterTest").configure {
   // this is tested explicitly in a separate test task
   exclude '**/S3RepositoryThirdPartyTests.class'
 }
 
-yamlRestTest {
+tasks.named("yamlRestTest").configure {
     systemProperty 'tests.rest.blacklist', (
       useFixture ?
         ['repository_s3/50_repository_ecs_credentials/*']
@@ -178,7 +177,20 @@ yamlRestTest {
     ).join(",")
 }
 
-testClusters.yamlRestTest {
+if (useFixture) {
+  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture')
+  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-session-token')
+  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ec2')
+
+  normalization {
+    runtimeClasspath {
+      // ignore generated address file for the purposes of build avoidance
+      ignore 's3Fixture.address'
+    }
+  }
+}
+
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
   keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
 
@@ -187,17 +199,6 @@ testClusters.yamlRestTest {
   keystore 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
 
   if (useFixture) {
-    testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture')
-    testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-session-token')
-    testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ec2')
-
-    normalization {
-      runtimeClasspath {
-        // ignore generated address file for the purposes of build avoidance
-        ignore 's3Fixture.address'
-      }
-    }
-
     setting 's3.client.integration_test_permanent.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture', '80')}" }, IGNORE_VALUE
     setting 's3.client.integration_test_temporary.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-session-token', '80')}" }, IGNORE_VALUE
     setting 's3.client.integration_test_ec2.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
@@ -213,7 +214,7 @@ testClusters.yamlRestTest {
 if (useFixture) {
   testFixtures.useFixture(':test:fixtures:minio-fixture', 'minio-fixture')
 
-  task yamlRestTestMinio(type: RestIntegTestTask) {
+  tasks.register("yamlRestTestMinio", RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."
     dependsOn tasks.named("bundlePlugin")
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
@@ -228,9 +229,9 @@ if (useFixture) {
       'repository_s3/50_repository_ecs_credentials/*'
     ].join(",")
   }
-  tasks.named("check").configure { dependsOn(yamlRestTestMinio) }
+  tasks.named("check").configure { dependsOn("yamlRestTestMinio") }
 
-  testClusters.yamlRestTestMinio {
+  testClusters.matching { it.name == "yamlRestTestMinio" }.configureEach {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
     setting 's3.client.integration_test_permanent.endpoint', { "${-> fixtureAddress('minio-fixture', 'minio-fixture', '9000')}" }, IGNORE_VALUE
@@ -241,7 +242,7 @@ if (useFixture) {
 // ECS
 if (useFixture) {
   testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ecs')
-  task yamlRestTestECS(type: RestIntegTestTask.class) {
+  tasks.register("yamlRestTestECS", RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
     dependsOn('bundlePlugin')
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
@@ -255,9 +256,9 @@ if (useFixture) {
       'repository_s3/40_repository_ec2_credentials/*'
     ].join(",")
   }
-  tasks.named("check").configure { dependsOn(yamlRestTestECS) }
+  tasks.named("check").configure { dependsOn("yamlRestTestECS") }
 
-  testClusters.yamlRestTestECS {
+  testClusters.matching { it.name == "yamlRestTestECS" }.configureEach {
     setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}" }, IGNORE_VALUE
     plugin tasks.bundlePlugin.archiveFile
     environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}/ecs_credentials_endpoint" }, IGNORE_VALUE

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
@@ -47,7 +48,7 @@ public class SubstringFunctionProcessor implements Processor {
         if (input == null) {
             return null;
         }
-        if (!(input instanceof String || input instanceof Character)) {
+        if ((input instanceof String || input instanceof Character) == false) {
             throw new EqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (start == null) {
@@ -63,43 +64,43 @@ public class SubstringFunctionProcessor implements Processor {
         String str = input.toString();
         int startIndex = ((Number) start).intValue();
         int endIndex = end == null ? str.length() : ((Number) end).intValue();
-                
+
         return StringUtils.substringSlice(str, startIndex, endIndex);
     }
-    
+
     protected Processor input() {
         return input;
     }
-    
+
     protected Processor start() {
         return start;
     }
-    
+
     protected Processor end() {
         return end;
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         SubstringFunctionProcessor other = (SubstringFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
                 && Objects.equals(start(), other.start())
                 && Objects.equals(end(), other.end());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(input(), start(), end());
     }
-    
+
 
     @Override
     public String getWriteableName() {

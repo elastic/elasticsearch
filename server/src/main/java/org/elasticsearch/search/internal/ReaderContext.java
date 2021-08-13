@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -39,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Holds a reference to a point in time {@link Engine.Searcher} that will be used to construct {@link SearchContext}.
- * This class also implements {@link org.elasticsearch.common.util.concurrent.RefCounted} since in some situations like
+ * This class also implements {@link RefCounted} since in some situations like
  * in {@link org.elasticsearch.search.SearchService} a SearchContext can be closed concurrently due to independent events
  * ie. when an index gets removed. To prevent accessing closed IndexReader / IndexSearcher instances the SearchContext
  * can be guarded by a reference count and fail if it's been closed by an external event.
@@ -151,7 +141,7 @@ public class ReaderContext implements Releasable {
 
     // BWC
     public ShardSearchRequest getShardSearchRequest(ShardSearchRequest other) {
-        return Objects.requireNonNull(other);
+        return Objects.requireNonNull(other, "ShardSearchRequest must be sent back in a fetch request");
     }
 
     public ScrollContext scrollContext() {
@@ -167,7 +157,7 @@ public class ReaderContext implements Releasable {
     }
 
     public RescoreDocIds getRescoreDocIds(RescoreDocIds other) {
-        return Objects.requireNonNull(other);
+        return Objects.requireNonNull(other, "RescoreDocIds must be sent back in a fetch request");
     }
 
     public void setRescoreDocIds(RescoreDocIds rescoreDocIds) {

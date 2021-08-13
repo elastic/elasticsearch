@@ -695,3 +695,6 @@ sequence
   ["""!#@$%12345)(*&%^%#$@""" where true] by unique_ppid2
 | tail 1
 ;
+
+// case sensitive
+process where startswith~(process_name,"net") and endswith(command_line,".exe");

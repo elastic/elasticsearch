@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils.persistence;
 
@@ -25,9 +26,9 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
@@ -48,6 +49,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -60,10 +62,10 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ResultsPersisterServiceTests extends ESTestCase {
 
@@ -83,7 +85,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     private static final IndexRequest INDEX_REQUEST_FAILURE =
         new IndexRequest("my-index").id("fail").source(Collections.singletonMap("data", "fail"));
     private static final BulkItemResponse BULK_ITEM_RESPONSE_SUCCESS =
-        new BulkItemResponse(
+        BulkItemResponse.success(
             1,
             DocWriteRequest.OpType.INDEX,
             new IndexResponse(new ShardId(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", "uuid", 1),
@@ -93,7 +95,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                 1,
                 true));
     private static final BulkItemResponse BULK_ITEM_RESPONSE_FAILURE =
-        new BulkItemResponse(
+        BulkItemResponse.failure(
             2,
             DocWriteRequest.OpType.INDEX,
             new BulkItemResponse.Failure("my-index", "fail", new Exception("boom")));
@@ -134,7 +136,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_SuccessAfterRetryDueToException() {
-        doThrow(new IndexPrimaryShardNotAllocatedException(new Index("my-index", "UUID")))
+        doAnswer(withFailure(new IndexPrimaryShardNotAllocatedException(new Index("my-index", "UUID"))))
             .doAnswer(withResponse(SEARCH_RESPONSE_SUCCESS))
             .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
@@ -157,7 +159,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             expectThrows(
                 ElasticsearchException.class,
                 () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add));
-        assertThat(e.getMessage(), containsString("failed to search after [" + (maxFailureRetries + 1) + "] attempts."));
+        assertThat(e.getMessage(), containsString("search failed with status"));
         assertThat(messages, hasSize(maxFailureRetries));
 
         verify(client, times(maxFailureRetries + 1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
@@ -184,7 +186,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             expectThrows(
                 ElasticsearchException.class,
                 () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> false, messages::add));
-        assertThat(e.getMessage(), containsString("should not retry search after [1] attempts. SERVICE_UNAVAILABLE"));
+        assertThat(e.getMessage(), containsString("search failed with status SERVICE_UNAVAILABLE"));
         assertThat(messages, empty());
 
         verify(client, times(1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
@@ -204,7 +206,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                 ElasticsearchException.class,
                 () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, shouldRetryUntil(maxRetries), messages::add));
         assertThat(
-            e.getMessage(), containsString("should not retry search after [" + (maxRetries + 1) + "] attempts. SERVICE_UNAVAILABLE"));
+            e.getMessage(), containsString("search failed with status SERVICE_UNAVAILABLE"));
         assertThat(messages, hasSize(maxRetries));
 
         verify(client, times(maxRetries + 1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
@@ -220,9 +222,9 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             expectThrows(
                 ElasticsearchException.class,
                 () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, (s) -> {}));
-        assertThat(e.getMessage(), containsString("experienced failure that cannot be automatically retried"));
+        assertThat(e.getMessage(), containsString("bad search request"));
 
-        verify(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
     }
 
     private static Supplier<Boolean> shouldRetryUntil(int maxRetries) {
@@ -256,13 +258,13 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         assertThat(requests.get(0).numberOfActions(), equalTo(2));
         assertThat(requests.get(1).numberOfActions(), equalTo(1));
-        assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again in"));
+        assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again"));
     }
 
     public void testBulkRequestChangeOnIrrecoverableFailures() {
         int maxFailureRetries = 10;
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
-        BulkItemResponse irrecoverable = new BulkItemResponse(
+        BulkItemResponse irrecoverable = BulkItemResponse.failure(
             2,
             DocWriteRequest.OpType.INDEX,
             new BulkItemResponse.Failure("my-index", "fail", new ElasticsearchStatusException("boom", RestStatus.BAD_REQUEST)));
@@ -317,7 +319,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set));
         verify(client, times(maxFailureRetries + 1)).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        assertThat(lastMessage.get(), containsString("failed to index after [10] attempts. Will attempt again in"));
+        assertThat(lastMessage.get(), containsString("failed to index after [10] attempts. Will attempt again"));
     }
 
     public void testBulkRequestRetriesMsgHandlerIsCalled() {
@@ -341,7 +343,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         assertThat(requests.get(0).numberOfActions(), equalTo(2));
         assertThat(requests.get(1).numberOfActions(), equalTo(1));
-        assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again in"));
+        assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again"));
     }
 
     private static <Response> Stubber doAnswerWithResponses(Response response1, Response response2) {
@@ -367,7 +369,6 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public static ResultsPersisterService buildResultsPersisterService(OriginSettingClient client) {
-        CheckedConsumer<Integer, InterruptedException> sleeper = millis -> {};
         ThreadPool tp = mock(ThreadPool.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
@@ -377,7 +378,18 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
-
-        return new ResultsPersisterService(sleeper, client, clusterService, Settings.EMPTY);
+        ExecutorService executor = mock(ExecutorService.class);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+        when(tp.executor(any(String.class))).thenReturn(executor);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(tp).schedule(
+            any(Runnable.class), any(TimeValue.class), any(String.class)
+        );
+        return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }
 }

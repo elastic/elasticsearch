@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -45,6 +47,16 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
             m -> assertTrue(((HistogramFieldMapper)m).ignoreMalformed()));
+    }
+
+    @Override
+    protected boolean supportsSearchLookup() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     public void testParseValue() throws Exception {
@@ -291,5 +303,23 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         );
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("[counts] elements must be >= 0 but got -3"));
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
+
+    public void testCannotBeUsedInMultifields() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("hist");
+            b.field("type", "histogram");
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Field [hist] of type [histogram] can't be used in multifields"));
     }
 }

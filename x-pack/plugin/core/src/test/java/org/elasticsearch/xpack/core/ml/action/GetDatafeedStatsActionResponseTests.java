@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateActionResponseTests.randomRunningState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -53,7 +55,14 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
                     : new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
             String explanation = randomBoolean() ? null : randomAlphaOfLength(3);
             DatafeedTimingStats timingStats = randomBoolean() ? null : DatafeedTimingStatsTests.createRandom();
-            Response.DatafeedStats datafeedStats = new Response.DatafeedStats(datafeedId, datafeedState, node, explanation, timingStats);
+            Response.DatafeedStats datafeedStats = new Response.DatafeedStats(
+                datafeedId,
+                datafeedState,
+                node,
+                explanation,
+                timingStats,
+                randomBoolean() ? null : randomRunningState()
+            );
             datafeedStatsList.add(datafeedStats);
         }
 
@@ -82,7 +91,14 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         DatafeedTimingStats timingStats =
             new DatafeedTimingStats("my-job-id", 5, 10, 100.0, new ExponentialAverageCalculationContext(50.0, null, null));
 
-        Response.DatafeedStats stats = new Response.DatafeedStats("df-id", DatafeedState.STARTED, node, null, timingStats);
+        Response.DatafeedStats stats = new Response.DatafeedStats(
+            "df-id",
+            DatafeedState.STARTED,
+            node,
+            null,
+            timingStats,
+            randomRunningState()
+        );
 
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytes;
@@ -93,11 +109,16 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
 
         Map<String, Object> dfStatsMap = XContentHelper.convertToMap(bytes, randomBoolean(), xContentType).v2();
 
-        assertThat(dfStatsMap.size(), is(equalTo(4)));
+        assertThat(dfStatsMap.size(), is(equalTo(5)));
         assertThat(dfStatsMap, hasEntry("datafeed_id", "df-id"));
         assertThat(dfStatsMap, hasEntry("state", "started"));
         assertThat(dfStatsMap, hasKey("node"));
         assertThat(dfStatsMap, hasKey("timing_stats"));
+        assertThat(dfStatsMap, hasKey("running_state"));
+
+        Map<String, Object> runningStateMap = (Map<String, Object>) dfStatsMap.get("running_state");
+        assertThat(runningStateMap, hasKey("real_time_configured"));
+        assertThat(runningStateMap, hasKey("real_time_running"));
 
         Map<String, Object> nodeMap = (Map<String, Object>) dfStatsMap.get("node");
         assertThat(nodeMap, hasEntry("id", "df-node-id"));

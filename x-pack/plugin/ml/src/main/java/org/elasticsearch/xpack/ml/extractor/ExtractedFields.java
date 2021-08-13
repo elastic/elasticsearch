@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.extractor;
 
@@ -89,14 +90,25 @@ public class ExtractedFields {
 
     public static ExtractedFields build(Set<String> allFields,
                                         Set<String> scriptFields,
+                                        Set<String> searchRuntimeFields,
                                         FieldCapabilitiesResponse fieldsCapabilities,
                                         Map<String, Long> cardinalitiesForFieldsWithConstraints,
                                         List<ProcessedField> processedFields) {
-        ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(scriptFields, fieldsCapabilities);
+        ExtractionMethodDetector extractionMethodDetector =
+            new ExtractionMethodDetector(scriptFields, fieldsCapabilities, searchRuntimeFields);
         return new ExtractedFields(
             allFields.stream().map(extractionMethodDetector::detect).collect(Collectors.toList()),
             processedFields,
             cardinalitiesForFieldsWithConstraints);
+    }
+
+    public static ExtractedFields build(Set<String> allFields,
+                                        Set<String> scriptFields,
+                                        FieldCapabilitiesResponse fieldsCapabilities,
+                                        Map<String, Long> cardinalitiesForFieldsWithConstraints,
+                                        List<ProcessedField> processedFields) {
+        return build(allFields, scriptFields, Collections.emptySet(), fieldsCapabilities,
+            cardinalitiesForFieldsWithConstraints, processedFields);
     }
 
     public static TimeField newTimeField(String name, ExtractedField.Method method) {
@@ -110,31 +122,37 @@ public class ExtractedFields {
     public static class ExtractionMethodDetector {
 
         private final Set<String> scriptFields;
+        private final Set<String> searchRuntimeFields;
         private final FieldCapabilitiesResponse fieldsCapabilities;
 
-        public ExtractionMethodDetector(Set<String> scriptFields, FieldCapabilitiesResponse fieldsCapabilities) {
+        public ExtractionMethodDetector(Set<String> scriptFields, FieldCapabilitiesResponse fieldsCapabilities,
+                                        Set<String> searchRuntimeFields) {
             this.scriptFields = scriptFields;
             this.fieldsCapabilities = fieldsCapabilities;
+            this.searchRuntimeFields = searchRuntimeFields;
         }
 
         public ExtractedField detect(String field) {
             if (scriptFields.contains(field)) {
                 return new ScriptField(field);
             }
-            ExtractedField extractedField = detectNonScriptField(field);
+            if (searchRuntimeFields.contains(field)) {
+                return new DocValueField(field, Collections.emptySet());
+            }
+            ExtractedField extractedField = detectFieldFromFieldCaps(field);
             String parentField = MlStrings.getParentField(field);
             if (isMultiField(field, parentField)) {
                 if (isAggregatable(field)) {
                     return new MultiField(parentField, extractedField);
                 } else {
-                    ExtractedField parentExtractionField = detectNonScriptField(parentField);
+                    ExtractedField parentExtractionField = detectFieldFromFieldCaps(parentField);
                     return new MultiField(field, parentField, parentField, parentExtractionField);
                 }
             }
             return extractedField;
         }
 
-        private ExtractedField detectNonScriptField(String field) {
+        private ExtractedField detectFieldFromFieldCaps(String field) {
             if (isFieldOfTypes(field, TimeField.TYPES) && isAggregatable(field)) {
                 return new TimeField(field, ExtractedField.Method.DOC_VALUE);
             }
@@ -162,7 +180,7 @@ public class ExtractedFields {
                 throw new IllegalArgumentException("cannot retrieve field [" + field + "] because it has no mappings");
             }
             for (FieldCapabilities capsPerIndex : fieldCaps.values()) {
-                if (!capsPerIndex.isAggregatable()) {
+                if (capsPerIndex.isAggregatable() == false) {
                     return false;
                 }
             }
@@ -187,12 +205,15 @@ public class ExtractedFields {
                 return false;
             }
             Map<String, FieldCapabilities> parentFieldCaps = fieldsCapabilities.getField(parent);
-            if (parentFieldCaps == null || (parentFieldCaps.size() == 1 && parentFieldCaps.containsKey("object"))) {
-                // We check if the parent is an object which is indicated by field caps containing an "object" entry.
-                // If an object, it's not a multi field
+            if (parentFieldCaps == null || (parentFieldCaps.size() == 1 && isNestedOrObject(parentFieldCaps))) {
+                // We check if the parent is an object or nested field. If so, it's not a multi field.
                 return false;
             }
             return true;
+        }
+
+        private static boolean isNestedOrObject(Map<String, FieldCapabilities> fieldCaps) {
+            return fieldCaps.containsKey("object") || fieldCaps.containsKey("nested");
         }
     }
 

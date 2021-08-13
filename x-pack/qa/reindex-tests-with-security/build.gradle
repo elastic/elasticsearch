@@ -1,32 +1,31 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation project(path: ':modules:reindex')
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
   exclude '**/*.pem'
   exclude '**/*.p12'
   exclude '**/*.jks'
 }
 
-File caFile = project.file('src/test/resources/ssl/ca.p12')
+File caFile = project.file('src/test/resources/ssl/ca.crt')
 
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   // Whitelist reindexing from the local node so we can test it.
   extraConfigFile 'http.key', file('src/test/resources/ssl/http.key')
   extraConfigFile 'http.crt', file('src/test/resources/ssl/http.crt')
-  extraConfigFile 'ca.p12', caFile
+  extraConfigFile 'ca.crt', caFile
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
@@ -35,8 +34,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.security.http.ssl.certificate', 'http.crt'
   setting 'xpack.security.http.ssl.key', 'http.key'
   setting 'xpack.security.http.ssl.key_passphrase', 'http-password'
-  setting 'reindex.ssl.truststore.path', 'ca.p12'
-  setting 'reindex.ssl.truststore.password', 'password'
+  setting 'reindex.ssl.certificate_authorities', 'ca.crt'
 
   // Workaround for JDK-8212885
   if (BuildParams.runtimeJavaVersion.isJava12Compatible() == false) {

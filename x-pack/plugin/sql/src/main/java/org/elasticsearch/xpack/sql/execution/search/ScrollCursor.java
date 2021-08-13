@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
@@ -14,7 +15,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -110,7 +111,7 @@ public class ScrollCursor implements Cursor {
                         clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
                         listener::onFailure));
     }
-    
+
     static void handle(SearchResponse response, Supplier<SearchHitRowSet> makeRowHit, Consumer<Page> onPage, Consumer<Page> clearScroll,
             Schema schema) {
         if (log.isTraceEnabled()) {

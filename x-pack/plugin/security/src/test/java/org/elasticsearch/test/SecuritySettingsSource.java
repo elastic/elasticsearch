@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test;
 
@@ -44,7 +45,7 @@ import java.util.function.Consumer;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
 import static org.elasticsearch.test.ESTestCase.inFipsJvm;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
@@ -56,9 +57,9 @@ import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 public class SecuritySettingsSource extends NodeConfigurationSource {
 
     public static final String TEST_USER_NAME = "test_user";
+    public static final Hasher HASHER = getFastStoredHashAlgoForTests();
     public static final String TEST_PASSWORD_HASHED =
-        new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")).
-            hash(new SecureString(TEST_PASSWORD.toCharArray())));
+        new String(HASHER.hash(new SecureString(TEST_PASSWORD.toCharArray())));
     public static final String TEST_ROLE = "user";
     public static final String TEST_SUPERUSER = "test_superuser";
     public static final RequestOptions SECURITY_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
@@ -118,7 +119,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path home = nodePath(nodeOrdinal);
         final Path xpackConf = home.resolve("config");
         try {
@@ -129,6 +130,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         writeFile(xpackConf, "roles.yml", configRoles());
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
+        writeFile(xpackConf, "operator_users.yml", configOperatorUsers());
+        writeFile(xpackConf, "service_tokens", configServiceTokens());
 
         Settings.Builder builder = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), home)
@@ -177,6 +180,15 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
     protected String configRoles() {
         return CONFIG_ROLE_ALLOW_ALL;
+    }
+
+    protected String configOperatorUsers() {
+        // By default, no operator user is configured
+        return "";
+    }
+
+    protected String configServiceTokens() {
+        return "";
     }
 
     protected String nodeClientUsername() {

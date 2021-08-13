@@ -5,255 +5,81 @@
 --
 
 Mapping is the process of defining how a document, and the fields it contains,
-are stored and indexed. For instance, use mappings to define:
+are stored and indexed.
 
-* which string fields should be treated as full text fields.
-* which fields contain numbers, dates, or geolocations.
-* the <<mapping-date-format,format>> of date values.
-* custom rules to control the mapping for
+Each document is a collection of fields, which each have their own
+<<mapping-types,data type>>. When mapping your data, you create a mapping
+definition, which contains a list of fields that are pertinent to the document.
+A mapping definition also includes <<mapping-fields,metadata fields>>, like the
+`_source` field, which customize how a document's associated metadata is
+handled.
+
+Use _dynamic mapping_ and _explicit mapping_ to define your data. Each method
+provides different benefits based on where you are in your data journey. For
+example, explicitly map fields where you don't want to use the defaults, or to
+gain greater control over which fields are created. You can then allow {es} to
+add other fields dynamically.
+
+NOTE: Before 7.0.0, the mapping definition included a type name.
+{es} 7.0.0 and later no longer accept a _default_ mapping. See <<removal-of-types>>.
+
+.Experiment with mapping options
+****
+<<runtime-search-request,Define runtime fields in a search request>> to
+experiment with different mapping options, and also fix mistakes in your index
+mapping values by overriding values in the mapping during the search request.
+****
+
+[discrete]
+[[mapping-dynamic]]
+== Dynamic mapping
+<<dynamic-field-mapping,Dynamic mapping>> allows you to experiment with
+and explore data when you’re just getting started. {es} adds new fields
+automatically, just by indexing a document. You can add fields to the top-level
+mapping, and to inner <<object,`object`>>  and <<nested,`nested`>> fields.
+
+Use <<dynamic-templates,dynamic templates>> to define custom mappings that are
+applied to dynamically added fields based on the matching condition.
+
+[discrete]
+[[mapping-explicit]]
+== Explicit mapping
+<<explicit-mapping,Explicit mapping>> allows you to precisely choose how to
+define the mapping definition, such as:
+
+* Which string fields should be treated as full text fields.
+* Which fields contain numbers, dates, or geolocations.
+* The <<mapping-date-format,format>> of date values.
+* Custom rules to control the mapping for
   <<dynamic-mapping,dynamically added fields>>.
 
-A mapping definition has:
+Use <<runtime-mapping-fields,runtime fields>> to make schema changes without
+reindexing. You can use runtime fields in conjunction with indexed fields to
+balance resource usage and performance. Your index will be smaller, but with
+slower search performance.
 
-<<mapping-fields,Metadata fields>>::
-
-Metadata fields are used to customize how a document's associated metadata is
-treated. Examples of metadata fields include the document's
-<<mapping-index-field,`_index`>>, <<mapping-id-field,`_id`>>, and
-<<mapping-source-field,`_source`>> fields.
-
-<<mapping-types,Fields>>::
-
-A mapping contains a list of fields or `properties` pertinent to the
-document. Each field has its own <<mapping-types, data type>>.
-
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name.
-For more details, please see <<removal-of-types>>.
-
-[[mapping-limit-settings]]
 [discrete]
-=== Settings to prevent mappings explosion
-
-Defining too many fields in an index can lead to a
-mapping explosion, which can cause out of memory errors and difficult
-situations to recover from.
+[[mapping-limit-settings]]
+== Settings to prevent mapping explosion
+Defining too many fields in an index can lead to a mapping explosion, which can
+cause out of memory errors and difficult situations to recover from.
 
 Consider a situation where every new document inserted
 introduces new fields, such as with <<dynamic-mapping,dynamic mapping>>.
 Each new field is added to the index mapping, which can become a
 problem as the mapping grows.
 
-Use the following settings to limit the number of field mappings (created manually or dynamically) and prevent documents from causing a mapping explosion:
-
-`index.mapping.total_fields.limit`::
-    The maximum number of fields in an index. Field and object mappings, as well as
-    field aliases count towards this limit. The default value is `1000`.
-+
-[IMPORTANT]
-====
-The limit is in place to prevent mappings and searches from becoming too
-large. Higher values can lead to performance degradations and memory issues,
-especially in clusters with a high load or few resources.
-
-If you increase this setting, we recommend you also increase the
-<<search-settings,`indices.query.bool.max_clause_count`>> setting, which
-limits the maximum number of <<query-dsl-bool-query,boolean clauses>> in a query.
-====
-+
-[TIP]
-====
-If your field mappings contain a large, arbitrary set of keys, consider using the <<flattened,flattened>> data type.
-====
-
-`index.mapping.depth.limit`::
-    The maximum depth for a field, which is measured as the number of inner
-    objects. For instance, if all fields are defined at the root object level,
-    then the depth is `1`. If there is one object mapping, then the depth is
-    `2`, etc. Default is `20`.
-
-// tag::nested-fields-limit[]
-`index.mapping.nested_fields.limit`::
-    The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting
-    limits the number of unique `nested` types per index. Default is `50`.
-// end::nested-fields-limit[]
-
-// tag::nested-objects-limit[]
-`index.mapping.nested_objects.limit`::
-    The maximum number of nested JSON objects that a single document can contain across all
-    `nested` types. This limit helps to prevent out of memory errors when a document contains too many nested
-    objects. Default is `10000`.
-// end::nested-objects-limit[]
-
-`index.mapping.field_name_length.limit`::
-    Setting for the maximum length of a field name. This setting isn't really something that addresses
-    mappings explosion but might still be useful if you want to limit the field length.
-    It usually shouldn't be necessary to set this setting. The default is okay
-    unless a user starts to add a huge number of fields with really long names. Default is
-    `Long.MAX_VALUE` (no limit).
-
-[discrete]
-== Dynamic mapping
-
-Fields and mapping types do not need to be defined before being used. Thanks
-to _dynamic mapping_, new field names will be added automatically, just by
-indexing a document. New fields can be added both to the top-level mapping
-type, and to inner <<object,`object`>>  and <<nested,`nested`>> fields.
-
-The <<dynamic-mapping,dynamic mapping>> rules can be configured to customise
-the mapping that is used for new fields.
-
-[discrete]
-== Explicit mappings
-
-You know more about your data than Elasticsearch can guess, so while dynamic
-mapping can be useful to get started, at some point you will want to specify
-your own explicit mappings.
-
-You can create field mappings when you <<create-mapping,create an index>> and
-<<add-field-mapping,add fields to an existing index>>.
-
-[discrete]
-[[create-mapping]]
-== Create an index with an explicit mapping
-
-You can use the <<indices-create-index,create index>> API to create a new index
-with an explicit mapping.
-
-[source,console]
-----
-PUT /my-index-000001
-{
-  "mappings": {
-    "properties": {
-      "age":    { "type": "integer" },  <1>
-      "email":  { "type": "keyword"  }, <2>
-      "name":   { "type": "text"  }     <3>
-    }
-  }
-}
-----
-
-<1> Creates `age`, an <<number,`integer`>> field
-<2> Creates `email`, a <<keyword,`keyword`>> field
-<3> Creates `name`, a <<text,`text`>> field
-
-[discrete]
-[[add-field-mapping]]
-== Add a field to an existing mapping
-
-You can use the <<indices-put-mapping, put mapping>> API to add one or more new
-fields to an existing index.
-
-The following example adds `employee-id`, a `keyword` field with an
-<<mapping-index,`index`>> mapping parameter value of `false`. This means values
-for the `employee-id` field are stored but not indexed or available for search.
-
-[source,console]
-----
-PUT /my-index-000001/_mapping
-{
-  "properties": {
-    "employee-id": {
-      "type": "keyword",
-      "index": false
-    }
-  }
-}
-----
-// TEST[continued]
-
-[discrete]
-[[update-mapping]]
-=== Update the mapping of a field
-
-include::{es-repo-dir}/indices/put-mapping.asciidoc[tag=change-field-mapping]
-
-include::{es-repo-dir}/indices/put-mapping.asciidoc[tag=rename-field]
-
-[discrete]
-[[view-mapping]]
-== View the mapping of an index
-
-You can use the <<indices-get-mapping, get mapping>> API to view the mapping of
-an existing index.
-
-[source,console]
-----
-GET /my-index-000001/_mapping
-----
-// TEST[continued]
-
-The API returns the following response:
-
-[source,console-result]
-----
-{
-  "my-index-000001" : {
-    "mappings" : {
-      "properties" : {
-        "age" : {
-          "type" : "integer"
-        },
-        "email" : {
-          "type" : "keyword"
-        },
-        "employee-id" : {
-          "type" : "keyword",
-          "index" : false
-        },
-        "name" : {
-          "type" : "text"
-        }
-      }
-    }
-  }
-}
-----
-
-
-[discrete]
-[[view-field-mapping]]
-== View the mapping of specific fields
-
-If you only want to view the mapping of one or more specific fields, you can use
-the <<indices-get-field-mapping, get field mapping>> API.
-
-This is useful if you don't need the complete mapping of an index or your index
-contains a large number of fields.
-
-The following request retrieves the mapping for the `employee-id` field.
-
-[source,console]
-----
-GET /my-index-000001/_mapping/field/employee-id
-----
-// TEST[continued]
-
-The API returns the following response:
-
-[source,console-result]
-----
-{
-  "my-index-000001" : {
-    "mappings" : {
-      "employee-id" : {
-        "full_name" : "employee-id",
-        "mapping" : {
-          "employee-id" : {
-            "type" : "keyword",
-            "index" : false
-          }
-        }
-      }
-    }
-  }
-}
-
-----
+Use the <<mapping-settings-limit,mapping limit settings>> to limit the number
+of field mappings (created manually or dynamically) and prevent documents from
+causing a mapping explosion.
 
 --
 
-include::mapping/removal_of_types.asciidoc[]
+include::mapping/dynamic-mapping.asciidoc[]
+
+include::mapping/explicit-mapping.asciidoc[]
+
+include::mapping/runtime.asciidoc[]
 
 include::mapping/types.asciidoc[]
 
@@ -261,4 +87,6 @@ include::mapping/fields.asciidoc[]
 
 include::mapping/params.asciidoc[]
 
-include::mapping/dynamic-mapping.asciidoc[]
+include::mapping/mapping-settings-limit.asciidoc[]
+
+include::mapping/removal_of_types.asciidoc[]

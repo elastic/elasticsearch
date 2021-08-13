@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -11,7 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -25,16 +26,20 @@ import org.junit.After;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST_NATIVE_PROCESS_KILLED;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
@@ -55,7 +60,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -92,7 +96,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         List<ForecastRequestStats> forecastStats = getForecastStats();
         assertThat(forecastStats.size(), equalTo(3));
         Map<String, ForecastRequestStats> idToForecastStats = new HashMap<>();
-        forecastStats.stream().forEach(f -> idToForecastStats.put(f.getForecastId(), f));
+        forecastStats.forEach(f -> idToForecastStats.put(f.getForecastId(), f));
 
         {
             ForecastRequestStats forecastDefaultDurationDefaultExpiry = idToForecastStats.get(forecastIdDefaultDurationDefaultExpiry);
@@ -156,7 +160,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
         ElasticsearchException e = expectThrows(ElasticsearchException.class,() -> forecast(job.getId(),
@@ -177,7 +180,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
@@ -203,7 +205,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(30L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
         createDataWithLotsOfClientIps(bucketSpan, job);
@@ -229,7 +230,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
         createDataWithLotsOfClientIps(bucketSpan, job);
@@ -296,7 +296,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -348,7 +347,61 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             assertNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry));
             assertNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry2));
         }
+    }
 
+    public void testDeleteAll() throws Exception {
+        Detector.Builder detector1 = new Detector.Builder("sum", "value").setPartitionFieldName("category");
+        Detector.Builder detector2 = new Detector.Builder("mean", "value").setPartitionFieldName("category");
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector1.build(), detector2.build()));
+        analysisConfig.setBucketSpan(bucketSpan);
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeFormat("epoch");
+
+        Job.Builder job = new Job.Builder("forecast-it-test-delete-wildcard-2");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+        putJob(job);
+        openJob(job.getId());
+
+        long now = Instant.now().getEpochSecond();
+        long timestamp = now - 50 * bucketSpan.seconds();
+        List<String> data = new ArrayList<>();
+        String[] partitionFieldValues = IntStream.range(0, 20).mapToObj(i -> "category_" + i).toArray(String[]::new);
+        while (timestamp < now) {
+            for (String partitionFieldValue : partitionFieldValues) {
+                data.add(createJsonRecord(createRecord(timestamp, partitionFieldValue, 10.0)));
+                data.add(createJsonRecord(createRecord(timestamp, partitionFieldValue, 30.0)));
+            }
+            timestamp += bucketSpan.seconds();
+        }
+
+        postData(job.getId(), data.stream().collect(Collectors.joining()));
+        flushJob(job.getId(), false);
+
+        long noForecasts = 11;  // We want to make sure we set the search size instead of relying on the default
+        List<String> forecastIds = new ArrayList<>();
+        for (int i = 0; i < noForecasts; ++i) {
+            String forecastId = forecast(job.getId(), TimeValue.timeValueHours(100), TimeValue.ZERO);
+            forecastIds.add(forecastId);
+            waitForecastToFinish(job.getId(), forecastId);
+        }
+        closeJob(job.getId());
+
+        assertThat(getJobStats(job.getId()).get(0).getForecastStats().getTotal(), is(equalTo(noForecasts)));
+        for (String forecastId : forecastIds) {
+            assertNotNull(getForecastStats(job.getId(), forecastId));
+        }
+
+        DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(), randomBoolean() ? "*" : "_all");
+        AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
+        assertTrue(response.isAcknowledged());
+
+        assertThat(getJobStats(job.getId()).get(0).getForecastStats().getTotal(), is(equalTo(0L)));
+        for (String forecastId : forecastIds) {
+            assertNull(getForecastStats(job.getId(), forecastId));
+        }
     }
 
     public void testDelete() throws Exception {
@@ -364,7 +417,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -428,7 +480,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             otherJob.setAnalysisConfig(analysisConfig);
             otherJob.setDataDescription(dataDescription);
 
-            registerJob(otherJob);
             putJob(otherJob);
             DeleteForecastAction.Request request = new DeleteForecastAction.Request(otherJob.getId(), Metadata.ALL);
             AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
@@ -440,7 +491,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             otherJob.setAnalysisConfig(analysisConfig);
             otherJob.setDataDescription(dataDescription);
 
-            registerJob(otherJob);
             putJob(otherJob);
 
             DeleteForecastAction.Request request = new DeleteForecastAction.Request(otherJob.getId(), Metadata.ALL);
@@ -465,7 +515,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setDataDescription(dataDescription);
         String jobId = job.getId();
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -509,7 +558,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -569,6 +617,12 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         Map<String, Object> record = new HashMap<>();
         record.put("time", timestamp);
         record.put("value", value);
+        return record;
+    }
+
+    private static Map<String, Object> createRecord(long timestamp, String partitionFieldValue, double value) {
+        Map<String, Object> record = createRecord(timestamp, value);
+        record.put("category", partitionFieldValue);
         return record;
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.inference;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -21,7 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -141,6 +143,10 @@ public class TrainedModelStatsService {
         }
     }
 
+    private boolean shouldStop() {
+        return stopped || MlMetadata.getMlMetadata(clusterState).isResetMode() || MlMetadata.getMlMetadata(clusterState).isUpgradeMode();
+    }
+
     void start() {
         logger.debug("About to start TrainedModelStatsService");
         stopped = false;
@@ -157,6 +163,11 @@ public class TrainedModelStatsService {
         boolean isInUpgradeMode = MlMetadata.getMlMetadata(clusterState).isUpgradeMode();
         if (isInUpgradeMode) {
             logger.debug("Model stats not persisted as ml upgrade mode is enabled");
+            return;
+        }
+
+        if (MlMetadata.getMlMetadata(clusterState).isResetMode()) {
+            logger.debug("Model stats not persisted as ml reset_mode is enabled");
             return;
         }
 
@@ -194,12 +205,12 @@ public class TrainedModelStatsService {
         if (bulkRequest.requests().isEmpty()) {
             return;
         }
-        if (stopped) {
+        if (shouldStop()) {
             return;
         }
         resultsPersisterService.bulkIndexWithRetry(bulkRequest,
             stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
-            () -> stopped == false,
+            () -> shouldStop() == false,
             (msg) -> {});
     }
 
@@ -225,12 +236,15 @@ public class TrainedModelStatsService {
 
     private void createStatsIndexIfNecessary() {
         final PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, ActionListener.wrap(
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver,
+            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            ActionListener.wrap(
             r -> ElasticsearchMappings.addDocMappingIfMissing(
                 MlStatsIndex.writeAlias(),
-                MlStatsIndex::mapping,
+                MlStatsIndex::wrappedMapping,
                 client,
                 clusterState,
+                MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
                 listener),
             listener::onFailure
         ));

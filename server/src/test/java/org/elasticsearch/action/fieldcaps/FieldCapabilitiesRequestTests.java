@@ -1,34 +1,35 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+
+import static java.util.Collections.singletonMap;
 
 public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCase<FieldCapabilitiesRequest> {
 
@@ -52,7 +53,22 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             request.indicesOptions(randomBoolean() ? IndicesOptions.strictExpand() : IndicesOptions.lenientExpandOpen());
         }
         request.includeUnmapped(randomBoolean());
+        if (randomBoolean()) {
+            request.nowInMillis(randomLong());
+        }
+        if (randomBoolean()) {
+            request.indexFilter(QueryBuilders.termQuery("field", randomAlphaOfLength(5)));
+        }
+        if (randomBoolean()) {
+            request.runtimeFields(Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        }
         return request;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
@@ -76,13 +92,44 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
                 () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
             request.indicesOptions(indicesOptions);
         });
-        mutators.add(request -> request.setMergeResults(!request.isMergeResults()));
-        mutators.add(request -> request.includeUnmapped(!request.includeUnmapped()));
+        mutators.add(request -> request.setMergeResults(request.isMergeResults() == false));
+        mutators.add(request -> request.includeUnmapped(request.includeUnmapped() == false));
+        mutators.add(request -> request.nowInMillis(request.nowInMillis() != null ? request.nowInMillis() + 1 : 1L));
+        mutators.add(
+            request -> request.indexFilter(request.indexFilter() != null ? request.indexFilter().boost(2) : QueryBuilders.matchAllQuery())
+        );
+        mutators.add(request -> request.runtimeFields(Collections.singletonMap("other_key", "other_value")));
 
         FieldCapabilitiesRequest mutatedInstance = copyInstance(instance);
         Consumer<FieldCapabilitiesRequest> mutator = randomFrom(mutators);
         mutator.accept(mutatedInstance);
         return mutatedInstance;
+    }
+
+    public void testToXContent() throws IOException {
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indexFilter(QueryBuilders.termQuery("field", "value"));
+        request.runtimeFields(singletonMap("day_of_week", singletonMap("type", "keyword")));
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        String xContent = BytesReference.bytes(request.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
+        assertEquals(
+            ("{"
+                + "  \"index_filter\": {\n"
+                + "    \"term\": {\n"
+                + "      \"field\": {\n"
+                + "        \"value\": \"value\",\n"
+                + "        \"boost\": 1.0\n"
+                + "      }\n"
+                + "    }\n"
+                + "  },\n"
+                + "  \"runtime_mappings\": {\n"
+                + "    \"day_of_week\": {\n"
+                + "      \"type\": \"keyword\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}").replaceAll("\\s+", ""),
+            xContent
+        );
     }
 
     public void testValidation() {

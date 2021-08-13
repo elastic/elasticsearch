@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -52,7 +53,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         doAnswer(new Answer<Void>() {
             @Override
-            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+            public Void answer(InvocationOnMock invocationOnMock) {
                 PreviewDatafeedAction.Response response = (PreviewDatafeedAction.Response) invocationOnMock.getArguments()[0];
                 capturedResponse = response.toString();
                 return null;
@@ -61,7 +62,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         doAnswer(new Answer<Void>() {
             @Override
-            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+            public Void answer(InvocationOnMock invocationOnMock) {
                 capturedFailure = (Exception) invocationOnMock.getArguments()[0];
                 return null;
             }

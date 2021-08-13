@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.jdbc;
@@ -15,7 +16,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -42,10 +43,10 @@ import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 
 public class JdbcHttpClientRequestTests extends ESTestCase {
-    
+
     private static RawRequestMockWebServer webServer = new RawRequestMockWebServer();
     private static final Logger logger = LogManager.getLogger(JdbcHttpClientRequestTests.class);
-    
+
     @BeforeClass
     public static void init() throws Exception {
         webServer.start();
@@ -63,7 +64,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
     public void testBinaryRequestEnabled() throws Exception {
         assertBinaryRequest(true, XContentType.CBOR);
     }
-    
+
     public void testBinaryRequestDisabled() throws Exception {
         assertBinaryRequest(false, XContentType.JSON);
     }
@@ -72,9 +73,9 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
         String url = JdbcConfiguration.URL_PREFIX + webServer.getHostName() + ":" + webServer.getPort();
         Properties props = new Properties();
         props.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(isBinary));
-        
+
         JdbcHttpClient httpClient = new JdbcHttpClient(JdbcConfiguration.create(url, props, 0), false);
-        
+
         prepareMockResponse();
         try {
             httpClient.query(randomAlphaOfLength(256), null,
@@ -83,7 +84,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
             logger.info("Ignored SQLException", e);
         }
         assertValues(isBinary, xContentType);
-        
+
         prepareMockResponse();
         try {
             httpClient.nextPage("", new RequestMeta(randomIntBetween(1, 100), randomNonNegativeLong(), randomNonNegativeLong()));
@@ -98,21 +99,21 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
         RawRequest recordedRequest = webServer.takeRequest();
         assertEquals(xContentType.mediaTypeWithoutParameters(), recordedRequest.getHeader("Content-Type"));
         assertEquals("POST", recordedRequest.getMethod());
-        
+
         BytesReference bytesRef = recordedRequest.getBodyAsBytes();
         Map<String, Object> reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
-        
+
         assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase("jdbc"));
         assertEquals(isBinary, reqContent.get("binary_format"));
     }
-    
+
     private void prepareMockResponse() {
         webServer.enqueue(new Response()
                           .setResponseCode(200)
                           .addHeader("Content-Type", "application/json")
                           .setBody("{\"rows\":[],\"columns\":[]}"));
     }
-    
+
     @SuppressForbidden(reason = "use http server")
     private static class RawRequestMockWebServer implements Closeable {
         private HttpServer server;
@@ -131,7 +132,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
             server.start();
             this.hostname = server.getAddress().getHostString();
             this.port = server.getAddress().getPort();
-            
+
             server.createContext("/", s -> {
                 try {
                     Response response = responses.poll();
@@ -200,7 +201,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
 
     @SuppressForbidden(reason = "use http server header class")
     private static class RawRequest {
-        
+
         private final String method;
         private final Headers headers;
         private BytesReference bodyAsBytes = null;
@@ -226,7 +227,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
             this.bodyAsBytes = bodyAsBytes;
         }
     }
-    
+
     @SuppressForbidden(reason = "use http server header class")
     private class Response {
 

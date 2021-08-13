@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
@@ -62,7 +63,7 @@ public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
 
         Source newSource = randomValueOtherThan(iif.source(), SourceTests::randomSource);
         assertEquals(new Iif(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.elseResult()),
-            iif.transformPropertiesOnly(p -> Objects.equals(p, iif.source()) ? newSource: p, Object.class));
+            iif.transformPropertiesOnly(Object.class, p -> Objects.equals(p, iif.source()) ? newSource: p));
     }
 
     @Override

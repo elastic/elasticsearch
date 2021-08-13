@@ -1,5 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -12,15 +11,12 @@ esplugin {
 }
 archivesBaseName = 'x-pack-autoscaling'
 
-tasks.named('internalClusterTest').configure {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.autoscaling_feature_flag_registered', 'true'
-  }
-}
-
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('data-streams'))
+  testImplementation project(path: xpackModule('searchable-snapshots'))
+  testImplementation project(path: xpackModule('ilm'))
 }
 
 addQaCheckDependencies()

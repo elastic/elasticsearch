@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettingsTests;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
-import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
+import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
+import org.elasticsearch.xpack.security.tool.HttpResponse;
+import org.elasticsearch.xpack.security.tool.HttpResponse.HttpResponseBuilder;
 import org.junit.After;
 import org.junit.Before;
 
@@ -56,7 +59,7 @@ public class CommandLineHttpClientTests extends ESTestCase {
     public void testCommandLineHttpClientCanExecuteAndReturnCorrectResultUsingSSLSettings() throws Exception {
         Settings settings = getHttpSslSettings()
             .put("xpack.security.http.ssl.certificate_authorities", certPath.toString())
-            .put("xpack.security.http.ssl.verification_mode", VerificationMode.CERTIFICATE)
+            .put("xpack.security.http.ssl.verification_mode", SslVerificationMode.CERTIFICATE)
             .build();
         CommandLineHttpClient client = new CommandLineHttpClient(TestEnvironment.newEnvironment(settings));
         HttpResponse httpResponse = client.execute("GET", new URL("https://localhost:" + webServer.getPort() + "/test"), "u1",

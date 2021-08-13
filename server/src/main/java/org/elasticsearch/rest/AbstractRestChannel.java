@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -31,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -39,6 +30,7 @@ import static java.util.stream.Collectors.toSet;
 public abstract class AbstractRestChannel implements RestChannel {
 
     private static final Logger logger = LogManager.getLogger(AbstractRestChannel.class);
+
     private static final Predicate<String> INCLUDE_FILTER = f -> f.charAt(0) != '-';
     private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();
 
@@ -76,6 +68,8 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     @Override
     public XContentBuilder newErrorBuilder() throws IOException {
+        // release whatever output we already buffered and write error response to fresh buffer
+        releaseOutputBuffer();
         // Disable filtering when building error responses
         return newBuilder(request.getXContentType(), false);
     }
@@ -100,6 +94,7 @@ public abstract class AbstractRestChannel implements RestChannel {
     @Override
     public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
             boolean useFiltering) throws IOException {
+
         if (responseContentType == null) {
             if (Strings.hasText(format)) {
                 responseContentType = XContentType.fromFormat(format);
@@ -130,8 +125,14 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
+
+        Map<String, String> parameters = request.getParsedAccept() != null ?
+            request.getParsedAccept().getParameters() : Collections.emptyMap();
+        ParsedMediaType responseMediaType = ParsedMediaType.parseMediaType(responseContentType, parameters);
+
         XContentBuilder builder =
-            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes);
+            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
+                includes, excludes, responseMediaType, request.getRestApiVersion());
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }
@@ -142,25 +143,30 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     /**
      * A channel level bytes output that can be reused. The bytes output is lazily instantiated
-     * by a call to {@link #newBytesOutput()}. Once the stream is created, it gets reset on each
-     * call to this method.
+     * by a call to {@link #newBytesOutput()}. This method should only be called once per request.
      */
     @Override
     public final BytesStreamOutput bytesOutput() {
-        if (bytesOut == null) {
-            bytesOut = newBytesOutput();
-        } else {
-            bytesOut.reset();
+        if (bytesOut != null) {
+            // fallback in case of encountering a bug, release the existing buffer if any (to avoid leaking memory) and acquire a new one
+            // to send out an error response
+            assert false : "getting here is always a bug";
+            logger.error("channel handling [{}] reused", request.rawPath());
+            releaseOutputBuffer();
         }
+        bytesOut = newBytesOutput();
         return bytesOut;
     }
 
     /**
-     * An accessor to the raw value of the channel bytes output. This method will not instantiate
-     * a new stream if one does not exist and this method will not reset the stream.
+     * Releases the current output buffer for this channel. Must be called after the buffer derived from {@link #bytesOutput} is no longer
+     * needed.
      */
-    protected final BytesStreamOutput bytesOutputOrNull() {
-        return bytesOut;
+    protected final void releaseOutputBuffer() {
+        if (bytesOut != null) {
+            bytesOut.close();
+            bytesOut = null;
+        }
     }
 
     protected BytesStreamOutput newBytesOutput() {

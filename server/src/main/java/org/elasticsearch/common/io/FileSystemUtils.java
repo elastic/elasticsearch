@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io;
@@ -23,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -113,15 +102,15 @@ public final class FileSystemUtils {
     public static boolean isAccessibleDirectory(Path directory, Logger logger) {
         assert directory != null && logger != null;
 
-        if (!Files.exists(directory)) {
+        if (Files.exists(directory) == false) {
             logger.debug("[{}] directory does not exist.", directory.toAbsolutePath());
             return false;
         }
-        if (!Files.isDirectory(directory)) {
+        if (Files.isDirectory(directory) == false) {
             logger.debug("[{}] should be a directory but is not.", directory.toAbsolutePath());
             return false;
         }
-        if (!Files.isReadable(directory)) {
+        if (Files.isReadable(directory) == false) {
             logger.debug("[{}] directory is not readable.", directory.toAbsolutePath());
             return false;
         }

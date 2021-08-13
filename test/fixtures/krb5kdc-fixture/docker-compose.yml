@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    extra_hosts:
+      - "kerberos.build.elastic.co:127.0.0.1"
     command: "bash /fixture/src/main/resources/provision/peppa.sh"
     volumes:
       - ./testfixtures_shared/shared/peppa:/fixture/build
@@ -18,6 +20,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    extra_hosts:
+      - "kerberos.build.elastic.co:127.0.0.1"
     command: "bash /fixture/src/main/resources/provision/hdfs.sh"
     volumes:
       - ./testfixtures_shared/shared/hdfs:/fixture/build

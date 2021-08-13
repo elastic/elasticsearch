@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
@@ -19,7 +20,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Da
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestCase<NamedDateTimeProcessor> {
-    
+
     public static NamedDateTimeProcessor randomNamedDateTimeProcessor() {
         return new NamedDateTimeProcessor(randomFrom(NameExtractor.values()), UTC);
     }
@@ -51,7 +52,7 @@ public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestC
         assertEquals("Thursday", proc.process(dateTime(0L)));
         assertEquals("Saturday", proc.process(dateTime(-64164233612338L)));
         assertEquals("Monday", proc.process(dateTime(64164233612338L)));
-        
+
         assertEquals("Thursday", proc.process(dateTime(0L)));
         assertEquals("Thursday", proc.process(dateTime(-5400, 12, 25, 2, 0)));
         assertEquals("Friday", proc.process(dateTime(30, 2, 1, 12, 13)));
@@ -98,12 +99,12 @@ public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestC
         assertEquals("July", proc.process(dateTime(10902, 8, 1, 2, 59)));
         assertEquals("August", proc.process(dateTime(10902, 8, 1, 3, 00)));
     }
-    
+
     /*
      * This method checks the existence of a jvm parameter that should exist in ES jvm.options for Java 9+. If the parameter is
      * missing, the tests will be skipped. Not doing this, the tests will fail because the day and month names will be in the narrow
      * format (Mon, Tue, Jan, Feb etc) instead of full format (Monday, Tuesday, January, February etc).
-     * 
+     *
      * Related infra issue: https://github.com/elastic/elasticsearch/issues/33796
      */
     private void assumeJava9PlusAndCompatLocaleProviderSetting() {

@@ -7,8 +7,6 @@
 <titleabbrev>Delete async EQL search</titleabbrev>
 ++++
 
-beta::[]
-
 Deletes an <<eql-search-async,async EQL search>> or a
 <<eql-search-store-sync-eql-search,stored synchronous EQL search>>. The API also
 deletes results for the search.
@@ -27,7 +25,13 @@ DELETE /_eql/search/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZM
 [[delete-async-eql-search-api-prereqs]]
 ==== {api-prereq-title}
 
-See <<eql-required-fields>>.
+* If the {es} {security-features} are enabled, only the following users can
+use this API to delete a search:
+
+** Users with the `cancel_task` <<privileges-list-cluster,cluster privilege>>
+** The user who first submitted the search
+
+* See <<eql-required-fields>>.
 
 [[delete-async-eql-search-api-limitations]]
 ===== Limitations

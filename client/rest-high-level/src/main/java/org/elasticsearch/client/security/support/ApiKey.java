@@ -1,31 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security.support;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -43,8 +33,10 @@ public final class ApiKey {
     private final boolean invalidated;
     private final String username;
     private final String realm;
+    private final Map<String, Object> metadata;
 
-    public ApiKey(String name, String id, Instant creation, Instant expiration, boolean invalidated, String username, String realm) {
+    public ApiKey(String name, String id, Instant creation, Instant expiration, boolean invalidated, String username, String realm,
+                  Map<String, Object> metadata) {
         this.name = name;
         this.id = id;
         // As we do not yet support the nanosecond precision when we serialize to JSON,
@@ -55,6 +47,7 @@ public final class ApiKey {
         this.invalidated = invalidated;
         this.username = username;
         this.realm = realm;
+        this.metadata = metadata;
     }
 
     public String getId() {
@@ -101,9 +94,13 @@ public final class ApiKey {
         return realm;
     }
 
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(name, id, creation, expiration, invalidated, username, realm);
+        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata);
     }
 
     @Override
@@ -124,12 +121,15 @@ public final class ApiKey {
                 && Objects.equals(expiration, other.expiration)
                 && Objects.equals(invalidated, other.invalidated)
                 && Objects.equals(username, other.username)
-                && Objects.equals(realm, other.realm);
+                && Objects.equals(realm, other.realm)
+                && Objects.equals(metadata, other.metadata);
     }
 
+    @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", args -> {
         return new ApiKey((String) args[0], (String) args[1], Instant.ofEpochMilli((Long) args[2]),
-                (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]), (Boolean) args[4], (String) args[5], (String) args[6]);
+                (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]), (Boolean) args[4], (String) args[5], (String) args[6],
+                (Map<String, Object>) args[7]);
     });
     static {
         PARSER.declareField(optionalConstructorArg(), (p, c) -> p.textOrNull(), new ParseField("name"),
@@ -140,6 +140,7 @@ public final class ApiKey {
         PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));
         PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareString(constructorArg(), new ParseField("realm"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
     }
 
     public static ApiKey fromXContent(XContentParser parser) throws IOException {

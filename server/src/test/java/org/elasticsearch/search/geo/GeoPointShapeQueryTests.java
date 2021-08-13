@@ -1,176 +1,64 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.LineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiPointBuilder;
-import org.elasticsearch.common.geo.builders.PointBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.geometry.utils.WellKnownText;
 
-import static org.hamcrest.Matchers.containsString;
+import java.io.IOException;
 
-public class GeoPointShapeQueryTests extends GeoQueryTests {
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
+
+public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
 
     @Override
-    protected XContentBuilder createDefaultMapping() throws Exception {
+    protected void createMapping(String indexName, String fieldName, Settings settings) throws Exception {
         XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties").startObject(defaultGeoFieldName)
+            .startObject("properties").startObject(fieldName)
             .field("type", "geo_point")
             .endObject().endObject().endObject();
-
-        return xcb;
+        client().admin().indices().prepareCreate(indexName).setMapping(xcb).setSettings(settings).get();
     }
 
-    public void testProcessRelationSupport() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+    public void testFieldAlias() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(defaultGeoFieldName)
+            .field("type", "geo_point")
+            .endObject()
+            .startObject("alias")
+            .field("type", "alias")
+            .field("path", defaultGeoFieldName)
+            .endObject()
+            .endObject()
+            .endObject());
+
+        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
-        Rectangle rectangle = new Rectangle(-35, -25, -25, -35);
+        Point point = GeometryTestUtils.randomPoint(false);
+        client().prepareIndex(defaultIndexName).setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(point)).endObject())
+            .setRefreshPolicy(IMMEDIATE).get();
 
-        for (ShapeRelation shapeRelation : ShapeRelation.values()) {
-            if (!shapeRelation.equals(ShapeRelation.INTERSECTS)) {
-                SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
-                    client().prepareSearch("test")
-                        .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, rectangle)
-                            .relation(shapeRelation))
-                        .get());
-                assertThat(e.getCause().getMessage(),
-                    containsString(shapeRelation
-                        + " query relation not supported for Field [" + defaultGeoFieldName + "]"));
-            }
-        }
+        SearchResponse response = client().prepareSearch(defaultIndexName)
+            .setQuery(geoShapeQuery("alias", point))
+            .get();
+        assertEquals(1, response.getHits().getTotalHits().value);
     }
-
-    public void testQueryLine() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        ensureGreen();
-
-        Line line = new Line(new double[]{-25, -25}, new double[]{-35, -35});
-
-        try {
-            client().prepareSearch("test")
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, line)).get();
-        } catch (
-            SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getMessage(),
-                containsString("does not support " + GeoShapeType.LINESTRING + " queries"));
-        }
-    }
-
-    public void testQueryLinearRing() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        ensureGreen();
-
-        LinearRing linearRing = new LinearRing(new double[]{-25,-35,-25}, new double[]{-25,-35,-25});
-
-        try {
-            // LinearRing extends Line implements Geometry: expose the build process
-            GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder(defaultGeoFieldName, linearRing);
-            SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client(), SearchAction.INSTANCE);
-            searchRequestBuilder.setQuery(queryBuilder);
-            searchRequestBuilder.setIndices("test");
-            searchRequestBuilder.get();
-        } catch (
-            SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [" + defaultGeoFieldName + "] does not support LINEARRING queries"));
-        }
-    }
-
-    public void testQueryMultiLine() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        ensureGreen();
-
-        CoordinatesBuilder coords1 = new CoordinatesBuilder()
-            .coordinate(-35,-35)
-            .coordinate(-25,-25);
-        CoordinatesBuilder coords2 = new CoordinatesBuilder()
-            .coordinate(-15,-15)
-            .coordinate(-5,-5);
-        LineStringBuilder lsb1 = new LineStringBuilder(coords1);
-        LineStringBuilder lsb2 = new LineStringBuilder(coords2);
-        MultiLineStringBuilder mlb = new MultiLineStringBuilder().linestring(lsb1).linestring(lsb2);
-        MultiLine multiline = (MultiLine) mlb.buildGeometry();
-
-        try {
-            client().prepareSearch("test")
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiline)).get();
-        } catch (Exception e) {
-            assertThat(e.getCause().getMessage(),
-                containsString("does not support " + GeoShapeType.MULTILINESTRING + " queries"));
-        }
-    }
-
-    public void testQueryMultiPoint() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        ensureGreen();
-
-        MultiPointBuilder mpb = new MultiPointBuilder().coordinate(-35,-25).coordinate(-15,-5);
-        MultiPoint multiPoint = mpb.buildGeometry();
-
-        try {
-            client().prepareSearch("test")
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint)).get();
-        } catch (Exception e) {
-            assertThat(e.getCause().getMessage(),
-                containsString("does not support " + GeoShapeType.MULTIPOINT + " queries"));
-        }
-    }
-
-    public void testQueryPoint() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        ensureGreen();
-
-        PointBuilder pb = new PointBuilder().coordinate(-35, -25);
-        Point point = pb.buildGeometry();
-
-        try {
-            client().prepareSearch("test")
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point)).get();
-        } catch (Exception e) {
-            assertThat(e.getCause().getMessage(),
-                containsString("does not support " + GeoShapeType.POINT + " queries"));
-        }
-    }
-
 }

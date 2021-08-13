@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.settings;
 
@@ -24,7 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
@@ -37,9 +26,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -207,7 +198,7 @@ public class ScopedSettingsTests extends ESTestCase {
             new Setting.AffixSettingDependency() {
 
                 @Override
-                public Setting.AffixSetting getSetting() {
+                public Setting.AffixSetting<String> getSetting() {
                     return stringSetting;
                 }
 
@@ -268,6 +259,58 @@ public class ScopedSettingsTests extends ESTestCase {
 
         service.validate(Settings.builder().put("foo.test.name", "test").put("foo.test.bar", 7).build(), true);
         service.validate(Settings.builder().put("fallback.test.name", "test").put("foo.test.bar", 7).build(), true);
+    }
+
+    public void testValidateValue() {
+        final boolean nodeSetting = randomBoolean();
+        final String prefix = nodeSetting ? "" : "index.";
+        final Property scopeProperty = nodeSetting ? Property.NodeScope : Property.IndexScope;
+        final Setting.Validator<String> baseValidator = s -> {
+            if (s.length() > 1) {
+                throw new IllegalArgumentException("too long");
+            }
+        };
+        final Setting<String> baseSetting = Setting.simpleString(prefix + "foo.base", baseValidator,
+            Property.Dynamic, scopeProperty);
+        final Setting.Validator<String> dependingValidator = new Setting.Validator<String>() {
+            @Override
+            public void validate(String value) {
+            }
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (Objects.equals(value, settings.get(baseSetting)) == false) {
+                    throw new IllegalArgumentException("must have same value");
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(baseSetting).iterator();
+            }
+        };
+        final Setting<String> dependingSetting = Setting.simpleString(prefix + "foo.depending", dependingValidator, scopeProperty);
+
+        final AbstractScopedSettings service = nodeSetting ? new ClusterSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting)) :
+            new IndexScopedSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting));
+
+        service.validate(Settings.builder().put(baseSetting.getKey(), "1").put(dependingSetting.getKey(), 1).build(), true);
+        service.validate(Settings.builder().put(dependingSetting.getKey(), "1").build(), false);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.validate(Settings.builder().put(dependingSetting.getKey(), "1").build(), true));
+        assertThat(e.getMessage(), equalTo("must have same value"));
+
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.validate(Settings.builder().put(baseSetting.getKey(), "2").put(dependingSetting.getKey(), "1").build(), true));
+        assertThat(e2.getMessage(), equalTo("must have same value"));
+
+        service.validate(Settings.builder().put(baseSetting.getKey(), "22").build(), false);
+        final IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.validate(Settings.builder().put(baseSetting.getKey(), "22").build(), true));
+        assertThat(e3.getMessage(), equalTo("too long"));
     }
 
     public void testTupleAffixUpdateConsumer() {
@@ -646,7 +689,7 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testGet() {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         // affix setting - complex matcher
-        Setting setting = settings.get("cluster.routing.allocation.require.value");
+        Setting<?> setting = settings.get("cluster.routing.allocation.require.value");
         assertEquals(setting,
             FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSetting("cluster.routing.allocation.require.value"));
 
@@ -735,6 +778,28 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(diff.getAsList("foo.bar.quux", null), Arrays.asList("a", "b", "c"));
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
         assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
+    }
+
+    public void testDiffWithDependentSettings() {
+        final String dependedSettingName = "this.setting.is.depended.on";
+        Setting<Integer> dependedSetting = Setting.intSetting(dependedSettingName, 1, Property.Dynamic, Property.NodeScope);
+
+        final String dependentSettingName = "this.setting.depends.on.another";
+        Setting<Integer> dependentSetting = new Setting<>(dependentSettingName,
+            (s) -> Integer.toString(dependedSetting.get(s) + 10),
+            (s) -> Setting.parseInt(s, 1, dependentSettingName),
+            Property.Dynamic, Property.NodeScope);
+
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(dependedSetting, dependentSetting)));
+
+        // Ensure that the value of the dependent setting is correctly calculated based on the "source" settings
+        Settings diff = settings.diff(Settings.builder().put(dependedSettingName, 2).build(), Settings.EMPTY);
+        assertThat(diff.getAsInt(dependentSettingName, null), equalTo(12));
+
+        // Ensure that the value is correctly calculated if neither is set
+        diff = settings.diff(Settings.EMPTY, Settings.EMPTY);
+        assertThat(diff.getAsInt(dependedSettingName, null), equalTo(1));
+        assertThat(diff.getAsInt(dependentSettingName, null), equalTo(11));
     }
 
     public void testDiffWithAffixAndComplexMatcher() {
@@ -839,16 +904,16 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build(), false));
+            settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build(), true));
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build(), false));
+            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build(), true));
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
             settings.validate("index.similarity.boolean.type", Settings.builder().put("index.similarity.boolean.type", "mine").build(),
-                false));
+                true));
         assertEquals("illegal value for [index.similarity.boolean] cannot redefine built-in similarity", e.getMessage());
     }
 
@@ -956,7 +1021,7 @@ public class ScopedSettingsTests extends ESTestCase {
             IllegalArgumentException ex =
                 expectThrows(
                     IllegalArgumentException.class,
-                    () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), false));
+                    () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), true));
             assertEquals("Unknown level constant [BOOM].", ex.getMessage());
             assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());

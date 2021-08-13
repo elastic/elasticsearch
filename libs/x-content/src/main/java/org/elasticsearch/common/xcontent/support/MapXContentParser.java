@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.support;
@@ -22,12 +11,14 @@ package org.elasticsearch.common.xcontent.support;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +31,17 @@ public class MapXContentParser extends AbstractXContentParser {
     private XContentType xContentType;
     private TokenIterator iterator;
     private boolean closed;
+
+    public static XContentParser wrapObject(Object sourceMap) throws IOException {
+        XContentParser parser = new MapXContentParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.IGNORE_DEPRECATIONS,
+            Collections.singletonMap("dummy_field", sourceMap), XContentType.JSON);
+        parser.nextToken(); // start object
+        parser.nextToken(); // field name
+        parser.nextToken(); // field value
+        return parser;
+    }
 
     public MapXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Map<String, Object> map,
                              XContentType xContentType) {
@@ -86,6 +88,11 @@ public class MapXContentParser extends AbstractXContentParser {
     @Override
     public XContentType contentType() {
         return xContentType;
+    }
+
+    @Override
+    public void allowDuplicateKeys(boolean allowDuplicateKeys) {
+        throw new UnsupportedOperationException("Allowing duplicate keys is not possible for maps");
     }
 
     @Override
@@ -156,7 +163,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     public boolean hasTextCharacters() {
-        throw new UnsupportedOperationException("use text() instead");
+        return false;
     }
 
     @Override

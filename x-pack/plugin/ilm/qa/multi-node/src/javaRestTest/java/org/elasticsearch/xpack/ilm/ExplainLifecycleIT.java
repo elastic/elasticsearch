@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
@@ -14,8 +15,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -71,7 +72,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         {
             // Create a "shrink-only-policy"
             Map<String, LifecycleAction> warmActions = new HashMap<>();
-            warmActions.put(ShrinkAction.NAME, new ShrinkAction(17));
+            warmActions.put(ShrinkAction.NAME, new ShrinkAction(17, null));
             Map<String, Phase> phases = new HashMap<>();
             phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
             LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-only-policy", phases);
@@ -113,7 +114,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
 
             Map<String, Map<String, Object>> onlyErrorsResponse = explain(client(), index + "*", true, true);
             assertNotNull(onlyErrorsResponse);
-            assertThat(onlyErrorsResponse, allOf(hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
+            assertThat(onlyErrorsResponse, hasKey(nonexistantPolicyIndex));
             assertThat(onlyErrorsResponse, allOf(not(hasKey(goodIndex)), not(hasKey(unmanagedIndex))));
         });
     }

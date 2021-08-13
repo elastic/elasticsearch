@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr;
 
@@ -12,14 +13,17 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -34,14 +38,17 @@ import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -57,6 +64,30 @@ public class AutoFollowIT extends CcrIntegTestCase {
     @Override
     protected boolean reuseClusters() {
         return false;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(FakeSystemIndex.class)).collect(Collectors.toList());
+    }
+
+    public static class FakeSystemIndex extends Plugin implements SystemIndexPlugin {
+        public static final String SYSTEM_INDEX_NAME = ".fake-system-index";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "test index"));
+        }
+
+        @Override
+        public String getFeatureName() {
+            return "fake system index";
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "fake system index";
+        }
     }
 
     public void testAutoFollow() throws Exception {
@@ -90,6 +121,28 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         assertFalse(ESIntegTestCase.indexExists("copy-metrics-201901", followerClient()));
         assertFalse(ESIntegTestCase.indexExists("copy-logs-201812", followerClient()));
+    }
+
+    public void testAutoFollowDoNotFollowSystemIndices() throws Exception {
+        putAutoFollowPatterns("my-pattern", new String[] {".*", "logs-*"});
+
+        // Trigger system index creation
+        leaderClient().prepareIndex(FakeSystemIndex.SYSTEM_INDEX_NAME)
+            .setSource(Map.of("a", "b"))
+            .execute()
+            .actionGet();
+
+        Settings leaderIndexSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+        createLeaderIndex("logs-201901", leaderIndexSettings);
+        assertLongBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertTrue(ESIntegTestCase.indexExists("copy-logs-201901", followerClient()));
+            assertFalse(ESIntegTestCase.indexExists("copy-.fake-system-index", followerClient()));
+        });
     }
 
     public void testCleanFollowedLeaderIndexUUIDs() throws Exception {
@@ -513,13 +566,45 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertThat(followerClient().admin().indices().prepareStats("copy-*").get().getIndices().size(), equalTo(leaderIndices.get()));
     }
 
+    public void testAutoFollowExclusion() throws Exception {
+        Settings leaderIndexSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+
+        putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"}, Collections.singletonList("logs-2018*"));
+
+        createLeaderIndex("logs-201801", leaderIndexSettings);
+        AutoFollowStats autoFollowStats = getAutoFollowStats();
+        assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
+        assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(0L));
+        assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+        assertFalse(ESIntegTestCase.indexExists("copy-logs-201801", followerClient()));
+
+        createLeaderIndex("logs-201701", leaderIndexSettings);
+        assertLongBusy(() -> {
+            AutoFollowStats autoFollowStatsResponse = getAutoFollowStats();
+            assertThat(autoFollowStatsResponse.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStatsResponse.getNumberOfFailedFollowIndices(), greaterThanOrEqualTo(0L));
+            assertThat(autoFollowStatsResponse.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+        });
+        assertTrue(ESIntegTestCase.indexExists("copy-logs-201701", followerClient()));
+        assertFalse(ESIntegTestCase.indexExists("copy-logs-201801", followerClient()));
+    }
+
     private void putAutoFollowPatterns(String name, String[] patterns) {
+        putAutoFollowPatterns(name, patterns, Collections.emptyList());
+    }
+
+    private void putAutoFollowPatterns(String name, String[] patterns, List<String> exclusionPatterns) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName(name);
         request.setRemoteCluster("leader_cluster");
         request.setLeaderIndexPatterns(Arrays.asList(patterns));
+        request.setLeaderIndexExclusionPatterns(exclusionPatterns);
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
+
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 

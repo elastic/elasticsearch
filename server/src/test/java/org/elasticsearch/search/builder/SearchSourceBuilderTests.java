@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.builder;
@@ -24,7 +13,8 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -412,6 +402,17 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testParseIndicesBoost() throws IOException {
         {
+            String restContent = " { \"indices_boost\": {\"foo\": 1.0, \"bar\": 2.0}}";
+            try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertEquals(2, searchSourceBuilder.indexBoosts().size());
+                assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
+                assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
+                assertWarnings("Object format in indices_boost is deprecated, please use array format instead");
+            }
+        }
+
+        {
             String restContent = "{" +
                 "    \"indices_boost\" : [\n" +
                 "        { \"foo\" : 1.0 },\n" +
@@ -470,13 +471,53 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals("[from] parameter cannot be negative but was [" + from + "]", expected.getMessage());
     }
 
-    public void testNegativeSizeErrors() {
-        int randomSize = randomIntBetween(-100000, -2);
+    public void testNegativeSizeErrors() throws IOException {
+        int randomSize = randomIntBetween(-100000, -1);
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
                 () -> new SearchSourceBuilder().size(randomSize));
         assertEquals("[size] parameter cannot be negative, found [" + randomSize + "]", expected.getMessage());
         expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().size(-1));
         assertEquals("[size] parameter cannot be negative, found [-1]", expected.getMessage());
+
+        String restContent = "{\"size\" : " + randomSize + "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertThat(ex.getMessage(), containsString(Integer.toString(randomSize)));
+        }
+
+        restContent = "{\"size\" : -1}";
+        try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            assertEquals(-1, searchSourceBuilder.size());
+        }
+        assertWarnings("Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` "
+            + "parameter if you don't want to set it explicitly.");
+    }
+
+    public void testNegativeTerminateAfter() throws IOException {
+        int randomNegativeValue = randomIntBetween(-100000, -1);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
+                () -> new SearchSourceBuilder().terminateAfter(randomNegativeValue));
+        assertEquals("terminateAfter must be > 0", expected.getMessage());
+
+        String restContent = "{\"terminate_after\" :" + randomNegativeValue + "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertThat(ex.getMessage(), containsString("terminateAfter must be > 0"));
+        }
+    }
+
+    public void testNegativeTrackTotalHits() throws IOException {
+        int randomNegativeValue = randomIntBetween(-100000, -2);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
+                () -> new SearchSourceBuilder().trackTotalHitsUpTo(randomNegativeValue));
+        assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, expected.getMessage());
+
+        String restContent = "{\"track_total_hits\" :" + randomNegativeValue + "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, ex.getMessage());
+        }
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {

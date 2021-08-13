@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -11,7 +12,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -110,7 +111,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
     public void testBasicCategorization() throws Exception {
         Job.Builder job = newJobBuilder("categorization", Collections.emptyList(), false);
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -118,7 +118,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
         datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
         DatafeedConfig datafeed = datafeedConfig.build();
-        registerDatafeed(datafeed);
+
         putDatafeed(datafeed);
         startDatafeed(datafeedId, 0, nowMillis);
         waitUntilJobIsClosed(job.getId());
@@ -168,7 +168,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
     public void testPerPartitionCategorization() throws Exception {
         Job.Builder job = newJobBuilder("per-partition-categorization", Collections.emptyList(), true);
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -176,7 +175,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
         datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
         DatafeedConfig datafeed = datafeedConfig.build();
-        registerDatafeed(datafeed);
+
         putDatafeed(datafeed);
         startDatafeed(datafeedId, 0, nowMillis);
         waitUntilJobIsClosed(job.getId());
@@ -247,7 +246,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
     public void testCategorizationWithFilters() throws Exception {
         Job.Builder job = newJobBuilder("categorization-with-filters", Collections.singletonList("\\[.*\\]"), false);
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -255,7 +253,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
         datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
         DatafeedConfig datafeed = datafeedConfig.build();
-        registerDatafeed(datafeed);
+
         putDatafeed(datafeed);
         startDatafeed(datafeedId, 0, nowMillis);
         waitUntilJobIsClosed(job.getId());
@@ -277,7 +275,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
     public void testCategorizationStatePersistedOnSwitchToRealtime() throws Exception {
         Job.Builder job = newJobBuilder("categorization-swtich-to-realtime", Collections.emptyList(), false);
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -285,7 +282,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
         datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
         DatafeedConfig datafeed = datafeedConfig.build();
-        registerDatafeed(datafeed);
+
         putDatafeed(datafeed);
         startDatafeed(datafeedId, 0, null);
 
@@ -354,7 +351,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
         String jobId = "categorization-performance";
         Job.Builder job = newJobBuilder(jobId, Collections.emptyList(), false);
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -381,7 +377,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
         String jobId = "categorization-stop-on-warn";
         Job.Builder job = newJobBuilder(jobId, Collections.emptyList(), true);
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -525,7 +520,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         assertThat(bulkResponse.hasFailures(), is(false));
 
         Job.Builder job = newJobBuilder("categorization-with-preferred-categories", Collections.emptyList(), false);
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -533,7 +527,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
         datafeedConfig.setIndices(Collections.singletonList(index));
         DatafeedConfig datafeed = datafeedConfig.build();
-        registerDatafeed(datafeed);
+
         putDatafeed(datafeed);
         startDatafeed(datafeedId, 0, nowMillis + 1);
         waitUntilJobIsClosed(job.getId());

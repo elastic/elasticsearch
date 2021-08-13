@@ -1,0 +1,16 @@
+{
+  "upstream": "elastic/elasticsearch",
+  "targetBranchChoices": [
+    { "name": "master", "checked": true },
+    { "name": "7.x", "checked": true },
+    "7.14",
+    "7.13",
+    "6.8"
+  ],
+  "targetPRLabels": ["backport"],
+  "branchLabelMapping": {
+    "^v8.0.0$": "master",
+    "^v7.15.0$": "7.x",
+    "^v(\\d+).(\\d+).\\d+$": "$1.$2"
+  }
+}

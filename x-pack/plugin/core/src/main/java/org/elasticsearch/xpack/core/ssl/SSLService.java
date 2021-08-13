@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
@@ -410,7 +411,7 @@ public class SSLService {
                 }
             }
 
-            if (!found) {
+            if (found == false) {
                 unsupportedCiphers.add(requestedCipher);
             }
         }
@@ -420,7 +421,7 @@ public class SSLService {
                     + " are supported by this JVM");
         }
 
-        if (log && !unsupportedCiphers.isEmpty()) {
+        if (log && unsupportedCiphers.isEmpty() == false) {
             logger.error("unsupported ciphers [{}] were requested but cannot be used in this JVM, however there are supported ciphers " +
                     "that will be used [{}]. If you are trying to use ciphers with a key length greater than 128 bits on an Oracle JVM, " +
                     "you will need to install the unlimited strength JCE policy files.", unsupportedCiphers, supportedCiphersList);
@@ -547,7 +548,7 @@ public class SSLService {
         final String enabledSetting = prefix + ".enabled";
         if (settings.getAsBoolean(enabledSetting, false)) {
             // Client Authentication _should_ be required, but if someone turns it off, then this check is no longer relevant
-            final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".");
+            final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".", true);
             if (isConfigurationValidForServerUsage(configuration) == false) {
                 throw new ElasticsearchSecurityException("invalid SSL configuration for " + prefix +
                     " - server ssl configuration requires a key and certificate, but these have not been configured; you must set either " +
@@ -790,6 +791,10 @@ public class SSLService {
 
     public SSLConfiguration getHttpTransportSSLConfiguration() {
         return getSSLConfiguration(XPackSettings.HTTP_SSL_PREFIX);
+    }
+
+    public SSLConfiguration getTransportSSLConfiguration() {
+        return getSSLConfiguration(XPackSettings.TRANSPORT_SSL_PREFIX);
     }
 
     private static Map<String, Settings> getMonitoringExporterSettings(Settings settings) {

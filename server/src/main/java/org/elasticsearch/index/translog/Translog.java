@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.translog;
@@ -22,16 +11,17 @@ package org.elasticsearch.index.translog;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -1240,11 +1230,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 source.equals(index.source) == false) {
                 return false;
             }
-            if (routing != null ? !routing.equals(index.routing) : index.routing != null) {
-                return false;
-            }
-            return true;
-
+            return Objects.equals(routing, index.routing);
         }
 
         @Override
@@ -1408,7 +1394,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public String toString() {
             return "Delete{" +
-                "seqNo=" + seqNo +
+                "id='" + id +
+                "', seqNo=" + seqNo +
                 ", primaryTerm=" + primaryTerm +
                 ", version=" + version +
                 '}';
@@ -1565,26 +1552,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * use {@link #readOperations(StreamInput, String)} to read it back.
      */
     public static void writeOperations(StreamOutput outStream, List<Operation> toWrite) throws IOException {
-        final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
-        try {
-            outStream.writeInt(toWrite.size());
-            final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
-            for (Operation op : toWrite) {
-                out.reset();
-                final long start = out.position();
-                out.skip(Integer.BYTES);
-                writeOperationNoSize(checksumStreamOutput, op);
-                long end = out.position();
-                int operationSize = (int) (out.position() - Integer.BYTES - start);
-                out.seek(start);
-                out.writeInt(operationSize);
-                out.seek(end);
-                out.bytes().writeTo(outStream);
-            }
-        } finally {
-            Releasables.close(out);
+        final BytesStreamOutput out = new BytesStreamOutput();
+        outStream.writeInt(toWrite.size());
+        final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
+        for (Operation op : toWrite) {
+            out.reset();
+            writeOperationNoSize(checksumStreamOutput, op);
+            outStream.writeInt(Math.toIntExact(out.position()));
+            out.bytes().writeTo(outStream);
         }
-
     }
 
     public static void writeOperationNoSize(BufferedChecksumStreamOutput out, Translog.Operation op) throws IOException {

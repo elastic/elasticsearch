@@ -1,38 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -45,11 +32,10 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -58,10 +44,11 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
@@ -90,6 +77,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
+    public static final String TYPE_FIELD_NAME = "_type";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, Property.Dynamic, Property.IndexScope);
     // maximum allowed number of nested json objects across all fields in a single document
@@ -101,38 +89,43 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
     public static final Setting<Long> INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING =
         Setting.longSetting("index.mapping.field_name_length.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Long> INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING =
+        Setting.longSetting("index.mapping.dimension_fields.limit", 16, 0, Property.Dynamic, Property.IndexScope);
+
 
     private final IndexAnalyzers indexAnalyzers;
-    private final DocumentMapperParser documentMapperParser;
+    private final MappingParser mappingParser;
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
     private final MapperRegistry mapperRegistry;
-    private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
+    private final Supplier<MappingParserContext> parserContextSupplier;
 
     private volatile DocumentMapper mapper;
 
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
-                         Supplier<QueryShardContext> queryShardContextSupplier, BooleanSupplier idFieldDataEnabled,
-                         ScriptService scriptService) {
+                         Supplier<SearchExecutionContext> searchExecutionContextSupplier, BooleanSupplier idFieldDataEnabled,
+                         ScriptCompiler scriptCompiler) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
-        Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
-            dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
-                mapperRegistry.getRuntimeFieldTypeParsers()::get, indexVersionCreated, queryShardContextSupplier, dateFormatter,
-                scriptService, indexAnalyzers, indexSettings, idFieldDataEnabled);
-        this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
+        Function<DateFormatter, MappingParserContext> parserContextFunction =
+            dateFormatter -> new MappingParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
+                mapperRegistry.getRuntimeFieldParsers()::get, indexVersionCreated, searchExecutionContextSupplier, dateFormatter,
+                scriptCompiler, indexAnalyzers, indexSettings, idFieldDataEnabled);
+        this.documentParser = new DocumentParser(xContentRegistry,
+            dateFormatter -> new MappingParserContext.DynamicTemplateParserContext(parserContextFunction.apply(dateFormatter)),
+            indexSettings, indexAnalyzers);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
-        this.documentMapperParser = new DocumentMapperParser(indexSettings, indexAnalyzers, this::resolveDocumentType, documentParser,
-            this::getMetadataMappers, parserContextSupplier, metadataMapperParsers);
+        this.mappingParser = new MappingParser(parserContextSupplier, metadataMapperParsers,
+            this::getMetadataMappers, this::resolveDocumentType);
     }
 
     public boolean hasNested() {
-        return this.mapper != null && this.mapper.hasNestedObjects();
+        return mappingLookup().hasNested();
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -143,11 +136,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.indexAnalyzers.get(analyzerName);
     }
 
-    public Mapper.TypeParser.ParserContext parserContext() {
+    public MappingParserContext parserContext() {
         return parserContextSupplier.get();
     }
 
-    DocumentParser documentParser() {
+    /**
+     * Exposes a {@link DocumentParser}
+     * @return a document parser to be used to parse incoming documents
+     */
+    public DocumentParser documentParser() {
         return this.documentParser;
     }
 
@@ -163,7 +160,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
         } else {
-            metadataMappers.putAll(existingMapper.mapping().metadataMappersMap);
+            metadataMappers.putAll(existingMapper.mapping().getMetadataMappersMap());
         }
         return metadataMappers;
     }
@@ -179,179 +176,153 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Update mapping by only merging the metadata that is different between received and stored entries
+     * Update local mapping by applying the incoming mapping that have already been merged with the current one on the master
      */
-    public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
+    public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
         assert newIndexMetadata.getIndex().equals(index()) : "index mismatch: expected " + index()
             + " but was " + newIndexMetadata.getIndex();
 
         if (currentIndexMetadata != null && currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
-            assertMappingVersion(currentIndexMetadata, newIndexMetadata, this.mapper);
-            return false;
+            assert assertNoUpdateRequired(newIndexMetadata);
+            return;
         }
 
-        final DocumentMapper updatedMapper;
-        try {
-            updatedMapper = internalMerge(newIndexMetadata, MergeReason.MAPPING_RECOVERY);
-        } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
-            throw e;
-        }
-
-        if (updatedMapper == null) {
-            return false;
-        }
-
-        boolean requireRefresh = false;
-
-        assertMappingVersion(currentIndexMetadata, newIndexMetadata, updatedMapper);
-
-        MappingMetadata mappingMetadata = newIndexMetadata.mapping();
-        CompressedXContent incomingMappingSource = mappingMetadata.source();
-
-        String op = mapper != null ? "updated" : "added";
-        if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
-            logger.debug("[{}] {} mapping, source [{}]", index(), op, incomingMappingSource.string());
-        } else if (logger.isTraceEnabled()) {
-            logger.trace("[{}] {} mapping, source [{}]", index(), op, incomingMappingSource.string());
-        } else {
-            logger.debug("[{}] {} mapping (source suppressed due to length, use TRACE level if needed)",
-                index(), op);
-        }
-
-        // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
-        // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
-        // merge version of it, which it does when refreshing the mappings), and warn log it.
-        if (documentMapper().mappingSource().equals(incomingMappingSource) == false) {
-            logger.debug("[{}] parsed mapping, and got different sources\noriginal:\n{}\nparsed:\n{}",
-                index(), incomingMappingSource, documentMapper().mappingSource());
-
-            requireRefresh = true;
-        }
-        return requireRefresh;
-    }
-
-    private void assertMappingVersion(
-            final IndexMetadata currentIndexMetadata,
-            final IndexMetadata newIndexMetadata,
-            final DocumentMapper updatedMapper) throws IOException {
-        if (Assertions.ENABLED && currentIndexMetadata != null) {
-            if (currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
-                // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
-                assert updatedMapper == mapper;
-
-                MappingMetadata mapping = newIndexMetadata.mapping();
-                if (mapping != null) {
-                    final CompressedXContent currentSource = currentIndexMetadata.mapping().source();
-                    final CompressedXContent newSource = mapping.source();
-                    assert currentSource.equals(newSource) :
-                        "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
-                            + "to be the same as new mapping [" + newSource + "]";
-                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(mapper));
-                    assert currentSource.equals(mapperSource) :
-                        "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
-                            + "to be the same as new mapping [" + mapperSource + "]";
-                }
-
+        MappingMetadata newMappingMetadata = newIndexMetadata.mapping();
+        if (newMappingMetadata != null) {
+            String type = newMappingMetadata.type();
+            CompressedXContent incomingMappingSource = newMappingMetadata.source();
+            Mapping incomingMapping = parseMapping(type, incomingMappingSource);
+            DocumentMapper previousMapper;
+            synchronized (this) {
+                previousMapper = this.mapper;
+                assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
+                this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY);
+            }
+            String op = previousMapper != null ? "updated" : "added";
+            if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
+                logger.debug("[{}] {} mapping, source [{}]", index(), op, incomingMappingSource.string());
+            } else if (logger.isTraceEnabled()) {
+                logger.trace("[{}] {} mapping, source [{}]", index(), op, incomingMappingSource.string());
             } else {
-                // the mapping version should increase, there should be updates, and the mapping should be different
-                final long currentMappingVersion = currentIndexMetadata.getMappingVersion();
-                final long newMappingVersion = newIndexMetadata.getMappingVersion();
-                assert currentMappingVersion < newMappingVersion :
-                    "expected current mapping version [" + currentMappingVersion + "] "
-                        + "to be less than new mapping version [" + newMappingVersion + "]";
-                assert updatedMapper != null;
-                final MappingMetadata currentMapping = currentIndexMetadata.mapping();
-                if (currentMapping != null) {
-                    final CompressedXContent currentSource = currentMapping.source();
-                    final CompressedXContent newSource = updatedMapper.mappingSource();
-                    assert currentSource.equals(newSource) == false :
-                        "expected current mapping [" + currentSource + "] to be different than new mapping [" + newSource + "]";
-                }
+                logger.debug("[{}] {} mapping (source suppressed due to length, use TRACE level if needed)",
+                    index(), op);
             }
         }
     }
 
+    private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper,
+                                             String type,
+                                             Mapping incomingMapping) {
+        Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY);
+        //skip the runtime section or removed runtime fields will make the assertion fail
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
+        CompressedXContent mergedMappingSource;
+        try {
+            mergedMappingSource = new CompressedXContent(mergedMapping, XContentType.JSON, params);
+        } catch (Exception e) {
+            throw new AssertionError("failed to serialize source for type [" + type + "]", e);
+        }
+        CompressedXContent incomingMappingSource;
+        try {
+            incomingMappingSource = new CompressedXContent(incomingMapping, XContentType.JSON, params);
+        } catch (Exception e) {
+            throw new AssertionError("failed to serialize source for type [" + type + "]", e);
+        }
+        // we used to ask the master to refresh its mappings whenever the result of merging the incoming mappings with the
+        // current mappings differs from the incoming mappings. We now rather assert that this situation never happens.
+        assert mergedMappingSource.equals(incomingMappingSource) : "[" + index() + "] parsed mapping, and got different sources\n" +
+            "incoming:\n" + incomingMappingSource + "\nmerged:\n" + mergedMappingSource;
+        return true;
+    }
+
+    boolean assertNoUpdateRequired(final IndexMetadata newIndexMetadata) {
+        MappingMetadata mapping = newIndexMetadata.mapping();
+        if (mapping != null) {
+            // mapping representations may change between versions (eg text field mappers
+            // used to always explicitly serialize analyzers), so we cannot simply check
+            // that the incoming mappings are the same as the current ones: we need to
+            // parse the incoming mappings into a DocumentMapper and check that its
+            // serialization is the same as the existing mapper
+            Mapping newMapping = parseMapping(mapping.type(), mapping.source());
+            final CompressedXContent currentSource = this.mapper.mappingSource();
+            final CompressedXContent newSource = newMapping.toCompressedXContent();
+            if (Objects.equals(currentSource, newSource) == false) {
+                throw new IllegalStateException("expected current mapping [" + currentSource
+                    + "] to be the same as new mapping [" + newSource + "]");
+            }
+        }
+        return true;
+    }
+
     public void merge(String type, Map<String, Object> mappings, MergeReason reason) throws IOException {
         CompressedXContent content = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(mappings)));
-        internalMerge(type, content, reason);
+        mergeAndApplyMappings(type, content, reason);
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
-        internalMerge(indexMetadata, reason);
-    }
-
-    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
-        return internalMerge(type, mappingSource, reason);
-    }
-
-    private synchronized DocumentMapper internalMerge(IndexMetadata indexMetadata, MergeReason reason) {
         assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata != null) {
-            return internalMerge(mappingMetadata.type(), mappingMetadata.source(), reason);
+            mergeAndApplyMappings(mappingMetadata.type(), mappingMetadata.source(), reason);
         }
-        return null;
     }
 
-    private synchronized DocumentMapper internalMerge(String type, CompressedXContent mappings, MergeReason reason) {
-
-        DocumentMapper documentMapper;
-
-        try {
-            documentMapper = documentMapperParser.parse(type, mappings);
-        } catch (Exception e) {
-            throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
-        }
-
-        return internalMerge(documentMapper, reason);
+    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
+        return mergeAndApplyMappings(type, mappingSource, reason);
     }
 
-    private synchronized DocumentMapper internalMerge(DocumentMapper mapper, MergeReason reason) {
-
-        assert mapper != null;
-
-        // compute the merged DocumentMapper
-        DocumentMapper oldMapper = this.mapper;
-        DocumentMapper newMapper;
-        if (oldMapper != null) {
-            newMapper = oldMapper.merge(mapper.mapping(), reason);
-        } else {
-            newMapper = mapper;
-        }
-        newMapper.root().fixRedundantIncludes();
-        newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
-
+    private synchronized DocumentMapper mergeAndApplyMappings(String mappingType, CompressedXContent mappingSource, MergeReason reason) {
+        Mapping incomingMapping = parseMapping(mappingType, mappingSource);
+        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
+        DocumentMapper newMapper = newDocumentMapper(mapping, reason);
         if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
             return newMapper;
         }
-
-        // commit the change
         this.mapper = newMapper;
         assert assertSerialization(newMapper);
-
         return newMapper;
+    }
+
+    private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping);
+        newMapper.mapping().getRoot().fixRedundantIncludes();
+        newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
+        return newMapper;
+    }
+
+    public Mapping parseMapping(String mappingType, CompressedXContent mappingSource) {
+        try {
+            return mappingParser.parse(mappingType, mappingSource);
+        } catch (Exception e) {
+            throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
+        }
+    }
+
+    public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
+        Mapping newMapping;
+        if (currentMapper == null) {
+            newMapping = incomingMapping;
+        } else {
+            newMapping = currentMapper.mapping().merge(incomingMapping, reason);
+        }
+        return newMapping;
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        DocumentMapper newMapper = parse(mapper.type(), mappingSource);
-
-        if (newMapper.mappingSource().equals(mappingSource) == false) {
-            throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
+        Mapping newMapping = parseMapping(mapper.type(), mappingSource);
+        if (newMapping.toCompressedXContent().equals(mappingSource) == false) {
+            throw new IllegalStateException("Mapping serialization result is different from source. \n--> Source ["
                 + mappingSource + "]\n--> Result ["
-                + newMapper.mappingSource() + "]");
+                + newMapping.toCompressedXContent() + "]");
         }
         return true;
     }
 
-    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
-        return documentMapperParser.parse(mappingType, mappingSource);
-    }
-
     /**
-     * Return the document mapper, or {@code null} if no mapping has been put yet.
+     * Return the document mapper, or {@code null} if no mapping has been put yet
+     * or no documents have been indexed in the current index yet (which triggers a dynamic mapping update)
      */
     public DocumentMapper documentMapper() {
         return mapper;
@@ -383,58 +354,34 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns the document mapper for this MapperService.  If no mapper exists,
-     * creates one and returns that.
-     */
-    public DocumentMapperForType documentMapperWithAutoCreate() {
-        DocumentMapper mapper = documentMapper();
-        if (mapper != null) {
-            return new DocumentMapperForType(mapper, null);
-        }
-        mapper = parse(SINGLE_MAPPING_NAME, null);
-        return new DocumentMapperForType(mapper, mapper.mapping());
-    }
-
-    /**
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        if (fullName.equals(TypeFieldType.NAME)) {
-            return new TypeFieldType(this.mapper == null ? "_doc" : this.mapper.type());
-        }
-        return this.mapper == null ? null : this.mapper.mappers().fieldTypes().get(fullName);
+        return mappingLookup().fieldTypesLookup().get(fullName);
     }
 
     /**
-     * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
-     * then the fields will be returned with a type prefix.
+     * Exposes a snapshot of the mappings for the current index.
+     * If no mappings have been registered for the current index, an empty {@link MappingLookup} instance is returned.
+     * An index does not have mappings only if it was created without providing mappings explicitly,
+     * and no documents have yet been indexed in it.
      */
-    public Set<String> simpleMatchToFullName(String pattern) {
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            return Collections.singleton(pattern);
-        }
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().simpleMatchToFullName(pattern);
-    }
-
-    /**
-     * Given a field name, returns its possible paths in the _source. For example,
-     * the 'source path' for a multi-field is the path to its parent field.
-     */
-    public Set<String> sourcePath(String fullName) {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().sourcePaths(fullName);
+    public MappingLookup mappingLookup() {
+        DocumentMapper mapper = this.mapper;
+        return mapper == null ? MappingLookup.EMPTY : mapper.mappers();
     }
 
     /**
      * Returns all mapped field types.
      */
     public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
-        return this.mapper == null ? Collections.emptySet() :
-            this.mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
-    }
-
-    public ObjectMapper getObjectMapper(String name) {
-        return this.mapper == null ? null : this.mapper.mappers().objectMappers().get(name);
+        DocumentMapper mapper = this.mapper;
+        if (mapper == null) {
+            return Collections.emptySet();
+        }
+        MappingLookup mappingLookup = mapper.mappers();
+        return mappingLookup.getMatchingFieldNames("*").stream().map(mappingLookup::getFieldType)
+            .filter(MappedFieldType::eagerGlobalOrdinals).collect(Collectors.toList());
     }
 
     /**
@@ -444,18 +391,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *                                  directly associated index-time analyzer
      */
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
-        if (this.mapper == null) {
-            return unindexedFieldAnalyzer.apply(field);
-        }
-        return this.mapper.mappers().indexAnalyzer(field, unindexedFieldAnalyzer);
-    }
-
-    public boolean containsBrokenAnalysis(String field) {
-        NamedAnalyzer a = indexAnalyzer(field, f -> null);
-        if (a == null) {
-            return false;
-        }
-        return a.containsBrokenAnalysis();
+        return mappingLookup().indexAnalyzer(field, unindexedFieldAnalyzer);
     }
 
     @Override
@@ -484,7 +420,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * this method considers all mapper plugins
      */
     public boolean isMetadataField(String field) {
-        return mapperRegistry.isMetadataField(indexVersionCreated, field);
+        return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
     }
 
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
@@ -504,6 +440,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 reloadedAnalyzers.add(analyzerName);
             }
         }
+        // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
         return reloadedAnalyzers;
     }
 }

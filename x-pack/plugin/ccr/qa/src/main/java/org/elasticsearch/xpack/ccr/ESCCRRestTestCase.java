@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -31,6 +33,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ESCCRRestTestCase extends ESRestTestCase {
 
@@ -122,8 +125,12 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected static void deleteAutoFollowPattern(String patternName) throws IOException {
+        deleteAutoFollowPattern(client(), patternName);
+    }
+
+    protected static void deleteAutoFollowPattern(RestClient client, String patternName) throws IOException {
         Request putPatternRequest = new Request("DELETE", "/_ccr/auto_follow/" + patternName);
-        assertOK(client().performRequest(putPatternRequest));
+        assertOK(client.performRequest(putPatternRequest));
     }
 
     protected static void unfollow(String followIndex) throws IOException {
@@ -154,6 +161,17 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             int value = (int) XContentMapValues.extractValue("_source.field", (Map<?, ?>) hits.get(i));
             assertThat(index, i, equalTo(value));
         }
+    }
+
+    protected static void verifyDocuments(final RestClient client,
+                                          final String index,
+                                          final int expectedNumDocs) throws IOException {
+        final Request request = new Request("GET", "/" + index + "/_search");
+        request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+        Map<String, ?> response = toMap(client.performRequest(request));
+
+        int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        assertThat(index, numDocs, equalTo(expectedNumDocs));
     }
 
     protected static void verifyCcrMonitoring(final String expectedLeaderIndex, final String expectedFollowerIndex) throws IOException {
@@ -284,6 +302,52 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     protected static boolean indexExists(String index) throws IOException {
         Response response = adminClient().performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    protected static void verifyDataStream(final RestClient client,
+                                 final String name,
+                                 final String... expectedBackingIndices) throws IOException {
+        Request request = new Request("GET", "/_data_stream/" + name);
+        Map<String, ?> response = toMap(client.performRequest(request));
+        List<?> retrievedDataStreams = (List<?>) response.get("data_streams");
+        assertThat(retrievedDataStreams, hasSize(1));
+        List<?> actualBackingIndexItems = (List<?>) ((Map<?, ?>) retrievedDataStreams.get(0)).get("indices");
+        assertThat(actualBackingIndexItems, hasSize(expectedBackingIndices.length));
+        for (int i = 0; i < expectedBackingIndices.length; i++) {
+            Map<?, ?> actualBackingIndexItem = (Map<?, ?>) actualBackingIndexItems.get(i);
+            String actualBackingIndex = (String) actualBackingIndexItem.get("index_name");
+            String expectedBackingIndex = expectedBackingIndices[i];
+
+            String actualDataStreamName = actualBackingIndex.substring(5, actualBackingIndex.indexOf('-', 5));
+            String expectedDataStreamName = expectedBackingIndex.substring(5, expectedBackingIndex.indexOf('-', 5));
+            assertThat(actualDataStreamName, equalTo(expectedDataStreamName));
+
+            int actualGeneration = Integer.parseInt(actualBackingIndex.substring(actualBackingIndex.lastIndexOf('-')));
+            int expectedGeneration = Integer.parseInt(expectedBackingIndex.substring(expectedBackingIndex.lastIndexOf('-')));
+            assertThat(actualGeneration, equalTo(expectedGeneration));
+        }
+    }
+
+    protected static void createAutoFollowPattern(RestClient client, String name, String pattern, String remoteCluster) throws IOException {
+        Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
+        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
+            bodyBuilder.startObject();
+            {
+                bodyBuilder.startArray("leader_index_patterns");
+                {
+                    bodyBuilder.value(pattern);
+                }
+                bodyBuilder.endArray();
+                bodyBuilder.field("remote_cluster", remoteCluster);
+            }
+            bodyBuilder.endObject();
+            request.setJsonEntity(Strings.toString(bodyBuilder));
+        }
+        assertOK(client.performRequest(request));
+    }
+
+    protected static String backingIndexName(String dataStreamName, int generation) {
+        return DataStream.getDefaultBackingIndexName(dataStreamName, generation);
     }
 
     protected RestClient buildLeaderClient() throws IOException {

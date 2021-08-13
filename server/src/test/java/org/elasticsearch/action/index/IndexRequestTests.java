@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.index;
 
@@ -33,13 +22,18 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -156,7 +150,11 @@ public class IndexRequestTests extends ESTestCase {
     public void testIndexRequestXContentSerialization() throws IOException {
         IndexRequest indexRequest = new IndexRequest("foo").id("1");
         boolean isRequireAlias = randomBoolean();
+        Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(0, 10))
+            .boxed()
+            .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
         indexRequest.source("{}", XContentType.JSON);
+        indexRequest.setDynamicTemplates(dynamicTemplates);
         indexRequest.setRequireAlias(isRequireAlias);
         assertEquals(XContentType.JSON, indexRequest.getContentType());
 
@@ -167,6 +165,7 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(XContentType.JSON, serialized.getContentType());
         assertEquals(new BytesArray("{}"), serialized.source());
         assertEquals(isRequireAlias, serialized.isRequireAlias());
+        assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
     }
 
     // reindex makes use of index requests without a source so this needs to be handled
@@ -182,6 +181,51 @@ public class IndexRequestTests extends ESTestCase {
                 assertNull(serialized.getContentType());
                 assertEquals("index", serialized.index());
             }
+        }
+    }
+
+    public void testSerializeDynamicTemplates() throws Exception {
+        IndexRequest indexRequest = new IndexRequest("foo").id("1");
+        indexRequest.source("{}", XContentType.JSON);
+        // Empty dynamic templates
+        {
+            if (randomBoolean()) {
+                indexRequest.setDynamicTemplates(Map.of());
+            }
+            Version ver = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplates(), anEmptyMap());
+        }
+        // old version
+        {
+            Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(1, 10))
+                .boxed().collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
+            indexRequest.setDynamicTemplates(dynamicTemplates);
+            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setVersion(ver);
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
+            assertThat(error.getMessage(),
+                equalTo("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later"));
+        }
+        // new version
+        {
+            Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(0, 10))
+                .boxed().collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
+            indexRequest.setDynamicTemplates(dynamicTemplates);
+            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
         }
     }
 

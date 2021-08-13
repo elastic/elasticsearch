@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -92,14 +81,14 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
     }
 
-    private void assertValidIterators(Iterator expectedBucketIter, Iterator expectedCountsIter, Iterator expectedValuesIter) {
-        if (!expectedBucketIter.hasNext()) {
+    private void assertValidIterators(Iterator<?> expectedBucketIter, Iterator<?> expectedCountsIter, Iterator<?> expectedValuesIter) {
+        if (expectedBucketIter.hasNext() == false) {
             fail("`expectedBucketIter` iterator ended before `actual` iterator, size mismatch");
         }
-        if (!expectedCountsIter.hasNext()) {
+        if (expectedCountsIter.hasNext() == false) {
             fail("`expectedCountsIter` iterator ended before `actual` iterator, size mismatch");
         }
-        if (!expectedValuesIter.hasNext()) {
+        if (expectedValuesIter.hasNext() == false) {
             fail("`expectedValuesIter` iterator ended before `actual` iterator, size mismatch");
         }
     }
@@ -138,7 +127,7 @@ public class SerialDiffIT extends ESIntegTestCase {
         numBuckets = randomIntBetween(10, 80);
         lag = randomIntBetween(1, numBuckets / 2);
 
-        gapPolicy = randomBoolean() ? BucketHelpers.GapPolicy.SKIP : BucketHelpers.GapPolicy.INSERT_ZEROS;
+        gapPolicy = randomFrom(BucketHelpers.GapPolicy.values());
         metric = randomMetric("the_metric", VALUE_FIELD);
         mockHisto = PipelineAggregationHelperTests.generateHistogram(interval, numBuckets, randomDouble(), randomDouble());
 
@@ -182,6 +171,12 @@ public class SerialDiffIT extends ESIntegTestCase {
                     metricValue = 0.0;
                 } else {
                     metricValue = PipelineAggregationHelperTests.calculateMetric(docValues, metric);
+                    if (gapPolicy.equals(BucketHelpers.GapPolicy.KEEP_VALUES)) {
+                        if (Double.isInfinite(metricValue) || Double.isNaN(metricValue)) {
+                            // serial diff ignores these values and replaces them with null
+                            metricValue = Double.NaN;
+                        }
+                    }
                 }
 
             } else {
@@ -207,7 +202,7 @@ public class SerialDiffIT extends ESIntegTestCase {
             }
 
             // Both have values, calculate diff and replace the "empty" bucket
-            if (!Double.isNaN(metricValue) && !Double.isNaN(lagValue)) {
+            if (Double.isNaN(metricValue) == false && Double.isNaN(lagValue) == false) {
                 double diff = metricValue - lagValue;
                 values.add(diff);
             } else {
@@ -215,12 +210,7 @@ public class SerialDiffIT extends ESIntegTestCase {
             }
 
             lagWindow.add(metricValue);
-
-
-
-
         }
-
 
         testValues.put(target.toString(), values);
     }

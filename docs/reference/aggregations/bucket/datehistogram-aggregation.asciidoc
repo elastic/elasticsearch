@@ -35,28 +35,8 @@ be tacked onto a particular year.
 Fixed intervals are, by contrast, always multiples of SI units and do not change
 based on calendaring context.
 
-[NOTE]
-.Combined `interval` field is deprecated
-==================================
-deprecated[7.2, `interval` field is deprecated] Historically both calendar and fixed
-intervals were configured in a single `interval` field, which led to confusing
-semantics. Specifying `1d` would be assumed as a calendar-aware time,
-whereas `2d` would be interpreted as fixed time. To get "one day" of fixed time,
-the user would need to specify the next smaller unit (in this case, `24h`).
-
-This combined behavior was often unknown to users, and even when knowledgeable about
-the behavior it was difficult to use and confusing.
-
-This behavior has been deprecated in favor of two new, explicit fields: `calendar_interval`
-and `fixed_interval`.
-
-By forcing a choice between calendar and intervals up front, the semantics of the interval
-are clear to the user immediately and there is no ambiguity.  The old `interval` field
-will be removed in the future.
-==================================
-
 [[calendar_intervals]]
-===== Calendar intervals
+==== Calendar intervals
 
 Calendar-aware intervals are configured with the `calendar_interval` parameter.
 You can specify calendar intervals using the unit name, such as `month`, or as a
@@ -86,7 +66,7 @@ is the same at the start and end.
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
 One day (1d) is the interval between the start of the day and the start of
-of the following day in the specified time zone, compensating for any intervening
+the following day in the specified time zone, compensating for any intervening
 time changes.
 
 `week`, `1w` ::
@@ -173,7 +153,7 @@ POST /sales/_search?size=0
 // NOTCONSOLE
 
 [[fixed_intervals]]
-===== Fixed intervals
+==== Fixed intervals
 
 Fixed intervals are configured with the `fixed_interval` parameter.
 
@@ -267,7 +247,7 @@ POST /sales/_search?size=0
 // NOTCONSOLE
 
 [[datehistogram-aggregation-notes]]
-===== Notes
+==== Date histogram usage notes
 
 In all cases, when the specified end time does not exist, the actual end time is
 the closest available time after the specified end.
@@ -282,17 +262,17 @@ As always, rigorous testing, especially around time-change events, will ensure
 that your time interval specification is
 what you intend it to be.
 
-WARNING:
-To avoid unexpected results, all connected servers and clients must sync to a
-reliable network time service.
+WARNING: To avoid unexpected results, all connected servers and clients must
+sync to a reliable network time service.
 
-NOTE: fractional time values are not supported, but you can address this by
+NOTE: Fractional time values are not supported, but you can address this by
 shifting to another time unit (e.g., `1.5h` could instead be specified as `90m`).
 
 NOTE: You can also specify time values using abbreviations supported by
 <<time-units,time units>> parsing.
 
-===== Keys
+[[datehistogram-aggregation-keys]]
+==== Keys
 
 Internally, a date is represented as a 64 bit number representing a timestamp
 in milliseconds-since-the-epoch (01/01/1970 midnight UTC). These timestamps are
@@ -353,7 +333,8 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-===== Time zone
+[[datehistogram-aggregation-time-zone]]
+==== Time zone
 
 {es} stores date-times in Coordinated Universal Time (UTC). By default, all bucketing and
 rounding is also done in UTC. Use the `time_zone` parameter to indicate
@@ -489,7 +470,7 @@ shorter intervals, like a `fixed_interval` of `12h`, where you'll have only a 11
 bucket on the morning of 27 March when the DST shift happens.
 
 [[search-aggregations-bucket-datehistogram-offset]]
-===== Offset
+==== Offset
 
 // tag::offset-explanation[]
 Use the `offset` parameter to change the start value of each bucket by the
@@ -562,7 +543,8 @@ NOTE: The start `offset` of each bucket is calculated after `time_zone`
 adjustments have been made.
 // end::offset-note[]
 
-===== Keyed Response
+[[date-histogram-keyed-response]]
+==== Keyed Response
 
 Setting the `keyed` flag to `true` associates a unique string key with each
 bucket and returns the ranges as a hash rather than an array:
@@ -616,11 +598,78 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-===== Scripts
+[[date-histogram-scripts]]
+==== Scripts
 
-As with the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>,
-both document-level scripts and
-value-level scripts are supported. You can control the order of the returned
+If the data in your documents doesn't exactly match what you'd like to aggregate,
+use a <<runtime,runtime field>> . For example, if the revenue
+for promoted sales should be recognized a day after the sale date:
+
+[source,console,id=datehistogram-aggregation-runtime-field]
+----
+POST /sales/_search?size=0
+{
+  "runtime_mappings": {
+    "date.promoted_is_tomorrow": {
+      "type": "date",
+      "script": """
+        long date = doc['date'].value.toInstant().toEpochMilli();
+        if (doc['promoted'].value) {
+          date += 86400;
+        }
+        emit(date);
+      """
+    }
+  },
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date.promoted_is_tomorrow",
+        "calendar_interval": "1M"
+      }
+    }
+  }
+}
+----
+// TEST[setup:sales]
+
+////
+
+[source,console-result]
+----
+{
+  ...
+  "aggregations": {
+    "sales_over_time": {
+      "buckets": [
+        {
+          "key_as_string": "2015-01-01T00:00:00.000Z",
+          "key": 1420070400000,
+          "doc_count": 3
+        },
+        {
+          "key_as_string": "2015-02-01T00:00:00.000Z",
+          "key": 1422748800000,
+          "doc_count": 2
+        },
+        {
+          "key_as_string": "2015-03-01T00:00:00.000Z",
+          "key": 1425168000000,
+          "doc_count": 2
+        }
+      ]
+    }
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+////
+
+[[date-histogram-params]]
+==== Parameters
+
+You can control the order of the returned
 buckets using the `order`
 settings and filter the returned buckets based on a `min_doc_count` setting
 (by default all buckets between the first
@@ -632,6 +681,7 @@ For more information, see
 <<search-aggregations-bucket-histogram-aggregation-extended-bounds,`Extended Bounds`>> and
 <<search-aggregations-bucket-histogram-aggregation-hard-bounds,`Hard Bounds`>>.
 
+[[date-histogram-missing-value]]
 ===== Missing value
 
 The `missing` parameter defines how to treat documents that are missing a value.
@@ -658,6 +708,7 @@ POST /sales/_search?size=0
 <1> Documents without a value in the `publish_date` field will fall into the
 same bucket as documents that have the value `2000-01-01`.
 
+[[date-histogram-order]]
 ===== Order
 
 By default the returned buckets are sorted by their `key` ascending, but you can
@@ -665,54 +716,55 @@ control the order using
 the `order` setting. This setting supports the same `order` functionality as
 <<search-aggregations-bucket-terms-aggregation-order,`Terms Aggregation`>>.
 
+[[date-histogram-aggregate-scripts]]
 ===== Using a script to aggregate by day of the week
 
-When you need to aggregate the results by day of the week, use a script that
-returns the day of the week:
+When you need to aggregate the results by day of the week, run a `terms`
+aggregation on a <<runtime,runtime field>> that returns the day of the week:
 
-
-[source,console,id=datehistogram-aggregation-script-example]
---------------------------------------------------
+[source,console,id=datehistogram-aggregation-day-of-week-runtime-field]
+----
 POST /sales/_search?size=0
 {
+  "runtime_mappings": {
+    "date.day_of_week": {
+      "type": "keyword",
+      "script": "emit(doc['date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+    }
+  },
   "aggs": {
-    "dayOfWeek": {
-      "terms": {
-        "script": {
-          "lang": "painless",
-          "source": "doc['date'].value.dayOfWeekEnum.value"
-        }
-      }
+    "day_of_week": {
+      "terms": { "field": "date.day_of_week" }
     }
   }
 }
---------------------------------------------------
+----
 // TEST[setup:sales]
 
 Response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   ...
   "aggregations": {
-    "dayOfWeek": {
+    "day_of_week": {
       "doc_count_error_upper_bound": 0,
       "sum_other_doc_count": 0,
       "buckets": [
         {
-          "key": "7",
+          "key": "Sunday",
           "doc_count": 4
         },
         {
-          "key": "4",
+          "key": "Thursday",
           "doc_count": 3
         }
       ]
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The response will contain all the buckets having the relative day of

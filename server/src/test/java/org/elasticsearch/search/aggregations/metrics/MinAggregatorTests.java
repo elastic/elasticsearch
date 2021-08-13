@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -45,18 +34,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -76,6 +60,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
@@ -98,9 +83,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MinAggregatorTests extends AggregatorTestCase {
 
-    private final String SCRIPT_NAME = "script_name";
-    private QueryShardContext queryShardContext;
-    private final long SCRIPT_VALUE = 19L;
+    private static final String SCRIPT_NAME = "script_name";
+    private static final long SCRIPT_VALUE = 19L;
 
     /** Script to take a field name in params and sum the values of the field. */
     private static final String SUM_FIELD_PARAMS_SCRIPT = "sum_field_params";
@@ -162,14 +146,6 @@ public class MinAggregatorTests extends AggregatorTestCase {
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
-    }
-
-    @Override
-    protected QueryShardContext queryShardContextMock(IndexSearcher searcher, MapperService mapperService,
-                                                      IndexSettings indexSettings, CircuitBreakerService circuitBreakerService,
-                                                      BigArrays bigArrays) {
-         this.queryShardContext = super.queryShardContextMock(searcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
-         return queryShardContext;
     }
 
     public void testNoMatchingField() throws IOException {
@@ -629,11 +605,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
-                assertEquals(2.0, min.getValue(), 0);
-                assertTrue(AggregationInspectionHelper.hasValue(min));
-
-                assertTrue(queryShardContext.isCacheable());
+                AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
+                createAggregator(aggregationBuilder, context);
+                assertTrue(context.isCacheable());
             }
         }
     }
@@ -660,19 +634,13 @@ public class MinAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), nonDeterministicAggregationBuilder, fieldType);
-                assertTrue(min.getValue() >= 0.0 && min.getValue() <= 1.0);
-                assertTrue(AggregationInspectionHelper.hasValue(min));
+                AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
+                createAggregator(nonDeterministicAggregationBuilder, context);
+                assertFalse(context.isCacheable());
 
-                assertFalse(queryShardContext.isCacheable());
-
-                indexSearcher = newSearcher(indexReader, true, true);
-
-                min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
-                assertEquals(-7.0, min.getValue(), 0);
-                assertTrue(AggregationInspectionHelper.hasValue(min));
-
-                assertTrue(queryShardContext.isCacheable());
+                context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
+                createAggregator(aggregationBuilder, context);
+                assertTrue(context.isCacheable());
             }
         }
     }

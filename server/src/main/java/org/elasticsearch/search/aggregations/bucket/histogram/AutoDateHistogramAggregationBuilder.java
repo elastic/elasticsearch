@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -170,7 +159,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     }
 
     public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
-        if (minimumIntervalExpression != null && !ALLOWED_INTERVALS.containsValue(minimumIntervalExpression)) {
+        if (minimumIntervalExpression != null && ALLOWED_INTERVALS.containsValue(minimumIntervalExpression) == false) {
             throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
                 " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]");
         }
@@ -198,6 +187,9 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                        AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+        AutoDateHistogramAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         RoundingInfo[] roundings = buildRoundings(timeZone(), getMinimumIntervalExpression());
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
             .map(rounding -> rounding.innerIntervals)
@@ -211,9 +203,8 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName()+
                 " must be less than " + bucketCeiling);
         }
-        return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent,
-            subFactoriesBuilder,
-            metadata);
+        return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context,
+                                                      parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     static Rounding createRounding(Rounding.DateTimeUnit interval, ZoneId timeZone) {
@@ -263,7 +254,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             this.unitAbbreviation = unitAbbreviation;
             this.innerIntervals = innerIntervals;
             Objects.requireNonNull(dateTimeUnit, "dateTimeUnit cannot be null");
-            if (!ALLOWED_INTERVALS.containsKey(dateTimeUnit)) {
+            if (ALLOWED_INTERVALS.containsKey(dateTimeUnit) == false) {
                 throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet().toString());
             }
             this.dateTimeUnit = ALLOWED_INTERVALS.get(dateTimeUnit);

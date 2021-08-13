@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack;
@@ -14,10 +15,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -41,12 +42,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.rest.ESRestTestCase.ensureGreen;
+import static org.elasticsearch.test.ESTestCase.waitUntil;
+import static org.elasticsearch.test.rest.ESRestTestCase.assertOK;
+import static org.elasticsearch.test.rest.ESRestTestCase.ensureHealth;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -167,15 +172,19 @@ public final class TimeSeriesRestDriver {
     public static void createFullPolicy(RestClient client, String policyName, TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, 1L));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "javaRestTest-1,javaRestTest-2"), null, null));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(1, null, singletonMap("_name", "javaRestTest-0,javaRestTest-1," +
+            "javaRestTest-2," +
+            "javaRestTest-3"), null, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "javaRestTest-3"), null, null));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, singletonMap("_name", "javaRestTest-0,javaRestTest-1," +
+            "javaRestTest-2," +
+            "javaRestTest-3"), null, null));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("hot", new Phase("hot", hotTime, hotActions));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
@@ -192,8 +201,9 @@ public final class TimeSeriesRestDriver {
         client.performRequest(request);
     }
 
-    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase, @Nullable Phase warmPhase,
-                                    @Nullable Phase coldPhase, @Nullable Phase deletePhase) throws IOException {
+    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase,
+                                    @Nullable Phase warmPhase, @Nullable Phase coldPhase,
+                                    @Nullable Phase frozenPhase, @Nullable Phase deletePhase) throws IOException {
         if (hotPhase == null && warmPhase == null && coldPhase == null && deletePhase == null) {
             throw new IllegalArgumentException("specify at least one phase");
         }
@@ -206,6 +216,9 @@ public final class TimeSeriesRestDriver {
         }
         if (coldPhase != null) {
             phases.put("cold", coldPhase);
+        }
+        if (frozenPhase != null) {
+            phases.put("frozen", frozenPhase);
         }
         if (deletePhase != null) {
             phases.put("delete", deletePhase);
@@ -279,6 +292,13 @@ public final class TimeSeriesRestDriver {
         ensureGreen(index);
     }
 
+    private static void ensureGreen(String index) throws IOException {
+        ensureHealth(index, (request) -> {
+            request.addParameter("wait_for_status", "green");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+        });
+    }
+
     @SuppressWarnings("unchecked")
     public static Integer getNumberOfSegments(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("GET", index + "/_segments"));
@@ -290,5 +310,71 @@ public final class TimeSeriesRestDriver {
         responseEntity = (Map<String, Object>) responseEntity.get("shards");
         List<Map<String, Object>> shards = (List<Map<String, Object>>) responseEntity.get("0");
         return (Integer) shards.get(0).get("num_search_segments");
+    }
+
+    public static void updatePolicy(RestClient client, String indexName, String policy) throws IOException {
+        Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
+        final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"" + policy + "\" }",
+            ContentType.APPLICATION_JSON);
+        changePolicyRequest.setEntity(changePolicyEntity);
+        assertOK(client.performRequest(changePolicyRequest));
+    }
+
+    @SuppressWarnings("unchecked")
+    public static String getSnapshotState(RestClient client, String snapshot) throws IOException {
+        Response response = client.performRequest(new Request("GET", "/_snapshot/repo/" + snapshot));
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
+        assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
+        return (String) snapResponse.get("state");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Nullable
+    public static String waitAndGetShrinkIndexName(RestClient client, String originalIndex) throws InterruptedException {
+        String[] shrunkenIndexName = new String[1];
+        waitUntil(() -> {
+            try {
+                // we're including here the case where the original index was already deleted and we have to look for the shrunken index
+                Request explainRequest = new Request("GET", SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex
+                    + "/_ilm/explain");
+                explainRequest.addParameter("only_errors", Boolean.toString(false));
+                explainRequest.addParameter("only_managed", Boolean.toString(false));
+                Response response = client.performRequest(explainRequest);
+                Map<String, Object> responseMap;
+                try (InputStream is = response.getEntity().getContent()) {
+                    responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+
+                Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
+                Map<String, Object> explainIndexResponse = indexResponse.get(originalIndex);
+                if (explainIndexResponse == null) {
+                    // maybe we swapped the alias from the original index to the shrunken one already
+                    for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
+                        // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
+                        String indexName = indexToExplainMap.getKey();
+                        if (indexName.startsWith(SHRUNKEN_INDEX_PREFIX) && indexName.contains(originalIndex)) {
+                            explainIndexResponse = indexToExplainMap.getValue();
+                            break;
+                        }
+                    }
+                }
+
+                logger.info("--> index {}, explain {}", originalIndex, indexResponse);
+                if (explainIndexResponse == null) {
+                    return false;
+                }
+                shrunkenIndexName[0] = (String) explainIndexResponse.get("shrink_index_name");
+                return shrunkenIndexName[0] != null;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+        logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
+        return shrunkenIndexName[0];
     }
 }

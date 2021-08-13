@@ -1,38 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,9 +43,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class DeleteByQueryBasicTests extends ReindexTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(InternalSettingsPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalSettingsPlugin.class);
     }
 
     public void testBasics() throws Exception {
@@ -253,15 +241,15 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             // it will trigger a retry policy in the delete by query request because the rest status of the block is 429
             enableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
             if (diskAllocationDeciderEnabled) {
-                InternalTestCluster internalTestCluster = internalCluster();
-                InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster
-                    .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
-                ThreadPool threadPool = internalTestCluster.getInstance(ThreadPool.class, internalTestCluster.getMasterName());
-                // Refresh the cluster info after a random delay to check the disk threshold and release the block on the index
-                threadPool.schedule(infoService::refresh, TimeValue.timeValueMillis(randomIntBetween(1, 100)), ThreadPool.Names.MANAGEMENT);
-                // The delete by query request will be executed successfully because the block will be released
-                assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
-                    matcher().deleted(docs));
+                // Fire off the delete-by-query first
+                final ActionFuture<BulkByScrollResponse> deleteByQueryResponse
+                    = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).execute();
+                // Then refresh the cluster info which checks the disk threshold and releases the block on the index
+                final InternalClusterInfoService clusterInfoService
+                        = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
+                ClusterInfoServiceUtils.refresh(clusterInfoService);
+                // The delete by query request will be executed successfully because it retries after the block is released
+                assertThat(deleteByQueryResponse.actionGet(), matcher().deleted(docs));
             } else {
                 // The delete by query request will not be executed successfully because the block cannot be released
                 assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)

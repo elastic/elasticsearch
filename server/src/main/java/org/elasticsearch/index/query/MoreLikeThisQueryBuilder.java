@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -34,8 +23,9 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,12 +38,15 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
@@ -77,6 +70,10 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MoreLikeThisQueryBuilder.class);
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [more_like_this] " +
+        "queries. The type should no longer be specified in the [like] and [unlike] sections.";
+
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
     public static final int DEFAULT_MIN_TERM_FREQ = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
@@ -109,6 +106,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     private static final ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
 
     private static final ParseField INDEX = new ParseField("_index");
+    private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     public static final ParseField DOC = new ParseField("doc");
     private static final ParseField PER_FIELD_ANALYZER = new ParseField("per_field_analyzer");
@@ -208,6 +206,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         /**
          * Read from a stream.
          */
+        @SuppressWarnings("unchecked")
         Item(StreamInput in) throws IOException {
             index = in.readOptionalString();
             if (in.getVersion().before(Version.V_8_0_0)) {
@@ -240,7 +239,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
-                out.writeEnum(xContentType);
+                XContentHelper.writeTo(out, xContentType);
             } else {
                 out.writeString(id);
             }
@@ -355,6 +354,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 } else if (currentFieldName != null) {
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.index = parser.text();
+                    } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                        TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        deprecationLogger.compatibleApiWarning("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.id = parser.text();
                     } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -401,6 +403,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             builder.startObject();
             if (this.index != null) {
                 builder.field(INDEX.getPreferredName(), this.index);
+            }
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                builder.field(TYPE.getPreferredName(), MapperService.SINGLE_MAPPING_NAME);
             }
             if (this.id != null) {
                 builder.field(ID.getPreferredName(), this.id);
@@ -449,7 +454,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Item)) return false;
+            if ((o instanceof Item) == false) return false;
             Item other = (Item) o;
             return Objects.equals(index, other.index)
                 && Objects.equals(id, other.id)
@@ -935,7 +940,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         Item[] likeItems = new Item[this.likeItems.length];
         for (int i = 0; i < likeItems.length; i++) {
             likeItems[i] = new Item(this.likeItems[i]);
@@ -1025,7 +1030,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    private Query handleItems(QueryShardContext context, MoreLikeThisQuery mltQuery, Item[] likeItems, Item[] unlikeItems,
+    private Query handleItems(SearchExecutionContext context, MoreLikeThisQuery mltQuery, Item[] likeItems, Item[] unlikeItems,
                               boolean include, List<String> moreLikeFields, boolean useDefaultField) throws IOException {
         // set default index, type and fields if not specified
         for (Item item : likeItems) {
@@ -1053,13 +1058,13 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
 
         // exclude the items from the search
-        if (!include) {
+        if (include == false) {
             handleExclude(boolQuery, likeItems, context);
         }
         return boolQuery.build();
     }
 
-    private static void setDefaultIndexTypeFields(QueryShardContext context, Item item, List<String> moreLikeFields,
+    private static void setDefaultIndexTypeFields(SearchExecutionContext context, Item item, List<String> moreLikeFields,
                                                   boolean useDefaultField) {
         if (item.index() == null) {
             item.index(context.index().getName());
@@ -1092,7 +1097,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 continue;
             }
             TermVectorsResponse getResponse = response.getResponse();
-            if (!getResponse.isExists()) {
+            if (getResponse.isExists() == false) {
                 continue;
             }
             likeFields.add(getResponse.getFields());
@@ -1107,7 +1112,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {
+    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, SearchExecutionContext context) {
         MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null) {
             // no mappings, nothing to exclude
@@ -1121,7 +1126,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             ids.add(item.id());
         }
-        if (!ids.isEmpty()) {
+        if (ids.isEmpty() == false) {
             Query query = idField.termsQuery(ids, context);
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
         }

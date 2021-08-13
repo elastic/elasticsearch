@@ -1,8 +1,7 @@
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('transform'))
 }
 
@@ -17,13 +16,13 @@ tasks.register("copyKeyCerts", Copy) {
   }
   into keystoreDir
 }
-// Add keys and cets to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystoreDir)
-tasks.named("processJavaRestTestResources").configure { dependsOn("copyKeyCerts") }
+// Add keys and cets to javaRestTest classpath: it expects it there
+sourceSets.javaRestTest.resources.srcDir(keystoreDir)
 
+tasks.named("processJavaRestTestResources").configure { dependsOn("copyKeyCerts") }
 tasks.named("javaRestTest").configure { dependsOn "copyKeyCerts" }
 
-testClusters.javaRestTest {
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -37,6 +36,11 @@ testClusters.javaRestTest {
   keystore 'bootstrap.password', 'x-pack-test-password'
   keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
   numberOfNodes = 3
+  // Node roles are configured this way in order to verify redirecting the transform request from the node lacking
+  // remote_cluster_client role to the node that is remote_cluster_client.
+  nodes."javaRestTest-0".setting 'node.roles', '[data,ingest,master]'
+  nodes."javaRestTest-1".setting 'node.roles', '[data,ingest,master,transform]'
+  nodes."javaRestTest-2".setting 'node.roles', '[data,ingest,master,transform,remote_cluster_client]'
 
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert

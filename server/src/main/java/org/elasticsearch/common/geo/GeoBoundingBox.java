@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
@@ -40,8 +29,7 @@ import java.util.Objects;
  * A class representing a Geo-Bounding-Box for use by Geo queries and aggregations
  * that deal with extents/rectangles representing rectangular areas of interest.
  */
-public class GeoBoundingBox implements ToXContentObject, Writeable {
-    private static final WellKnownText WKT_PARSER = new WellKnownText(true, new StandardValidator(true));
+public class GeoBoundingBox implements ToXContentFragment, Writeable {
     static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
     static final ParseField TOP_FIELD = new ParseField("top");
@@ -99,7 +87,7 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(BOUNDS_FIELD.getPreferredName());
+        builder.startObject();
         toXContentFragment(builder, true);
         builder.endObject();
         return builder;
@@ -194,7 +182,7 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
                 token = parser.nextToken();
                 if (WKT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
-                        Geometry geometry = WKT_PARSER.fromWKT(parser.text());
+                        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, parser.text());
                         if (ShapeType.ENVELOPE.equals(geometry.type()) == false) {
                             throw new ElasticsearchParseException("failed to parse WKT bounding box. ["
                                 + geometry.type() + "] found. expected [" + ShapeType.ENVELOPE + "]");

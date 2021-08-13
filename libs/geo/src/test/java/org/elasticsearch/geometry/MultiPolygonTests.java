@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.geometry;
 
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 
@@ -43,26 +33,26 @@ public class MultiPolygonTests extends BaseGeometryTestCase<MultiPolygon> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
+        GeometryValidator validator = GeographyValidator.instance(true);
         assertEquals("MULTIPOLYGON (((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0)))",
-            wkt.toWKT(new MultiPolygon(Collections.singletonList(
+            WellKnownText.toWKT(new MultiPolygon(Collections.singletonList(
                 new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}))))));
         assertEquals(new MultiPolygon(Collections.singletonList(
             new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1})))),
-            wkt.fromWKT("MULTIPOLYGON (((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0)))"));
+            WellKnownText.fromWKT(validator, true, "MULTIPOLYGON (((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0)))"));
 
-        assertEquals("MULTIPOLYGON EMPTY", wkt.toWKT(MultiPolygon.EMPTY));
-        assertEquals(MultiPolygon.EMPTY, wkt.fromWKT("MULTIPOLYGON EMPTY)"));
+        assertEquals("MULTIPOLYGON EMPTY", WellKnownText.toWKT(MultiPolygon.EMPTY));
+        assertEquals(MultiPolygon.EMPTY, WellKnownText.fromWKT(validator, true, "MULTIPOLYGON EMPTY)"));
     }
 
     public void testValidation() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(
             new MultiPolygon(Collections.singletonList(
                 new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}, new double[]{1, 2, 3, 1}))
             ))));
         assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        new StandardValidator(true).validate(
+        StandardValidator.instance(true).validate(
             new MultiPolygon(Collections.singletonList(
                 new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}, new double[]{1, 2, 3, 1})))));
     }

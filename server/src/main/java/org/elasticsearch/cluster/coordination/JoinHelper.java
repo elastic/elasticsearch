@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -35,8 +24,10 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,7 +76,7 @@ public class JoinHelper {
 
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
 
-    JoinHelper(AllocationService allocationService, MasterService masterService, TransportService transportService,
+    JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService, TransportService transportService,
                LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
                BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
                Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, RerouteService rerouteService,
@@ -132,15 +123,19 @@ public class JoinHelper {
                 channel.sendResponse(Empty.INSTANCE);
             });
 
+        final String dataPath = Environment.PATH_DATA_SETTING.get(settings);
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
             ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metadata().clusterUUIDCommitted() &&
-                    localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
-                    throw new CoordinationStateRejectedException("join validation on cluster state" +
-                        " with a different cluster uuid " + request.getState().metadata().clusterUUID() +
-                        " than local cluster uuid " + localState.metadata().clusterUUID() + ", rejecting");
+                        localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
+                    throw new CoordinationStateRejectedException("This node previously joined a cluster with UUID [" +
+                            localState.metadata().clusterUUID() + "] and is now trying to join a different cluster with UUID [" +
+                            request.getState().metadata().clusterUUID() + "]. This is forbidden and usually indicates an incorrect " +
+                            "discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and " +
+                            "can only be changed by deleting the contents of the node's data path [" + dataPath +
+                            "] which will also remove any data held by this node.");
                 }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);

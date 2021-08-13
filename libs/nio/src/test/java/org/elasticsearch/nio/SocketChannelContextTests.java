@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -339,13 +329,13 @@ public class SocketChannelContextTests extends ESTestCase {
         try (SocketChannel realChannel = SocketChannel.open()) {
             when(channel.getRawChannel()).thenReturn(realChannel);
             when(channel.isOpen()).thenReturn(true);
-            Runnable closer = mock(Runnable.class);
+            Releasable closer = mock(Releasable.class);
             IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n), closer);
             InboundChannelBuffer buffer = new InboundChannelBuffer(pageAllocator);
             buffer.ensureCapacity(1);
             TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer);
             context.closeFromSelector();
-            verify(closer).run();
+            verify(closer).close();
         }
     }
 

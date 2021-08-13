@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -75,6 +63,17 @@ public class ObjectMapperMergeTests extends ESTestCase {
         assertEquals("the [enabled] parameter can't be updated for the object mapping [foo]", e.getMessage());
     }
 
+    public void testMergeDisabledField() {
+        // GIVEN a mapping with "foo" field disabled
+        Map<String, Mapper> mappers = new HashMap<>();
+        //the field is disabled, and we are not trying to re-enable it, hence merge should work
+        mappers.put("disabled", new ObjectMapper.Builder("disabled").build(new ContentPath()));
+        RootObjectMapper mergeWith = createRootObjectMapper("type1", true, Collections.unmodifiableMap(mappers));
+
+        RootObjectMapper merged = (RootObjectMapper)rootObjectMapper.merge(mergeWith);
+        assertFalse(((ObjectMapper)merged.getMapper("disabled")).isEnabled());
+    }
+
     public void testMergeEnabled() {
         ObjectMapper mergeWith = createMapping(true, true, true, false);
 
@@ -97,24 +96,43 @@ public class ObjectMapperMergeTests extends ESTestCase {
         assertFalse(result.isEnabled());
     }
 
-    public void testMergeNested() {
+    public void testMergeDisabledRootMapper() {
         String type = MapperService.SINGLE_MAPPING_NAME;
-        ObjectMapper firstMapper = createNestedMapper(type,
-            ObjectMapper.Nested.newNested(new Explicit<>(true, true), new Explicit<>(true, true)));
-        ObjectMapper secondMapper = createNestedMapper(type,
-            ObjectMapper.Nested.newNested(new Explicit<>(false, true), new Explicit<>(false, false)));
+        final RootObjectMapper rootObjectMapper =
+            (RootObjectMapper) new RootObjectMapper.Builder(type).enabled(false).build(new ContentPath());
+        //the root is disabled, and we are not trying to re-enable it, but we do want to be able to add runtime fields
+        final RootObjectMapper mergeWith =
+            new RootObjectMapper.Builder(type).setRuntime(
+                Collections.singletonMap("test", new TestRuntimeField("test", "long"))).build(new ContentPath());
+
+        RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(mergeWith);
+        assertFalse(merged.isEnabled());
+        assertEquals(1, merged.runtimeFields().size());
+        assertEquals("test", merged.runtimeFields().iterator().next().name());
+    }
+
+    public void testMergeNested() {
+
+        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT)
+            .includeInParent(true)
+            .includeInRoot(true)
+            .build(new ContentPath());
+        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT)
+            .includeInParent(false)
+            .includeInRoot(true)
+            .build(new ContentPath());
 
         MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper));
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
-        ObjectMapper result = firstMapper.merge(secondMapper, MapperService.MergeReason.INDEX_TEMPLATE);
-        assertFalse(result.nested().isIncludeInParent());
-        assertTrue(result.nested().isIncludeInRoot());
+        NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(secondMapper, MapperService.MergeReason.INDEX_TEMPLATE);
+        assertFalse(result.isIncludeInParent());
+        assertTrue(result.isIncludeInRoot());
     }
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
         final RootObjectMapper rootObjectMapper
-            = (RootObjectMapper) new RootObjectMapper.Builder(name, Version.CURRENT).enabled(enabled).build(new ContentPath());
+            = (RootObjectMapper) new RootObjectMapper.Builder(name).enabled(enabled).build(new ContentPath());
 
         mappers.values().forEach(rootObjectMapper::putMapper);
 
@@ -122,17 +140,11 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static ObjectMapper createObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        final ObjectMapper mapper = new ObjectMapper.Builder(name, Version.CURRENT).enabled(enabled).build(new ContentPath());
+        final ObjectMapper mapper = new ObjectMapper.Builder(name).enabled(enabled).build(new ContentPath());
 
         mappers.values().forEach(mapper::putMapper);
 
         return mapper;
-    }
-
-    private static ObjectMapper createNestedMapper(String name, ObjectMapper.Nested nested) {
-        return new ObjectMapper.Builder(name, Version.CURRENT)
-            .nested(nested)
-            .build(new ContentPath());
     }
 
     private TextFieldMapper createTextFieldMapper(String name) {

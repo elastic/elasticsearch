@@ -17,6 +17,11 @@
       daysToKeep: 30
       numToKeep: 90
       artifactDaysToKeep: 7
+    parameters:
+      - string:
+          name: branch_specifier
+          default: "refs/heads/%BRANCH%"
+          description: "the Git branch specifier to build (&lt;branchName&gt;, &lt;tagName&gt;, &lt;commitId&gt;, etc.)\n"
     scm:
       - git:
           name: origin
@@ -24,46 +29,39 @@
           credentials-id: f6c7695a-671e-4f4f-a331-acdce44ff9ba
           reference-repo: "/var/lib/jenkins/.git-references/elasticsearch.git"
           branches:
-            - "%BRANCH%"
+            - "${branch_specifier}"
           url: "https://github.com/elastic/elasticsearch.git"
           basedir: ""
-          wipe-workspace: "yes"
+          wipe-workspace: true
+    triggers: []
     wrappers:
       - timeout:
           type: absolute
-          timeout: "120"
+          timeout: 480
           fail: true
       - ansicolor
       - timestamps
       - gradle-build-scan
-      - inject:
-          properties-file: '.ci/java-versions.properties'
-          properties-content: |
-            WORKSPACE=/dev/shm/$JOB_NAME
-            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
-            JAVA7_HOME=$HOME/.java/java7
-            JAVA8_HOME=$HOME/.java/java8
-            JAVA9_HOME=$HOME/.java/java9
-            JAVA10_HOME=$HOME/.java/java10
-            JAVA11_HOME=$HOME/.java/java11
-            JAVA12_HOME=$HOME/.java/openjdk12
-            JAVA13_HOME=$HOME/.java/openjdk13
-            JAVA14_HOME=$HOME/.java/openjdk14
-            GRADLE_OPTS=-XX:+HeapDumpOnOutOfMemoryError -Xmx128m -Xms128m
+      - inject-passwords:
+          global: false
+          job-passwords:
+            - name: VAULT_ADDR
+              password: https://secrets.elastic.co:8200
+          mask-password-params: true
     properties:
-        - github:
-            url: https://github.com/elastic/elasticsearch/
-        - inject:
-            properties-content: |
-              HOME=$JENKINS_HOME
-    builders:
-       - shell: |
-          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+git+push
-          .ci/build.sh -Dbwc.checkout.align=true check
+      - github:
+          url: https://github.com/elastic/elasticsearch/
+      - inject:
+          properties-content: |
+            JOB_BRANCH=%BRANCH%
+            HOME=$JENKINS_HOME
+            GRADLEW=./gradlew --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+            GRADLEW_BAT=./gradlew.bat --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
     publishers:
-      - email:
-          recipients: infra-root+build@elastic.co
+      - junit:
+          results: "**/*Junit/*.xml, **/test-results/*/*.xml"
+          keep-long-stdio: true
+          allow-empty-results: true
       # Upload additional logs
       - google-cloud-storage:
           credentials-id: 'elasticsearch-ci-gcs-plugin'
@@ -79,16 +77,13 @@
           builders:
             - role: SLAVE
               build-on:
-                  - SUCCESS
-                  - FAILURE
-                  - UNSTABLE
+                - SUCCESS
+                - FAILURE
+                - UNSTABLE
               build-steps:
-                - shell: |
-                    curl -sS -X POST \
-                      -H "Content-Type: text/plain" \
-                      --data "$BUILD_URL" \
-                      "https://homer.app.elstc.co/webhook/jenkins/build-finished" || true
-
-
-
-
+                - http-request:
+                    url: https://homer.app.elstc.co/webhook/jenkins/build-finished
+                    mode: GET
+                    custom-headers:
+                      - name: X-Jenkins-Build
+                        value: ${BUILD_URL}

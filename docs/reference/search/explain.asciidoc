@@ -1,5 +1,8 @@
 [[search-explain]]
 === Explain API
+++++
+<titleabbrev>Explain</titleabbrev>
+++++
 
 Returns information about why a specific document matches (or doesn't match) a 
 query.
@@ -16,14 +19,20 @@ GET /my-index-000001/_explain/0
 // TEST[setup:messages]
 
 
-[[sample-api-request]]
+[[search-explain-api-request]]
 ==== {api-request-title}
 
 `GET /<index>/_explain/<id>`
 
 `POST /<index>/_explain/<id>`
 
-[[sample-api-desc]]
+[[search-explain-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index.
+
+[[search-explain-api-desc]]
 ==== {api-description-title}
 
 The explain API computes a score explanation for a query and a specific
@@ -31,7 +40,7 @@ document. This can give useful feedback whether a document matches or
 didn't match a specific query.
 
 
-[[sample-api-path-params]]
+[[search-explain-api-path-params]]
 ==== {api-path-parms-title}
 
 `<id>`::
@@ -47,7 +56,7 @@ Only a single index name can be provided to this parameter.
 --
 
 
-[[sample-api-query-params]]
+[[search-explain-api-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
@@ -68,7 +77,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
   (Optional, string) A comma-separated list of stored fields to return in the 
   response.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
 
@@ -77,13 +86,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 
-[[sample-api-request-body]]
+[[search-explain-api-request-body]]
 ==== {api-request-body-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
 
 
-[[sample-api-example]]
+[[search-explain-api-example]]
 ==== {api-examples-title}
 
 [source,console]

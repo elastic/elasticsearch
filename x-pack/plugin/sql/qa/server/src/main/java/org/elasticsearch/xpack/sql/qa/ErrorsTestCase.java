@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa;
 
@@ -17,8 +18,6 @@ public interface ErrorsTestCase {
 
     void testSelectColumnFromMissingIndex() throws Exception;
 
-    void testSelectFromEmptyIndex() throws Exception;
-
     void testSelectColumnFromEmptyIndex() throws Exception;
 
     void testSelectMissingField() throws Exception;
@@ -32,8 +31,6 @@ public interface ErrorsTestCase {
     void testSelectGroupByScore() throws Exception;
 
     void testSelectScoreSubField() throws Exception;
-
-    void testSelectScoreInScalar() throws Exception;
 
     void testHardLimitForSortOnAggregate() throws Exception;
 }

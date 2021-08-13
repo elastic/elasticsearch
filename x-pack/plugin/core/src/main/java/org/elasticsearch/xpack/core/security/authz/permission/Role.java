@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -177,7 +178,7 @@ public class Role {
         // At least one role / indices permission set need to match with all the requested indices/aliases:
         boolean granted = true;
         for (Map.Entry<String, IndicesAccessControl.IndexAccessControl> entry : indexPermissions.entrySet()) {
-            if (!entry.getValue().isGranted()) {
+            if (entry.getValue().isGranted() == false) {
                 granted = false;
                 break;
             }
@@ -215,7 +216,6 @@ public class Role {
 
         public Builder cluster(Set<String> privilegeNames, Iterable<ConfigurableClusterPrivilege> configurableClusterPrivileges) {
             ClusterPermission.Builder builder = ClusterPermission.builder();
-            List<ClusterPermission> clusterPermissions = new ArrayList<>();
             if (privilegeNames.isEmpty() == false) {
                 for (String name : privilegeNames) {
                     builder = ClusterPrivilegeResolver.resolve(name).buildPermission(builder);

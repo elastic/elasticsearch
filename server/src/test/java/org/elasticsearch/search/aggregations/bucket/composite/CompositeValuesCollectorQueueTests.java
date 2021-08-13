@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.composite;
 
@@ -159,7 +148,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             ClassAndName type = types[i];
             final Comparable<?>[] values;
             int numValues = randomIntBetween(1, numDocs * 2);
-            values = new Comparable[numValues];
+            values = new Comparable<?>[numValues];
             if (type.clazz == Long.class) {
                 if (i < indexSortSourcePrefix) {
                     indexSortFields[i] = new SortedNumericSortField(type.fieldType.name(), SortField.Type.LONG);
@@ -239,7 +228,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             }
             IndexReader reader = DirectoryReader.open(directory);
             int size = keys.size() > 1 ? randomIntBetween(1, keys.size()) : 1;
-            SingleDimensionValuesSource<?>[] sources = new SingleDimensionValuesSource[types.length];
+            SingleDimensionValuesSource<?>[] sources = new SingleDimensionValuesSource<?>[types.length];
             for (int i = 0; i < types.length; i++) {
                 final MappedFieldType fieldType = types[i].fieldType;
                 if (types[i].clazz == Long.class) {
@@ -265,10 +254,9 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                     );
                 } else if (types[i].clazz == BytesRef.class) {
                     if (forceMerge) {
-                        // we don't create global ordinals but we test this mode when the reader has a single segment
-                        // since ordinals are global in this case.
-                        sources[i] = new GlobalOrdinalValuesSource(
+                        sources[i] = new OrdinalValuesSource(
                             bigArrays,
+                            (b) -> {},
                             fieldType,
                             context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
                             DocValueFormat.RAW,
@@ -299,7 +287,10 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                 CompositeKey last = null;
                 while (pos < size) {
                     final CompositeValuesCollectorQueue queue =
-                        new CompositeValuesCollectorQueue(BigArrays.NON_RECYCLING_INSTANCE, sources, size, last);
+                        new CompositeValuesCollectorQueue(BigArrays.NON_RECYCLING_INSTANCE, sources, size);
+                    if (last != null) {
+                        queue.setAfterKey(last);
+                    }
                     final SortedDocsProducer docsProducer = sources[0].createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery());
                     for (LeafReaderContext leafReaderContext : reader.leaves()) {
                         if (docsProducer != null && withProducer) {
@@ -361,6 +352,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             } else if (key2.get(i) == null) {
                 return 1;
             }
+            @SuppressWarnings("unchecked")
             Comparable<Object> cmp1 = (Comparable<Object>) key1.get(i);
             int cmp = cmp1.compareTo(key2.get(i));
             if (cmp != 0) {
@@ -372,7 +364,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
 
     private static List<CompositeKey> createListCombinations(List<List<Comparable<?>>> values) {
         List<CompositeKey> keys = new ArrayList<>();
-        createListCombinations(new Comparable[values.size()], values, 0, values.size(), keys);
+        createListCombinations(new Comparable<?>[values.size()], values, 0, values.size(), keys);
         return keys;
     }
 

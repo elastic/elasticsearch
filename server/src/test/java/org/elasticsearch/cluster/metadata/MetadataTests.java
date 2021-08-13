@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.common.Strings;
@@ -49,20 +38,26 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
-import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.Metadata.Builder.validateDataStreams;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class MetadataTests extends ESTestCase {
@@ -503,7 +498,7 @@ public class MetadataTests extends ESTestCase {
     public void testMetadataGlobalStateChangesOnClusterUUIDChanges() {
         final Metadata metadata1 = Metadata.builder().clusterUUID(UUIDs.randomBase64UUID()).clusterUUIDCommitted(randomBoolean()).build();
         final Metadata metadata2 = Metadata.builder(metadata1).clusterUUID(UUIDs.randomBase64UUID()).build();
-        final Metadata metadata3 = Metadata.builder(metadata1).clusterUUIDCommitted(!metadata1.clusterUUIDCommitted()).build();
+        final Metadata metadata3 = Metadata.builder(metadata1).clusterUUIDCommitted(metadata1.clusterUUIDCommitted() == false).build();
         assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata2));
         assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata3));
         final Metadata metadata4 = Metadata.builder(metadata2).clusterUUID(metadata1.clusterUUID()).build();
@@ -576,23 +571,32 @@ public class MetadataTests extends ESTestCase {
                     .putMapping(FIND_MAPPINGS_TEST_ITEM)).build();
 
         {
+            AtomicInteger onNextIndexCalls = new AtomicInteger(0);
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(Strings.EMPTY_ARRAY,
-                    MapperPlugin.NOOP_FIELD_FILTER);
+                    MapperPlugin.NOOP_FIELD_FILTER,
+                    onNextIndexCalls::incrementAndGet);
             assertEquals(0, mappings.size());
+            assertThat(onNextIndexCalls.get(), equalTo(0));
         }
         {
+            AtomicInteger onNextIndexCalls = new AtomicInteger(0);
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(new String[]{"index1"},
-                    MapperPlugin.NOOP_FIELD_FILTER);
+                    MapperPlugin.NOOP_FIELD_FILTER,
+                    onNextIndexCalls::incrementAndGet);
             assertEquals(1, mappings.size());
             assertIndexMappingsNotFiltered(mappings, "index1");
+            assertThat(onNextIndexCalls.get(), equalTo(1));
         }
         {
+            AtomicInteger onNextIndexCalls = new AtomicInteger(0);
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
                     new String[]{"index1", "index2"},
-                    MapperPlugin.NOOP_FIELD_FILTER);
+                    MapperPlugin.NOOP_FIELD_FILTER,
+                onNextIndexCalls::incrementAndGet);
             assertEquals(2, mappings.size());
             assertIndexMappingsNotFiltered(mappings, "index1");
             assertIndexMappingsNotFiltered(mappings, "index2");
+            assertThat(onNextIndexCalls.get(), equalTo(2));
         }
     }
 
@@ -608,13 +612,15 @@ public class MetadataTests extends ESTestCase {
 
         {
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(new String[]{"index1"},
-                    MapperPlugin.NOOP_FIELD_FILTER);
+                    MapperPlugin.NOOP_FIELD_FILTER,
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
             MappingMetadata mappingMetadata = mappings.get("index1");
             assertSame(originalMappingMetadata, mappingMetadata);
         }
         {
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(new String[]{"index1"},
-                    index -> field -> randomBoolean());
+                    index -> field -> randomBoolean(),
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
             MappingMetadata mappingMetadata = mappings.get("index1");
             assertNotSame(originalMappingMetadata, mappingMetadata);
         }
@@ -658,7 +664,8 @@ public class MetadataTests extends ESTestCase {
                             return field -> false;
                         }
                         return MapperPlugin.NOOP_FIELD_PREDICATE;
-                    });
+                    },
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
 
 
 
@@ -709,7 +716,8 @@ public class MetadataTests extends ESTestCase {
         {
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
                     new String[]{"index1", "index2" , "index3"},
-                    index -> field -> (index.equals("index3") && field.endsWith("keyword")));
+                    index -> field -> (index.equals("index3") && field.endsWith("keyword")),
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
 
             assertIndexMappingsNoFields(mappings, "index1");
             assertIndexMappingsNoFields(mappings, "index2");
@@ -743,7 +751,8 @@ public class MetadataTests extends ESTestCase {
         {
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
                     new String[]{"index1", "index2" , "index3"},
-                    index -> field -> (index.equals("index2")));
+                    index -> field -> (index.equals("index2")),
+                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
 
             assertIndexMappingsNoFields(mappings, "index1");
             assertIndexMappingsNoFields(mappings, "index3");
@@ -913,7 +922,7 @@ public class MetadataTests extends ESTestCase {
             "}";
 
     public void testTransientSettingsOverridePersistentSettings() {
-        final Setting setting = Setting.simpleString("key");
+        final Setting<String> setting = Setting.simpleString("key");
         final Metadata metadata = Metadata.builder()
             .persistentSettings(Settings.builder().put(setting.getKey(), "persistent-value").build())
             .transientSettings(Settings.builder().put(setting.getKey(), "transient-value").build()).build();
@@ -969,22 +978,7 @@ public class MetadataTests extends ESTestCase {
                 "]) conflicts with data stream]"));
     }
 
-    public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
-        final String dataStreamName = "my-data-stream";
-        IndexMetadata validIdx = createFirstBackingIndex(dataStreamName).build();
-        final String conflictingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
-        IndexMetadata invalidIdx = createBackingIndex(dataStreamName, 2).build();
-        Metadata.Builder b = Metadata.builder()
-            .put(validIdx, false)
-            .put(invalidIdx, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(validIdx.getIndex())));
-
-        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
-        assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
-            "] could create backing indices that conflict with 1 existing index(s) or alias(s) including '" + conflictingIndex + "'"));
-    }
-
-    public void testBuilderRejectsDataStreamWithConflictingBackingAlias() {
+    public void testBuilderRejectsAliasThatRefersToDataStreamBackingIndex() {
         final String dataStreamName = "my-data-stream";
         final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata idx = createFirstBackingIndex(dataStreamName)
@@ -995,8 +989,8 @@ public class MetadataTests extends ESTestCase {
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
-        assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
-            "] could create backing indices that conflict with 1 existing index(s) or alias(s) including '" + conflictingName + "'"));
+        assertThat(e.getMessage(), containsString("aliases [" + conflictingName +
+            "] cannot refer to backing indices of data streams"));
     }
 
     public void testBuilderForDataStreamWithRandomlyNumberedBackingIndices() {
@@ -1089,41 +1083,6 @@ public class MetadataTests extends ESTestCase {
         validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
-    public void testValidateDataStreamsThrowsExceptionOnConflict() {
-        String dataStreamName = "foo-datastream";
-        int generations = 10;
-        List<IndexMetadata> backingIndices = new ArrayList<>(generations);
-        for (int i = 1; i <= generations; i++) {
-            IndexMetadata idx = createBackingIndex(dataStreamName, i).build();
-            backingIndices.add(idx);
-        }
-        DataStream dataStream = new DataStream(
-            dataStreamName,
-            createTimestampField("@timestamp"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
-        );
-
-        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, backingIndices);
-        // manually building the indices lookup as going through Metadata.Builder#build would trigger the validate method and would fail
-        SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
-        for (IndexMetadata indexMeta : backingIndices) {
-            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
-        }
-
-        // add the offending index to the indices lookup
-        IndexMetadata standaloneIndexConflictingWithBackingIndices = createBackingIndex(dataStreamName, 2 * generations).build();
-        Index index = standaloneIndexConflictingWithBackingIndices.getIndex();
-        indicesLookup.put(index.getName(), new IndexAbstraction.Index(standaloneIndexConflictingWithBackingIndices, null));
-
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
-
-        IllegalStateException illegalStateException =
-            expectThrows(IllegalStateException.class, () -> validateDataStreams(indicesLookup, dataStreamMetadata));
-        assertThat(illegalStateException.getMessage(),
-            is("data stream [foo-datastream] could create backing indices that conflict with 1 existing index(s) or alias(s) " +
-                "including '" + index.getName() + "'"));
-    }
-
     public void testValidateDataStreamsIgnoresIndicesWithoutCounter() {
         String dataStreamName = "foo-datastream";
         Metadata metadata = Metadata.builder(createIndices(10, 10, dataStreamName).metadata)
@@ -1148,8 +1107,22 @@ public class MetadataTests extends ESTestCase {
 
             )
             .build();
-        // don't expect any exception when validating against non-backing indinces that don't conform to the backing indices naming
+        // don't expect any exception when validating against non-backing indices that don't conform to the backing indices naming
         // convention
+        validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+    }
+
+    public void testValidateDataStreamsAllowsNamesThatStartsWithPrefix() {
+        String dataStreamName = "foo-datastream";
+        Metadata metadata = Metadata.builder(createIndices(10, 10, dataStreamName).metadata)
+            .put(
+                new IndexMetadata.Builder(DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-something-100012")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+            ).build();
+        // don't expect any exception when validating against (potentially backing) indices that can't create conflict because of
+        // additional text before number
         validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
@@ -1190,13 +1163,12 @@ public class MetadataTests extends ESTestCase {
                 indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
             }
         }
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream), Map.of());
 
         // prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, matching the
         // data stream backing indices naming pattern, indices are already in the system
         validateDataStreams(indicesLookup, dataStreamMetadata);
     }
-
 
     public void testValidateDataStreamsForNullDataStreamMetadata() {
         Metadata metadata = Metadata.builder().put(
@@ -1213,7 +1185,290 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
+    /**
+     * Tests for the implementation of data stream snapshot reconciliation are located in {@link DataStreamTests#testSnapshot()}
+     */
+    public void testSnapshot() {
+        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
+        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
+        List<String> indicesInSnapshot = new ArrayList<>();
+        for (var dsName : dataStreamsToSnapshot) {
+            // always include at least one backing index per data stream
+            DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
+            indicesInSnapshot.addAll(
+                randomSubsetOf(
+                    randomIntBetween(1, ds.getIndices().size()),
+                    ds.getIndices().stream().map(Index::getName).collect(Collectors.toList())
+                )
+            );
+        }
+        var reconciledMetadata = Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot);
+        assertThat(reconciledMetadata.dataStreams().size(), equalTo(postSnapshotMetadata.dataStreams().size()));
+        for (DataStream ds : reconciledMetadata.dataStreams().values()) {
+            assertThat(ds.getIndices().size(), greaterThanOrEqualTo(1));
+        }
+    }
+
+    public void testSnapshotWithMissingDataStream() {
+        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
+        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
+        List<String> indicesInSnapshot = new ArrayList<>();
+        for (var dsName : dataStreamsToSnapshot) {
+            // always include at least one backing index per data stream
+            DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
+            indicesInSnapshot.addAll(
+                randomSubsetOf(
+                    randomIntBetween(1, ds.getIndices().size()),
+                    ds.getIndices().stream().map(Index::getName).collect(Collectors.toList())
+                )
+            );
+        }
+        String missingDataStream = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        dataStreamsToSnapshot.add(missingDataStream);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot)
+        );
+        assertThat(e.getMessage(), containsString("unable to find data stream [" + missingDataStream + "]"));
+    }
+
+    public void testDataStreamAliases() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null), is(true));
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-us"));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-us", null, null), is(true));
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-au", null, null), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-au", null, null), is(false));
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au"));
+    }
+
+    public void testDataStreamReferToNonExistingDataStream() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null));
+        assertThat(e.getMessage(), equalTo("alias [logs-postgres] refers to a non existing data stream [logs-postgres-eu]"));
+
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
+        mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null);
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-eu"));
+    }
+
+    public void testDeleteDataStreamShouldUpdateAlias() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
+        mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null);
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-us"));
+        mdBuilder.put("logs-postgres", "logs-postgres-us", null, null);
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
+        mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au"));
+
+        mdBuilder = Metadata.builder(metadata);
+        mdBuilder.removeDataStream("logs-postgres-us");
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-au"));
+
+        mdBuilder = Metadata.builder(metadata);
+        mdBuilder.removeDataStream("logs-postgres-au");
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-eu"));
+
+        mdBuilder = Metadata.builder(metadata);
+        mdBuilder.removeDataStream("logs-postgres-eu");
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), nullValue());
+    }
+
+    public void testDeleteDataStreamAlias() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
+        mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null);
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-us"));
+        mdBuilder.put("logs-postgres", "logs-postgres-us", null, null);
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
+        mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au"));
+
+        mdBuilder = Metadata.builder(metadata);
+        assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-us", true), is(true));
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-au"));
+
+        mdBuilder = Metadata.builder(metadata);
+        assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-au", true), is(true));
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-eu"));
+
+        mdBuilder = Metadata.builder(metadata);
+        assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-eu", true), is(true));
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), nullValue());
+    }
+
+    public void testDeleteDataStreamAliasMustExists() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
+        mdBuilder.put("logs-postgres", "logs-postgres-eu", null, null);
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-us"));
+        mdBuilder.put("logs-postgres", "logs-postgres-us", null, null);
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
+        mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au"));
+
+        Metadata.Builder mdBuilder2 = Metadata.builder(metadata);
+        expectThrows(ResourceNotFoundException.class, () -> mdBuilder2.removeDataStreamAlias("logs-mysql", "logs-postgres-us", true));
+        assertThat(mdBuilder2.removeDataStreamAlias("logs-mysql", "logs-postgres-us", false), is(false));
+    }
+
+    public void testDataStreamWriteAlias() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-replicated"));
+        mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null);
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+
+        mdBuilder = Metadata.builder(metadata);
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", true, null), is(true));
+
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+    }
+
+    public void testDataStreamMultipleWriteAlias() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-foobar"));
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-barbaz"));
+        mdBuilder.put("logs", "logs-foobar", true, null);
+        mdBuilder.put("logs", "logs-barbaz", true, null);
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs").getWriteDataStream(), equalTo("logs-barbaz"));
+        assertThat(metadata.dataStreamAliases().get("logs").getDataStreams(), containsInAnyOrder("logs-foobar", "logs-barbaz"));
+    }
+
+    public void testDataStreamWriteAliasUnset() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-replicated"));
+        mdBuilder.put("logs-postgres", "logs-postgres-replicated", true, null);
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+
+        mdBuilder = Metadata.builder(metadata);
+        // Side check: null value isn't changing anything:
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null), is(false));
+        // Unset write flag
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", false, null), is(true));
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+    }
+
+    public void testDataStreamWriteAliasChange() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-primary"));
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-replicated"));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", true, null), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null), is(true));
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+
+        // change write flag:
+        mdBuilder = Metadata.builder(metadata);
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", false, null), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", true, null), is(true));
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+    }
+
+    public void testDataStreamWriteRemoveAlias() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-primary"));
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-replicated"));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", true, null), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null), is(true));
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+
+        mdBuilder = Metadata.builder(metadata);
+        assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-primary", randomBoolean()), is(true));
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+    }
+
+    public void testDataStreamWriteRemoveDataStream() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-primary"));
+        mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-replicated"));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", true, null), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null, null), is(true));
+
+        Metadata metadata = mdBuilder.build();
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+
+        mdBuilder = Metadata.builder(metadata);
+        mdBuilder.removeDataStream("logs-postgres-primary");
+        metadata = mdBuilder.build();
+        assertThat(metadata.dataStreams().keySet(), contains("logs-postgres-replicated"));
+        assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
+        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
+    }
+
     public static Metadata randomMetadata() {
+        return randomMetadata(1);
+    }
+
+    public static Metadata randomMetadata(int numDataStreams) {
         Metadata.Builder md = Metadata.builder()
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
             .put(IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
@@ -1235,11 +1490,13 @@ public class MetadataTests extends ESTestCase {
             .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
             .put("index_template_v2_" + randomAlphaOfLength(3), ComposableIndexTemplateTests.randomInstance());
 
-        DataStream randomDataStream = DataStreamTestHelper.randomInstance();
-        for (Index index : randomDataStream.getIndices()) {
-            md.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
+        for (int k = 0; k < numDataStreams; k++) {
+            DataStream randomDataStream = DataStreamTestHelper.randomInstance();
+            for (Index index : randomDataStream.getIndices()) {
+                md.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
+            }
+            md.put(randomDataStream);
         }
-        md.put(randomDataStream);
 
         return md.build();
     }

@@ -3,7 +3,9 @@ import groovy.json.JsonSlurper
 import javax.net.ssl.HttpsURLConnection
 import java.nio.charset.StandardCharsets
 
-apply plugin: 'elasticsearch.testclusters'
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -15,7 +17,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeXpack 'watcher'
+    include 'watcher'
   }
 }
 
@@ -38,8 +40,8 @@ tasks.register("cleanJira", DefaultTask) {
 
 // require network access for this one, exit early instead of starting up the cluster if we dont have network
 if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
-  integTest.enabled = false
-  testingConventions.enabled = false
+  tasks.named("integTest").configure { enabled = false }
+  tasks.named("testingConventions").configure { enabled = false }
 } else {
   testClusters.matching { it.name == "integTest" }.configureEach {
     testDistribution = 'DEFAULT'
@@ -55,6 +57,11 @@ if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
     keystore 'xpack.notification.jira.account.test.secure_password', jiraPassword
   }
   integTest.finalizedBy "cleanJira"
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("integTest").configure{enabled = false }
 }
 
 /** List all issues associated to a given Jira project **/

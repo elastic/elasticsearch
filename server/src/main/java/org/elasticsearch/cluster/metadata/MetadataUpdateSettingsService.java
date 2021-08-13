@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -33,7 +22,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -49,7 +37,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
@@ -92,10 +79,10 @@ public class MetadataUpdateSettingsService {
 
         indexScopedSettings.validate(
                 normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false), // don't validate wildcards
-                false, // don't validate dependencies here we check it below never allow to change the number of shards
+                false, // don't validate values here we check it below never allow to change the number of shards
                 true); // validate internal or private index settings
         for (String key : normalizedSettings.keySet()) {
-            Setting setting = indexScopedSettings.get(key);
+            Setting<?> setting = indexScopedSettings.get(key);
             boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);
             assert setting != null // we already validated the normalized settings
                 || (isWildcard && normalizedSettings.hasValue(key) == false)
@@ -137,7 +124,7 @@ public class MetadataUpdateSettingsService {
                     }
                 }
 
-                if (!skippedSettings.isEmpty() && !openIndices.isEmpty()) {
+                if (skippedSettings.isEmpty() == false && openIndices.isEmpty() == false) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices));
                 }
@@ -146,15 +133,7 @@ public class MetadataUpdateSettingsService {
                     final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
                     if (preserveExisting == false) {
                         // Verify that this won't take us over the cluster shard limit.
-                        int totalNewShards = Arrays.stream(request.indices())
-                            .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
-                            .sum();
-                        Optional<String> error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
-                        if (error.isPresent()) {
-                            ValidationException ex = new ValidationException();
-                            ex.addValidationError(error.get());
-                            throw ex;
-                        }
+                        shardLimitValidator.validateShardLimitOnReplicaUpdate(currentState, request.indices(), updatedNumberOfReplicas);
 
                         /*
                          * We do not update the in-sync allocation IDs as they will be removed upon the first index operation which makes
@@ -168,7 +147,7 @@ public class MetadataUpdateSettingsService {
                     }
                 }
 
-                if (!openIndices.isEmpty()) {
+                if (openIndices.isEmpty() == false) {
                     for (Index index : openIndices) {
                         IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
                         Settings.Builder updates = Settings.builder();
@@ -197,7 +176,7 @@ public class MetadataUpdateSettingsService {
                     }
                 }
 
-                if (!closeIndices.isEmpty()) {
+                if (closeIndices.isEmpty() == false) {
                     for (Index index : closeIndices) {
                         IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
                         Settings.Builder updates = Settings.builder();
@@ -229,7 +208,9 @@ public class MetadataUpdateSettingsService {
                 if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings) ||
                     IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(normalizedSettings)) {
                     for (String index : actualIndices) {
-                        MetadataCreateIndexService.validateTranslogRetentionSettings(metadataBuilder.get(index).getSettings());
+                        final Settings settings = metadataBuilder.get(index).getSettings();
+                        MetadataCreateIndexService.validateTranslogRetentionSettings(settings);
+                        MetadataCreateIndexService.validateStoreTypeSetting(settings);
                     }
                 }
                 boolean changed = false;
@@ -278,14 +259,6 @@ public class MetadataUpdateSettingsService {
                 return updatedState;
             }
         });
-    }
-
-    private int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
-        IndexMetadata indexMetadata = currentState.metadata().index(index);
-        int shardsInIndex = indexMetadata.getNumberOfShards();
-        int oldNumberOfReplicas = indexMetadata.getNumberOfReplicas();
-        int replicaIncrease = updatedNumberOfReplicas - oldNumberOfReplicas;
-        return replicaIncrease * shardsInIndex;
     }
 
     /**

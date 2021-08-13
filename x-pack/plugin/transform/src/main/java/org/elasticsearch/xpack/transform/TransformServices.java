@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform;
@@ -28,12 +29,12 @@ public final class TransformServices {
 
     public TransformServices(
         TransformConfigManager transformConfigManager,
-        TransformCheckpointService checkpointProvider,
+        TransformCheckpointService checkpointService,
         TransformAuditor transformAuditor,
         SchedulerEngine schedulerEngine
     ) {
         this.configManager = Objects.requireNonNull(transformConfigManager);
-        this.checkpointService = Objects.requireNonNull(checkpointProvider);
+        this.checkpointService = Objects.requireNonNull(checkpointService);
         this.auditor = Objects.requireNonNull(transformAuditor);
         this.schedulerEngine = Objects.requireNonNull(schedulerEngine);
     }

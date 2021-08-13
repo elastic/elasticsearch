@@ -95,7 +95,7 @@ used in the same request.
 
 `roles`::
 (Required, list) A set of roles the user has. The roles determine the user's
-access  permissions. To create a user without any roles, specify an empty list:
+access permissions. To create a user without any roles, specify an empty list:
 `[]`.
 
 --
@@ -112,7 +112,7 @@ The following example creates a user `jacknich`:
 --------------------------------------------------
 POST /_security/user/jacknich
 {
-  "password" : "j@rV1s",
+  "password" : "l0ng-r4nd0m-p@ssw0rd",
   "roles" : [ "admin", "other_role1" ],
   "full_name" : "Jack Nicholson",
   "email" : "jacknich@example.com",
@@ -138,6 +138,6 @@ After you add a user, requests from that user can be authenticated. For example:
 
 [source,shell]
 --------------------------------------------------
-curl -u jacknich:j@rV1s http://localhost:9200/_cluster/health
+curl -u jacknich:l0ng-r4nd0m-p@ssw0rd http://localhost:9200/_cluster/health
 --------------------------------------------------
 // NOTCONSOLE

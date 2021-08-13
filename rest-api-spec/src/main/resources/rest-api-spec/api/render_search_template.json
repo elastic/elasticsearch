@@ -1,10 +1,15 @@
 {
   "render_search_template":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html#_validating_templates",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/render-search-template-api.html",
       "description":"Allows to use the Mustache language to pre-render a search definition."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

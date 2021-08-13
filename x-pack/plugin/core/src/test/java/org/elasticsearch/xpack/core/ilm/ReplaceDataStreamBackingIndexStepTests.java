@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -15,23 +16,24 @@ import org.elasticsearch.index.Index;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.function.BiFunction;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.is;
 
 public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase<ReplaceDataStreamBackingIndexStep> {
 
     @Override
     protected ReplaceDataStreamBackingIndexStep createRandomInstance() {
-        return new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), randomAlphaOfLengthBetween(1, 10));
+        String prefix = randomAlphaOfLengthBetween(1, 10);
+        return new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), (index, state) -> prefix + index);
     }
 
     @Override
     protected ReplaceDataStreamBackingIndexStep mutateInstance(ReplaceDataStreamBackingIndexStep instance) {
         Step.StepKey key = instance.getKey();
         Step.StepKey nextKey = instance.getNextStepKey();
-        String indexPrefix = instance.getTargetIndexPrefix();
+        BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
 
         switch (between(0, 2)) {
             case 0:
@@ -41,17 +43,17 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 2:
-                indexPrefix = randomValueOtherThan(indexPrefix, () -> randomAlphaOfLengthBetween(1, 10));
+                indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new ReplaceDataStreamBackingIndexStep(key, nextKey, indexPrefix);
+        return new ReplaceDataStreamBackingIndexStep(key, nextKey, indexNameSupplier);
     }
 
     @Override
     protected ReplaceDataStreamBackingIndexStep copyInstance(ReplaceDataStreamBackingIndexStep instance) {
-        return new ReplaceDataStreamBackingIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getTargetIndexPrefix());
+        return new ReplaceDataStreamBackingIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getTargetIndexNameSupplier());
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsNotPartOfDataStream() {
@@ -156,7 +158,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         ).build();
 
         ReplaceDataStreamBackingIndexStep replaceSourceIndexStep =
-            new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), indexPrefix);
+            new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), (index, state) -> indexPrefix + index);
         ClusterState newState = replaceSourceIndexStep.performAction(sourceIndexMetadata.getIndex(), clusterState);
         DataStream updatedDataStream = newState.metadata().dataStreams().get(dataStreamName);
         assertThat(updatedDataStream.getIndices().size(), is(2));
@@ -198,7 +200,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         ).build();
 
         ReplaceDataStreamBackingIndexStep replaceSourceIndexStep =
-            new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), indexPrefix);
+            new ReplaceDataStreamBackingIndexStep(randomStepKey(), randomStepKey(), (index, state) -> indexPrefix + index);
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
             () -> replaceSourceIndexStep.performAction(sourceIndexMetadata.getIndex(), clusterState)

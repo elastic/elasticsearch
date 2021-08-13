@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 
@@ -9,14 +10,15 @@ package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
@@ -64,7 +66,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         if (c.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
             throw new IllegalArgumentException(ERROR_MESSAGE);
         } else {
-            deprecationLogger.deprecate("sparse_vector", ERROR_MESSAGE_7X);
+            deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
             return new Builder(n);
         }
     });
@@ -86,17 +88,17 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
     }
@@ -113,12 +115,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context) {
+    public void parse(DocumentParserContext context) {
         throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
         throw new IllegalStateException("parse is implemented directly");
     }
 

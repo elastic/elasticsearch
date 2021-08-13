@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
@@ -17,11 +18,13 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GetApiKeyRequestTests extends ESTestCase {
 
@@ -142,6 +145,21 @@ public class GetApiKeyRequestTests extends ESTestCase {
 
             assertThat(requestFromInputStream, equalTo(getApiKeyRequest));
         }
+    }
+
+    public void testEmptyStringsAreCoercedToNull() {
+        Supplier<String> randomBlankString = () -> " ".repeat(randomIntBetween(0, 5));
+        final GetApiKeyRequest request = new GetApiKeyRequest(
+            randomBlankString.get(), // realm name
+            randomBlankString.get(), // user name
+            randomBlankString.get(), // key id
+            randomBlankString.get(), // key name
+            randomBoolean() // owned by user
+        );
+        assertThat(request.getRealmName(), nullValue());
+        assertThat(request.getUserName(), nullValue());
+        assertThat(request.getApiKeyId(), nullValue());
+        assertThat(request.getApiKeyName(), nullValue());
     }
 
     private static String randomNullOrEmptyString() {

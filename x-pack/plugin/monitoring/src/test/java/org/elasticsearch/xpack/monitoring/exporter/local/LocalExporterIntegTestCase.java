@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -50,9 +52,9 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                       .put(super.nodeSettings(nodeOrdinal))
+                       .put(super.nodeSettings(nodeOrdinal, otherSettings))
                        .put(localExporterSettings())
                        .build();
     }
@@ -63,7 +65,7 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
      * @return Never {@code null}.
      */
     protected LocalExporter createLocalExporter() {
-        return createLocalExporter(exporterName, null);
+        return createLocalExporter(exporterName, null, new MonitoringMigrationCoordinator());
     }
 
     /**
@@ -78,12 +80,16 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
      * @return Never {@code null}.
      */
     protected LocalExporter createLocalExporter(String exporterName, Settings exporterSettings) {
+        return createLocalExporter(exporterName, exporterSettings, new MonitoringMigrationCoordinator());
+    }
+
+    protected LocalExporter createLocalExporter(String exporterName, Settings exporterSettings,
+                                                MonitoringMigrationCoordinator coordinator) {
         final XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         final Exporter.Config config = new Exporter.Config(exporterName, "local", exporterSettings, clusterService(), licenseState);
         final CleanerService cleanerService =
             new CleanerService(exporterSettings, clusterService().getClusterSettings(), THREADPOOL, licenseState);
-
-        return new LocalExporter(config, client(), cleanerService);
+        return new LocalExporter(config, client(), coordinator, cleanerService);
     }
 
 }

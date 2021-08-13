@@ -1,30 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -81,6 +66,13 @@ public interface IndexAbstraction {
      * @return whether this index abstraction should be treated as a system index or not
      */
     boolean isSystem();
+
+    /**
+     * @return whether this index abstraction is related to data streams
+     */
+    default boolean isDataStreamRelated() {
+        return getType() == Type.DATA_STREAM || this instanceof DataStreamAlias;
+    }
 
     /**
      * An index abstraction type.
@@ -178,14 +170,35 @@ public interface IndexAbstraction {
 
         private final String aliasName;
         private final List<IndexMetadata> referenceIndexMetadatas;
-        private final SetOnce<IndexMetadata> writeIndex = new SetOnce<>();
+        private final IndexMetadata writeIndex;
         private final boolean isHidden;
 
-        public Alias(AliasMetadata aliasMetadata, IndexMetadata indexMetadata) {
+        public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indices) {
             this.aliasName = aliasMetadata.getAlias();
-            this.referenceIndexMetadatas = new ArrayList<>();
-            this.referenceIndexMetadatas.add(indexMetadata);
+            this.referenceIndexMetadatas = indices;
+
+            List<IndexMetadata> writeIndices = indices.stream()
+                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
+                .collect(Collectors.toList());
+
+            if (writeIndices.isEmpty() && referenceIndexMetadatas.size() == 1
+                && referenceIndexMetadatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                writeIndices.add(referenceIndexMetadatas.get(0));
+            }
+
+            if (writeIndices.size() == 0) {
+                this.writeIndex = null;
+            } else if (writeIndices.size() == 1) {
+                this.writeIndex = writeIndices.get(0);
+            } else {
+                List<String> writeIndicesStrings = writeIndices.stream()
+                    .map(i -> i.getIndex().getName()).collect(Collectors.toList());
+                throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
+                    Strings.collectionToCommaDelimitedString(writeIndicesStrings) + "]");
+            }
+
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
+            validateAliasProperties();
         }
 
         @Override
@@ -202,10 +215,9 @@ public interface IndexAbstraction {
             return referenceIndexMetadatas;
         }
 
-
         @Nullable
         public IndexMetadata getWriteIndex() {
-            return writeIndex.get();
+            return writeIndex;
         }
 
         @Override
@@ -224,58 +236,7 @@ public interface IndexAbstraction {
             return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
         }
 
-        /**
-         * Returns the unique alias metadata per concrete index.
-         * <p>
-         * (note that although alias can point to the same concrete indices, each alias reference may have its own routing
-         * and filters)
-         */
-        public Iterable<Tuple<String, AliasMetadata>> getConcreteIndexAndAliasMetadatas() {
-            return () -> new Iterator<>() {
-
-                int index = 0;
-
-                @Override
-                public boolean hasNext() {
-                    return index < referenceIndexMetadatas.size();
-                }
-
-                @Override
-                public Tuple<String, AliasMetadata> next() {
-                    IndexMetadata indexMetadata = referenceIndexMetadatas.get(index++);
-                    return new Tuple<>(indexMetadata.getIndex().getName(), indexMetadata.getAliases().get(aliasName));
-                }
-            };
-        }
-
-        public AliasMetadata getFirstAliasMetadata() {
-            return referenceIndexMetadatas.get(0).getAliases().get(aliasName);
-        }
-
-        void addIndex(IndexMetadata indexMetadata) {
-            this.referenceIndexMetadatas.add(indexMetadata);
-        }
-
-        public void computeAndValidateAliasProperties() {
-            // Validate write indices
-            List<IndexMetadata> writeIndices = referenceIndexMetadatas.stream()
-                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
-                .collect(Collectors.toList());
-
-            if (writeIndices.isEmpty() && referenceIndexMetadatas.size() == 1
-                    && referenceIndexMetadatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
-                writeIndices.add(referenceIndexMetadatas.get(0));
-            }
-
-            if (writeIndices.size() == 1) {
-                writeIndex.set(writeIndices.get(0));
-            } else if (writeIndices.size() > 1) {
-                List<String> writeIndicesStrings = writeIndices.stream()
-                    .map(i -> i.getIndex().getName()).collect(Collectors.toList());
-                throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
-                    Strings.collectionToCommaDelimitedString(writeIndicesStrings) + "]");
-            }
-
+        private void validateAliasProperties() {
             // Validate hidden status
             final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = referenceIndexMetadatas.stream()
                 .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
@@ -363,12 +324,65 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isSystem() {
-            // No such thing as system data streams (yet)
-            return false;
+            return dataStream.isSystem();
         }
 
         public org.elasticsearch.cluster.metadata.DataStream getDataStream() {
             return dataStream;
+        }
+    }
+
+    class DataStreamAlias implements IndexAbstraction {
+
+        private final org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias;
+        private final List<IndexMetadata> indicesOfAllDataStreams;
+        private final IndexMetadata writeIndexOfWriteDataStream;
+
+        public DataStreamAlias(org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias,
+                               List<IndexMetadata> indicesOfAllDataStreams,
+                               IndexMetadata writeIndexOfWriteDataStream) {
+            this.dataStreamAlias = dataStreamAlias;
+            this.indicesOfAllDataStreams = indicesOfAllDataStreams;
+            this.writeIndexOfWriteDataStream = writeIndexOfWriteDataStream;
+        }
+
+        @Override
+        public Type getType() {
+            return Type.ALIAS;
+        }
+
+        @Override
+        public String getName() {
+            return dataStreamAlias.getName();
+        }
+
+        @Override
+        public List<IndexMetadata> getIndices() {
+            return indicesOfAllDataStreams;
+        }
+
+        @Override
+        public IndexMetadata getWriteIndex() {
+            return writeIndexOfWriteDataStream;
+        }
+
+        @Override
+        public DataStream getParentDataStream() {
+            return null;
+        }
+
+        @Override
+        public boolean isHidden() {
+            return false;
+        }
+
+        @Override
+        public boolean isSystem() {
+            return false;
+        }
+
+        public org.elasticsearch.cluster.metadata.DataStreamAlias getDataStreamAlias() {
+            return dataStreamAlias;
         }
     }
 }

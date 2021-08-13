@@ -26,18 +26,20 @@ PUT /my-index-000001/_settings
 
 `PUT /<target>/_settings`
 
+[[update-index-settings-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
 
 [[update-index-settings-api-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
-
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[update-index-settings-api-query-params]]
 ==== {api-query-parms-title}
@@ -150,7 +152,7 @@ and reopen the index.
 You cannot close the write index of a data stream.
 
 To update the analyzer for a data stream's write index and future backing
-indices, update the analyzer in the <<create-a-data-stream-template,index
+indices, update the analyzer in the <<create-index-template,index
 template used by the stream>>. Then <<manually-roll-over-a-data-stream,roll over
 the data stream>> to apply the new analyzer to the stream’s write index and
 future backing indices. This affects searches and any new data added to the

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
@@ -17,12 +18,14 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
+import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -32,17 +35,6 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLParameters;
-import javax.net.ssl.SSLPeerUnverifiedException;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSessionContext;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.cert.X509Certificate;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.Principal;
@@ -60,6 +52,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSessionContext;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
+import javax.security.cert.X509Certificate;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -295,9 +298,9 @@ public class SSLServiceTests extends ESTestCase {
             .put("transport.profiles.foo.xpack.security.ssl.verification_mode", "full")
             .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        assertThat(sslService.getSSLConfiguration("xpack.security.transport.ssl.").verificationMode(), is(VerificationMode.CERTIFICATE));
+        assertThat(sslService.getSSLConfiguration("xpack.security.transport.ssl.").verificationMode(), is(SslVerificationMode.CERTIFICATE));
         assertThat(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl.").verificationMode(),
-            is(VerificationMode.FULL));
+            is(SslVerificationMode.FULL));
     }
 
     public void testIsSSLClientAuthEnabled() throws Exception {
@@ -315,6 +318,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testThatHttpClientAuthDefaultsToNone() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "testnode");
@@ -323,7 +327,7 @@ public class SSLServiceTests extends ESTestCase {
             .put("xpack.security.http.ssl.keystore.path", testnodeStore)
             .put("xpack.security.http.ssl.keystore.type", testnodeStoreType)
             .put("xpack.security.transport.ssl.enabled", true)
-            .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.OPTIONAL.name())
+            .put("xpack.security.transport.ssl.client_authentication", SslClientAuthenticationMode.OPTIONAL.name())
             .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
             .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
             .setSecureSettings(secureSettings)
@@ -331,13 +335,14 @@ public class SSLServiceTests extends ESTestCase {
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(globalSettings)));
 
         final SSLConfiguration globalConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        assertThat(globalConfig.sslClientAuth(), is(SSLClientAuth.OPTIONAL));
+        assertThat(globalConfig.sslClientAuth(), is(SslClientAuthenticationMode.OPTIONAL));
 
         final SSLConfiguration httpConfig = sslService.getHttpTransportSSLConfiguration();
-        assertThat(httpConfig.sslClientAuth(), is(SSLClientAuth.NONE));
+        assertThat(httpConfig.sslClientAuth(), is(SslClientAuthenticationMode.NONE));
     }
 
     public void testThatTruststorePasswordIsRequired() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
@@ -354,6 +359,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testThatKeystorePasswordIsRequired() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
         Settings settings = Settings.builder()
             .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
             .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
@@ -466,7 +472,7 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testSSLStrategy() {
         // this just exhaustively verifies that the right things are called and that it uses the right parameters
-        VerificationMode mode = randomFrom(VerificationMode.values());
+        SslVerificationMode mode = randomFrom(SslVerificationMode.values());
         Settings settings = Settings.builder()
             .put("supported_protocols", "protocols")
             .put("cipher_suites", "")

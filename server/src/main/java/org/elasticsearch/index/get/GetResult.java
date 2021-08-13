@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -28,6 +18,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -35,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -50,6 +42,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(GetResult.class);
 
     public static final String _INDEX = "_index";
     public static final String _ID = "_id";
@@ -279,7 +272,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
 
-        if (!documentFields.isEmpty()) {
+        if (documentFields.isEmpty() == false) {
             builder.startObject(FIELDS);
             for (DocumentField field : documentFields.values()) {
                 field.toXContent(builder, params);
@@ -293,6 +286,9 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX, index);
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+        }
         builder.field(_ID, id);
         if (isExists()) {
             if (version != -1) {
@@ -330,6 +326,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             } else if (token.isValue()) {
                 if (_INDEX.equals(currentFieldName)) {
                     index = parser.text();
+                } else if (parser.getRestApiVersion() == RestApiVersion.V_7 && MapperService.TYPE_FIELD_NAME.equals(currentFieldName)) {
+                    deprecationLogger.compatibleApiWarning("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (_ID.equals(currentFieldName)) {
                     id = parser.text();
                 }  else if (_VERSION.equals(currentFieldName)) {

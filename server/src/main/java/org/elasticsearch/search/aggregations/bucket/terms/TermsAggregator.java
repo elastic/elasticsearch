@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 
@@ -34,8 +23,8 @@ import org.elasticsearch.search.aggregations.InternalOrder.Aggregation;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -105,6 +94,13 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             }
         }
 
+        /**
+         * The minimum number of documents a bucket must have in order to
+         * be returned from a shard.
+         * <p>
+         * Important: The default for this is 0, but we should only return
+         * 0 document buckets if {@link #getMinDocCount()} is *also* 0.
+         */
         public long getShardMinDocCount() {
             return shardMinDocCount;
         }
@@ -113,6 +109,10 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             this.shardMinDocCount = shardMinDocCount;
         }
 
+        /**
+         * The minimum numbers of documents a bucket must have in order to
+         * survive the final reduction.
+         */
         public long getMinDocCount() {
             return minDocCount;
         }
@@ -173,10 +173,10 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     protected final BucketCountThresholds bucketCountThresholds;
     protected final BucketOrder order;
     protected final Comparator<InternalTerms.Bucket<?>> partiallyBuiltBucketComparator;
-    protected final Set<Aggregator> aggsUsedForSorting = new HashSet<>();
+    protected final Set<Aggregator> aggsUsedForSorting;
     protected final SubAggCollectionMode collectMode;
 
-    public TermsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
+    public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
             BucketCountThresholds bucketCountThresholds, BucketOrder order, DocValueFormat format, SubAggCollectionMode collectMode,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, metadata);
@@ -194,22 +194,31 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         } else {
             this.collectMode = collectMode;
         }
+        aggsUsedForSorting = aggsUsedForSorting(this, order);
+    }
+
+    /**
+     * Walks through bucket order and extracts all aggregations used for sorting
+     */
+    public static Set<Aggregator> aggsUsedForSorting(Aggregator root, BucketOrder order) {
+        Set<Aggregator> aggsUsedForSorting = new HashSet<>();
         // Don't defer any child agg if we are dependent on it for pruning results
-        if (order instanceof Aggregation){
+        if (order instanceof Aggregation) {
             AggregationPath path = ((Aggregation) order).path();
-            aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
+            aggsUsedForSorting.add(path.resolveTopmostAggregator(root));
         } else if (order instanceof CompoundOrder) {
             CompoundOrder compoundOrder = (CompoundOrder) order;
             for (BucketOrder orderElement : compoundOrder.orderElements()) {
                 if (orderElement instanceof Aggregation) {
                     AggregationPath path = ((Aggregation) orderElement).path();
-                    aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
+                    aggsUsedForSorting.add(path.resolveTopmostAggregator(root));
                 }
             }
         }
+        return aggsUsedForSorting;
     }
 
-    static boolean descendsFromNestedAggregator(Aggregator parent) {
+    public static boolean descendsFromNestedAggregator(Aggregator parent) {
         while (parent != null) {
             if (parent.getClass() == NestedAggregator.class) {
                 return true;
@@ -231,6 +240,6 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return collectMode == SubAggCollectionMode.BREADTH_FIRST
-                && !aggsUsedForSorting.contains(aggregator);
+                && aggsUsedForSorting.contains(aggregator) == false;
     }
 }

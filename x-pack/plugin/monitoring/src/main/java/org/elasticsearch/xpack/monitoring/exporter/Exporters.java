@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
@@ -47,6 +48,7 @@ public class Exporters extends AbstractLifecycleComponent {
     private final Settings settings;
     private final Map<String, Exporter.Factory> factories;
     private final AtomicReference<Map<String, Exporter>> exporters;
+    private final AtomicReference<Map<String, Exporter.Config>> disabledExporterConfigs;
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
@@ -57,6 +59,7 @@ public class Exporters extends AbstractLifecycleComponent {
         this.settings = settings;
         this.factories = factories;
         this.exporters = new AtomicReference<>(emptyMap());
+        this.disabledExporterConfigs = new AtomicReference<>(emptyMap());
         this.threadContext = Objects.requireNonNull(threadContext);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.licenseState = Objects.requireNonNull(licenseState);
@@ -73,16 +76,30 @@ public class Exporters extends AbstractLifecycleComponent {
         }
     }
 
+    static class InitializedExporters {
+        final Map<String, Exporter> enabledExporters;
+        final Map<String, Exporter.Config> disabledExporters;
+
+        InitializedExporters(Map<String, Exporter> enabledExporters, Map<String, Exporter.Config> disabledExporters) {
+            this.enabledExporters = enabledExporters;
+            this.disabledExporters = disabledExporters;
+        }
+    }
+
     public void setExportersSetting(Settings exportersSetting) {
         if (this.lifecycle.started()) {
-            Map<String, Exporter> updated = initExporters(exportersSetting);
+            InitializedExporters exporters = initExporters(exportersSetting);
+            Map<String, Exporter> updated = exporters.enabledExporters;
             closeExporters(logger, this.exporters.getAndSet(updated));
+            this.disabledExporterConfigs.getAndSet(exporters.disabledExporters);
         }
     }
 
     @Override
     protected void doStart() {
-        exporters.set(initExporters(settings));
+        InitializedExporters exporters = initExporters(settings);
+        this.exporters.set(exporters.enabledExporters);
+        this.disabledExporterConfigs.set(exporters.disabledExporters);
     }
 
     @Override
@@ -107,6 +124,28 @@ public class Exporters extends AbstractLifecycleComponent {
         return exporters.get().values();
     }
 
+    /**
+     * Get all disabled {@linkplain Exporter.Config}s.
+     *
+     * @return Never {@code null}. Can be empty if none are disabled.
+     */
+    public Collection<Exporter.Config> getDisabledExporterConfigs() {
+        return disabledExporterConfigs.get().values();
+    }
+
+    /**
+     * Attempt to construct a one-off exporter, separate from the list of enabled exporters.
+     */
+    public Exporter openExporter(Exporter.Config config) {
+        String name = config.name();
+        String type = config.type();
+        Exporter.Factory factory = factories.get(type);
+        if (factory == null) {
+            throw new SettingsException("unknown exporter type [" + type + "] set for exporter [" + name + "]");
+        }
+        return factory.create(config);
+    }
+
     static void closeExporters(Logger logger, Map<String, Exporter> exporters) {
         for (Exporter exporter : exporters.values()) {
             try {
@@ -117,9 +156,10 @@ public class Exporters extends AbstractLifecycleComponent {
         }
     }
 
-    Map<String, Exporter> initExporters(Settings settings) {
+    InitializedExporters initExporters(Settings settings) {
         Set<String> singletons = new HashSet<>();
         Map<String, Exporter> exporters = new HashMap<>();
+        Map<String, Exporter.Config> disabled = new HashMap<>();
         boolean hasDisabled = false;
         Settings exportersSettings = settings.getByPrefix("xpack.monitoring.exporters.");
         for (String name : exportersSettings.names()) {
@@ -133,11 +173,12 @@ public class Exporters extends AbstractLifecycleComponent {
                 throw new SettingsException("unknown exporter type [" + type + "] set for exporter [" + name + "]");
             }
             Exporter.Config config = new Exporter.Config(name, type, settings, clusterService, licenseState);
-            if (!config.enabled()) {
+            if (config.enabled() == false) {
                 hasDisabled = true;
                 if (logger.isDebugEnabled()) {
                     logger.debug("exporter [{}/{}] is disabled", type, name);
                 }
+                disabled.put(config.name(), config);
                 continue;
             }
             Exporter exporter = factory.create(config);
@@ -158,13 +199,13 @@ public class Exporters extends AbstractLifecycleComponent {
         // NOTE:    if there are exporters configured and they're all disabled, we don't
         //          fallback on the default
         //
-        if (exporters.isEmpty() && !hasDisabled) {
+        if (exporters.isEmpty() && hasDisabled == false) {
             Exporter.Config config =
                     new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE, settings, clusterService, licenseState);
             exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));
         }
 
-        return exporters;
+        return new InitializedExporters(exporters, disabled);
     }
 
     /**

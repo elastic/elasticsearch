@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz;
 
@@ -17,6 +18,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -25,7 +27,6 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
@@ -34,7 +35,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53340")
 public class ReadActionsTests extends SecurityIntegTestCase {
 
     @Override
@@ -52,7 +52,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         //index1 is not authorized and referred to through wildcard
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
 
-        SearchResponse searchResponse = client().prepareSearch().get();
+        SearchResponse searchResponse = trySearch();
         assertReturnedIndices(searchResponse, "test1", "test2", "test3");
     }
 
@@ -60,77 +60,87 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         //index1 is not authorized and referred to through wildcard
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
 
-        SearchResponse searchResponse = client().prepareSearch("*").get();
+        SearchResponse searchResponse = trySearch("*");
         assertReturnedIndices(searchResponse, "test1", "test2", "test3");
     }
 
     public void testSearchNonAuthorizedWildcard() {
         //wildcard doesn't match any authorized index
         createIndicesWithRandomAliases("test1", "test2", "index1", "index2");
-        assertNoSearchHits(client().prepareSearch("index*").get());
+        assertNoSearchHits(trySearch("index*"));
     }
 
     public void testSearchNonAuthorizedWildcardDisallowNoIndices() {
         //wildcard doesn't match any authorized index
         createIndicesWithRandomAliases("test1", "test2", "index1", "index2");
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("index*")
-                .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()), "index*")
+        );
         assertEquals("no such index [index*]", e.getMessage());
     }
 
     public void testEmptyClusterSearchForAll() {
-        assertNoSearchHits(client().prepareSearch().get());
+        assertNoSearchHits(trySearch());
     }
 
     public void testEmptyClusterSearchForAllDisallowNoIndices() {
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch()
-                .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()))
+        );
         assertEquals("no such index [[]]", e.getMessage());
     }
 
     public void testEmptyClusterSearchForWildcard() {
-        SearchResponse searchResponse = client().prepareSearch("*").get();
+        SearchResponse searchResponse = trySearch("*");
         assertNoSearchHits(searchResponse);
     }
 
     public void testEmptyClusterSearchForWildcardDisallowNoIndices() {
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("*")
-                .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()), "*")
+        );
         assertEquals("no such index [*]", e.getMessage());
     }
 
     public void testEmptyAuthorizedIndicesSearchForAll() {
         createIndicesWithRandomAliases("index1", "index2");
-        assertNoSearchHits(client().prepareSearch().get());
+        assertNoSearchHits(trySearch());
     }
 
     public void testEmptyAuthorizedIndicesSearchForAllDisallowNoIndices() {
         createIndicesWithRandomAliases("index1", "index2");
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch()
-                .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()))
+        );
         assertEquals("no such index [[]]", e.getMessage());
     }
 
     public void testEmptyAuthorizedIndicesSearchForWildcard() {
         createIndicesWithRandomAliases("index1", "index2");
-        assertNoSearchHits(client().prepareSearch("*").get());
+        assertNoSearchHits(trySearch("*"));
     }
 
     public void testEmptyAuthorizedIndicesSearchForWildcardDisallowNoIndices() {
         createIndicesWithRandomAliases("index1", "index2");
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("*")
-                .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()), "*")
+        );
         assertEquals("no such index [*]", e.getMessage());
     }
 
     public void testExplicitNonAuthorizedIndex() {
         createIndicesWithRandomAliases("test1", "test2", "index1");
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareSearch("test*", "index1")::get, SearchAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(() -> trySearch("test*", "index1"), SearchAction.NAME);
     }
 
     public void testIndexNotFound() {
         createIndicesWithRandomAliases("test1", "test2", "index1");
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareSearch("missing")::get, SearchAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(() -> trySearch("missing"), SearchAction.NAME);
     }
 
     public void testIndexNotFoundIgnoreUnavailable() {
@@ -138,33 +148,33 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("test1", "test2", "index1");
 
         String index = randomFrom("test1", "test2");
-        assertReturnedIndices(client().prepareSearch("missing", index).setIndicesOptions(indicesOptions).get(), index);
+        assertReturnedIndices(trySearch(indicesOptions, "missing", index), index);
 
-        assertReturnedIndices(client().prepareSearch("missing", "test*").setIndicesOptions(indicesOptions).get(), "test1", "test2");
+        assertReturnedIndices(trySearch(indicesOptions, "missing", "test*"), "test1", "test2");
 
-        assertReturnedIndices(client().prepareSearch("missing_*", "test*").setIndicesOptions(indicesOptions).get(), "test1", "test2");
+        assertReturnedIndices(trySearch(indicesOptions, "missing_*", "test*"), "test1", "test2");
 
         //an unauthorized index is the same as a missing one
-        assertNoSearchHits(client().prepareSearch("missing").setIndicesOptions(indicesOptions).get());
+        assertNoSearchHits(trySearch(indicesOptions, "missing"));
 
-        assertNoSearchHits(client().prepareSearch("index1").setIndicesOptions(indicesOptions).get());
+        assertNoSearchHits(trySearch(indicesOptions, "index1"));
 
-        assertNoSearchHits(client().prepareSearch("missing", "index1").setIndicesOptions(indicesOptions).get());
+        assertNoSearchHits(trySearch(indicesOptions, "missing", "index1"));
 
-        assertNoSearchHits(client().prepareSearch("does_not_match_any_*").setIndicesOptions(indicesOptions).get());
+        assertNoSearchHits(trySearch(indicesOptions, "does_not_match_any_*"));
 
-        assertNoSearchHits(client().prepareSearch("does_not_match_any_*", "index1").setIndicesOptions(indicesOptions).get());
+        assertNoSearchHits(trySearch(indicesOptions, "does_not_match_any_*", "index1"));
 
-        assertNoSearchHits(client().prepareSearch("index*").setIndicesOptions(indicesOptions).get());
+        assertNoSearchHits(trySearch(indicesOptions, "index*"));
 
-        assertNoSearchHits(client().prepareSearch("index*", "missing").setIndicesOptions(indicesOptions).get());
+        assertNoSearchHits(trySearch(indicesOptions, "index*", "missing"));
     }
 
     public void testExplicitExclusion() {
         //index1 is not authorized and referred to through wildcard, test2 is excluded
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
 
-        SearchResponse searchResponse = client().prepareSearch("*", "-test2").get();
+        SearchResponse searchResponse = trySearch("*", "-test2");
         assertReturnedIndices(searchResponse, "test1", "test3");
     }
 
@@ -172,7 +182,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         //index1 is not authorized and referred to through wildcard, test2 is excluded
         createIndicesWithRandomAliases("test1", "test2", "test21", "test3", "index1");
 
-        SearchResponse searchResponse = client().prepareSearch("*", "-test2*").get();
+        SearchResponse searchResponse = trySearch("*", "-test2*");
         assertReturnedIndices(searchResponse, "test1", "test3");
     }
 
@@ -180,7 +190,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         //index1 is not authorized and referred to through wildcard, test111 and test112 are excluded
         createIndicesWithRandomAliases("test1", "test10", "test111", "test112", "test2", "index1");
 
-        SearchResponse searchResponse = client().prepareSearch("test1*", "index*", "-test11*").get();
+        SearchResponse searchResponse = trySearch("test1*", "index*", "-test11*");
         assertReturnedIndices(searchResponse, "test1", "test10");
     }
 
@@ -188,7 +198,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         //index1 is not authorized and referred to through wildcard, test111 and test112 are excluded
         createIndicesWithRandomAliases("test1", "test10", "test111", "test112", "test2", "index1");
 
-        SearchResponse searchResponse = client().prepareSearch("test2", "test11*", "index*", "-test2*").get();
+        SearchResponse searchResponse = trySearch("test2", "test11*", "index*", "-test2*");
         assertReturnedIndices(searchResponse, "test111", "test112");
     }
 
@@ -196,12 +206,12 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         //index1 is not authorized and referred to through wildcard, test111 and test112 are excluded
         createIndicesWithRandomAliases("test1", "test10", "test111", "test112", "test2", "index1");
 
-        SearchResponse searchResponse = client().prepareSearch("test10", "test11*", "index*", "-test111", "-test112").get();
+        SearchResponse searchResponse = trySearch("test10", "test11*", "index*", "-test111", "-test112");
         assertReturnedIndices(searchResponse, "test10");
     }
 
     public void testMissingDateMath() {
-        expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("<logstash-{now/M}>").get());
+        expectThrows(IndexNotFoundException.class, () -> trySearch("<logstash-{now/M}>"));
     }
 
     public void testMultiSearchUnauthorizedIndex() {
@@ -394,6 +404,14 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         assertThat(response.getResponses()[3].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
         assertTrue(response.getResponses()[4].isFailed());
         assertThat(response.getResponses()[4].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
+    }
+
+    private SearchResponse trySearch(String ... indices) {
+        return client().prepareSearch(indices).get(TimeValue.timeValueSeconds(20));
+    }
+
+    private SearchResponse trySearch(IndicesOptions options, String ... indices) {
+        return client().prepareSearch(indices).setIndicesOptions(options).get(TimeValue.timeValueSeconds(20));
     }
 
     private static void assertReturnedIndices(SearchResponse searchResponse, String... indices) {

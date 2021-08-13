@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
@@ -32,7 +34,7 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
     }
 
     @Override
-    protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
+    protected TypeResolution resolveInputType(Expression e, ParamOrdinal paramOrdinal) {
         return TypeResolutions.isExact(e, sourceText(), paramOrdinal);
     }
 
@@ -49,4 +51,11 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
     public static Integer compare(Object left, Object right) {
         return Comparisons.compare(left, right);
     }
+
+    /**
+     * Reverses the direction of this comparison on the comparison axis.
+     * Some operations like Greater/LessThan/OrEqual will behave as if the operands of a numerical comparison get multiplied with a
+     * negative number. Others like Not/Equal can be immutable to this operation.
+     */
+    public abstract BinaryComparison reverse();
 }

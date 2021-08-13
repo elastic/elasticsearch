@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.document;
@@ -22,8 +11,11 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.DeprecationRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
@@ -34,6 +26,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiTermVectorsAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiTermVectorsAction.class);
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in multi term vector requests is deprecated.";
 
     @Override
     public List<Route> routes() {
@@ -41,7 +35,13 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
             new Route(GET, "/_mtermvectors"),
             new Route(POST, "/_mtermvectors"),
             new Route(GET, "/{index}/_mtermvectors"),
-            new Route(POST, "/{index}/_mtermvectors"));
+            new Route(POST, "/{index}/_mtermvectors"),
+            Route.builder(GET, "/{index}/{type}/_mtermvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_mtermvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build());
     }
 
     @Override
@@ -51,6 +51,10 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+            request.param("type");
+            deprecationLogger.compatibleApiWarning(DeprecationRestHandler.DEPRECATED_ROUTE_KEY, TYPES_DEPRECATION_MESSAGE);
+        }
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         TermVectorsRequest template = new TermVectorsRequest()
             .index(request.param("index"));

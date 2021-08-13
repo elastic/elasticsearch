@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.shard;
@@ -24,10 +13,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,12 +92,12 @@ final class IndexShardOperationPermits implements Closeable {
         delayOperations();
         threadPool.executor(executor).execute(new AbstractRunnable() {
 
-            final RunOnce released = new RunOnce(() -> releaseDelayedOperations());
+            final Releasable released = Releasables.releaseOnce(() -> releaseDelayedOperations());
 
             @Override
             public void onFailure(final Exception e) {
                 try {
-                    released.run(); // resume delayed operations as soon as possible
+                    released.close(); // resume delayed operations as soon as possible
                 } finally {
                     onAcquired.onFailure(e);
                 }
@@ -117,13 +106,7 @@ final class IndexShardOperationPermits implements Closeable {
             @Override
             protected void doRun() throws Exception {
                 final Releasable releasable = acquireAll(timeout, timeUnit);
-                onAcquired.onResponse(() -> {
-                    try {
-                        releasable.close();
-                    } finally {
-                        released.run();
-                    }
-                });
+                onAcquired.onResponse(() -> Releasables.close(releasable, released));
             }
         });
     }
@@ -146,11 +129,11 @@ final class IndexShardOperationPermits implements Closeable {
             }
         }
         if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {
-            final RunOnce release = new RunOnce(() -> {
+            final Releasable release = Releasables.releaseOnce(() -> {
                 assert semaphore.availablePermits() == 0;
                 semaphore.release(TOTAL_PERMITS);
             });
-            return release::run;
+            return release;
         } else {
             throw new TimeoutException("timeout while blocking operations");
         }
@@ -168,7 +151,7 @@ final class IndexShardOperationPermits implements Closeable {
                 queuedActions = Collections.emptyList();
             }
         }
-        if (!queuedActions.isEmpty()) {
+        if (queuedActions.isEmpty() == false) {
             /*
              * Try acquiring permits on fresh thread (for two reasons):
              *   - blockOperations can be called on a recovery thread which can be expected to be interrupted when recovery is cancelled;
@@ -226,7 +209,7 @@ final class IndexShardOperationPermits implements Closeable {
                     final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     final ActionListener<Releasable> wrappedListener;
                     if (executorOnDelay != null) {
-                        wrappedListener = ActionListener.delegateFailure(new ContextPreservingActionListener<>(contextSupplier, onAcquired),
+                        wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired).delegateFailure(
                             (l, r) -> threadPool.executor(executorOnDelay).execute(new ActionRunnable<>(l) {
                                 @Override
                                 public boolean isForceExecution() {

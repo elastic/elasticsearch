@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.network;
@@ -35,6 +24,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Utilities for network interfaces / addresses binding and publishing.
@@ -44,7 +34,7 @@ public abstract class NetworkUtils {
 
     /** no instantiation */
     private NetworkUtils() {}
-    
+
     /**
      * By default we bind to any addresses on an interface/name, unless restricted by :ipv4 etc.
      * This property is unrelated to that, this is about what we *publish*. Today the code pretty much
@@ -78,14 +68,14 @@ public abstract class NetworkUtils {
         }
         SUPPORTS_V6 = v;
     }
-    
+
     /** Sorts an address by preference. This way code like publishing can just pick the first one */
     static int sortKey(InetAddress address, boolean prefer_v6) {
         int key = address.getAddress().length;
         if (prefer_v6) {
             key = -key;
         }
-        
+
         if (address.isAnyLocalAddress()) {
             key += 5;
         }
@@ -105,7 +95,7 @@ public abstract class NetworkUtils {
         return key;
     }
 
-    /** 
+    /**
      * Sorts addresses by order of preference. This is used to pick the first one for publishing
      * @deprecated remove this when multihoming is really correct
      */
@@ -123,7 +113,7 @@ public abstract class NetworkUtils {
             }
         });
     }
-    
+
     /** Return all interfaces (and subinterfaces) on the system */
     static List<NetworkInterface> getInterfaces() throws SocketException {
         List<NetworkInterface> all = new ArrayList<>();
@@ -136,17 +126,17 @@ public abstract class NetworkUtils {
         });
         return all;
     }
-    
+
     /** Helper for getInterfaces, recursively adds subinterfaces to {@code target} */
     private static void addAllInterfaces(List<NetworkInterface> target, List<NetworkInterface> level) {
-        if (!level.isEmpty()) {
+        if (level.isEmpty() == false) {
             target.addAll(level);
             for (NetworkInterface intf : level) {
                 addAllInterfaces(target, Collections.list(intf.getSubInterfaces()));
             }
         }
     }
-    
+
     /** Returns system default for SO_REUSEADDR */
     public static boolean defaultReuseAddress() {
         return Constants.WINDOWS ? false : true;
@@ -184,12 +174,12 @@ public abstract class NetworkUtils {
     static InetAddress[] getLoopbackAddresses() throws IOException {
         return filterAllAddresses(InetAddress::isLoopbackAddress, "no up-and-running loopback addresses found");
     }
-    
+
     /** Returns all site-local scope (private) addresses for interfaces that are up. */
     static InetAddress[] getSiteLocalAddresses() throws IOException {
         return filterAllAddresses(InetAddress::isSiteLocalAddress, "No up-and-running site-local (private) addresses found");
     }
-    
+
     /** Returns all global scope addresses for interfaces that are up. */
     static InetAddress[] getGlobalAddresses() throws IOException {
         return filterAllAddresses(
@@ -198,10 +188,10 @@ public abstract class NetworkUtils {
                         && address.isLinkLocalAddress() == false,
                 "no up-and-running global-scope (public) addresses found");
     }
-    
-    /** Returns all addresses (any scope) for interfaces that are up. 
+
+    /** Returns all addresses (any scope) for interfaces that are up.
      *  This is only used to pick a publish address, when the user set network.host to a wildcard */
-    static InetAddress[] getAllAddresses() throws IOException {
+    public static InetAddress[] getAllAddresses() throws IOException {
         return filterAllAddresses(address -> true, "no up-and-running addresses found");
     }
 
@@ -210,22 +200,26 @@ public abstract class NetworkUtils {
     }
 
     /** Returns addresses for the given interface (it must be marked up) */
-    static InetAddress[] getAddressesForInterface(String name) throws SocketException {
-        Optional<NetworkInterface> networkInterface = maybeGetInterfaceByName(getInterfaces(), name);
+    static InetAddress[] getAddressesForInterface(String settingValue, String suffix, String interfaceName) throws SocketException {
+        Optional<NetworkInterface> networkInterface = maybeGetInterfaceByName(getInterfaces(), interfaceName);
 
         if (networkInterface.isPresent() == false) {
-            throw new IllegalArgumentException("No interface named '" + name + "' found, got " + getInterfaces());
+            throw new IllegalArgumentException("setting [" + settingValue + "] matched no network interfaces; valid values include [" +
+                    getInterfaces().stream().map(otherInterface -> "_" + otherInterface.getName() + suffix + "_")
+                            .collect(Collectors.joining(", ")) + "]");
         }
-        if (!networkInterface.get().isUp()) {
-            throw new IllegalArgumentException("Interface '" + name + "' is not up and running");
+        if (networkInterface.get().isUp() == false) {
+            throw new IllegalArgumentException("setting [" + settingValue + "] matched network interface [" +
+                    networkInterface.get().getName() + "] but this interface is not up and running");
         }
         List<InetAddress> list = Collections.list(networkInterface.get().getInetAddresses());
         if (list.isEmpty()) {
-            throw new IllegalArgumentException("Interface '" + name + "' has no internet addresses");
+            throw new IllegalArgumentException("setting [" + settingValue + "] matched network interface [" +
+                    networkInterface.get().getName() + "] but this interface has no internet addresses");
         }
         return list.toArray(new InetAddress[list.size()]);
     }
-    
+
     /** Returns only the IPV4 addresses in {@code addresses} */
     static InetAddress[] filterIPV4(InetAddress addresses[]) {
         List<InetAddress> list = new ArrayList<>();
@@ -239,7 +233,7 @@ public abstract class NetworkUtils {
         }
         return list.toArray(new InetAddress[list.size()]);
     }
-    
+
     /** Returns only the IPV6 addresses in {@code addresses} */
     static InetAddress[] filterIPV6(InetAddress addresses[]) {
         List<InetAddress> list = new ArrayList<>();
@@ -252,5 +246,19 @@ public abstract class NetworkUtils {
             throw new IllegalArgumentException("No ipv6 addresses found in " + Arrays.toString(addresses));
         }
         return list.toArray(new InetAddress[list.size()]);
+    }
+
+    /**
+     * @return all IPv4 addresses for interfaces that are up.
+     */
+    public static InetAddress[] getAllIPV4Addresses() throws IOException {
+        return filterIPV4(getAllAddresses());
+    }
+
+    /**
+     * @return all IPv6 addresses for interfaces that are up.
+     */
+    public static InetAddress[] getAllIPV6Addresses() throws IOException {
+        return filterIPV6(getAllAddresses());
     }
 }

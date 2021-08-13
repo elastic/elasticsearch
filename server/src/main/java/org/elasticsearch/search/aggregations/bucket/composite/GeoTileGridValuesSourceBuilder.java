@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileCellIdSource;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -62,7 +51,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     }
 
     static final String TYPE = "geotile_grid";
-    static final ValuesSourceRegistry.RegistryKey<GeoTileCompositeSuppier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey(
+    static final ValuesSourceRegistry.RegistryKey<GeoTileCompositeSuppier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         TYPE,
         GeoTileCompositeSuppier.class
     );
@@ -89,11 +78,10 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                 ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
                 // is specified in the builder.
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
-                CellIdSource cellIdSource = new CellIdSource(
+                GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource(
                     geoPoint,
                     precision,
-                    boundingBox,
-                    GeoTileUtils::longEncode
+                    boundingBox
                 );
                 return new CompositeValuesSourceConfig(
                     name,
@@ -111,7 +99,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                         CompositeValuesSourceConfig compositeValuesSourceConfig
 
                     ) -> {
-                        final CellIdSource cis = (CellIdSource) compositeValuesSourceConfig.valuesSource();
+                        final ValuesSource.Numeric cis = (ValuesSource.Numeric) compositeValuesSourceConfig.valuesSource();
                         return new GeoTileValuesSource(
                             bigArrays,
                             compositeValuesSourceConfig.fieldType(),
@@ -166,7 +154,9 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("precision", precision);
         if (geoBoundingBox.isUnbounded() == false) {
-            geoBoundingBox.toXContent(builder, params);
+            builder.startObject(GeoBoundingBox.BOUNDS_FIELD.getPreferredName());
+            geoBoundingBox.toXContentFragment(builder, true);
+            builder.endObject();
         }
     }
 

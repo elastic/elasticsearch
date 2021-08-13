@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -20,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 
 import java.io.IOException;
@@ -30,6 +32,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -144,6 +147,12 @@ public class License implements ToXContentObject {
      * to a specific license version
      */
     public static final String LICENSE_VERSION_MODE = "license_version";
+    /**
+     * Set for {@link RestApiVersion#V_7} requests only
+     * XContent param name to map the "enterprise" license type to "platinum"
+     * for backwards compatibility with older clients
+     */
+    public static final String XCONTENT_HIDE_ENTERPRISE = "hide_enterprise";
 
     public static final Comparator<License> LATEST_ISSUE_DATE_FIRST = Comparator.comparing(License::issueDate).reversed();
 
@@ -514,11 +523,13 @@ public class License implements ToXContentObject {
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         boolean licenseSpecMode = params.paramAsBoolean(LICENSE_SPEC_VIEW_MODE, false);
         boolean restViewMode = params.paramAsBoolean(REST_VIEW_MODE, false);
+        boolean hideEnterprise = params.paramAsBoolean(XCONTENT_HIDE_ENTERPRISE, false);
+
         boolean previouslyHumanReadable = builder.humanReadable();
         if (licenseSpecMode && restViewMode) {
             throw new IllegalArgumentException("can have either " + REST_VIEW_MODE + " or " + LICENSE_SPEC_VIEW_MODE);
         } else if (restViewMode) {
-            if (!previouslyHumanReadable) {
+            if (previouslyHumanReadable == false) {
                 builder.humanReadable(true);
             }
         }
@@ -532,7 +543,8 @@ public class License implements ToXContentObject {
             builder.field(Fields.STATUS, status().label());
         }
         builder.field(Fields.UID, uid);
-        builder.field(Fields.TYPE, type);
+        final String bwcType = hideEnterprise && LicenseType.isEnterprise(type) ? LicenseType.PLATINUM.getTypeName() : type;
+        builder.field(Fields.TYPE, bwcType);
         if (version == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
         }
@@ -548,13 +560,15 @@ public class License implements ToXContentObject {
         if (version >= VERSION_ENTERPRISE) {
             builder.field(Fields.MAX_NODES, maxNodes == -1 ? null : maxNodes);
             builder.field(Fields.MAX_RESOURCE_UNITS, maxResourceUnits == -1 ? null : maxResourceUnits);
+        } else if (hideEnterprise && maxNodes == -1) {
+            builder.field(Fields.MAX_NODES, maxResourceUnits);
         } else {
             builder.field(Fields.MAX_NODES, maxNodes);
         }
 
         builder.field(Fields.ISSUED_TO, issuedTo);
         builder.field(Fields.ISSUER, issuer);
-        if (!licenseSpecMode && !restViewMode && signature != null) {
+        if (licenseSpecMode == false && restViewMode == false && signature != null) {
             builder.field(Fields.SIGNATURE, signature);
         }
         if (restViewMode) {
@@ -692,7 +706,7 @@ public class License implements ToXContentObject {
                                     break;
                                 }
                             }
-                            if (license == null && !pre20Licenses.isEmpty()) {
+                            if (license == null && pre20Licenses.isEmpty() == false) {
                                 license = pre20Licenses.get(0);
                             }
                         } else {
@@ -724,15 +738,13 @@ public class License implements ToXContentObject {
         if (startDate != license.startDate) return false;
         if (maxNodes != license.maxNodes) return false;
         if (version != license.version) return false;
-        if (uid != null ? !uid.equals(license.uid) : license.uid != null) return false;
-        if (issuer != null ? !issuer.equals(license.issuer) : license.issuer != null) return false;
-        if (issuedTo != null ? !issuedTo.equals(license.issuedTo) : license.issuedTo != null) return false;
-        if (type != null ? !type.equals(license.type) : license.type != null) return false;
-        if (subscriptionType != null ? !subscriptionType.equals(license.subscriptionType) : license.subscriptionType != null)
-            return false;
-        if (feature != null ? !feature.equals(license.feature) : license.feature != null) return false;
-        return !(signature != null ? !signature.equals(license.signature) : license.signature != null);
-
+        return Objects.equals(uid, license.uid)
+            && Objects.equals(issuer, license.issuer)
+            && Objects.equals(issuedTo, license.issuedTo)
+            && Objects.equals(type, license.type)
+            && Objects.equals(subscriptionType, license.subscriptionType)
+            && Objects.equals(feature, license.feature)
+            && Objects.equals(signature, license.signature);
     }
 
     @Override

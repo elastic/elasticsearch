@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.slack.message;
 
@@ -42,11 +43,11 @@ public class SlackMessageDefaults {
 
         SlackMessageDefaults defaults = (SlackMessageDefaults) o;
 
-        if (from != null ? !from.equals(defaults.from) : defaults.from != null) return false;
-        if (!Arrays.equals(to, defaults.to)) return false;
-        if (icon != null ? !icon.equals(defaults.icon) : defaults.icon != null) return false;
-        if (text != null ? !text.equals(defaults.text) : defaults.text != null) return false;
-        return !(attachment != null ? !attachment.equals(defaults.attachment) : defaults.attachment != null);
+        return Objects.equals(from, defaults.from)
+            && Arrays.equals(to, defaults.to)
+            && Objects.equals(icon, defaults.icon)
+            && Objects.equals(text, defaults.text)
+            && Objects.equals(attachment, defaults.attachment);
     }
 
     @Override

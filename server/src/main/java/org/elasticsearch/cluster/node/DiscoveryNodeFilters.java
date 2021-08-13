@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -29,9 +18,13 @@ import org.elasticsearch.common.transport.TransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 public class DiscoveryNodeFilters {
+
+    static final Set<String> NON_ATTRIBUTE_NAMES = Set.of("_ip", "_host_ip", "_publish_ip", "host", "_id", "_name", "name");
 
     public enum OpType {
         AND,
@@ -86,6 +79,32 @@ public class DiscoveryNodeFilters {
             }
         }
         return false;
+    }
+
+    /**
+     * Removes any filters that should not be considered, returning a new
+     * {@link DiscoveryNodeFilters} object. If the filtered object has no
+     * filters after trimming, {@code null} is returned.
+     */
+    @Nullable
+    public static DiscoveryNodeFilters trimTier(@Nullable DiscoveryNodeFilters original) {
+        if (original == null) {
+            return null;
+        }
+
+        Map<String, String[]> newFilters = original.filters.entrySet().stream()
+            // Remove all entries that use "_tier_preference", as these will be handled elsewhere
+            .filter(entry -> {
+                String attr = entry.getKey();
+                return attr != null && attr.equals("_tier_preference") == false;
+            })
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        if (newFilters.size() == 0) {
+            return null;
+        } else {
+            return new DiscoveryNodeFilters(original.opType, newFilters);
+        }
     }
 
     public boolean match(DiscoveryNode node) {
@@ -181,9 +200,6 @@ public class DiscoveryNodeFilters {
                         }
                     }
                 }
-            } else if (attr != null && attr.startsWith("_tier")) {
-                // Always allow _tier as an attribute, will be handled elsewhere
-                return true;
             } else {
                 String nodeAttributeValue = node.getAttributes().get(attr);
                 if (nodeAttributeValue == null) {
@@ -211,6 +227,14 @@ public class DiscoveryNodeFilters {
         } else {
             return true;
         }
+    }
+
+    /**
+     *
+     * @return true if this filter only contains attribute values, i.e., no node specific info.
+     */
+    public boolean isOnlyAttributeValueFilter() {
+        return filters.keySet().stream().anyMatch(NON_ATTRIBUTE_NAMES::contains) == false;
     }
 
     /**

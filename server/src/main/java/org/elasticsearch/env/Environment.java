@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.env;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -51,18 +40,19 @@ public class Environment {
     private static final Path[] EMPTY_PATH_ARRAY = new Path[0];
 
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
-    public static final Setting<List<String>> PATH_DATA_SETTING =
-            Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
+    public static final Setting<String> PATH_DATA_SETTING =
+            Setting.simpleString("path.data", Property.NodeScope);
     public static final Setting<String> PATH_LOGS_SETTING =
             new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_REPO_SETTING =
         Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
-    public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
+    public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data",
+        Property.NodeScope);
     public static final Setting<String> NODE_PIDFILE_SETTING = Setting.simpleString("node.pidfile", Property.NodeScope);
 
     private final Settings settings;
 
-    private final Path[] dataFiles;
+    private final Path dataFile;
 
     private final Path[] repoFiles;
 
@@ -111,14 +101,14 @@ public class Environment {
 
         pluginsFile = homeFile.resolve("plugins");
 
-        List<String> dataPaths = PATH_DATA_SETTING.get(settings);
-        if (dataPaths.isEmpty() == false) {
-            dataFiles = new Path[dataPaths.size()];
-            for (int i = 0; i < dataPaths.size(); i++) {
-                dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
+        if (PATH_DATA_SETTING.exists(settings)) {
+            String rawDataPath = PATH_DATA_SETTING.get(settings);
+            if (rawDataPath.startsWith("[")) {
+                throw new IllegalArgumentException("[path.data] is a list. Specify as a string value.");
             }
+            dataFile = PathUtils.get(rawDataPath).toAbsolutePath().normalize();
         } else {
-            dataFiles = new Path[]{homeFile.resolve("data")};
+            dataFile = homeFile.resolve("data");
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
@@ -154,7 +144,7 @@ public class Environment {
 
         final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
-            finalSettings.putList(PATH_DATA_SETTING.getKey(), Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList()));
+            finalSettings.put(PATH_DATA_SETTING.getKey(), dataFile.toString());
         }
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
@@ -184,8 +174,8 @@ public class Environment {
     /**
      * The data location.
      */
-    public Path[] dataFiles() {
-        return dataFiles;
+    public Path dataFile() {
+        return dataFile;
     }
 
     /**
@@ -311,12 +301,22 @@ public class Environment {
         return new ESFileStore(Files.getFileStore(path));
     }
 
+    public static long getUsableSpace(Path path) throws IOException {
+        long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
+
+        /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
+        if (freeSpaceInBytes < 0) {
+            freeSpaceInBytes = Long.MAX_VALUE;
+        }
+        return freeSpaceInBytes;
+    }
+
     /**
      * asserts that the two environments are equivalent for all things the environment cares about (i.e., all but the setting
      * object which may contain different setting)
      */
     public static void assertEquivalent(Environment actual, Environment expected) {
-        assertEquals(actual.dataFiles(), expected.dataFiles(), "dataFiles");
+        assertEquals(actual.dataFile(), expected.dataFile(), "dataFiles");
         assertEquals(actual.repoFiles(), expected.repoFiles(), "repoFiles");
         assertEquals(actual.configFile(), expected.configFile(), "configFile");
         assertEquals(actual.pluginsFile(), expected.pluginsFile(), "pluginsFile");

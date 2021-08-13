@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
@@ -50,7 +51,7 @@ final class MergedGeoLines {
     public void merge() {
         // 1. add first element of each sub line to heap
         for (int i = 0; i < geoLines.size(); i++) {
-            if (geoLines.size() > 0) {
+            if (geoLines.get(i).length() > 0) {
                 add(i, 0);
             }
         }
@@ -66,7 +67,7 @@ final class MergedGeoLines {
             finalSortValues[i] = getTopSortValue();
             removeTop();
             InternalGeoLine lineChosen = geoLines.get(lineIdx);
-            if (idxInLine + 1 < lineChosen.line().length) {
+            if (idxInLine + 1 < lineChosen.length()) {
                 add(lineIdx, idxInLine + 1);
             }
             i++;

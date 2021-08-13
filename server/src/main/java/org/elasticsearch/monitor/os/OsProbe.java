@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.os;
@@ -22,8 +11,8 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.monitor.Probes;
 
 import java.io.IOException;
@@ -111,11 +100,16 @@ public class OsProbe {
             return 0;
         }
         try {
-            final long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
+            long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
             if (totalMem < 0) {
                 logger.debug("OS reported a negative total memory value [{}]", totalMem);
                 return 0;
             }
+            if (totalMem == 0 && isDebian8()) {
+                // workaround for JDK bug on debian8: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
+                totalMem = getTotalMemFromProcMeminfo();
+            }
+
             return totalMem;
         } catch (Exception e) {
             logger.warn("exception retrieving total physical memory", e);
@@ -295,7 +289,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /proc/self/cgroup")
     List<String> readProcSelfCgroup() throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/cgroup"));
-        assert lines != null && !lines.isEmpty();
+        assert lines != null && lines.isEmpty() == false;
         return lines;
     }
 
@@ -497,16 +491,16 @@ public class OsProbe {
      */
     @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, /sys/fs/cgroup/cpuacct and /sys/fs/cgroup/memory")
     boolean areCgroupStatsAvailable() {
-        if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
+        if (Files.exists(PathUtils.get("/proc/self/cgroup")) == false) {
             return false;
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpu"))) {
+        if (Files.exists(PathUtils.get("/sys/fs/cgroup/cpu")) == false) {
             return false;
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct"))) {
+        if (Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct")) == false) {
             return false;
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/memory"))) {
+        if (Files.exists(PathUtils.get("/sys/fs/cgroup/memory")) == false) {
             return false;
         }
         return true;
@@ -519,11 +513,11 @@ public class OsProbe {
      */
     private OsStats.Cgroup getCgroup() {
         try {
-            if (!areCgroupStatsAvailable()) {
+            if (areCgroupStatsAvailable() == false) {
                 return null;
             } else {
                 final Map<String, String> controllerMap = getControlGroups();
-                assert !controllerMap.isEmpty();
+                assert controllerMap.isEmpty() == false;
 
                 final String cpuAcctControlGroup = controllerMap.get("cpuacct");
                 if (cpuAcctControlGroup == null) {
@@ -650,6 +644,55 @@ public class OsProbe {
         } else {
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * Returns the lines from /proc/meminfo as a workaround for JDK bugs that prevent retrieval of total system memory
+     * on some Linux variants such as Debian8.
+     */
+    @SuppressForbidden(reason = "access /proc/meminfo")
+    List<String> readProcMeminfo() throws IOException {
+        final List<String> lines;
+        if (Files.exists(PathUtils.get("/proc/meminfo"))) {
+            lines = Files.readAllLines(PathUtils.get("/proc/meminfo"));
+            assert lines != null && lines.isEmpty() == false;
+            return lines;
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Retrieves system total memory in bytes from /proc/meminfo
+     */
+    long getTotalMemFromProcMeminfo() throws IOException {
+        List<String> meminfoLines = readProcMeminfo();
+        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).collect(Collectors.toList());
+        assert memTotalLines.size() <= 1 : memTotalLines;
+        if (memTotalLines.size() == 1) {
+            final String memTotalLine = memTotalLines.get(0);
+            int beginIdx = memTotalLine.indexOf("MemTotal:");
+            int endIdx = memTotalLine.lastIndexOf(" kB");
+            if (beginIdx + 9 < endIdx) {
+                final String memTotalString = memTotalLine.substring(beginIdx + 9, endIdx).trim();
+                try {
+                    long memTotalInKb = Long.parseLong(memTotalString);
+                    return memTotalInKb * 1024;
+                } catch (NumberFormatException e) {
+                    logger.warn("Unable to retrieve total memory from meminfo line [" + memTotalLine + "]");
+                    return 0;
+                }
+            } else {
+                logger.warn("Unable to retrieve total memory from meminfo line [" + memTotalLine + "]");
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    boolean isDebian8() throws IOException {
+        return Constants.LINUX && getPrettyName().equals("Debian GNU/Linux 8 (jessie)");
     }
 
     public OsStats osStats() {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.repository;
@@ -10,13 +11,13 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -24,7 +25,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,16 +39,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
@@ -63,13 +62,19 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.MultiChunkTransfer;
 import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
-import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -105,6 +110,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
+import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.syncAddRetentionLease;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.syncRenewRetentionLease;
@@ -170,8 +176,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
-        assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
+    public void getSnapshotInfo(GetSnapshotInfoContext context) {
+        final List<SnapshotId> snapshotIds = context.snapshotIds();
+        assert snapshotIds.size() == 1 && SNAPSHOT_ID.equals(snapshotIds.iterator().next())
+                : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId but saw " + snapshotIds;
         Client remoteClient = getRemoteClusterClient();
         ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetadata(true).setNodes(true)
             .get(ccrSettings.getRecoveryActionTimeout());
@@ -180,8 +188,17 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ArrayList<String> indices = new ArrayList<>(indicesMap.size());
         indicesMap.keysIt().forEachRemaining(indices::add);
 
-        return new SnapshotInfo(snapshotId, indices, new ArrayList<>(metadata.dataStreams().keySet()), SnapshotState.SUCCESS,
-            response.getState().getNodes().getMaxNodeVersion());
+        // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> context.onResponse(
+            new SnapshotInfo(
+                new Snapshot(this.metadata.name(), SNAPSHOT_ID),
+                indices,
+                new ArrayList<>(metadata.dataStreams().keySet()),
+                Collections.emptyList(),
+                response.getState().getNodes().getMaxNodeVersion(),
+                SnapshotState.SUCCESS
+            )
+        ));
     }
 
     @Override
@@ -242,8 +259,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Metadata remoteMetadata = response.getState().getMetadata();
 
             Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
-            Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
-            Map<String, Version> snapshotVersions = new HashMap<>(copiedSnapshotIds.size());
+            Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = new HashMap<>(copiedSnapshotIds.size());
             Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
 
             ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
@@ -251,21 +267,29 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 // Both the Snapshot name and UUID are set to _latest_
                 SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
                 copiedSnapshotIds.put(indexName, snapshotId);
-                snapshotStates.put(indexName, SnapshotState.SUCCESS);
-                snapshotVersions.put(indexName, Version.CURRENT);
+                final long nowMillis = threadPool.absoluteTimeInMillis();
+                snapshotsDetails.put(indexName, new RepositoryData.SnapshotDetails(
+                        SnapshotState.SUCCESS,
+                        Version.CURRENT,
+                        nowMillis,
+                        nowMillis));
                 Index index = remoteIndices.get(indexName).getIndex();
                 indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
             }
-            return new RepositoryData(1, copiedSnapshotIds, snapshotStates, snapshotVersions, indexSnapshots,
-                ShardGenerations.EMPTY, IndexMetaDataGenerations.EMPTY);
+            return new RepositoryData(
+                    MISSING_UUID,
+                    1,
+                    copiedSnapshotIds,
+                    snapshotsDetails,
+                    indexSnapshots,
+                    ShardGenerations.EMPTY,
+                    IndexMetaDataGenerations.EMPTY,
+                    MISSING_UUID);
         });
     }
 
     @Override
-    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata metadata,
-                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
-                                 Function<ClusterState, ClusterState> stateTransformer,
-                                 ActionListener<RepositoryData> listener) {
+    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
@@ -305,9 +329,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
-                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
+    public void snapshotShard(SnapshotShardContext context) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
@@ -316,7 +338,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                              ActionListener<Void> listener) {
         final ShardId shardId = store.shardId();
         final LinkedList<Closeable> toClose = new LinkedList<>();
-        final ActionListener<Void> restoreListener = ActionListener.runBefore(ActionListener.delegateResponse(listener,
+        final ActionListener<Void> restoreListener = ActionListener.runBefore(listener.delegateResponse(
             (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e))),
             () -> IOUtils.close(toClose));
         try {
@@ -386,7 +408,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private void createEmptyStore(Store store) {
         store.incRef();
         try {
-            store.createEmpty(store.indexSettings().getIndexVersionCreated().luceneVersion);
+            store.createEmpty();
         } catch (final EngineException | IOException e) {
             throw new IndexShardRecoveryException(store.shardId(), "failed to create empty store", e);
         } finally {
@@ -432,6 +454,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         });
     }
 
+    private static final ShardGeneration DUMMY_GENERATION = new ShardGeneration("");
+
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId index, ShardId shardId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
@@ -446,7 +470,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 && shardRouting.active()) {
                 // we only care about the shard size here for shard allocation, populate the rest with dummy values
                 final long totalSize = shardStats.getStats().getStore().getSizeInBytes();
-                return IndexShardSnapshotStatus.newDone(0L, 0L, 1, 1, totalSize, totalSize, "");
+                return IndexShardSnapshotStatus.newDone(0L, 0L, 1, 1, totalSize, totalSize, DUMMY_GENERATION);
             }
         }
         throw new ElasticsearchException("Could not get shard stats for primary of index " + leaderIndex + " on leader cluster");
@@ -463,9 +487,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
-                                   ActionListener<String> listener) {
+    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, ShardGeneration shardGeneration,
+                                   ActionListener<ShardSnapshotResult> listener) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
+    }
+
+    @Override
+    public void awaitIdle() {
     }
 
     private void updateMappings(Client leaderClient, Index leaderIndex, long leaderMappingVersion,
@@ -554,16 +582,40 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
                 @Override
                 protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
-                    final ActionListener<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> threadedListener
-                        = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, ActionListener.wrap(r -> {
-                            writeFileChunk(request.md, r);
-                            listener.onResponse(null);
-                        }, listener::onFailure), false);
-
                     remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE,
                         new GetCcrRestoreFileChunkRequest(node, sessionUUID, request.md.name(), request.bytesRequested),
-                        ListenerTimeouts.wrapWithTimeout(threadPool, threadedListener, ccrSettings.getRecoveryActionTimeout(),
-                            ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.NAME));
+                            ListenerTimeouts.wrapWithTimeout(threadPool, new ActionListener<>() {
+                                @Override
+                                public void onResponse(
+                                        GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse getCcrRestoreFileChunkResponse) {
+                                    getCcrRestoreFileChunkResponse.incRef();
+                                    threadPool.generic().execute(new ActionRunnable<>(listener) {
+                                        @Override
+                                        protected void doRun() throws Exception {
+                                            writeFileChunk(request.md, getCcrRestoreFileChunkResponse);
+                                            listener.onResponse(null);
+                                        }
+
+                                        @Override
+                                        public void onAfter() {
+                                            getCcrRestoreFileChunkResponse.decRef();
+                                        }
+                                    });
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    threadPool.generic().execute(() -> {
+                                        try {
+                                            listener.onFailure(e);
+                                        } catch (Exception ex) {
+                                            e.addSuppressed(ex);
+                                            logger.warn(() ->
+                                                    new ParameterizedMessage("failed to execute failure callback for chunk request"), e);
+                                        }
+                                    });
+                                }
+                            }, ccrSettings.getRecoveryActionTimeout(), ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.NAME));
                 }
 
                 private void writeFileChunk(StoreFileMetadata md,

@@ -1,0 +1,11 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+intake+multijob+update-last-good-commit
+    display-name: "elastic / elasticsearch # %BRANCH% - update last good commit"
+    description: Elasticsearch %BRANCH% branch update last good commit in build-stats.
+    node: light
+    properties: []
+    builders:
+      - shell: |
+          #!/usr/local/bin/runbld --job-name elastic+elasticsearch+%BRANCH%+git+push
+          /usr/bin/true

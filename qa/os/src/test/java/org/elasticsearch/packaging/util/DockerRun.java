@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
@@ -38,6 +27,7 @@ public class DockerRun {
     private Integer uid;
     private Integer gid;
     private final List<String> extraArgs = new ArrayList<>();
+    private String memory = "2g"; // default to 2g memory limit
 
     private DockerRun() {}
 
@@ -75,6 +65,13 @@ public class DockerRun {
         return this;
     }
 
+    public DockerRun memory(String memoryLimit) {
+        if (memoryLimit != null) {
+            this.memory = memoryLimit;
+        }
+        return this;
+    }
+
     public DockerRun extraArgs(String... args) {
         Collections.addAll(this.extraArgs, args);
         return this;
@@ -87,6 +84,9 @@ public class DockerRun {
 
         // Run the container in the background
         cmd.add("--detach");
+
+        // Limit container memory
+        cmd.add("--memory " + memory);
 
         this.envVars.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
 
@@ -129,7 +129,31 @@ public class DockerRun {
         return String.join(" ", cmd);
     }
 
-    static String getImageName(Distribution distribution) {
-        return distribution.flavor.name + (distribution.packaging == Distribution.Packaging.DOCKER_UBI ? "-ubi8" : "") + ":test";
+    /**
+     * Derives a Docker image name from the supplied distribution.
+     * @param distribution the distribution to use
+     * @return an image name
+     */
+    public static String getImageName(Distribution distribution) {
+        String suffix;
+
+        switch (distribution.packaging) {
+            case DOCKER:
+                suffix = "";
+                break;
+
+            case DOCKER_UBI:
+                suffix = "-ubi8";
+                break;
+
+            case DOCKER_IRON_BANK:
+                suffix = "-ironbank";
+                break;
+
+            default:
+                throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
+        }
+
+        return "elasticsearch" + suffix + ":test";
     }
 }

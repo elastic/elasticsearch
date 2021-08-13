@@ -1,27 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -31,7 +22,9 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.MockLogAppender;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -40,7 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class DeadNodesAllocationTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(DeadNodesAllocationTests.class);
 
     public void testSimpleDeadNodeOnStartedPrimaryShard() {
         AllocationService allocation = createAllocationService(Settings.builder()
@@ -88,6 +80,44 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
 
         assertThat(clusterState.getRoutingNodes().node(nodeIdRemaining).iterator().next().primary(), equalTo(true));
         assertThat(clusterState.getRoutingNodes().node(nodeIdRemaining).iterator().next().state(), equalTo(STARTED));
+    }
+
+    public void testLoggingOnNodeLeft() throws IllegalAccessException {
+        final AllocationService allocationService = createAllocationService();
+        final Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
+        final ClusterState initialState = applyStartedShardsUntilNoChange(ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).build())
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .build(), allocationService);
+
+        assertTrue(initialState.toString(), initialState.getRoutingNodes().unassigned().isEmpty());
+
+        final Logger allocationServiceLogger = LogManager.getLogger(AllocationService.class);
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        Loggers.addAppender(allocationServiceLogger, appender);
+        try {
+            final String dissociationReason = "node left " + randomAlphaOfLength(10);
+
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "health change log message",
+                AllocationService.class.getName(),
+                Level.INFO,
+                "Cluster health status changed from [GREEN] to [YELLOW] (reason: [" + dissociationReason + "])"
+            ));
+
+            allocationService.disassociateDeadNodes(ClusterState.builder(initialState)
+                .nodes(DiscoveryNodes.builder(initialState.nodes()).remove(initialState.nodes().resolveNode("node1")).build())
+                .build(), false, dissociationReason);
+
+            appender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(allocationServiceLogger, appender);
+            appender.stop();
+        }
     }
 
     public void testDeadNodeWhileRelocatingOnToNode() {

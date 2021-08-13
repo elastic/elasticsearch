@@ -1,30 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -34,7 +26,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 /**
@@ -43,11 +34,14 @@ import static java.util.Collections.unmodifiableMap;
  */
 public final class Mapping implements ToXContentFragment {
 
-    final RootObjectMapper root;
-    final MetadataFieldMapper[] metadataMappers;
-    final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
-    final Map<String, MetadataFieldMapper> metadataMappersByName;
-    final Map<String, Object> meta;
+    public static final Mapping EMPTY = new Mapping(
+        new RootObjectMapper.Builder("_doc").build(new ContentPath()), new MetadataFieldMapper[0], null);
+
+    private final RootObjectMapper root;
+    private final Map<String, Object> meta;
+    private final MetadataFieldMapper[] metadataMappers;
+    private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
+    private final Map<String, MetadataFieldMapper> metadataMappersByName;
 
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.metadataMappers = metadataMappers;
@@ -68,14 +62,54 @@ public final class Mapping implements ToXContentFragment {
         this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.metadataMappersByName = unmodifiableMap(metadataMappersByName);
         this.meta = meta;
+
     }
 
-    /** Return the root object mapper. */
-    public RootObjectMapper root() {
+    /**
+     * Outputs this mapping instance and returns it in {@link CompressedXContent} format
+     * @return the {@link CompressedXContent} representation of this mapping instance
+     */
+    public CompressedXContent toCompressedXContent() {
+        try {
+            return new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        } catch (Exception e) {
+            throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.name() + "]", e);
+        }
+    }
+
+    /**
+     * Returns the root object for the current mapping
+     */
+    RootObjectMapper getRoot() {
         return root;
     }
 
-    public void validate(MappingLookup mappers) {
+    /**
+     * Returns the meta section for the current mapping
+     */
+    public Map<String, Object> getMeta() {
+        return meta;
+    }
+
+    MetadataFieldMapper[] getSortedMetadataMappers() {
+        return metadataMappers;
+    }
+
+    Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappersMap() {
+        return metadataMappersMap;
+    }
+
+    /** Get the metadata mapper with the given class. */
+    @SuppressWarnings("unchecked")
+    public <T extends MetadataFieldMapper> T getMetadataMapperByClass(Class<T> clazz) {
+        return (T) metadataMappersMap.get(clazz);
+    }
+
+    MetadataFieldMapper getMetadataMapperByName(String mapperName) {
+        return metadataMappersByName.get(mapperName);
+    }
+
+    void validate(MappingLookup mappers) {
         for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
             metadataFieldMapper.validate(mappers);
         }
@@ -85,14 +119,8 @@ public final class Mapping implements ToXContentFragment {
     /**
      * Generate a mapping update for the given root object mapper.
      */
-    public Mapping mappingUpdate(Mapper rootObjectMapper) {
-        return new Mapping((RootObjectMapper) rootObjectMapper, metadataMappers, meta);
-    }
-
-    /** Get the root mapper with the given class. */
-    @SuppressWarnings("unchecked")
-    public <T extends MetadataFieldMapper> T metadataMapper(Class<T> clazz) {
-        return (T) metadataMappersMap.get(clazz);
+    Mapping mappingUpdate(RootObjectMapper rootObjectMapper) {
+        return new Mapping(rootObjectMapper, metadataMappers, meta);
     }
 
     /**
@@ -102,7 +130,7 @@ public final class Mapping implements ToXContentFragment {
      * @param reason the reason this merge was initiated.
      * @return the resulting merged mapping.
      */
-    public Mapping merge(Mapping mergeWith, MergeReason reason) {
+    Mapping merge(Mapping mergeWith, MergeReason reason) {
         RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason);
 
         // When merging metadata fields as part of applying an index template, new field definitions
@@ -136,23 +164,16 @@ public final class Mapping implements ToXContentFragment {
         return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
-    public MetadataFieldMapper getMetadataMapper(String mapperName) {
-        return metadataMappersByName.get(mapperName);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        root.toXContent(builder, params, new ToXContent() {
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (meta != null) {
-                    builder.field("_meta", meta);
-                }
-                for (Mapper mapper : metadataMappers) {
-                    mapper.toXContent(builder, params);
-                }
-                return builder;
+        root.toXContent(builder, params, (b, params1) -> {
+            if (meta != null) {
+                b.field("_meta", meta);
             }
+            for (Mapper mapper : metadataMappers) {
+                mapper.toXContent(b, params1);
+            }
+            return b;
         });
         return builder;
     }
@@ -161,7 +182,7 @@ public final class Mapping implements ToXContentFragment {
     public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            toXContent(builder, new ToXContent.MapParams(emptyMap()));
+            toXContent(builder, ToXContent.EMPTY_PARAMS);
             return Strings.toString(builder.endObject());
         } catch (IOException bogus) {
             throw new UncheckedIOException(bogus);

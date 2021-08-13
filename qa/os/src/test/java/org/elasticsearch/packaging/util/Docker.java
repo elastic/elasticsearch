@@ -1,30 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,17 +24,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
-import static org.elasticsearch.packaging.util.FileMatcher.p644;
-import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.DockerRun.getImageName;
+import static org.elasticsearch.packaging.util.FileMatcher.p444;
+import static org.elasticsearch.packaging.util.FileMatcher.p555;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
-import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
-import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -92,6 +82,7 @@ public class Docker {
      * successfully.
      *
      * @param distribution details about the docker image being tested
+     * @return an installation that models the running container
      */
     public static Installation runContainer(Distribution distribution) {
         return runContainer(distribution, DockerRun.builder());
@@ -103,6 +94,7 @@ public class Docker {
      *
      * @param distribution details about the docker image being tested
      * @param builder the command to run
+     * @return an installation that models the running container
      */
     public static Installation runContainer(Distribution distribution, DockerRun builder) {
         executeDockerRun(distribution, builder);
@@ -196,11 +188,11 @@ public class Docker {
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to exit", e);
             }
-        } while (attempt++ < 5);
+        } while (attempt++ < 8);
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
-            fail("Elasticsearch container did exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
+            fail("Elasticsearch container didn't exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
         }
     }
 
@@ -221,7 +213,7 @@ public class Docker {
 
                     // I'm not sure why we're already removing this container, but that's OK.
                     if (isErrorAcceptable == false) {
-                        throw new RuntimeException("Command was not successful: [" + command + "] result: " + result.toString());
+                        throw new RuntimeException("Command was not successful: [" + command + "] result: " + result);
                     }
                 }
             } finally {
@@ -252,7 +244,17 @@ public class Docker {
         protected String[] getScriptCommand(String script) {
             assert containerId != null;
 
-            return super.getScriptCommand("docker exec --user elasticsearch:root --tty " + containerId + " " + script);
+            List<String> cmd = new ArrayList<>();
+            cmd.add("docker");
+            cmd.add("exec");
+            cmd.add("--tty");
+
+            env.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
+
+            cmd.add(containerId);
+            cmd.add(script);
+
+            return super.getScriptCommand(String.join(" ", cmd));
         }
 
         /**
@@ -288,6 +290,8 @@ public class Docker {
 
     /**
      * Checks whether a path exists in the Docker container.
+     * @param path the path that ought to exist
+     * @return whether the path exists
      */
     public static boolean existsInContainer(Path path) {
         return existsInContainer(path.toString());
@@ -295,6 +299,8 @@ public class Docker {
 
     /**
      * Checks whether a path exists in the Docker container.
+     * @param path the path that ought to exist
+     * @return whether the path exists
      */
     public static boolean existsInContainer(String path) {
         logger.debug("Checking whether file " + path + " exists in container");
@@ -321,7 +327,7 @@ public class Docker {
         args.add("--volume \"" + localPath.getParent() + ":" + containerPath.getParent() + "\"");
 
         // Use a lightweight musl libc based small image
-        args.add("alpine");
+        args.add("alpine:3.13");
 
         // And run inline commands via the POSIX shell
         args.add("/bin/sh -c \"" + shellCmd + "\"");
@@ -393,27 +399,50 @@ public class Docker {
 
     /**
      * Checks that the specified path's permissions and ownership match those specified.
+     * <p>
+     * The implementation supports multiple files being matched by the path, via bash expansion, although
+     * it is expected that only the final part of the path will contain expansions.
+     *
+     * @param path the path to check, possibly with e.g. a wildcard (<code>*</code>)
+     * @param expectedUser the file's expected user
+     * @param expectedGroup the file's expected group
+     * @param expectedPermissions the unix permissions that the path ought to have
      */
-    public static void assertPermissionsAndOwnership(Path path, Set<PosixFilePermission> expectedPermissions) {
+    public static void assertPermissionsAndOwnership(
+        Path path,
+        String expectedUser,
+        String expectedGroup,
+        Set<PosixFilePermission> expectedPermissions
+    ) {
         logger.debug("Checking permissions and ownership of [" + path + "]");
 
-        final String[] components = dockerShell.run("stat -c \"%U %G %A\" " + path).stdout.split("\\s+");
+        final Shell.Result result = dockerShell.run("bash -c 'stat -c \"%n %U %G %A\" " + path + "'");
 
-        final String username = components[0];
-        final String group = components[1];
-        final String permissions = components[2];
+        final Path parent = path.getParent();
 
-        // The final substring() is because we don't check the directory bit, and we
-        // also don't want any SELinux security context indicator.
-        Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
+        result.stdout.lines().forEach(line -> {
+            final String[] components = line.split("\\s+");
 
-        assertEquals("Permissions of " + path + " are wrong", expectedPermissions, actualPermissions);
-        assertThat("File owner of " + path + " is wrong", username, equalTo("elasticsearch"));
-        assertThat("File group of " + path + " is wrong", group, equalTo("root"));
+            final String filename = components[0];
+            final String username = components[1];
+            final String group = components[2];
+            final String permissions = components[3];
+
+            // The final substring() is because we don't check the directory bit, and we
+            // also don't want any SELinux security context indicator.
+            Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
+
+            String fullPath = filename.startsWith("/") ? filename : parent + "/" + filename;
+
+            assertEquals("Permissions of " + fullPath + " are wrong", expectedPermissions, actualPermissions);
+            assertThat("File owner of " + fullPath + " is wrong", username, equalTo(expectedUser));
+            assertThat("File group of " + fullPath + " is wrong", group, equalTo(expectedGroup));
+        });
     }
 
     /**
      * Waits for up to 20 seconds for a path to exist in the container.
+     * @param path the path to await
      */
     public static void waitForPathToExist(Path path) throws InterruptedException {
         int attempt = 0;
@@ -430,47 +459,39 @@ public class Docker {
     }
 
     /**
-     * Perform a variety of checks on an installation. If the current distribution is not OSS, additional checks are carried out.
+     * Perform a variety of checks on an installation.
+     * @param es the installation to verify
      */
-    public static void verifyContainerInstallation(Installation installation, Distribution distribution) {
-        verifyOssInstallation(installation);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation);
-        }
-    }
-
-    private static void verifyOssInstallation(Installation es) {
+    public static void verifyContainerInstallation(Installation es) {
+        // Ensure the `elasticsearch` user and group exist.
+        // These lines will both throw an exception if the command fails
         dockerShell.run("id elasticsearch");
         dockerShell.run("getent group elasticsearch");
 
         final Shell.Result passwdResult = dockerShell.run("getent passwd elasticsearch");
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
-        assertThat(homeDir, equalTo("/usr/share/elasticsearch"));
+        assertThat("elasticsearch user's home directory is incorrect", homeDir, equalTo("/usr/share/elasticsearch"));
 
-        Stream.of(es.home, es.data, es.logs, es.config, es.plugins).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
+        assertPermissionsAndOwnership(es.home, "root", "root", p775);
 
-        Stream.of(es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
+        Stream.of(es.bundledJdk, es.lib, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p555));
 
-        assertPermissionsAndOwnership(es.config("elasticsearch.keystore"), p660);
+        // You can't install plugins that include configuration when running as `elasticsearch` and the `config`
+        // dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
+        // config directory.
+        Stream.of(es.bin, es.config, es.logs, es.config.resolve("jvm.options.d"), es.data, es.plugins)
+            .forEach(dir -> assertPermissionsAndOwnership(dir, "elasticsearch", "root", p775));
 
-        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
+        Stream.of(es.bin, es.bundledJdk.resolve("bin"), es.modules.resolve("x-pack-ml/platform/linux-*/bin"))
+            .forEach(binariesPath -> assertPermissionsAndOwnership(binariesPath.resolve("*"), "root", "root", p555));
+
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
+            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), "root", "root", p664));
+
+        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc")
+            .forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), "root", "root", p444));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
-
-        Stream.of(es.bin, es.lib).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
-
-        Stream.of(
-            "elasticsearch",
-            "elasticsearch-cli",
-            "elasticsearch-env",
-            "elasticsearch-keystore",
-            "elasticsearch-node",
-            "elasticsearch-plugin",
-            "elasticsearch-shard"
-        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
-
-        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
 
         // nc is useful for checking network issues
         // zip/unzip are installed to help users who are working with certificates.
@@ -478,32 +499,9 @@ public class Docker {
             .forEach(
                 cliBinary -> assertTrue(
                     cliBinary + " ought to be available.",
-                    dockerShell.runIgnoreExitCode("hash " + cliBinary).isSuccess()
+                    dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
                 )
             );
-    }
-
-    private static void verifyDefaultInstallation(Installation es) {
-        Stream.of(
-            "elasticsearch-certgen",
-            "elasticsearch-certutil",
-            "elasticsearch-croneval",
-            "elasticsearch-saml-metadata",
-            "elasticsearch-setup-passwords",
-            "elasticsearch-sql-cli",
-            "elasticsearch-syskeygen",
-            "elasticsearch-users",
-            "x-pack-env",
-            "x-pack-security-env",
-            "x-pack-watcher-env"
-        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
-
-        // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
-        // the version through here
-        assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p755);
-
-        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
@@ -513,6 +511,18 @@ public class Docker {
     public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
         throws Exception {
         withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
+    }
+
+    public static void waitForElasticsearch(Installation installation, String username, String password) {
+        try {
+            waitForElasticsearch("green", null, installation, username, password);
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
+        }
     }
 
     /**
@@ -537,22 +547,48 @@ public class Docker {
         return containerId;
     }
 
+    /**
+     * Performs an HTTP GET to <code>http://localhost:9200/</code> with the supplied path.
+     * @param path the path to fetch, which must start with <code>/</code>
+     * @return the parsed response
+     */
     public static JsonNode getJson(String path) throws Exception {
-        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200/" + path));
+        path = Objects.requireNonNull(path, "path can not be null").trim();
+        if (path.isEmpty()) {
+            throw new IllegalArgumentException("path must be supplied");
+        }
+        if (path.startsWith("/") == false) {
+            throw new IllegalArgumentException("path must start with /");
+        }
+        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path));
 
         ObjectMapper mapper = new ObjectMapper();
 
         return mapper.readTree(pluginsResponse);
     }
 
-    public static Map<String, String> getImageLabels(Distribution distribution) throws Exception {
-        // The format below extracts the .Config.Labels value, and prints it as json. Without the json
-        // modifier, a stringified Go map is printed instead, which isn't helpful.
-        String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + getImageName(distribution)).stdout;
+    public static JsonNode getJson(String path, String user, String password) throws Exception {
+        path = Objects.requireNonNull(path, "path can not be null").trim();
+        if (path.isEmpty()) {
+            throw new IllegalArgumentException("path must be supplied");
+        }
+        if (path.startsWith("/") == false) {
+            throw new IllegalArgumentException("path must start with /");
+        }
+        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path), user, password, null);
 
         ObjectMapper mapper = new ObjectMapper();
 
-        final JsonNode jsonNode = mapper.readTree(labelsJson);
+        return mapper.readTree(pluginsResponse);
+    }
+
+    /**
+     * Fetches all the labels for a Docker image
+     * @param distribution required to derive the image name
+     * @return a mapping from label name to value
+     */
+    public static Map<String, String> getImageLabels(Distribution distribution) throws Exception {
+        final JsonNode jsonNode = getImageInspectionJson(distribution).at("/Config/Labels");
 
         Map<String, String> labels = new HashMap<>();
 
@@ -561,11 +597,41 @@ public class Docker {
         return labels;
     }
 
+    /**
+     * Fetches the <code>HEALTHCHECK</code> command for a Docker image
+     * @param distribution required to derive the image name
+     * @return a list of values from `docker inspect`, or null if there is no healthcheck defined
+     */
+    public static List<String> getImageHealthcheck(Distribution distribution) throws Exception {
+        final JsonNode jsonNode = getImageInspectionJson(distribution).at("/Config/Healthcheck/Test");
+
+        if (jsonNode.isMissingNode()) {
+            return null;
+        }
+
+        List<String> healthcheck = new ArrayList<>(jsonNode.size());
+
+        for (JsonNode node : jsonNode) {
+            healthcheck.add(node.textValue());
+        }
+
+        return healthcheck;
+    }
+
+    private static JsonNode getImageInspectionJson(Distribution distribution) throws Exception {
+        String labelsJson = sh.run("docker inspect " + getImageName(distribution)).stdout;
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readTree(labelsJson).get(0);
+    }
+
     public static Shell.Result getContainerLogs() {
         return sh.run("docker logs " + containerId);
     }
 
-    public static String getImageName(Distribution distribution) {
-        return distribution.flavor.name + (distribution.packaging == Distribution.Packaging.DOCKER_UBI ? "-ubi8" : "") + ":test";
+    /**
+     * Restarts the current docker container.
+     */
+    public static void restartContainer() {
+        sh.run("docker restart " + containerId);
     }
 }

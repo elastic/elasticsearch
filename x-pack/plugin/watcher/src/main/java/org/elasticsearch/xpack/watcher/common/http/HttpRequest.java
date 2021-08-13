@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -194,24 +194,25 @@ public class HttpRequest implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         HttpRequest that = (HttpRequest) o;
-
-        if (port != that.port) return false;
-        if (!host.equals(that.host)) return false;
-        if (scheme != that.scheme) return false;
-        if (method != that.method) return false;
-        if (path != null ? !path.equals(that.path) : that.path != null) return false;
-        if (!params.equals(that.params)) return false;
-        if (!headers.equals(that.headers)) return false;
-        if (auth != null ? !auth.equals(that.auth) : that.auth != null) return false;
-        if (connectionTimeout != null ? !connectionTimeout.equals(that.connectionTimeout) : that.connectionTimeout != null) return false;
-        if (readTimeout != null ? !readTimeout.equals(that.readTimeout) : that.readTimeout != null) return false;
-        if (proxy != null ? !proxy.equals(that.proxy) : that.proxy != null) return false;
-        return !(body != null ? !body.equals(that.body) : that.body != null);
-
+        return port == that.port
+            && Objects.equals(host, that.host)
+            && scheme == that.scheme
+            && method == that.method
+            && Objects.equals(path, that.path)
+            && Objects.equals(params, that.params)
+            && Objects.equals(headers, that.headers)
+            && Objects.equals(auth, that.auth)
+            && Objects.equals(connectionTimeout, that.connectionTimeout)
+            && Objects.equals(readTimeout, that.readTimeout)
+            && Objects.equals(proxy, that.proxy)
+            && Objects.equals(body, that.body);
     }
 
     @Override
@@ -227,7 +228,7 @@ public class HttpRequest implements ToXContentObject {
         sb.append("host=[").append(host).append("], ");
         sb.append("port=[").append(port).append("], ");
         sb.append("path=[").append(path).append("], ");
-        if (!headers.isEmpty()) {
+        if (headers.isEmpty() == false) {
             sb.append(sanitizeHeaders(headers).entrySet().stream()
                 .map(header -> header.getKey() + ": " + header.getValue())
                 .collect(Collectors.joining(", ", "headers=[", "], ")));
@@ -290,10 +291,12 @@ public class HttpRequest implements ToXContentObject {
                                 pe, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
+                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    final Map<String, String> headers = (Map) WatcherUtils.flattenModel(parser.map());
                     if (Field.HEADERS.match(currentFieldName, parser.getDeprecationHandler())) {
-                        builder.setHeaders((Map) WatcherUtils.flattenModel(parser.map()));
+                        builder.setHeaders(headers);
                     } else if (Field.PARAMS.match(currentFieldName, parser.getDeprecationHandler())) {
-                        builder.setParams((Map) WatcherUtils.flattenModel(parser.map()));
+                        builder.setParams(headers);
                     } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.body(parser.text());
                     } else {
@@ -499,17 +502,18 @@ public class HttpRequest implements ToXContentObject {
      * Write a request via toXContent, but filter certain parts of it - this is needed to not expose secrets
      *
      * @param request        The HttpRequest object to serialize
-     * @param xContent       The xContent from the parent outputstream builder
+     * @param xContentType   The XContentType from the parent outputstream builder
      * @param params         The ToXContentParams from the parent write
      * @param excludeField   The field to exclude
      * @return               A bytearrayinputstream that contains the serialized request
      * @throws IOException   if an IOException is triggered in the underlying toXContent method
      */
-    public static InputStream filterToXContent(HttpRequest request, XContent xContent, ToXContent.Params params,
+    public static InputStream filterToXContent(HttpRequest request, XContentType xContentType, Params params,
                                                String excludeField) throws IOException {
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             XContentBuilder filteredBuilder = new XContentBuilder(xContent, bos,
-                     Collections.emptySet(), Collections.singleton(excludeField))) {
+             XContentBuilder filteredBuilder = new XContentBuilder(xContentType.xContent(), bos,
+                 Collections.emptySet(), Collections.singleton(excludeField),
+                 xContentType.toParsedMediaType())) {
             request.toXContent(filteredBuilder, params);
             filteredBuilder.flush();
             return new ByteArrayInputStream(bos.toByteArray());

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.util;
@@ -89,14 +90,14 @@ public final class DateUtils {
     /**
      * Creates a datetime from the millis since epoch (thus the time-zone is UTC).
      */
-    public static ZonedDateTime asDateTime(long millis) {
+    public static ZonedDateTime asDateTimeWithMillis(long millis) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
     }
 
     /**
      * Creates a datetime from the millis since epoch then translates the date into the given timezone.
      */
-    public static ZonedDateTime asDateTime(long millis, ZoneId id) {
+    public static ZonedDateTime asDateTimeWithMillis(long millis, ZoneId id) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), id);
     }
 
@@ -124,7 +125,7 @@ public final class DateUtils {
     /**
      * Parses the given string into a DateTime using UTC as a default timezone.
      */
-    public static ZonedDateTime asDateTime(String dateFormat) {
+    public static ZonedDateTime asDateTimeWithNanos(String dateFormat) {
         return DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(dateFormat)).withZoneSameInstant(UTC);
     }
 
@@ -177,29 +178,29 @@ public final class DateUtils {
         nano = nano - nano % (int) Math.pow(10, (9 - precision));
         return nano;
     }
-    
+
     public static ZonedDateTime atTimeZone(LocalDate ld, ZoneId zoneId) {
         return ld.atStartOfDay(zoneId);
     }
-    
+
     public static ZonedDateTime atTimeZone(LocalDateTime ldt, ZoneId zoneId) {
         return ZonedDateTime.ofInstant(ldt, zoneId.getRules().getValidOffsets(ldt).get(0), zoneId);
     }
-    
+
     public static OffsetTime atTimeZone(OffsetTime ot, ZoneId zoneId) {
         LocalDateTime ldt = ot.atDate(LocalDate.EPOCH).toLocalDateTime();
         return ot.withOffsetSameInstant(zoneId.getRules().getValidOffsets(ldt).get(0));
     }
-    
+
     public static OffsetTime atTimeZone(LocalTime lt, ZoneId zoneId) {
         LocalDateTime ldt = lt.atDate(LocalDate.EPOCH);
         return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
     }
-    
+
     public static ZonedDateTime atTimeZone(ZonedDateTime zdt, ZoneId zoneId) {
         return zdt.withZoneSameInstant(zoneId);
     }
-    
+
     public static TemporalAccessor atTimeZone(TemporalAccessor ta, ZoneId zoneId) {
         if (ta instanceof LocalDateTime) {
             return atTimeZone((LocalDateTime) ta, zoneId);

@@ -35,7 +35,7 @@ using the `bin/elasticsearch-keystore add` command, call:
 ----
 POST _nodes/reload_secure_settings
 {
-  "secure_settings_password": "s3cr3t" <1>
+  "secure_settings_password": "keystore-password" <1>
 }
 ----
 // NOTCONSOLE

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -26,16 +28,17 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -377,7 +380,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 // for the remote cluster it is tracking and will continue to operate, while in
                 // the meantime in updateAutoFollowers() method another AutoFollower instance has been
                 // started for the same remote cluster.)
-                LOGGER.info("AutoFollower instance for cluster [{}] has been removed", remoteCluster);
+                LOGGER.trace("auto-follower instance for cluster [{}] has been removed", remoteCluster);
                 return;
             }
 
@@ -385,7 +388,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             final ClusterState clusterState = followerClusterStateSupplier.get();
             final AutoFollowMetadata autoFollowMetadata = clusterState.metadata().custom(AutoFollowMetadata.TYPE);
             if (autoFollowMetadata == null) {
-                LOGGER.info("AutoFollower for cluster [{}] has stopped, because there is no autofollow metadata", remoteCluster);
+                LOGGER.info("auto-follower for cluster [{}] has stopped, because there is no autofollow metadata", remoteCluster);
                 return;
             }
 
@@ -396,7 +399,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 .sorted()
                 .collect(Collectors.toList());
             if (patterns.isEmpty()) {
-                LOGGER.info("AutoFollower for cluster [{}] has stopped, because there are no more patterns", remoteCluster);
+                LOGGER.info("auto-follower for cluster [{}] has stopped, because there are no more patterns", remoteCluster);
                 return;
             }
 
@@ -414,7 +417,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             getRemoteClusterState(remoteCluster, Math.max(1L, nextMetadataVersion), (remoteClusterStateResponse, remoteError) -> {
                 // Also check removed flag here, as it may take a while for this remote cluster state api call to return:
                 if (removed) {
-                    LOGGER.info("AutoFollower instance for cluster [{}] has been removed", remoteCluster);
+                    LOGGER.trace("auto-follower instance for cluster [{}] has been removed", remoteCluster);
                     return;
                 }
 
@@ -431,7 +434,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 } else {
                     assert remoteError != null;
                     if (remoteError instanceof NoSuchRemoteClusterException) {
-                        LOGGER.info("AutoFollower for cluster [{}] has stopped, because remote connection is gone", remoteCluster);
+                        LOGGER.info("auto-follower for cluster [{}] has stopped, because remote connection is gone", remoteCluster);
                         remoteClusterConnectionMissing = true;
                         return;
                     }
@@ -519,6 +522,19 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             }
                             groupedListener.onResponse(new Tuple<>(indexToFollow, failure));
                         });
+                    } else if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexSettings)) {
+                        String message = String.format(Locale.ROOT,
+                            "index to follow [%s] is a searchable snapshot index and cannot be used for cross-cluster replication purpose",
+                            indexToFollow.getName()
+                        );
+                        LOGGER.debug(message);
+                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
+                            ElasticsearchException failure = new ElasticsearchException(message);
+                            if (error != null) {
+                                failure.addSuppressed(error);
+                            }
+                            groupedListener.onResponse(new Tuple<>(indexToFollow, failure));
+                        });
                     } else if (leaderIndexAlreadyFollowed(autoFollowPattern, indexToFollow, localMetadata)) {
                         updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow),
                             error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error)));
@@ -577,7 +593,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {
-                LOGGER.info("Auto followed leader index [{}] as follow index [{}]", leaderIndexName, followIndexName);
+                LOGGER.info("auto followed leader index [{}] as follow index [{}]", indexToFollow, followIndexName);
 
                 // This function updates the auto follow metadata in the cluster to record that the leader index has been followed:
                 // (so that we do not try to follow it in subsequent auto follow runs)

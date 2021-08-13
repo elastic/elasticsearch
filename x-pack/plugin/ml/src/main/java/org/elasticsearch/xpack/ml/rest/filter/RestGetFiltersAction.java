@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.filter;
 
@@ -13,20 +14,20 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetFiltersAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}"),
-            new Route(GET, MachineLearning.BASE_PATH + "filters/")
+            new Route(GET, BASE_PATH + "filters/{" + MlFilter.ID + "}"),
+            new Route(GET, BASE_PATH + "filters/")
         );
     }
 
@@ -39,7 +40,7 @@ public class RestGetFiltersAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetFiltersAction.Request request = new GetFiltersAction.Request();
         String filterId = restRequest.param(MlFilter.ID.getPreferredName());
-        if (!Strings.isNullOrEmpty(filterId)) {
+        if (Strings.isNullOrEmpty(filterId) == false) {
             request.setResourceId(filterId);
         }
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {

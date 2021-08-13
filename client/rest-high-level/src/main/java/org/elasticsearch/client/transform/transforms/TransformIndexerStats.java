@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -37,10 +26,12 @@ public class TransformIndexerStats {
     static ParseField PAGES_PROCESSED = new ParseField("pages_processed");
     static ParseField DOCUMENTS_PROCESSED = new ParseField("documents_processed");
     static ParseField DOCUMENTS_INDEXED = new ParseField("documents_indexed");
+    static ParseField DOCUMENTS_DELETED = new ParseField("documents_deleted");
     static ParseField TRIGGER_COUNT = new ParseField("trigger_count");
     static ParseField INDEX_TIME_IN_MS = new ParseField("index_time_in_ms");
     static ParseField SEARCH_TIME_IN_MS = new ParseField("search_time_in_ms");
     static ParseField PROCESSING_TIME_IN_MS = new ParseField("processing_time_in_ms");
+    static ParseField DELETE_TIME_IN_MS = new ParseField("delete_time_in_ms");
     static ParseField INDEX_TOTAL = new ParseField("index_total");
     static ParseField SEARCH_TOTAL = new ParseField("search_total");
     static ParseField PROCESSING_TOTAL = new ParseField("processing_total");
@@ -63,9 +54,11 @@ public class TransformIndexerStats {
             unboxSafe(args[9], 0L),
             unboxSafe(args[10], 0L),
             unboxSafe(args[11], 0L),
-            unboxSafe(args[12], 0.0),
-            unboxSafe(args[13], 0.0),
-            unboxSafe(args[14], 0.0)
+            unboxSafe(args[12], 0L),
+            unboxSafe(args[13], 0L),
+            unboxSafe(args[14], 0.0),
+            unboxSafe(args[15], 0.0),
+            unboxSafe(args[16], 0.0)
         )
     );
 
@@ -73,10 +66,12 @@ public class TransformIndexerStats {
         LENIENT_PARSER.declareLong(optionalConstructorArg(), PAGES_PROCESSED);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), DOCUMENTS_PROCESSED);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), DOCUMENTS_INDEXED);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), DOCUMENTS_DELETED);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), TRIGGER_COUNT);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), INDEX_TIME_IN_MS);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), SEARCH_TIME_IN_MS);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), PROCESSING_TIME_IN_MS);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), DELETE_TIME_IN_MS);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), INDEX_TOTAL);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), SEARCH_TOTAL);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), PROCESSING_TOTAL);
@@ -97,12 +92,14 @@ public class TransformIndexerStats {
     private final long pagesProcessed;
     private final long documentsProcessed;
     private final long documentsIndexed;
+    private final long documentsDeleted;
     private final long triggerCount;
     private final long indexTime;
     private final long indexTotal;
     private final long searchTime;
     private final long searchTotal;
     private final long processingTime;
+    private final long deleteTime;
     private final long processingTotal;
     private final long indexFailures;
     private final long searchFailures;
@@ -111,10 +108,12 @@ public class TransformIndexerStats {
         long pagesProcessed,
         long documentsProcessed,
         long documentsIndexed,
+        long documentsDeleted,
         long triggerCount,
         long indexTime,
         long searchTime,
         long processingTime,
+        long deleteTime,
         long indexTotal,
         long searchTotal,
         long processingTotal,
@@ -127,10 +126,12 @@ public class TransformIndexerStats {
         this.pagesProcessed = pagesProcessed;
         this.documentsProcessed = documentsProcessed;
         this.documentsIndexed = documentsIndexed;
+        this.documentsDeleted = documentsDeleted;
         this.triggerCount = triggerCount;
         this.indexTime = indexTime;
         this.indexTotal = indexTotal;
         this.searchTime = searchTime;
+        this.deleteTime = deleteTime;
         this.searchTotal = searchTotal;
         this.processingTime = processingTime;
         this.processingTotal = processingTotal;
@@ -218,6 +219,13 @@ public class TransformIndexerStats {
     }
 
     /**
+     * Number of documents deleted
+     */
+    public long getDocumentsDeleted() {
+        return documentsDeleted;
+    }
+
+    /**
      * Number of index failures that have occurred
      */
     public long getIndexFailures() {
@@ -250,6 +258,13 @@ public class TransformIndexerStats {
      */
     public long getProcessingTime() {
         return processingTime;
+    }
+
+    /**
+     * Returns the time spent deleting (cumulative) in milliseconds
+     */
+    public long getDeleteTime() {
+        return deleteTime;
     }
 
     /**
@@ -289,10 +304,12 @@ public class TransformIndexerStats {
         return Objects.equals(this.pagesProcessed, that.pagesProcessed)
             && Objects.equals(this.documentsProcessed, that.documentsProcessed)
             && Objects.equals(this.documentsIndexed, that.documentsIndexed)
+            && Objects.equals(this.documentsDeleted, that.documentsDeleted)
             && Objects.equals(this.triggerCount, that.triggerCount)
             && Objects.equals(this.indexTime, that.indexTime)
             && Objects.equals(this.searchTime, that.searchTime)
             && Objects.equals(this.processingTime, that.processingTime)
+            && Objects.equals(this.deleteTime, that.deleteTime)
             && Objects.equals(this.indexFailures, that.indexFailures)
             && Objects.equals(this.searchFailures, that.searchFailures)
             && Objects.equals(this.indexTotal, that.indexTotal)
@@ -309,10 +326,12 @@ public class TransformIndexerStats {
             pagesProcessed,
             documentsProcessed,
             documentsIndexed,
+            documentsDeleted,
             triggerCount,
             indexTime,
             searchTime,
             processingTime,
+            deleteTime,
             indexFailures,
             searchFailures,
             indexTotal,

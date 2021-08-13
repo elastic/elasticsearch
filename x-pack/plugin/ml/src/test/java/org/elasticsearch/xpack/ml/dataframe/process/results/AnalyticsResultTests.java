@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStat
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaselineTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
@@ -71,7 +73,10 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
             builder.setModelMetadata(new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
                 .limit(randomIntBetween(1, 10))
                 .collect(Collectors.toList()),
-                FeatureImportanceBaselineTests.randomInstance()));
+                FeatureImportanceBaselineTests.randomInstance(),
+                Stream.generate(HyperparametersTests::randomInstance)
+                .limit(randomIntBetween(1, 10))
+                .collect(Collectors.toList())));
         }
         return builder.build();
     }

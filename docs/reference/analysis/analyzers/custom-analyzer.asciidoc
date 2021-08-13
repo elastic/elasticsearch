@@ -14,6 +14,10 @@ When the built-in analyzers do not fulfill your needs, you can create a
 The `custom` analyzer accepts the following parameters:
 
 [horizontal]
+`type`::
+    Analyzer type. Accepts <<analysis-analyzers, built-in analyzer types>>. For
+    custom analyzers, use `custom` or omit this parameter.
+
 `tokenizer`::
 
     A built-in or customised <<analysis-tokenizers,tokenizer>>.
@@ -34,7 +38,7 @@ The `custom` analyzer accepts the following parameters:
     When indexing an array of text values, Elasticsearch inserts a fake "gap"
     between the last term of one value and the first term of the next value to
     ensure that a phrase query doesn't match two terms from different array
-    elements.  Defaults to `100`. See <<position-increment-gap>> for more.
+    elements. Defaults to `100`. See <<position-increment-gap>> for more.
 
 [discrete]
 === Example configuration
@@ -81,10 +85,8 @@ POST my-index-000001/_analyze
 }
 --------------------------------
 
-<1> Setting `type` to `custom` tells Elasticsearch that we are defining a custom analyzer.
-    Compare this to how <<configuring-analyzers,built-in analyzers can be configured>>:
-    `type` will be set to the name of the built-in analyzer, like
-    <<analysis-standard-analyzer,`standard`>> or <<analysis-simple-analyzer,`simple`>>.
+<1> For `custom` analyzers, use a `type` of `custom` or omit the `type`
+parameter.
 
 /////////////////////
 
@@ -161,7 +163,6 @@ PUT my-index-000001
     "analysis": {
       "analyzer": {
         "my_custom_analyzer": { <1>
-          "type": "custom",
           "char_filter": [
             "emoticons"
           ],
@@ -206,7 +207,7 @@ POST my-index-000001/_analyze
 
 <1> Assigns the index a default custom analyzer, `my_custom_analyzer`. This
 analyzer uses a custom tokenizer, character filter, and token filter that
-are defined later in the request.
+are defined later in the request. This analyzer also omits the `type` parameter.
 <2> Defines the custom `punctuation` tokenizer.
 <3> Defines the custom `emoticons` character filter.
 <4> Defines the custom `english_stop` token filter.

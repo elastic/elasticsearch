@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.template.put;
@@ -30,6 +19,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
@@ -58,7 +48,8 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     public void testPutGlobalTemplatesCannotHaveHiddenIndexSetting() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(List.of("*"), template, null, null, null, null, null, null);
+        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate.Builder().indexPatterns(List.of("*"))
+            .template(template).build();
 
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);
@@ -84,12 +75,27 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     public void testValidationOfPriority() {
         PutComposableIndexTemplateAction.Request req = new PutComposableIndexTemplateAction.Request("test");
-        req.indexTemplate(new ComposableIndexTemplate(Arrays.asList("foo", "bar"), null, null, -5L, null, null, null, null));
+        req.indexTemplate(new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("foo", "bar"))
+           .priority(-5L).build());
         ActionRequestValidationException validationException = req.validate();
         assertThat(validationException, is(notNullValue()));
         List<String> validationErrors = validationException.validationErrors();
         assertThat(validationErrors.size(), is(1));
         String error = validationErrors.get(0);
         assertThat(error, is("index template priority must be >= 0"));
+    }
+
+    public void testValidateNoTemplate() {
+        PutComposableIndexTemplateAction.Request req = new PutComposableIndexTemplateAction.Request("test");
+        req.indexTemplate(new ComposableIndexTemplate.Builder()
+            .indexPatterns(Collections.singletonList("*"))
+            .build());
+        assertNull(req.validate());
+
+        req.indexTemplate(new ComposableIndexTemplate.Builder()
+            .indexPatterns(Collections.singletonList("*"))
+            .template(new Template(null, null, null))
+            .build());
+        assertNull(req.validate());
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
@@ -107,8 +108,8 @@ public class OutlierDetectionTests extends AbstractBWCSerializationTestCase<Outl
         assertThat(createTestInstance().getFieldCardinalityConstraints(), is(empty()));
     }
 
-    public void testGetExplicitlyMappedFields() {
-        Map<String, Object> mappedFields = createTestInstance().getExplicitlyMappedFields("test", null);
+    public void testGetResultMappings() {
+        Map<String, Object> mappedFields = createTestInstance().getResultMappings("test", null);
         assertThat(mappedFields.size(), equalTo(2));
         assertThat(mappedFields, hasKey("test.outlier_score"));
         assertThat(mappedFields.get("test.outlier_score"),

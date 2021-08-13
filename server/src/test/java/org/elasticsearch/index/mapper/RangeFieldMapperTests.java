@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -22,7 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -31,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -77,6 +67,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     @Override
     protected Object getSampleValueForQuery() {
         return 6;
+    }
+
+    @Override
+    protected boolean supportsSearchLookup() {
+        return false;
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -336,9 +331,10 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     public void testSerializeDefaults() throws Exception {
         for (String type : types()) {
             DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
-            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.root().getMapper("field");
+            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.mapping().getRoot().getMapper("field");
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            mapper.doXContentBody(builder, true, ToXContent.EMPTY_PARAMS);
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
+            mapper.doXContentBody(builder, params);
             String got = Strings.toString(builder.endObject());
 
             // if type is date_range we check that the mapper contains the default format and locale
@@ -354,5 +350,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             () -> createMapperService(fieldMapping(b -> b.field("type", "date_range").array("format", "test_format")))
         );
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        // Doc value fetching crashes.
+        // https://github.com/elastic/elasticsearch/issues/70269
+        // TODO when we fix doc values fetcher we should add tests for date and ip ranges.
+        assumeFalse("DocValuesFetcher doesn't work", true);
+        return null;
     }
 }

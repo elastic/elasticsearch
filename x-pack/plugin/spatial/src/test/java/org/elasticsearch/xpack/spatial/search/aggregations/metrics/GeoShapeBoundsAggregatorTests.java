@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
@@ -15,7 +16,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
@@ -57,7 +58,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .wrapLongitude(false);
 
             MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -85,7 +86,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .wrapLongitude(false);
 
             MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -107,7 +108,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             w.addDocument(doc);
 
             MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
 
             Point point = GeometryTestUtils.randomPoint(false);
             double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getX()));
@@ -139,7 +140,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             w.addDocument(doc);
 
             MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
 
             GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
                 .field("field")
@@ -199,7 +200,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .wrapLongitude(false);
 
             MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);

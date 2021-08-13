@@ -8,8 +8,7 @@
 The {es} {security-features} enable you to easily secure a cluster. You can
 password-protect your data as well as implement more advanced security measures
 such as encrypting communications, role-based access control, IP filtering, and
-auditing. For more information, see
-<<elasticsearch-security>>.
+auditing.
 
 . Verify that you are using a license that includes the specific
 {security-features} you want.
@@ -23,17 +22,17 @@ For more information, see https://www.elastic.co/subscriptions and
 your cluster. If you are using basic or trial licenses, the default value is `false`.
 For more information, see <<security-settings>>.
 
-. If you plan to run {es} in a Federal Information Processing Standard (FIPS) 
-140-2 enabled JVM, see <<fips-140-compliance>>. 
+. If you plan to run {es} in a Federal Information Processing Standard (FIPS)
+140-2 enabled JVM, see <<fips-140-compliance>>.
 
-. <<configuring-tls,Configure Transport Layer Security (TLS/SSL) for internode-communication>>.
+. <<encrypt-internode-communication,Configure Transport Layer Security (TLS/SSL) for internode-communication>>.
 +
 --
 NOTE: This requirement applies to clusters with more than one node and to
 clusters with a single node that listens on an external interface. Single-node
-clusters that use a loopback interface do not have this requirement.  For more
+clusters that use a loopback interface do not have this requirement. For more
 information, see
-<<encrypting-communications>>.
+<<configuring-stack-security>>.
 
 --
 
@@ -70,7 +69,7 @@ user API.
 --
 TIP: The types of authentication realms that you can enable varies according to
 your subscription. For more information, see https://www.elastic.co/subscriptions.
- 
+
 --
 ** <<active-directory-realm,Active Directory realms>>
 ** <<file-realm,File realms>>
@@ -127,7 +126,7 @@ information, see https://www.elastic.co/subscriptions.
 xpack.security.audit.enabled: true
 ----------------------------
 +
-For more information, see <<enable-audit-logging>> and <<auditing-settings>>. 
+For more information, see <<enable-audit-logging>> and <<auditing-settings>>.
 
 .. Restart {es}.
 
@@ -139,4 +138,3 @@ To walk through the configuration of {security-features} in {es}, {kib}, {ls}, a
 
 include::reference/files.asciidoc[]
 include::fips-140-compliance.asciidoc[]
-

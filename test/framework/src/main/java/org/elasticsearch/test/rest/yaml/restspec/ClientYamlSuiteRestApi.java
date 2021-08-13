@@ -1,24 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,9 +32,17 @@ public class ClientYamlSuiteRestApi {
     private Map<String, Boolean> params = new HashMap<>();
     private Body body = Body.NOT_SUPPORTED;
     private Stability stability;
+    private Visibility visibility;
+    private String featureFlag;
+    private List<String> responseMimeTypes;
+    private List<String> requestMimeTypes;
 
     public enum Stability {
         EXPERIMENTAL, BETA, STABLE
+    }
+
+    public enum Visibility {
+        PRIVATE, FEATURE_FLAG, PUBLIC
     }
 
     public enum Body {
@@ -120,6 +117,30 @@ public class ClientYamlSuiteRestApi {
     }
 
     public Stability getStability() { return this.stability; }
+
+    public void setVisibility(String visibility) {
+        this.visibility = Visibility.valueOf(visibility.toUpperCase(Locale.ROOT));
+    }
+
+    public Visibility getVisibility() { return this.visibility; }
+
+    public void setFeatureFlag(String featureFlag) {
+        this.featureFlag = featureFlag;
+    }
+
+    public String getFeatureFlag() { return this.featureFlag; }
+    public void setResponseMimeTypes(List<String> mimeTypes) {
+        this.responseMimeTypes = mimeTypes;
+    }
+
+    public List<String> getResponseMimeTypes() { return this.responseMimeTypes; }
+
+    public void setRequestMimeTypes(List<String> mimeTypes) {
+        this.requestMimeTypes = mimeTypes;
+    }
+
+    public List<String> getRequestMimeTypes() { return this.requestMimeTypes; }
+
 
     /**
      * Returns the best matching paths based on the provided parameters, which may include either path parts or query_string parameters.

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -10,7 +11,7 @@ import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -21,7 +22,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -85,9 +86,9 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
 
         // fake realms so ssl will get loaded
         builder.putList("xpack.security.authc.realms.active_directory.foo.ssl.certificate_authorities", certificatePaths);
-        builder.put("xpack.security.authc.realms.active_directory.foo.ssl.verification_mode", VerificationMode.FULL);
+        builder.put("xpack.security.authc.realms.active_directory.foo.ssl.verification_mode", SslVerificationMode.FULL);
         builder.putList("xpack.security.authc.realms.active_directory.bar.ssl.certificate_authorities", certificatePaths);
-        builder.put("xpack.security.authc.realms.active_directory.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
+        builder.put("xpack.security.authc.realms.active_directory.bar.ssl.verification_mode", SslVerificationMode.CERTIFICATE);
         globalSettings = builder.build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(environment);
@@ -109,7 +110,7 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
             .putList(getFullSettingKey(realmId, SSLConfigurationSettings.CAPATH_SETTING_REALM), certificatePaths);
         if (randomBoolean()) {
             builder.put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
-                    hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
+                    hostnameVerification ? SslVerificationMode.FULL : SslVerificationMode.CERTIFICATE);
         } else {
             builder.put(getFullSettingKey(realmId, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -25,13 +26,13 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -639,7 +641,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         final List<Tuple<String, Long>> docAndSeqNosOnLeader = getDocIdAndSeqNos(leader.getPrimary()).stream()
             .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
         final Map<Long, Translog.Operation> operationsOnLeader = new HashMap<>();
-        try (Translog.Snapshot snapshot = leader.getPrimary().newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = leader.getPrimary().newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operationsOnLeader.put(op.seqNo(), op);
@@ -653,7 +655,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
                 .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
             assertThat(docAndSeqNosOnFollower, equalTo(docAndSeqNosOnLeader));
-            try (Translog.Snapshot snapshot = followingShard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
+            try (Translog.Snapshot snapshot = followingShard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {
                     Translog.Operation leaderOp = operationsOnLeader.get(op.seqNo());

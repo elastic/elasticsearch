@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
 import javax.crypto.SecretKeyFactory;
 import javax.net.ssl.SSLContext;
@@ -32,6 +33,12 @@ import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
  * A container for xpack setting constants.
  */
 public class XPackSettings {
+    private static final boolean IS_DARWIN_AARCH64;
+    static {
+        final String name = System.getProperty("os.name");
+        final String arch = System.getProperty("os.arch");
+        IS_DARWIN_AARCH64 = "aarch64".equals(arch) && name.startsWith("Mac OS X");
+    }
 
     private XPackSettings() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -52,8 +59,15 @@ public class XPackSettings {
     public static final Setting<Boolean> GRAPH_ENABLED = Setting.boolSetting("xpack.graph.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling machine learning. Defaults to true. */
-    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting("xpack.ml.enabled", true,
-            Setting.Property.NodeScope);
+    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
+        "xpack.ml.enabled",
+        IS_DARWIN_AARCH64 == false,
+        value -> {
+            if (value && IS_DARWIN_AARCH64) {
+                throw new IllegalArgumentException("[xpack.ml.enabled] can not be set to [true] on [Mac OS X/aarch64]");
+            }
+        },
+        Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling auditing. Defaults to false. */
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting("xpack.security.audit.enabled", false,
@@ -86,6 +100,10 @@ public class XPackSettings {
     /** Setting for enabling or disabling FIPS mode. Defaults to false */
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
+
+    /** Setting for enabling enrollment process; set-up by the es start-up script */
+    public static final Setting<Boolean> ENROLLMENT_ENABLED =
+        Setting.boolSetting("xpack.security.enrollment.enabled", false, Property.NodeScope);
 
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
@@ -127,9 +145,9 @@ public class XPackSettings {
         new Setting.SimpleKey("xpack.security.authc.password_hashing.algorithm"),
         (s) -> {
             if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
-                return "PBKDF2";
+                return Hasher.PBKDF2_STRETCH.name();
             } else {
-                return "BCRYPT";
+                return Hasher.BCRYPT.name();
             }
         },
         Function.identity(),
@@ -144,6 +162,26 @@ public class XPackSettings {
                     throw new IllegalArgumentException(
                         "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the " +
                             "PBKDF2 algorithms for the [xpack.security.authc.password_hashing.algorithm] setting.", e);
+                }
+            }
+        }, Property.NodeScope);
+
+    // TODO: This setting of hashing algorithm can share code with the one for password when pbkdf2_stretch is the default for both
+    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = new Setting<>(
+        new Setting.SimpleKey("xpack.security.authc.service_token_hashing.algorithm"),
+        (s) -> "PBKDF2_STRETCH",
+        Function.identity(),
+        v -> {
+            if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+                throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
+                    Hasher.getAvailableAlgoStoredHash().toString());
+            } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
+                try {
+                    SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+                } catch (NoSuchAlgorithmException e) {
+                    throw new IllegalArgumentException(
+                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the " +
+                            "PBKDF2 algorithms for the [xpack.security.authc.service_token_hashing.algorithm] setting.", e);
                 }
             }
         }, Property.NodeScope);
@@ -163,23 +201,23 @@ public class XPackSettings {
             Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
     }
 
-    public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
-    public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
-    public static final VerificationMode VERIFICATION_MODE_DEFAULT = VerificationMode.FULL;
+    public static final SslClientAuthenticationMode CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.REQUIRED;
+    public static final SslClientAuthenticationMode HTTP_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
+    public static final SslVerificationMode VERIFICATION_MODE_DEFAULT = SslVerificationMode.FULL;
 
     // http specific settings
     public static final String HTTP_SSL_PREFIX = SecurityField.setting("http.ssl.");
-    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX);
+    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX, true);
 
     // transport specific settings
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
-    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX);
+    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(HTTP_SSL.getAllSettings());
-        settings.addAll(TRANSPORT_SSL.getAllSettings());
+        settings.addAll(HTTP_SSL.getEnabledSettings());
+        settings.addAll(TRANSPORT_SSL.getEnabledSettings());
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
@@ -193,6 +231,7 @@ public class XPackSettings {
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);
         settings.add(USER_SETTING);
         settings.add(PASSWORD_HASHING_ALGORITHM);
+        settings.add(ENROLLMENT_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +36,7 @@ public class DeprecationChecksTests extends ESTestCase {
     private static DeprecationIssue createRandomDeprecationIssue() {
         String details = randomBoolean() ? randomAlphaOfLength(10) : null;
         return new DeprecationIssue(randomFrom(DeprecationIssue.Level.values()), randomAlphaOfLength(10),
-            randomAlphaOfLength(10), details);
+            randomAlphaOfLength(10), details, randomBoolean(),
+            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4))));
     }
 }

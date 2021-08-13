@@ -1,14 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -16,8 +20,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
@@ -34,7 +37,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -44,33 +46,16 @@ import static org.mockito.Mockito.when;
 
 public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
-    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
-        // this controls the blockage
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(false);
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
-
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-        if (isElectedMaster) {
-            verify(licenseState).checkFeature(Feature.MONITORING);
-        }
-    }
-
     public void testShouldCollectReturnsFalseIfNotMaster() {
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(true), is(true));
-        verify(licenseState).checkFeature(Feature.MONITORING);
     }
 
     public void testDoCollect() throws Exception {
@@ -127,13 +112,14 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
                 }
             }
         }
+        when(indicesStatsResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[0]);
 
         final String[] indexNames = indicesMetadata.keySet().toArray(new String[0]);
         when(metadata.getConcreteAllIndices()).thenReturn(indexNames);
 
         final IndicesStatsRequestBuilder indicesStatsRequestBuilder =
                 spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE));
-        doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get(eq(timeout));
+        doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(indicesAdminClient.prepareStats()).thenReturn(indicesStatsRequestBuilder);
@@ -151,6 +137,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
         verify(indicesAdminClient).prepareStats();
+        verify(indicesStatsRequestBuilder).setTimeout(timeout);
 
         verify(indicesStatsResponse, times(existingIndices + deletedIndices)).getIndex(anyString());
         verify(metadata, times(existingIndices)).index(anyString());
@@ -184,4 +171,38 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
             }
         }
     }
+
+    public void testDoCollectThrowsTimeoutException() throws Exception {
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        withCollectionTimeout(IndexStatsCollector.INDEX_STATS_TIMEOUT, timeout);
+
+        whenLocalNodeElectedMaster(true);
+
+        final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
+        final MonitoringDoc.Node node = randomMonitoringNode(random());
+
+        when(indicesStatsResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[] {
+                new DefaultShardOperationFailedException("test", 0,
+                        new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout")))
+        });
+
+        final IndicesStatsRequestBuilder indicesStatsRequestBuilder =
+                spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE));
+        doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();
+
+        final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        when(indicesAdminClient.prepareStats()).thenReturn(indicesStatsRequestBuilder);
+
+        final AdminClient adminClient = mock(AdminClient.class);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+
+        final Client client = mock(Client.class);
+        when(client.admin()).thenReturn(adminClient);
+
+        final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
+        final long interval = randomNonNegativeLong();
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+    }
+
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.test;
 
@@ -53,6 +42,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
@@ -69,6 +59,14 @@ public class InternalTestClusterTests extends ESTestCase {
 
     private static Collection<Class<? extends Plugin>> mockPlugins() {
         return Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class);
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return Stream.concat(super.filteredWarnings().stream(),
+            List.of("Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
+                    "multiple disks. This feature will be removed in 8.0.").stream())
+            .collect(Collectors.toList());
     }
 
     public void testInitializiationIsConsistent() {
@@ -148,7 +146,7 @@ public class InternalTestClusterTests extends ESTestCase {
         final int numClientNodes = randomIntBetween(0, 2);
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 final Settings.Builder settings = Settings.builder()
                     .put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
                     .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
@@ -213,7 +211,7 @@ public class InternalTestClusterTests extends ESTestCase {
         final String clusterName1 = "shared1";
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
@@ -285,7 +283,7 @@ public class InternalTestClusterTests extends ESTestCase {
     private Path[] getNodePaths(InternalTestCluster cluster, String name) {
         final NodeEnvironment nodeEnvironment = cluster.getInstance(NodeEnvironment.class, name);
         if (nodeEnvironment.hasNodeFile()) {
-            return nodeEnvironment.nodeDataPaths();
+            return new Path[] { nodeEnvironment.nodeDataPath() };
         } else {
             return new Path[0];
         }
@@ -299,7 +297,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 false, 0, 0, "test", new NodeConfigurationSource() {
 
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                         .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
@@ -353,7 +351,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
                 if (node.isMasterNode()) {
                     result.computeIfAbsent(DiscoveryNodeRole.MASTER_ROLE, k -> new HashSet<>()).addAll(paths);
-                } else if (node.isDataNode()) {
+                } else if (node.canContainData()) {
                     result.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else {
                     result.computeIfAbsent(DiscoveryNodeRole.INGEST_ROLE, k -> new HashSet<>()).addAll(paths);
@@ -372,7 +370,7 @@ public class InternalTestClusterTests extends ESTestCase {
     public void testTwoNodeCluster() throws Exception {
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")

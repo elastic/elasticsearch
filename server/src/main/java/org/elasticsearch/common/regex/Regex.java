@@ -1,30 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.regex;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -68,9 +59,29 @@ public class Regex {
         if (patterns.length < 1) {
             throw new IllegalArgumentException("There must be at least one pattern, zero given");
         }
+
+        List<BytesRef> simpleStrings = new ArrayList<>();
         List<Automaton> automata = new ArrayList<>();
         for (String pattern : patterns) {
-            automata.add(simpleMatchToAutomaton(pattern));
+            // Strings longer than 1000 characters aren't supported by makeStringUnion
+            if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
+                automata.add(simpleMatchToAutomaton(pattern));
+            } else {
+                simpleStrings.add(new BytesRef(pattern));
+            }
+        }
+        if (false == simpleStrings.isEmpty()) {
+            Automaton simpleStringsAutomaton;
+            if (simpleStrings.size() > 0) {
+                Collections.sort(simpleStrings);
+                simpleStringsAutomaton = Automata.makeStringUnion(simpleStrings);
+            } else {
+                simpleStringsAutomaton = Automata.makeString(simpleStrings.get(0).utf8ToString());
+            }
+            if (automata.isEmpty()) {
+                return simpleStringsAutomaton;
+            }
+            automata.add(simpleStringsAutomaton);
         }
         return Operations.union(automata);
     }
@@ -88,8 +99,8 @@ public class Regex {
     public static boolean simpleMatch(String pattern, String str) {
         return simpleMatch(pattern, str, false);
     }
-    
-    
+
+
     /**
      * Match a String against the given pattern, supporting the following simple
      * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an
@@ -110,7 +121,7 @@ public class Regex {
         }
         return simpleMatchWithNormalizedStrings(pattern, str);
     }
-    
+
     private static boolean simpleMatchWithNormalizedStrings(String pattern, String str) {
         final int firstIndex = pattern.indexOf('*');
         if (firstIndex == -1) {
@@ -141,8 +152,8 @@ public class Regex {
         return str.regionMatches(0, pattern, 0, firstIndex)
             && (firstIndex == pattern.length() - 1 // only wildcard in pattern is at the end, so no need to look at the rest of the string
                 || simpleMatchWithNormalizedStrings(pattern.substring(firstIndex), str.substring(firstIndex)));
-    }    
-    
+    }
+
     /**
      * Match a String against the given patterns, supporting the following simple
      * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an

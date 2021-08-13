@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -39,7 +41,7 @@ public class RolloverStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                              ClusterStateObserver observer, Listener listener) {
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         String indexName = indexMetadata.getIndex().getName();
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
         if (indexingComplete) {
@@ -50,8 +52,16 @@ public class RolloverStep extends AsyncActionStep {
         IndexAbstraction indexAbstraction = currentClusterState.metadata().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "expected the index " + indexName + " to exist in the lookup but it didn't";
         final String rolloverTarget;
-        if (indexAbstraction.getParentDataStream() != null) {
-            rolloverTarget = indexAbstraction.getParentDataStream().getName();
+        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        if (dataStream != null) {
+            assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
+            if (dataStream.getWriteIndex().getIndex().equals(indexMetadata.getIndex()) == false) {
+                logger.warn("index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
+                    indexName, dataStream.getName(), LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
+                listener.onResponse(true);
+                return;
+            }
+            rolloverTarget = dataStream.getName();
         } else {
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
 
@@ -80,15 +90,18 @@ public class RolloverStep extends AsyncActionStep {
         }
 
         // Calling rollover with no conditions will always roll over the index
-        RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null)
-            .masterNodeTimeout(getMasterTimeout(currentClusterState));
+        RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         // We don't wait for active shards when we perform the rollover because the
         // {@link org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep} step will do so
         rolloverRequest.setWaitForActiveShards(ActiveShardCount.NONE);
         getClient().admin().indices().rolloverIndex(rolloverRequest,
             ActionListener.wrap(response -> {
                 assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";
-                listener.onResponse(response.isRolledOver());
+                if (response.isRolledOver()) {
+                    listener.onResponse(true);
+                } else {
+                    listener.onFailure(new IllegalStateException("unexepected exception on unconditional rollover"));
+                }
             }, listener::onFailure));
     }
 

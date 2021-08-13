@@ -1,16 +1,19 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[autoscaling-delete-autoscaling-policy]]
 === Delete autoscaling policy API
 ++++
 <titleabbrev>Delete autoscaling policy</titleabbrev>
 ++++
 
+NOTE: {cloud-only}
+
 Delete autoscaling policy.
 
 [[autoscaling-delete-autoscaling-policy-request]]
 ==== {api-request-title}
 
+//////////////////////////
 [source,console]
 --------------------------------------------------
 PUT /_autoscaling/policy/my_autoscaling_policy
@@ -23,6 +26,7 @@ PUT /_autoscaling/policy/my_autoscaling_policy
 }
 --------------------------------------------------
 // TESTSETUP
+//////////////////////////
 
 [source,console]
 --------------------------------------------------
@@ -33,9 +37,12 @@ DELETE /_autoscaling/policy/<name>
 [[autoscaling-delete-autoscaling-policy-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have
-`manage_autoscaling` cluster privileges. For more information, see
-<<security-privileges>>.
+* If the {es} {security-features} are enabled, you must have the
+`manage_autoscaling` <<privileges-list-cluster,cluster privilege>> to use this
+API.
+
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
 
 [[autoscaling-delete-autoscaling-policy-desc]]
 ==== {api-description-title}
@@ -45,7 +52,7 @@ This API deletes an autoscaling policy with the provided name.
 [[autoscaling-delete-autoscaling-policy-examples]]
 ==== {api-examples-title}
 
-This example deletes an autoscaling policy named `my_autosaling_policy`.
+This example deletes an autoscaling policy named `my_autoscaling_policy`.
 
 [source,console]
 --------------------------------------------------

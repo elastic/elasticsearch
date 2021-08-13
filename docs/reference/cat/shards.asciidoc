@@ -19,17 +19,21 @@ indices.
 
 `GET /_cat/shards`
 
+[[cat-shards-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API. You must
+also have the `monitor` or `manage` <<privileges-list-indices,index privilege>>
+for any data stream, index, or alias you retrieve.
 
 [[cat-shards-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cat-shards-query-params]]
 ==== {api-query-parms-title}

@@ -1,45 +1,46 @@
-[[modules-transport]]
-=== Transport
-
-Clients send requests to your {es} cluster over <<modules-http,HTTP>>, but the
-node that receives a client request cannot always handle it alone and must
-normally pass it on to other nodes for further processing. It does this using
-the transport networking layer. The transport layer is used for all internal
-communication between nodes within a cluster, and also for all communication
-with the nodes of a <<modules-remote-clusters,remote cluster>>.
-
 [[transport-settings]]
-==== Transport settings
+==== Advanced transport settings
 
-The following settings can be configured for the internal transport that
-communicates over TCP. These settings also use the common
-<<modules-network,network settings>>.
-
-`transport.port`::
-(<<static-cluster-setting,Static>>)
-A bind port range. Defaults to `9300-9400`.
-
-`transport.publish_port`::
-(<<static-cluster-setting,Static>>)
-The port that other nodes in the cluster
-should use when communicating with this node. Useful when a cluster node
-is behind a proxy or firewall and the `transport.port` is not directly
-addressable from the outside. Defaults to the actual port assigned via
-`transport.port`.
-
-`transport.bind_host`::
-(<<static-cluster-setting,Static>>)
-The host address to bind the transport service to. Defaults to
-`transport.host` (if set) or `network.bind_host`.
-
-`transport.publish_host`::
-(<<static-cluster-setting,Static>>)
-The host address to publish for nodes in the cluster to connect to.
-Defaults to `transport.host` (if set) or `network.publish_host`.
+Use the following advanced settings to configure the transport interface
+independently of the <<http-settings,HTTP interface>>. Use the
+<<common-network-settings,network
+settings>> to configure both interfaces together.
 
 `transport.host`::
 (<<static-cluster-setting,Static>>)
-Used to set the `transport.bind_host` and the `transport.publish_host`.
+Sets the address of this node for transport traffic. The node will bind to this
+address and will also use it as its transport publish address. Accepts an IP
+address, a hostname, or a <<network-interface-values,special value>>.
+Use this setting only if you require different configurations for the
+transport and HTTP interfaces.
++
+Defaults to the address given by `network.host`.
+
+`transport.bind_host`::
+(<<static-cluster-setting,Static>>)
+The network address(es) to which the node should bind in order to listen for
+incoming transport connections. Accepts a list of IP addresses, hostnames, and
+<<network-interface-values,special values>>. Defaults to the address given by
+`transport.host` or `network.bind_host`. Use this setting only if you require
+to bind to multiple addresses or to use different addresses for publishing and
+binding, and you also require different binding configurations for the
+transport and HTTP interfaces.
+
+`transport.publish_host`::
+(<<static-cluster-setting,Static>>)
+The network address at which the node can be contacted by other nodes. Accepts
+an IP address, a hostname, or a <<network-interface-values,special value>>.
+Defaults to the address given by `transport.host` or `network.publish_host`.
+Use this setting only if you require to bind to multiple addresses or to use
+different addresses for publishing and binding, and you also require different
+binding configurations for the transport and HTTP interfaces.
+
+`transport.publish_port`::
+(<<static-cluster-setting,Static>>)
+The port of the <<modules-network-binding-publishing,transport publish
+address>>. Set this parameter only if you need the publish port to be
+different from `transport.port`. Defaults to the port assigned via
+`transport.port`.
 
 `transport.connect_timeout`::
 (<<static-cluster-setting,Static>>)
@@ -48,8 +49,18 @@ time setting format). Defaults to `30s`.
 
 `transport.compress`::
 (<<static-cluster-setting,Static>>)
-Set to `true` to enable compression (`DEFLATE`) between
-all nodes. Defaults to `false`.
+Set to `true`, `indexing_data`, or `false` to configure transport compression
+between nodes. The option `true` will compress all data. The option
+`indexing_data` will compress only the raw index data sent between nodes during
+ingest, ccr following (excluding bootstrap), and operations based shard recovery
+(excluding transferring lucene files). Defaults to `false`.
+
+`transport.compression_scheme`::
+(<<static-cluster-setting,Static>>)
+Configures the compression scheme for `transport.compress`. The options are
+`deflate` or `lz4`. If `lz4` is configured and the remote node has not been
+upgraded to a version supporting `lz4`, the traffic will be sent uncompressed.
+Defaults to `deflate`.
 
 `transport.ping_schedule`::
 (<<static-cluster-setting,Static>>)
@@ -131,6 +142,8 @@ transport.profiles.dmz.bind_host: 172.16.1.2
 The `default` profile is special. It is used as a fallback for any other
 profiles, if those do not have a specific configuration setting set, and is how
 this node connects to other nodes in the cluster.
+Other profiles can have any name and can be used to set up specific endpoints
+for incoming connections.
 
 The following parameters can be configured on each transport profile, as in the
 example above:
@@ -153,7 +166,7 @@ Nonetheless, Elasticsearch requires these connections to remain open, and it
 can disrupt the operation of your cluster if any inter-node connections are
 closed by an external influence such as a firewall. It is important to
 configure your network to preserve long-lived idle connections between
-Elasticsearch nodes, for instance by leaving `tcp.keep_alive` enabled and
+Elasticsearch nodes, for instance by leaving `*.tcp.keep_alive` enabled and
 ensuring that the keepalive interval is shorter than any timeout that might
 cause idle connections to be closed, or by setting `transport.ping_schedule` if
 keepalives cannot be configured. Devices which drop connections when they reach
@@ -169,6 +182,11 @@ normally makes sense for local cluster communication as compression has a
 noticeable CPU cost and local clusters tend to be set up with fast network
 connections between nodes.
 
+The `transport.compress` configuration option `indexing_data` will only
+compress requests that relate to the transport of raw indexing source data
+between nodes. This option primarily compresses data sent during ingest,
+ccr, and shard recovery.
+
 The `transport.compress` setting always configures local cluster request
 compression and is the fallback setting for remote cluster request compression.
 If you want to configure remote request compression differently than local
@@ -183,34 +201,3 @@ The compression settings do not configure compression for responses. {es} will
 compress a response if the inbound request was compressed--even when compression
 is not enabled. Similarly, {es} will not compress a response if the inbound
 request was uncompressed--even when compression is enabled.
-
-
-[[transport-tracer]]
-==== Transport tracer
-
-The transport layer has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated
-by setting the level of the `org.elasticsearch.transport.TransportService.tracer` logger to `TRACE`:
-
-[source,console]
---------------------------------------------------
-PUT _cluster/settings
-{
-   "transient" : {
-      "logger.org.elasticsearch.transport.TransportService.tracer" : "TRACE"
-   }
-}
---------------------------------------------------
-
-You can also control which actions will be traced, using a set of include and exclude wildcard patterns. By default every request will be traced
-except for fault detection pings:
-
-[source,console]
---------------------------------------------------
-PUT _cluster/settings
-{
-   "transient" : {
-      "transport.tracer.include" : "*",
-      "transport.tracer.exclude" : "internal:coordination/fault_detection/*"
-   }
-}
---------------------------------------------------

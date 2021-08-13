@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -106,7 +107,7 @@ public class EmailService extends NotificationService<Account> {
             Setting.affixKeySetting("xpack.notification.email.account.", "smtp.wait_on_quit",
                     (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
 
-    private static final SSLConfigurationSettings SSL_SETTINGS = SSLConfigurationSettings.withPrefix(EMAIL_NOTIFICATION_SSL_PREFIX);
+    private static final SSLConfigurationSettings SSL_SETTINGS = SSLConfigurationSettings.withPrefix(EMAIL_NOTIFICATION_SSL_PREFIX, true);
 
     private static final Logger logger = LogManager.getLogger(EmailService.class);
 
@@ -207,7 +208,7 @@ public class EmailService extends NotificationService<Account> {
     public static List<Setting<?>> getSettings() {
         List<Setting<?>> allSettings = new ArrayList<Setting<?>>(EmailService.getDynamicSettings());
         allSettings.addAll(EmailService.getSecureSettings());
-        allSettings.addAll(SSL_SETTINGS.getAllSettings());
+        allSettings.addAll(SSL_SETTINGS.getEnabledSettings());
         return allSettings;
     }
 

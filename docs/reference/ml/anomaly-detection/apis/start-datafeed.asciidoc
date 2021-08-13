@@ -20,9 +20,8 @@ Starts one or more {dfeeds}.
 
 * Before you can start a {dfeed}, the {anomaly-job} must be open. Otherwise, an
 error occurs.
-* If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
-cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+* Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-start-datafeed-desc]]
 == {api-description-title}
@@ -30,7 +29,7 @@ cluster privileges to use this API. See
 A {dfeed} must be started in order to retrieve data from {es}.
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
-When you start a {dfeed}, you can specify a start time.  This enables you to
+When you start a {dfeed}, you can specify a start time. This enables you to
 include a training period, providing you have this data available in {es}.
 If you want to analyze from the beginning of a dataset, you can specify any date
 earlier than that beginning date.
@@ -41,7 +40,7 @@ available.
 
 When you start a {dfeed}, you can also specify an end time. If you do so, the
 job analyzes data from the start time until the end time, at which point the
-analysis stops.  This scenario is useful for a one-off batch analysis.  If you
+analysis stops. This scenario is useful for a one-off batch analysis. If you
 do not specify an end time, the {dfeed} runs continuously.
 
 The `start` and `end` times can be specified by using one of the

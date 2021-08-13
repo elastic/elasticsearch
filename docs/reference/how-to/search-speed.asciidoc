@@ -165,8 +165,8 @@ include::../mapping/types/numeric.asciidoc[tag=map-ids-as-keyword]
 [discrete]
 === Avoid scripts
 
-If possible, avoid using <<modules-scripting,scripts>> or
-<<script-fields,scripted fields>> in searches. See
+If possible, avoid using <<modules-scripting,script>>-based sorting, scripts in
+aggregations, and the <<query-dsl-script-score-query,`script_score`>> query. See
 <<scripts-and-search-speed>>.
 
 
@@ -356,7 +356,7 @@ There are multiple caches that can help with search performance, such as the
 {wikipedia}/Page_cache[filesystem cache], the
 <<shard-request-cache,request cache>> or the <<query-cache,query cache>>. Yet
 all these caches are maintained at the node level, meaning that if you run the
-same request twice in a row, have 1 <<glossary-replica-shard,replica>> or more
+same request twice in a row, have 1 replica or more
 and use {wikipedia}/Round-robin_DNS[round-robin], the default
 routing algorithm, then those two requests will go to different shard copies,
 preventing node-level caches from helping.

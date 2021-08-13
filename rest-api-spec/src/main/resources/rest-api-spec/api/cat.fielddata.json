@@ -5,6 +5,10 @@
       "description":"Shows how much heap memory is currently being used by fielddata on every data node in the cluster."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

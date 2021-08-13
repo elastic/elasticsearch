@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.type;
 
@@ -45,7 +46,7 @@ public class Schema implements Iterable<Schema.Entry> {
     }
 
     public static final Schema EMPTY = new Schema(emptyList(), emptyList());
-    
+
     private final List<String> names;
     private final List<DataType> types;
 
@@ -84,7 +85,7 @@ public class Schema implements Iterable<Schema.Entry> {
         return new Iterator<>() {
             private final int size = size();
             private int pos = -1;
-            
+
             @Override
             public boolean hasNext() {
                 return pos < size - 1;

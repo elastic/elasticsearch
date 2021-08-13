@@ -76,7 +76,7 @@ int z = add(1, 2); <2>
 ==== Cast
 
 An explicit cast converts the value of an original type to the equivalent value
-of a target type forcefully as an operation.  Use the `cast operator '()'` to
+of a target type forcefully as an operation. Use the `cast operator '()'` to
 specify an explicit cast. Refer to <<painless-casting, casting>> for more
 information.
 
@@ -85,7 +85,7 @@ information.
 
 A conditional consists of three expressions. The first expression is evaluated
 with an expected boolean result type. If the first expression evaluates to true
-then the second expression will be evaluated.  If the first expression evaluates
+then the second expression will be evaluated. If the first expression evaluates
 to false then the third expression will be evaluated. The second and third
 expressions will be <<promotion, promoted>> if the evaluated values are not the
 same type. Use the `conditional operator '? :'` as a shortcut to avoid the need
@@ -254,7 +254,7 @@ V = (T)(V op expression);
 
 The table below shows the available operators for use in a compound assignment.
 Each operator follows the casting/promotion rules according to their regular
-definition.  For numeric operations there is an extra implicit cast when
+definition. For numeric operations there is an extra implicit cast when
 necessary to return the promoted numeric type value to the original numeric type
 value of the variable/field and can result in data loss.
 

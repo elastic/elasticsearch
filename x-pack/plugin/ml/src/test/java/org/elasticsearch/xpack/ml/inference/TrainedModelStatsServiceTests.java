@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.inference;
@@ -24,9 +25,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -47,7 +48,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
     public void testVerifyIndicesExistAndPrimaryShardsAreActive() {
         String aliasName = MlStatsIndex.writeAlias();
         String concreteIndex = ".ml-stats-000001";
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
 
         {
             Metadata.Builder metadata = Metadata.builder();
@@ -136,7 +137,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
     public void testUpdateStatsUpgradeMode() {
         String aliasName = MlStatsIndex.writeAlias();
         String concreteIndex = ".ml-stats-000001";
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
 
         // create a valid index routing so persistence will occur
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -234,6 +235,86 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
             service.setClusterState(change);
             service.updateStats();
             verify(persisterService, times(2)).bulkIndexWithRetry(any(), any(), any(), any());
+        }
+    }
+
+    public void testUpdateStatsResetMode() {
+        String aliasName = MlStatsIndex.writeAlias();
+        String concreteIndex = ".ml-stats-000001";
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+
+        // create a valid index routing so persistence will occur
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        addToRoutingTable(concreteIndex, routingTableBuilder);
+        RoutingTable routingTable = routingTableBuilder.build();
+
+        // cannot mock OriginSettingClient as it is final so mock the client
+        Client client = mock(Client.class);
+        OriginSettingClient originSettingClient = new OriginSettingClient(client, "modelstatsservicetests");
+        ClusterService clusterService = mock(ClusterService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ResultsPersisterService persisterService = mock(ResultsPersisterService.class);
+
+        TrainedModelStatsService service = new TrainedModelStatsService(persisterService,
+            originSettingClient, resolver, clusterService, threadPool);
+
+        InferenceStats.Accumulator accumulator = new InferenceStats.Accumulator("testUpdateStatsUpgradeMode", "test-node", 1L);
+
+        {
+            // test with reset mode turned on
+
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
+                .putAlias(AliasMetadata.builder(aliasName).isHidden(true).build())
+                .settings(Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                );
+
+            // now set the upgrade mode
+            Metadata.Builder metadata = Metadata.builder()
+                .put(indexMetadata)
+                .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build());
+
+            ClusterState clusterState = ClusterState.builder(new ClusterName("upgrade-mode-test-upgrade-enabled"))
+                .routingTable(routingTable)
+                .metadata(metadata)
+                .build();
+            ClusterChangedEvent change = new ClusterChangedEvent("created-from-test", clusterState, clusterState);
+
+            service.setClusterState(change);
+
+            // queue some stats to be persisted
+            service.queueStats(accumulator.currentStats(Instant.now()), false);
+
+            service.updateStats();
+            verify(persisterService, times(0)).bulkIndexWithRetry(any(), any(), any(), any());
+        }
+        {
+            // This time turn off reset mode
+
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
+                .putAlias(AliasMetadata.builder(aliasName).isHidden(true).build())
+                .settings(Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                );
+
+            Metadata.Builder metadata = Metadata.builder()
+                .put(indexMetadata)
+                .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(false).build());
+
+            ClusterState clusterState = ClusterState.builder(new ClusterName("upgrade-mode-test-upgrade-disabled"))
+                .routingTable(routingTable)
+                .metadata(metadata)
+                .build();
+
+            ClusterChangedEvent change = new ClusterChangedEvent("created-from-test", clusterState, clusterState);
+
+            service.setClusterState(change);
+            service.updateStats();
+            verify(persisterService, times(1)).bulkIndexWithRetry(any(), any(), any(), any());
         }
     }
 

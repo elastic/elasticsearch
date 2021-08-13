@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.nested;
@@ -37,15 +26,19 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.Version;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -87,7 +80,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.LongStream;
 
@@ -96,6 +88,22 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests for the Nested aggregator.
+ *
+ * <p>
+ * Notes to people wanting to add nested aggregation tests to other test classes:
+ * <ul>
+ *     <li>Nested aggregations require a different {@link DirectoryReader} implementation than we usually use in aggregation tests.  You'll
+ *     need to override {@link AggregatorTestCase#wrapDirectoryReader} as is done in this class</li>
+ *     <li>Nested aggregations  also require object mappers to be configured.  You can mock this by overriding
+ *     {@link AggregatorTestCase#objectMappers()} as seen below</li>
+ *     <li>In a production nested field setup, we'll automatically prefix the nested path to the leaf document field names.  This helps
+ *     prevent name collisions between "levels" of nested docs.  This mechanism isn't invoked during unit tests, so preventing field name
+ *     collisions should be done by hand. For the closest approximation of how it looks in prod, leaf docs should have field names
+ *     prefixed with the nested path: nestedPath + "." + fieldName</li>
+ * </ul>
+ */
 public class NestedAggregatorTests extends AggregatorTestCase {
 
     private static final String VALUE_FIELD_NAME = "number";
@@ -107,16 +115,6 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     private static final String INVERSE_SCRIPT = "inverse";
 
     private static final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-
-    /**
-     * For each provided field type, we also register an alias with name {@code <field>-alias}.
-     */
-    @Override
-    protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
-        return Arrays.stream(fieldTypes).collect(Collectors.toMap(
-            ft -> ft.name() + "-alias",
-            Function.identity()));
-    }
 
     /**
      * Nested aggregations need the {@linkplain DirectoryReader} wrapped.
@@ -180,8 +178,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(new Field(NestedPathFieldMapper.NAME, "test",
-                        NestedPathFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                     document.add(sequenceIDFields.primaryTerm);
                     documents.add(document);
                     iw.addDocuments(documents);
@@ -775,7 +772,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(NESTED_AGG, nested.getName());
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
-                InternalTerms<?, LongTerms.Bucket> terms = (InternalTerms) nested.getProperty("terms");
+                @SuppressWarnings("unchecked")
+                InternalTerms<?, LongTerms.Bucket> terms = (InternalTerms<?, LongTerms.Bucket>) nested.getProperty("terms");
                 assertNotNull(terms);
 
                 for (LongTerms.Bucket bucket : terms.getBuckets()) {
@@ -866,7 +864,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         return values;
     }
 
-    private List<Document> generateBook(String id, String[] authors, int[] numPages) {
+    public static List<Document> generateBook(String id, String[] authors, int[] numPages) {
         List<Document> documents = new ArrayList<>();
 
         for (int numPage : numPages) {
@@ -882,6 +880,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         document.add(new Field(NestedPathFieldMapper.NAME, "book", NestedPathFieldMapper.Defaults.FIELD_TYPE));
         document.add(sequenceIDFields.primaryTerm);
         for (String author : authors) {
+            document.add(new Field("author", author, KeywordFieldMapper.Defaults.FIELD_TYPE));
             document.add(new SortedSetDocValuesField("author", new BytesRef(author)));
         }
         documents.add(document);
@@ -889,4 +888,20 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         return documents;
     }
 
+    @Override
+    protected List<ObjectMapper> objectMappers() {
+        return MOCK_OBJECT_MAPPERS;
+    }
+
+    static final List<ObjectMapper> MOCK_OBJECT_MAPPERS = List.of(
+        nestedObject(NESTED_OBJECT),
+        nestedObject(NESTED_OBJECT + "." + NESTED_OBJECT2),
+        nestedObject("nested_reseller"),
+        nestedObject("nested_chapters"),
+        nestedObject("nested_field")
+    );
+
+    public static NestedObjectMapper nestedObject(String path) {
+        return new NestedObjectMapper.Builder(path, Version.CURRENT).build(new ContentPath());
+    }
 }

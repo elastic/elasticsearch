@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -55,8 +56,8 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
         if (threeCerts.length != 3) {
             fail("Expected exactly 3 certificate in " + certPath);
         }
-        List<Class> notX509Certificates = Arrays.stream(threeCerts).filter((cert) -> {
-            return !(cert instanceof X509Certificate);
+        List<Class<?>> notX509Certificates = Arrays.stream(threeCerts).filter((cert) -> {
+            return (cert instanceof X509Certificate) == false;
         }).map(cert -> cert.getClass()).collect(Collectors.toList());
         if (notX509Certificates.isEmpty() == false) {
             fail("Expected exactly X509Certificates, but found " + notX509Certificates);

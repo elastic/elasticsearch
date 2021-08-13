@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
@@ -19,10 +20,10 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
@@ -189,7 +189,7 @@ public class MlConfigMigrator {
     }
 
     private void migrateBatches(List<JobsAndDatafeeds> batches, ActionListener<Boolean> listener) {
-        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(EsExecutors.newDirectExecutorService(), true);
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(EsExecutors.DIRECT_EXECUTOR_SERVICE, true);
         for (JobsAndDatafeeds batch : batches) {
             voidChainTaskExecutor.add(chainedListener -> writeConfigToIndex(batch.datafeedConfigs, batch.jobs, ActionListener.wrap(
                 failedDocumentIds -> {
@@ -464,7 +464,9 @@ public class MlConfigMigrator {
             return;
         }
 
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), expressionResolver, ActionListener.wrap(
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), expressionResolver,
+            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            ActionListener.wrap(
             r -> {
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest,
                     ActionListener.<IndexResponse>wrap(
@@ -491,13 +493,9 @@ public class MlConfigMigrator {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(MlConfigIndex.indexName());
         try
         {
-            createIndexRequest.settings(
-                    Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                            .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
-            );
+            createIndexRequest.settings(MlConfigIndex.settings());
             createIndexRequest.mapping(MlConfigIndex.mapping());
+            createIndexRequest.origin(ML_ORIGIN);
         } catch (Exception e) {
             logger.error("error writing the .ml-config mappings", e);
             listener.onFailure(e);
@@ -570,7 +568,7 @@ public class MlConfigMigrator {
      * @param clusterState The cluster state
      * @return The closed job configurations
      */
-    public static List<DatafeedConfig> stopppedOrUnallocatedDatafeeds(ClusterState clusterState) {
+    public static List<DatafeedConfig> stoppedOrUnallocatedDatafeeds(ClusterState clusterState) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(persistentTasks);
         startedDatafeedIds.removeAll(MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()));
@@ -596,7 +594,7 @@ public class MlConfigMigrator {
     }
 
     public static List<JobsAndDatafeeds> splitInBatches(ClusterState clusterState) {
-        Collection<DatafeedConfig> stoppedDatafeeds = stopppedOrUnallocatedDatafeeds(clusterState);
+        Collection<DatafeedConfig> stoppedDatafeeds = stoppedOrUnallocatedDatafeeds(clusterState);
         Map<String, Job> eligibleJobs = nonDeletingJobs(closedOrUnallocatedJobs(clusterState)).stream()
             .map(MlConfigMigrator::updateJobForMigration)
             .collect(Collectors.toMap(Job::getId, Function.identity(), (a, b) -> a));

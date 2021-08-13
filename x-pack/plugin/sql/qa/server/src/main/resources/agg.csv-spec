@@ -133,8 +133,8 @@ M                    |10096.2232            |10092.362             |15.350877192
 sum
 SELECT SUM(salary) FROM test_emp;
 
-  SUM(salary)
----------------
+  SUM(salary):l
+----------------
 4824855
 ;
 
@@ -193,7 +193,7 @@ SELECT MAX(languages) max, MIN(languages) min, SUM(languages) sum, AVG(languages
        KURTOSIS(languages) kurtosis, SKEWNESS(languages) skewness  
        FROM test_emp GROUP BY languages ORDER BY languages ASC LIMIT 5;
 
-      max:bt   |      min:bt   |      sum:bt   |      avg:d   |    percent:d  | percent_rank:d|   kurtosis:d  |   skewness:d    
+      max:bt   |      min:bt   |      sum:l    |      avg:d   |    percent:d  | percent_rank:d|   kurtosis:d  |   skewness:d
 ---------------+---------------+---------------+--------------+---------------+---------------+---------------+---------------
 null           |null           |null           |null          |null           |null           |null           |null           
 1              |1              |15             |1             |1.0            |100.0          |NaN            |NaN            
@@ -205,7 +205,7 @@ null           |null           |null           |null          |null           |n
 aggSumWithColumnRepeated
 SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY gender;
 
-g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+g:s  | gender:s  | s3:l  | SUM(salary):l | s5:l
 null |null       |487605 |487605         |487605
 F    |F          |1666196|1666196        |1666196
 M    |M          |2671054|2671054        |2671054
@@ -214,7 +214,7 @@ M    |M          |2671054|2671054        |2671054
 aggSumWithAliasWithColumnRepeated
 SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY g;
 
-g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+g:s  | gender:s  | s3:l  | SUM(salary):l | s5:l
 null |null       |487605 |487605         |487605
 F    |F          |1666196|1666196        |1666196
 M    |M          |2671054|2671054        |2671054
@@ -223,7 +223,7 @@ M    |M          |2671054|2671054        |2671054
 aggSumWithNumericRefWithColumnRepeated
 SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY 2;
 
-g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+g:s  | gender:s  | s3:l  | SUM(salary):l | s5:l
 null |null       |487605 |487605         |487605
 F    |F          |1666196|1666196        |1666196
 M    |M          |2671054|2671054        |2671054
@@ -232,7 +232,7 @@ M    |M          |2671054|2671054        |2671054
 sumLiteralWithTrueConditionAndHavingWithCount
 SELECT SUM(1) AS c FROM test_emp WHERE 'a'='a' HAVING COUNT(1) > 0;
 
-      c:i       
+      c:l
 ---------------
 100     
 ;       
@@ -272,7 +272,7 @@ Bezalel        |1
 sumFieldWithSumLiteralAsCondition
 SELECT first_name, last_name, SUM(salary) AS s, birth_date AS y, COUNT(1) FROM test_emp GROUP BY 1, 2, 4 HAVING ((SUM(1) >= 1) AND (SUM(1) <= 577)) AND ((SUM(salary) >= 35000) AND (SUM(salary) <= 45000));
 
-  first_name:s |   last_name:s |       s:i     |           y:ts         |   COUNT(1):l    
+  first_name:s |   last_name:s |       s:l     |           y:ts         |   COUNT(1):l
 ---------------+---------------+---------------+------------------------+---------------
 null           |Brender        |36051          |1959-10-01T00:00:00.000Z|1              
 null           |Joslin         |37716          |1959-01-27T00:00:00.000Z|1              
@@ -308,7 +308,7 @@ Zvonko         |Nyanchama      |42716          |null                    |1
 mirrorIifForNumericAggregate
 SELECT IIF(COUNT(1)=0, NULL, 123)+5, AVG(123), MIN(123)+5, IIF(COUNT(1)=0, NULL, 30*COUNT(1)), SUM(30) FROM test_emp;
 
-IIF(COUNT(1)=0, NULL, 123)+5:i|   AVG(123):d    |  MIN(123)+5:i   |IIF(COUNT(1)=0, NULL, 30*COUNT(1)):l|    SUM(30):l    
+IIF(COUNT(1)=0, NULL, 123)+5:i|   AVG(123):d    |  MIN(123)+5:i   |IIF(COUNT(1)=0, NULL, 30*COUNT(1)):l|    SUM(30):l
 ------------------------------+-----------------+-----------------+------------------------------------+---------------
 128                           |123              |128              |3000                                |3000           
 ;
@@ -1325,3 +1325,420 @@ F              |1964-10-18T00:00:00.000Z|1952-04-19T00:00:00.000Z
 M              |1965-01-03T00:00:00.000Z|1952-02-27T00:00:00.000Z
 ;
 
+
+//
+// Aggregations on NULLs and Zeros
+//
+
+allZerosWithFirst
+schema::FIRST_AllZeros:i
+SELECT FIRST(bytes_in) as "FIRST_AllZeros" FROM logs WHERE bytes_in = 0;
+
+FIRST_AllZeros 
+---------------
+0              
+;
+
+
+allNullsWithFirst
+schema::FIRST_AllNulls:i
+SELECT FIRST(bytes_out) as "FIRST_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+FIRST_AllNulls 
+---------------
+null           
+;
+
+
+allZerosWithLast
+schema::LAST_AllZeros:i
+SELECT LAST(bytes_in) as "LAST_AllZeros" FROM logs WHERE bytes_in = 0;
+
+ LAST_AllZeros 
+---------------
+0              
+;
+
+
+allNullsWithLast
+schema::LAST_AllNulls:i
+SELECT LAST(bytes_out) as "LAST_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+ LAST_AllNulls 
+---------------
+null           
+;
+
+
+allZerosWithCount
+schema::COUNT_AllZeros:l
+SELECT COUNT(bytes_in) as "COUNT_AllZeros" FROM logs WHERE bytes_in = 0;
+
+COUNT_AllZeros 
+---------------
+2              
+;
+
+
+allNullsWithCount
+schema::COUNT_AllNulls:l
+SELECT COUNT(bytes_out) as "COUNT_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+COUNT_AllNulls 
+---------------
+0              
+;
+
+
+
+allZerosWithAvg
+schema::AVG_AllZeros:d
+SELECT AVG(bytes_in) as "AVG_AllZeros" FROM logs WHERE bytes_in = 0;
+
+ AVG_AllZeros  
+---------------
+0.0            
+;
+
+
+allNullsWithAvg
+schema::AVG_AllNulls:d
+SELECT AVG(bytes_out) as "AVG_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+ AVG_AllNulls  
+---------------
+null           
+;
+
+
+allZerosWithMin
+schema::MIN_AllZeros:i
+SELECT MIN(bytes_in) as "MIN_AllZeros" FROM logs WHERE bytes_in = 0;
+
+ MIN_AllZeros  
+---------------
+0              
+;
+
+
+allNullsWithMin
+schema::MIN_AllNulls:i
+SELECT MIN(bytes_out) as "MIN_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+ MIN_AllNulls  
+---------------
+null           
+;
+
+
+allZerosWithMax
+schema::MAX_AllZeros:i
+SELECT MAX(bytes_in) as "MAX_AllZeros" FROM logs WHERE bytes_in = 0;
+
+ MAX_AllZeros  
+---------------
+0              
+;
+
+
+allNullsWithMax
+schema::MAX_AllNulls:i
+SELECT MAX(bytes_out) as "MAX_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+ MAX_AllNulls  
+---------------
+null           
+;
+
+
+allZerosWithSum
+schema::SUM_AllZeros:l
+SELECT SUM(bytes_in) as "SUM_AllZeros" FROM logs WHERE bytes_in = 0;
+
+ SUM_AllZeros  
+---------------
+0              
+;
+
+
+allNullsWithSum
+schema::SUM_AllNulls:l
+SELECT SUM(bytes_out) as "SUM_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+ SUM_AllNulls  
+---------------
+null           
+;
+
+
+allZerosWithPercentile
+schema::PERCENTILE_AllZeros:d
+SELECT PERCENTILE(bytes_in, 0) as "PERCENTILE_AllZeros" FROM logs WHERE bytes_in = 0;
+
+PERCENTILE_AllZeros
+-------------------
+0.0                
+;
+
+
+allNullsWithPercentile
+schema::PERCENTILE_AllNulls:d
+SELECT PERCENTILE(bytes_out, 0) as "PERCENTILE_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+PERCENTILE_AllNulls
+-------------------
+null               
+;
+
+
+allZerosWithPercentileRank
+schema::PERCENTILE_RANK_AllZeros:d
+SELECT PERCENTILE_RANK(bytes_in, 0) as "PERCENTILE_RANK_AllZeros" FROM logs WHERE bytes_in = 0;
+
+PERCENTILE_RANK_AllZeros
+------------------------
+100.0                   
+;
+
+
+allNullsWithPercentileRank
+schema::PERCENTILE_RANK_AllNulls:d
+SELECT PERCENTILE_RANK(bytes_out, 0) as "PERCENTILE_RANK_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+PERCENTILE_RANK_AllNulls
+------------------------
+null                    
+;
+
+
+allZerosWithSumOfSquares
+schema::SUM_OF_SQUARES_AllZeros:d
+SELECT SUM_OF_SQUARES(bytes_in) as "SUM_OF_SQUARES_AllZeros" FROM logs WHERE bytes_in = 0;
+
+SUM_OF_SQUARES_AllZeros
+-----------------------
+0.0                    
+;
+
+
+allNullsWithSumOfSquares
+schema::SUM_OF_SQUARES_AllNulls:d
+SELECT SUM_OF_SQUARES(bytes_out) as "SUM_OF_SQUARES_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+SUM_OF_SQUARES_AllNulls
+-----------------------
+null                   
+;
+
+
+allZerosWithStddevPop
+schema::STDDEV_POP_AllZeros:d
+SELECT STDDEV_POP(bytes_in) as "STDDEV_POP_AllZeros" FROM logs WHERE bytes_in = 0;
+
+STDDEV_POP_AllZeros
+-------------------
+0.0                
+;
+
+
+allNullsWithStddevPop
+schema::STDDEV_POP_AllNulls:d
+SELECT STDDEV_POP(bytes_out) as "STDDEV_POP_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+STDDEV_POP_AllNulls
+-------------------
+null               
+;
+
+
+allZerosWithStddevSamp
+schema::STDDEV_SAMP_AllZeros:d
+SELECT STDDEV_SAMP(bytes_in) as "STDDEV_SAMP_AllZeros" FROM logs WHERE bytes_in = 0;
+
+STDDEV_SAMP_AllZeros
+--------------------
+0.0                 
+;
+
+
+allNullsWithStddevSamp
+schema::STDDEV_SAMP_AllNulls:d
+SELECT STDDEV_SAMP(bytes_out) as "STDDEV_SAMP_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+STDDEV_SAMP_AllNulls
+--------------------
+null                
+;
+
+
+allZerosWithVarSamp
+schema::VAR_SAMP_AllZeros:d
+SELECT VAR_SAMP(bytes_in) as "VAR_SAMP_AllZeros" FROM logs WHERE bytes_in = 0;
+
+VAR_SAMP_AllZeros
+-----------------
+0.0              
+;
+
+
+allNullsWithVarSamp
+schema::VAR_SAMP_AllNulls:d
+SELECT VAR_SAMP(bytes_out) as "VAR_SAMP_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+VAR_SAMP_AllNulls
+-----------------
+null             
+;
+
+
+allZerosWithVarPop
+schema::VAR_POP_AllZeros:d
+SELECT VAR_POP(bytes_in) as "VAR_POP_AllZeros" FROM logs WHERE bytes_in = 0;
+
+VAR_POP_AllZeros
+----------------
+0.0             
+;
+
+
+allNullsWithVarPop
+schema::VAR_POP_AllNulls:d
+SELECT VAR_POP(bytes_out) as "VAR_POP_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+VAR_POP_AllNulls
+----------------
+null            
+;
+
+
+allZerosWithSkewness
+schema::SKEWNESS_AllZeros:d
+SELECT SKEWNESS(bytes_in) as "SKEWNESS_AllZeros" FROM logs WHERE bytes_in = 0;
+
+SKEWNESS_AllZeros
+-----------------
+NaN              
+;
+
+
+allNullsWithSkewness
+schema::SKEWNESS_AllNulls:d
+SELECT SKEWNESS(bytes_out) as "SKEWNESS_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+SKEWNESS_AllNulls
+-----------------
+null             
+;
+
+
+allZerosWithMad
+schema::MAD_AllZeros:d
+SELECT MAD(bytes_in) as "MAD_AllZeros" FROM logs WHERE bytes_in = 0;
+
+ MAD_AllZeros  
+---------------
+0.0            
+;
+
+
+allNullsWithMad
+schema::MAD_AllNulls:d
+SELECT MAD(bytes_out) as "MAD_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+ MAD_AllNulls  
+---------------
+NaN            
+;
+
+
+allZerosWithKurtosis
+schema::KURTOSIS_AllZeros:d
+SELECT KURTOSIS(bytes_in) as "KURTOSIS_AllZeros" FROM logs WHERE bytes_in = 0;
+
+KURTOSIS_AllZeros
+-----------------
+NaN              
+;
+
+
+allNullsWithKurtosis
+schema::KURTOSIS_AllNulls:d
+SELECT KURTOSIS(bytes_out) as "KURTOSIS_AllNulls" FROM logs WHERE bytes_out IS NULL;
+
+KURTOSIS_AllNulls
+-----------------
+null             
+;
+
+nullsAndZerosCombined
+schema::COUNT(*):l|COUNT_AllZeros:l|COUNT_AllNulls:l|FIRST_AllZeros:i|FIRST_AllNulls:i|SUM_AllZeros:l|SUM_AllNulls:l
+SELECT
+    COUNT(*), 
+    COUNT(bytes_in) AS "COUNT_AllZeros", 
+    COUNT(bytes_out) AS "COUNT_AllNulls", 
+    FIRST(bytes_in) AS "FIRST_AllZeros", 
+    FIRST(bytes_out) AS "FIRST_AllNulls", 
+    SUM(bytes_in) AS "SUM_AllZeros", 
+    SUM(bytes_out) AS "SUM_AllNulls"
+FROM logs
+WHERE bytes_in = 0 AND bytes_out IS NULL;
+
+   COUNT(*)    |COUNT(bytes_in)|COUNT(bytes_out)|FIRST_AllZeros |FIRST_AllNulls | SUM_AllZeros  | SUM_AllNulls  
+---------------+---------------+----------------+---------------+---------------+---------------+---------------
+1              |1              |0               |0              |null           |0              |null           
+;
+
+
+groupedByNullsAndZeros
+schema::bytes_in:i|COUNT(*):l|SUM(bytes_in):l|MIN(bytes_in):i|MAX(bytes_in):i|AVG(bytes_in):d
+SELECT
+    bytes_in, 
+    COUNT(*), 
+    SUM(bytes_in), 
+    MIN(bytes_in), 
+    MAX(bytes_in), 
+    AVG(bytes_in)
+FROM logs
+WHERE NVL(bytes_in, 0) = 0
+GROUP BY bytes_in
+ORDER BY bytes_in DESC NULLS LAST;
+
+   bytes_in    |   COUNT(*)    | SUM(bytes_in) | MIN(bytes_in) | MAX(bytes_in) | AVG(bytes_in) 
+---------------+---------------+---------------+---------------+---------------+---------------
+0              |2              |0              |0              |0              |0.0            
+null           |1              |null           |null           |null           |null           
+;
+
+groupedByMultipleSumsWithNullsAndZeros
+schema::SUM(bytes_in):l|SUM(bytes_out):l|client_ip:s|c:l
+SELECT
+  SUM(bytes_in),
+  SUM(bytes_out),
+  client_ip,
+  COUNT(*) AS c
+FROM logs
+WHERE client_ip = '10.0.0.0/16' AND NVL(bytes_out, 0) = 0
+GROUP BY client_ip
+ORDER BY c DESC, SUM(bytes_in) ASC NULLS FIRST;
+
+ SUM(bytes_in) |SUM(bytes_out) |   client_ip   |       c       
+---------------+---------------+---------------+---------------
+232            |null           |10.0.1.199     |10             
+124            |null           |10.0.1.166     |7              
+336            |null           |10.0.1.122     |7              
+8              |null           |10.0.1.205     |2              
+16             |null           |10.0.1.201     |2              
+16             |null           |10.0.1.203     |2              
+28             |null           |10.0.1.207     |2              
+40             |null           |10.0.1.222     |2              
+56             |null           |10.0.0.130     |2              
+null           |null           |10.0.2.129     |1              
+8              |null           |10.0.1.202     |1              
+8              |null           |10.0.1.206     |1              
+8              |null           |10.0.1.208     |1              
+16             |null           |10.0.1.13      |1              
+28             |null           |10.0.0.107     |1              
+30             |null           |10.0.0.147     |1              
+32             |null           |10.0.1.177     |1              
+48             |null           |10.0.0.109     |1              
+;

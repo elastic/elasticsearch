@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -68,7 +57,7 @@ public final class FieldAliasMapper extends Mapper {
 
     @Override
     public Mapper merge(Mapper mergeWith) {
-        if (!(mergeWith instanceof FieldAliasMapper)) {
+        if ((mergeWith instanceof FieldAliasMapper) == false) {
             throw new IllegalArgumentException("Cannot merge a field alias mapping ["
                 + name() + "] with a mapping that is not for a field alias.");
         }
@@ -94,7 +83,7 @@ public final class FieldAliasMapper extends Mapper {
             throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
                 name() + "]: an alias cannot refer to itself.");
         }
-        if (mappers.fieldTypes().get(path) == null) {
+        if (mappers.fieldTypesLookup().get(path) == null) {
             throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
                 name() + "]: an alias must refer to an existing field in the mappings.");
         }
@@ -105,7 +94,7 @@ public final class FieldAliasMapper extends Mapper {
         String aliasScope = mappers.getNestedScope(name);
         String pathScope = mappers.getNestedScope(path);
 
-        if (!Objects.equals(aliasScope, pathScope)) {
+        if (Objects.equals(aliasScope, pathScope) == false) {
             StringBuilder message = new StringBuilder("Invalid [path] value [" + path + "] for field alias [" +
                 name + "]: an alias must have the same nested scope as its target. ");
             message.append(aliasScope == null
@@ -121,7 +110,7 @@ public final class FieldAliasMapper extends Mapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             FieldAliasMapper.Builder builder = new FieldAliasMapper.Builder(name);
             Object pathField = node.remove(Names.PATH);

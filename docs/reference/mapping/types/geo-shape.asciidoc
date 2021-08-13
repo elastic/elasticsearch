@@ -1,7 +1,7 @@
 [[geo-shape]]
-=== Geo-shape field type
+=== Geoshape field type
 ++++
-<titleabbrev>Geo-shape</titleabbrev>
+<titleabbrev>Geoshape</titleabbrev>
 ++++
 
 The `geo_shape` data type facilitates the indexing of and searching
@@ -10,76 +10,21 @@ used when either the data being indexed or the queries being executed
 contain shapes other than just points.
 
 You can query documents using this type using
-<<query-dsl-geo-shape-query,geo_shape Query>>.
+a <<query-dsl-geo-shape-query,`geo_shape` query>>.
 
 [[geo-shape-mapping-options]]
 [discrete]
 ==== Mapping Options
 
-The geo_shape mapping maps geo_json geometry objects to the geo_shape
-type. To enable it, users must explicitly map fields to the geo_shape
+The `geo_shape` mapping maps GeoJSON geometry objects to the `geo_shape`
+type. To enable it, users must explicitly map fields to the `geo_shape`
 type.
 
 [cols="<,<,<",options="header",]
 |=======================================================================
 |Option |Description| Default
 
-|`tree` |deprecated[6.6, PrefixTrees no longer used] Name of the PrefixTree
-implementation to be used: `geohash` for GeohashPrefixTree and `quadtree`
-for QuadPrefixTree. Note: This parameter is only relevant for `term` and
-`recursive` strategies.
-| `quadtree`
-
-|`precision` |deprecated[6.6, PrefixTrees no longer used] This parameter may
-be used instead of `tree_levels` to set an appropriate value for the
-`tree_levels` parameter. The value specifies the desired precision and
-Elasticsearch will calculate the best tree_levels value to honor this
-precision. The value should be a number followed by an optional distance
-unit. Valid distance units include: `in`, `inch`, `yd`, `yard`, `mi`,
-`miles`, `km`, `kilometers`, `m`,`meters`, `cm`,`centimeters`, `mm`,
-`millimeters`. Note: This parameter is only relevant for `term` and
-`recursive` strategies.
-| `50m`
-
-|`tree_levels` |deprecated[6.6, PrefixTrees no longer used] Maximum number
-of layers to be used by the PrefixTree. This can be used to control the
-precision of shape representations andtherefore how many terms are
-indexed. Defaults to the default value of the chosen PrefixTree
-implementation. Since this parameter requires a certain level of
-understanding of the underlying implementation, users may use the
-`precision` parameter instead. However, Elasticsearch only uses the
-tree_levels parameter internally and this is what is returned via the
-mapping API even if you use the precision parameter. Note: This parameter
-is only relevant for `term` and `recursive` strategies.
-| various
-
-|`strategy` |deprecated[6.6, PrefixTrees no longer used] The strategy
-parameter defines the approach for how to represent shapes at indexing
-and search time. It also influences the capabilities available so it
-is recommended to let Elasticsearch set this parameter automatically.
-There are two strategies available: `recursive`, and `term`.
-Recursive and Term strategies are deprecated and will be removed in a
-future version. While they are still available, the Term strategy
-supports point types only (the `points_only` parameter will be
-automatically set to true) while Recursive strategy supports all
-shape types. (IMPORTANT: see <<prefix-trees, Prefix trees>> for more
-detailed information about these strategies)
-| `recursive`
-
-|`distance_error_pct` |deprecated[6.6, PrefixTrees no longer used] Used as a
-hint to the PrefixTree about how precise it should be. Defaults to 0.025 (2.5%)
-with 0.5 as the maximum supported value. PERFORMANCE NOTE: This value will
-default to 0 if a `precision` or `tree_level` definition is explicitly defined.
-This guarantees spatial precision at the level defined in the mapping. This can
-lead to significant memory usage for high resolution shapes with low error
-(e.g., large shapes at 1m with < 0.001 error). To improve indexing performance
-(at the cost of query accuracy) explicitly define `tree_level` or `precision`
-along with a reasonable `distance_error_pct`, noting that large shapes will have
-greater false positives. Note: This parameter is only relevant for `term` and
-`recursive` strategies.
-| `0.025`
-
-|`orientation` 
+|`orientation`
 a|Optional. Vertex order for the shape's coordinates list.
 
 This parameter sets and returns only a `RIGHT` (counterclockwise) or `LEFT`
@@ -106,15 +51,6 @@ ring (hole) vertices in clockwise order.
 Individual GeoJSON or WKT documents can override this parameter.
 | `RIGHT`
 
-|`points_only` |deprecated[6.6, PrefixTrees no longer used] Setting this option to
-`true` (defaults to `false`) configures the `geo_shape` field type for point
-shapes only (NOTE: Multi-Points are not yet supported). This optimizes index and
-search performance for the `geohash` and `quadtree` when it is known that only points
-will be indexed. At present geo_shape queries can not be executed on `geo_point`
-field types. This option bridges the gap by improving point performance on a
-`geo_shape` field so that `geo_shape` queries are optimal on a point only field.
-| `false`
-
 |`ignore_malformed` |If true, malformed GeoJSON or WKT shapes are ignored. If
 false (default), malformed GeoJSON and WKT shapes throw an exception and reject the
 entire document.
@@ -122,7 +58,7 @@ entire document.
 
 |`ignore_z_value` |If `true` (default) three dimension points will be accepted (stored in source)
 but only latitude and longitude values will be indexed; the third dimension is ignored. If `false`,
-geo-points containing any more than latitude and longitude (two dimensions) values throw an exception
+geopoints containing any more than latitude and longitude (two dimensions) values throw an exception
 and reject the whole document.
 | `true`
 
@@ -139,86 +75,8 @@ GeoShape types are indexed by decomposing the shape into a triangular mesh and
 indexing each triangle as a 7 dimension point in a BKD tree. This provides
 near perfect spatial resolution (down to 1e-7 decimal degree precision) since all
 spatial relations are computed using an encoded vector representation of the
-original shape instead of a raster-grid representation as used by the
-<<prefix-trees>> indexing approach. Performance of the tessellator primarily
-depends on the number of vertices that define the polygon/multi-polygon. While
-this is the default indexing technique prefix trees can still be used by setting
-the `tree` or `strategy` parameters according to the appropriate
-<<geo-shape-mapping-options>>. Note that these parameters are now deprecated
-and will be removed in a future version.
-
-*IMPORTANT NOTES*
-
-`CONTAINS` relation query - when using the new default vector indexing strategy, `geo_shape`
-queries with `relation` defined as `contains` are supported for indices created with
-ElasticSearch 7.5.0 or higher.
-
-
-[[prefix-trees]]
-[discrete]
-==== Prefix trees
-
-deprecated[6.6, PrefixTrees no longer used] To efficiently represent shapes in
-an inverted index, Shapes are converted into a series of hashes representing
-grid squares (commonly referred to as "rasters") using implementations of a
-PrefixTree. The tree notion comes from the fact that the PrefixTree uses multiple
-grid layers, each with an increasing level of precision to represent the Earth.
-This can be thought of as increasing the level of detail of a map or image at higher
-zoom levels. Since this approach causes precision issues with indexed shape, it has
-been deprecated in favor of a vector indexing approach that indexes the shapes as a
-triangular mesh (see <<geoshape-indexing-approach>>).
-
-Multiple PrefixTree implementations are provided:
-
-* GeohashPrefixTree - Uses
-{wikipedia}/Geohash[geohashes] for grid squares.
-Geohashes are base32 encoded strings of the bits of the latitude and
-longitude interleaved. So the longer the hash, the more precise it is.
-Each character added to the geohash represents another tree level and
-adds 5 bits of precision to the geohash. A geohash represents a
-rectangular area and has 32 sub rectangles. The maximum number of levels
-in Elasticsearch is 24; the default is 9.
-* QuadPrefixTree - Uses a
-{wikipedia}/Quadtree[quadtree] for grid squares.
-Similar to geohash, quad trees interleave the bits of the latitude and
-longitude the resulting hash is a bit set. A tree level in a quad tree
-represents 2 bits in this bit set, one for each coordinate. The maximum
-number of levels for the quad trees in Elasticsearch is 29; the default is 21.
-
-[[spatial-strategy]]
-[discrete]
-===== Spatial strategies
-deprecated[6.6, PrefixTrees no longer used]  The indexing implementation
-selected relies on a  SpatialStrategy for choosing how to decompose the shapes
-(either as grid  squares or a tessellated triangular mesh). Each strategy
-answers the following:
-
-* What type of Shapes can be indexed?
-* What types of Query Operations and Shapes can be used?
-* Does it support more than one Shape per field?
-
-The following Strategy implementations (with corresponding capabilities)
-are provided:
-
-[cols="<,<,<,<",options="header",]
-|=======================================================================
-|Strategy |Supported Shapes |Supported Queries |Multiple Shapes
-
-|`recursive`  |<<input-structure, All>> |`INTERSECTS`, `DISJOINT`, `WITHIN`, `CONTAINS` |Yes
-|`term` |<<geo-point-type, Points>> |`INTERSECTS` |Yes
-
-|=======================================================================
-
-[discrete]
-===== Accuracy
-
-`Recursive` and `Term` strategies do not provide 100% accuracy and depending on
-how they are configured it may return some false positives for `INTERSECTS`,
-`WITHIN` and `CONTAINS` queries, and some false negatives for `DISJOINT` queries.
-To mitigate this, it is important to select an appropriate value for the tree_levels
-parameter and to adjust expectations accordingly. For example, a point may be near
-the border of a particular grid cell and may thus not match a query that only matches
-the cell right next to it -- even though the shape is very close to the point.
+original shape. Performance of the tessellator primarily
+depends on the number of vertices that define the polygon/multi-polygon.
 
 [discrete]
 ===== Example
@@ -237,33 +95,6 @@ PUT /example
 }
 --------------------------------------------------
 // TESTSETUP
-
-This mapping definition maps the location field to the geo_shape
-type using the default vector implementation. It provides
-approximately 1e-7 decimal degree precision.
-
-[discrete]
-===== Performance considerations with Prefix Trees
-
-deprecated[6.6, PrefixTrees no longer used] With prefix trees,
-Elasticsearch uses the paths in the tree as terms in the inverted index
-and in queries. The higher the level (and thus the precision), the more
-terms are generated. Of course, calculating the terms, keeping them in
-memory, and storing them on disk all have a price. Especially with higher
-tree levels, indices can become extremely large even with a modest amount
-of data. Additionally, the size of the features also matters. Big, complex
-polygons can take up a lot of space at higher tree levels. Which setting
-is right depends on the use case. Generally one trades off accuracy against
-index size and query performance.
-
-The defaults in Elasticsearch for both implementations are a compromise
-between index size and a reasonable level of precision of 50m at the
-equator. This allows for indexing tens of millions of shapes without
-overly bloating the resulting index too much relative to the input size.
-
-[NOTE]
-Geo-shape queries on geo-shapes implemented with PrefixTrees will not be executed if
-<<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set to false.
 
 [[input-structure]]
 [discrete]
@@ -292,8 +123,6 @@ points.
 and a LineString).
 |`N/A` |`BBOX` |`envelope` |A bounding rectangle, or envelope, specified by
 specifying only the top left and bottom right points.
-|`N/A` |`N/A` |`circle` |A circle specified by a center point and radius with
-units, which default to `METERS`.
 |=======================================================================
 
 [NOTE]
@@ -342,7 +171,7 @@ POST /example/_doc
 
 A `linestring` defined by an array of two or more positions. By
 specifying only two points, the `linestring` will represent a straight
-line.  Specifying more than two points creates an arbitrary path. The
+line. Specifying more than two points creates an arbitrary path. The
 following is an example of a LineString in GeoJSON.
 
 [source,console]
@@ -443,7 +272,7 @@ but for polygons that do cross the dateline (or for other polygons wider than
 GeoJSON specifications. Otherwise, an unintended polygon may be created and
 unexpected query/filter results will be returned.
 
-The following provides an example of an ambiguous polygon.  Elasticsearch will
+The following provides an example of an ambiguous polygon. Elasticsearch will
 apply the GeoJSON standard to eliminate ambiguity resulting in a polygon that
 crosses the dateline.
 
@@ -462,8 +291,8 @@ POST /example/_doc
 --------------------------------------------------
 // TEST[catch:/mapper_parsing_exception/]
 
-An `orientation` parameter can be defined when setting the geo_shape mapping (see <<geo-shape-mapping-options>>). This will define vertex
-order for the coordinate list on the mapped geo_shape field. It can also be overridden on each document.  The following is an example for
+An `orientation` parameter can be defined when setting the `geo_shape` mapping (see <<geo-shape-mapping-options>>). This will define vertex
+order for the coordinate list on the mapped `geo_shape` field. It can also be overridden on each document. The following is an example for
 overriding the orientation on a document:
 
 [source,console]
@@ -484,7 +313,7 @@ POST /example/_doc
 [[geo-multipoint]]
 ===== http://geojson.org/geojson-spec.html#id5[MultiPoint]
 
-The following is an example of a list of geojson points:
+The following is an example of a list of GeoJSON points:
 
 [source,console]
 --------------------------------------------------
@@ -513,7 +342,7 @@ POST /example/_doc
 [[geo-multilinestring]]
 ===== http://geojson.org/geojson-spec.html#id6[MultiLineString]
 
-The following is an example of a list of geojson linestrings:
+The following is an example of a list of GeoJSON linestrings:
 
 [source,console]
 --------------------------------------------------
@@ -544,7 +373,7 @@ POST /example/_doc
 [[geo-multipolygon]]
 ===== http://geojson.org/geojson-spec.html#id7[MultiPolygon]
 
-The following is an example of a list of geojson polygons (second polygon contains a hole):
+The following is an example of a list of GeoJSON polygons (second polygon contains a hole):
 
 [source,console]
 --------------------------------------------------
@@ -575,7 +404,7 @@ POST /example/_doc
 [[geo-geometry_collection]]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
-The following is an example of a collection of geojson geometry objects:
+The following is an example of a collection of GeoJSON geometry objects:
 
 [source,console]
 --------------------------------------------------
@@ -641,34 +470,14 @@ POST /example/_doc
 [discrete]
 ===== Circle
 
-Elasticsearch supports a `circle` type, which consists of a center
-point with a radius. Note that this circle representation can only
-be indexed when using the `recursive` Prefix Tree strategy. For
-the default <<geoshape-indexing-approach>> circles should be approximated using
-a `POLYGON`.
-
-[source,console]
---------------------------------------------------
-POST /example/_doc
-{
-  "location" : {
-    "type" : "circle",
-    "coordinates" : [101.0, 1.0],
-    "radius" : "100m"
-  }
-}
---------------------------------------------------
-// TEST[skip:not supported in default]
-
-Note: The inner `radius` field is required. If not specified, then
-the units of the `radius` will default to `METERS`.
-
-*NOTE:* Neither GeoJSON or WKT support a point-radius circle type.
+Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a
+<<ingest-circle-processor,circle ingest processor>> to approximate the circle as
+a <<geo-polygon,`polygon`>>.
 
 [discrete]
 ==== Sorting and Retrieving index Shapes
 
 Due to the complex input structure and index representation of shapes,
 it is not currently possible to sort shapes or retrieve their fields
-directly. The geo_shape value is only retrievable through the `_source`
+directly. The `geo_shape` value is only retrievable through the `_source`
 field.

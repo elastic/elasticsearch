@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.cli;
 
@@ -30,15 +31,15 @@ import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.network.InetAddressHelper;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
-
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -256,7 +257,7 @@ public class CertGenUtils {
      * Gets a random serial for a certificate that is generated from a {@link SecureRandom}
      */
     public static BigInteger getSerial() {
-        SecureRandom random = new SecureRandom();
+        SecureRandom random = Randomness.createSecure();
         BigInteger serial = new BigInteger(SERIAL_BIT_LENGTH, random);
         assert serial.compareTo(BigInteger.valueOf(0L)) >= 0;
         return serial;
@@ -268,7 +269,7 @@ public class CertGenUtils {
     public static KeyPair generateKeyPair(int keysize) throws NoSuchAlgorithmException {
         // generate a private key
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(keysize);
+        keyPairGenerator.initialize(keysize, Randomness.createSecure());
         return keyPairGenerator.generateKeyPair();
     }
 
@@ -280,7 +281,7 @@ public class CertGenUtils {
         for (InetAddress address : addresses) {
             if (address.isAnyLocalAddress()) {
                 // it is a wildcard address
-                for (InetAddress inetAddress : InetAddressHelper.getAllAddresses()) {
+                for (InetAddress inetAddress : NetworkUtils.getAllAddresses()) {
                     addSubjectAlternativeNames(resolveName, inetAddress, generalNameList);
                 }
             } else {
@@ -313,5 +314,14 @@ public class CertGenUtils {
     public static GeneralName createCommonName(String cn) {
         final ASN1Encodable[] sequence = {new ASN1ObjectIdentifier(CN_OID), new DERTaggedObject(true, 0, new DERUTF8String(cn))};
         return new GeneralName(GeneralName.otherName, new DERSequence(sequence));
+    }
+
+    /**
+     * See RFC 2247 Using Domains in LDAP/X.500 Distinguished Names
+     * @param domain active directory domain name
+     * @return LDAP DN, distinguished name, of the root of the domain
+     */
+    public static String buildDnFromDomain(String domain) {
+        return "DC=" + domain.replace(".", ",DC=");
     }
 }

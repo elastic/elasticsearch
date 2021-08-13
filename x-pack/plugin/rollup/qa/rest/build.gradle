@@ -1,27 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
-    testImplementation project(path: xpackModule('rollup'))
+  yamlRestTestImplementation project(path: xpackModule('rollup'))
 }
 
 restResources {
-    restApi {
-        includeCore '_common', 'bulk', 'cluster', 'indices', 'search'
-        includeXpack 'rollup'
-    }
+  restApi {
+    include '_common', 'bulk', 'cluster', 'indices', 'search', 'rollup'
+  }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.license.self_generated.type', 'basic'
-    systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'basic'
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
+}
+
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("yamlRestTest").configure{enabled = false }
 }

@@ -25,7 +25,7 @@ PUT my-index-000001
     <<indices-get-mapping,GET mapping>> API.
 
 The `_meta` field can be updated on an existing type using the
-<<indices-put-mapping,PUT mapping>> API:
+<<indices-put-mapping,update mapping>> API:
 
 [source,console]
 --------------------------------------------------

@@ -1,114 +1,169 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.azure.storage.CloudStorageAccount;
-import com.microsoft.azure.storage.Constants;
-import com.microsoft.azure.storage.OperationContext;
-import com.microsoft.azure.storage.RetryPolicy;
-import com.microsoft.azure.storage.RetryPolicyFactory;
-import com.microsoft.azure.storage.RetryExponentialRetry;
-import com.microsoft.azure.storage.blob.BlobRequestOptions;
-import com.microsoft.azure.storage.blob.CloudBlobClient;
-import org.elasticsearch.common.collect.Tuple;
+import com.azure.core.http.ProxyOptions;
+import com.azure.core.util.logging.ClientLogger;
+import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
+import com.azure.storage.common.policy.RequestRetryOptions;
+import com.azure.storage.common.policy.RetryPolicyType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.security.InvalidKeyException;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.URL;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 
 public class AzureStorageService {
-
     public static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+
+    /**
+     * The maximum size of a BlockBlob block.
+     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
+     */
+    public static ByteSizeValue MAX_BLOCK_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
+
+    /**
+     * The maximum number of blocks.
+     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
+     */
+    public static final long MAX_BLOCK_NUMBER = 50000;
+
+    /**
+     * Default block size for multi-block uploads. The Azure repository will use the Put block and Put block list APIs to split the
+     * stream into several part, each of block_size length, and will upload each part in its own request.
+     */
+    private static final ByteSizeValue DEFAULT_BLOCK_SIZE = new ByteSizeValue(
+        Math.max(
+            ByteSizeUnit.MB.toBytes(5), // minimum value
+            Math.min(
+                MAX_BLOCK_SIZE.getBytes(),
+                JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)),
+        ByteSizeUnit.BYTES);
+
+    /**
+     * The maximum size of a Block Blob.
+     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
+     */
+    public static final long MAX_BLOB_SIZE = MAX_BLOCK_NUMBER * DEFAULT_BLOCK_SIZE.getBytes();
 
     /**
      * Maximum allowed blob size in Azure blob store.
      */
-    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(Constants.MAX_BLOB_SIZE, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(MAX_BLOB_SIZE , ByteSizeUnit.BYTES);
+
+    private static final long DEFAULT_UPLOAD_BLOCK_SIZE = DEFAULT_BLOCK_SIZE.getBytes();
 
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
+    private final AzureClientProvider azureClientProvider;
+    private final ClientLogger clientLogger = new ClientLogger(AzureStorageService.class);
 
-    public AzureStorageService(Settings settings) {
+    public AzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {
         // eagerly load client settings so that secure settings are read
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
-        refreshAndClearCache(clientsSettings);
+        refreshSettings(clientsSettings);
+        this.azureClientProvider = azureClientProvider;
     }
 
-    /**
-     * Creates a {@code CloudBlobClient} on each invocation using the current client
-     * settings. CloudBlobClient is not thread safe and the settings can change,
-     * therefore the instance is not cache-able and should only be reused inside a
-     * thread for logically coupled ops. The {@code OperationContext} is used to
-     * specify the proxy, but a new context is *required* for each call.
-     */
-    public Tuple<CloudBlobClient, Supplier<OperationContext>> client(String clientName) {
+    public AzureBlobServiceClient client(String clientName, LocationMode locationMode) {
+        return client(clientName, locationMode, null);
+    }
+
+    public AzureBlobServiceClient client(String clientName, LocationMode locationMode, BiConsumer<String, URL> successfulRequestConsumer) {
+        final AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
+
+        RequestRetryOptions retryOptions = getRetryOptions(locationMode, azureStorageSettings);
+        ProxyOptions proxyOptions = getProxyOptions(azureStorageSettings);
+        return azureClientProvider.createClient(azureStorageSettings, locationMode, retryOptions, proxyOptions, successfulRequestConsumer);
+    }
+
+    private AzureStorageSettings getClientSettings(String clientName) {
         final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
         if (azureStorageSettings == null) {
             throw new SettingsException("Unable to find client with name [" + clientName + "]");
         }
-        try {
-            return new Tuple<>(buildClient(azureStorageSettings), () -> buildOperationContext(azureStorageSettings));
-        } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
-            throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
-        }
+        return azureStorageSettings;
     }
 
-    private CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
-        final CloudBlobClient client = createClient(azureStorageSettings);
-        // Set timeout option if the user sets cloud.azure.storage.timeout or
-        // cloud.azure.storage.xxx.timeout (it's negative by default)
-        final long timeout = azureStorageSettings.getTimeout().getMillis();
-        if (timeout > 0) {
-            if (timeout > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException("Timeout [" + azureStorageSettings.getTimeout() + "] exceeds 2,147,483,647ms.");
-            }
-            client.getDefaultRequestOptions().setTimeoutIntervalInMs((int) timeout);
+    private static ProxyOptions getProxyOptions(AzureStorageSettings settings) {
+        Proxy proxy = settings.getProxy();
+        if (proxy == null) {
+            return null;
         }
-        // We define a default exponential retry policy
-        client.getDefaultRequestOptions().setRetryPolicyFactory(createRetryPolicy(azureStorageSettings));
-        client.getDefaultRequestOptions().setLocationMode(azureStorageSettings.getLocationMode());
-        return client;
+
+        switch (proxy.type()) {
+            case HTTP:
+                return new ProxyOptions(ProxyOptions.Type.HTTP, (InetSocketAddress) proxy.address());
+            case SOCKS:
+                return new ProxyOptions(ProxyOptions.Type.SOCKS5, (InetSocketAddress) proxy.address());
+            default:
+                return null;
+        }
     }
 
     // non-static, package private for testing
-    RetryPolicyFactory createRetryPolicy(final AzureStorageSettings azureStorageSettings) {
-        return new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries());
+    long getUploadBlockSize() {
+        return DEFAULT_UPLOAD_BLOCK_SIZE;
     }
 
-    private static CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
-        final String connectionString = azureStorageSettings.getConnectString();
-        return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
+    int getMaxReadRetries(String clientName) {
+        AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
+        return azureStorageSettings.getMaxRetries();
     }
 
-    private static OperationContext buildOperationContext(AzureStorageSettings azureStorageSettings) {
-        final OperationContext context = new OperationContext();
-        context.setProxy(azureStorageSettings.getProxy());
-        return context;
+    // non-static, package private for testing
+    RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
+        String connectString = azureStorageSettings.getConnectString();
+        StorageConnectionString storageConnectionString = StorageConnectionString.create(connectString, clientLogger);
+        String primaryUri = storageConnectionString.getBlobEndpoint().getPrimaryUri();
+        String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
+
+        if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY && secondaryUri == null) {
+            throw new IllegalArgumentException("Unable to use " + locationMode + " location mode without a secondary location URI");
+        }
+
+        final String secondaryHost;
+        switch (locationMode) {
+            case PRIMARY_ONLY:
+            case SECONDARY_ONLY:
+                secondaryHost = null;
+                break;
+            case PRIMARY_THEN_SECONDARY:
+                secondaryHost = secondaryUri;
+                break;
+            case SECONDARY_THEN_PRIMARY:
+                secondaryHost = primaryUri;
+                break;
+            default:
+                assert false;
+                throw new AssertionError("Impossible to get here");
+        }
+
+        // The request retry policy uses seconds as the default time unit, since
+        // it's possible to configure a timeout < 1s we should ceil that value
+        // as RequestRetryOptions expects a value >= 1.
+        // See https://github.com/Azure/azure-sdk-for-java/issues/17590 for a proposal
+        // to fix this issue.
+        TimeValue configuredTimeout = azureStorageSettings.getTimeout();
+        int timeout = configuredTimeout.duration() == -1 ? Integer.MAX_VALUE : Math.max(1, Math.toIntExact(configuredTimeout.getSeconds()));
+        return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
+            azureStorageSettings.getMaxRetries(), timeout,
+            null, null, secondaryHost);
     }
 
     /**
@@ -116,35 +171,9 @@ public class AzureStorageService {
      * client requests will use the new refreshed settings.
      *
      * @param clientsSettings the settings for new clients
-     * @return the old settings
      */
-    public Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings) {
-        final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
+    public void refreshSettings(Map<String, AzureStorageSettings> clientsSettings) {
         this.storageSettings = Map.copyOf(clientsSettings);
-        // clients are built lazily by {@link client(String)}
-        return prevSettings;
-    }
-
-    /**
-     * Extract the blob name from a URI like https://myservice.azure.net/container/path/to/myfile
-     * It should remove the container part (first part of the path) and gives path/to/myfile
-     * @param uri URI to parse
-     * @return The blob name relative to the container
-     */
-    static String blobNameFromUri(URI uri) {
-        final String path = uri.getPath();
-        // We remove the container name from the path
-        // The 3 magic number cames from the fact if path is /container/path/to/myfile
-        // First occurrence is empty "/"
-        // Second occurrence is "container
-        // Last part contains "path/to/myfile" which is what we want to get
-        final String[] splits = path.split("/", 3);
-        // We return the remaining end of the string
-        return splits[2];
-    }
-
-    // package private for testing
-    BlobRequestOptions getBlobRequestOptionsForWriteBlob() {
-        return null;
+        // clients are built lazily by {@link client(String, LocationMode)}
     }
 }

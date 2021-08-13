@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
@@ -9,7 +10,7 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,10 +37,10 @@ public final class GetApiKeyRequest extends ActionRequest {
 
     public GetApiKeyRequest(StreamInput in) throws IOException {
         super(in);
-        realmName = in.readOptionalString();
-        userName = in.readOptionalString();
-        apiKeyId = in.readOptionalString();
-        apiKeyName = in.readOptionalString();
+        realmName = textOrNull(in.readOptionalString());
+        userName = textOrNull(in.readOptionalString());
+        apiKeyId = textOrNull(in.readOptionalString());
+        apiKeyName = textOrNull(in.readOptionalString());
         if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             ownedByAuthenticatedUser = in.readOptionalBoolean();
         } else {
@@ -49,11 +50,15 @@ public final class GetApiKeyRequest extends ActionRequest {
 
     public GetApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
                             @Nullable String apiKeyName, boolean ownedByAuthenticatedUser) {
-        this.realmName = realmName;
-        this.userName = userName;
-        this.apiKeyId = apiKeyId;
-        this.apiKeyName = apiKeyName;
+        this.realmName = textOrNull(realmName);
+        this.userName = textOrNull(userName);
+        this.apiKeyId = textOrNull(apiKeyId);
+        this.apiKeyName = textOrNull(apiKeyName);
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
+    }
+
+    private static String textOrNull(@Nullable String arg) {
+        return Strings.hasText(arg) ? arg : null;
     }
 
     public String getRealmName() {

@@ -1,0 +1,140 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+#
+# Painless definition file. This defines the hierarchy of classes,
+# what methods and fields they have, etc.
+#
+
+#### Classes
+
+class java.math.BigDecimal {
+  BigDecimal ONE
+  BigDecimal TEN
+  BigDecimal ZERO
+  (String)
+  (String,MathContext)
+  BigDecimal abs()
+  BigDecimal abs(MathContext)
+  BigDecimal add(BigDecimal)
+  BigDecimal add(BigDecimal,MathContext)
+  byte byteValueExact()
+  int compareTo(BigDecimal)
+  BigDecimal divide(BigDecimal)
+  BigDecimal divide(BigDecimal,MathContext)
+  BigDecimal[] divideAndRemainder(BigDecimal)
+  BigDecimal[] divideAndRemainder(BigDecimal,MathContext)
+  BigDecimal divideToIntegralValue(BigDecimal)
+  BigDecimal divideToIntegralValue(BigDecimal,MathContext)
+  int intValueExact()
+  long longValueExact()
+  BigDecimal max(BigDecimal)
+  BigDecimal min(BigDecimal)
+  BigDecimal movePointLeft(int)
+  BigDecimal movePointRight(int)
+  BigDecimal multiply(BigDecimal)
+  BigDecimal multiply(BigDecimal,MathContext)
+  BigDecimal negate()
+  BigDecimal negate(MathContext)
+  BigDecimal plus()
+  BigDecimal plus(MathContext)
+  BigDecimal pow(int)
+  BigDecimal pow(int,MathContext)
+  int precision()
+  BigDecimal remainder(BigDecimal)
+  BigDecimal remainder(BigDecimal,MathContext)
+  BigDecimal round(MathContext)
+  int scale()
+  BigDecimal scaleByPowerOfTen(int)
+  BigDecimal setScale(int)
+  BigDecimal setScale(int,RoundingMode)
+  short shortValueExact()
+  int signum()
+  BigDecimal stripTrailingZeros()
+  BigDecimal subtract(BigDecimal)
+  BigDecimal subtract(BigDecimal,MathContext)
+  BigInteger toBigInteger()
+  BigInteger toBigIntegerExact()
+  String toEngineeringString()
+  String toPlainString()
+  BigDecimal ulp()
+  BigDecimal valueOf(double)
+}
+
+class java.math.BigInteger {
+  BigInteger ONE
+  BigInteger TEN
+  BigInteger ZERO
+  (String)
+  (String,int)
+  BigInteger abs()
+  BigInteger add(BigInteger)
+  BigInteger and(BigInteger)
+  BigInteger andNot(BigInteger)
+  int bitCount()
+  int bitLength()
+  byte byteValueExact()
+  BigInteger clearBit(int)
+  int compareTo(BigInteger)
+  BigInteger divide(BigInteger)
+  BigInteger[] divideAndRemainder(BigInteger)
+  BigInteger flipBit(int)
+  BigInteger gcd(BigInteger)
+  int getLowestSetBit()
+  int intValueExact()
+  long longValueExact()
+  BigInteger max(BigInteger)
+  BigInteger min(BigInteger)
+  BigInteger mod(BigInteger)
+  BigInteger modInverse(BigInteger)
+  BigInteger modPow(BigInteger,BigInteger)
+  BigInteger multiply(BigInteger)
+  BigInteger negate()
+  BigInteger not()
+  BigInteger or(BigInteger)
+  BigInteger pow(int)
+  BigInteger remainder(BigInteger)
+  BigInteger setBit(int)
+  BigInteger shiftLeft(int)
+  BigInteger shiftRight(int)
+  short shortValueExact()
+  int signum()
+  BigInteger subtract(BigInteger)
+  boolean testBit(int)
+  byte[] toByteArray()
+  String toString(int)
+  BigInteger valueOf(long)
+  BigInteger xor(BigInteger)
+}
+
+class java.math.MathContext {
+  MathContext DECIMAL128
+  MathContext DECIMAL32
+  MathContext DECIMAL64
+  MathContext UNLIMITED
+  (int)
+  (int,RoundingMode)
+  int getPrecision()
+  RoundingMode getRoundingMode()
+}
+
+#### Enums
+
+class java.math.RoundingMode {
+  RoundingMode CEILING
+  RoundingMode DOWN
+  RoundingMode FLOOR
+  RoundingMode HALF_DOWN
+  RoundingMode HALF_EVEN
+  RoundingMode HALF_UP
+  RoundingMode UNNECESSARY
+  RoundingMode UP
+  RoundingMode valueOf(String)
+  RoundingMode[] values()
+}
+

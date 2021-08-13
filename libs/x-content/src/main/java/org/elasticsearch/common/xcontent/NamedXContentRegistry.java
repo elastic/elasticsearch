@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -53,62 +42,80 @@ public class NamedXContentRegistry {
         /** A name for the entry which is unique within the {@link #categoryClass}. */
         public final ParseField name;
 
+        public final Function<RestApiVersion, Boolean> restApiCompatibility;
+
         /** A parser capability of parser the entry's class. */
         private final ContextParser<Object, ?> parser;
 
-        /** Creates a new entry which can be stored by the registry. */
+        /**
+         * Creates a new entry which can be stored by the registry.
+         */
         public <T> Entry(Class<T> categoryClass, ParseField name, CheckedFunction<XContentParser, ? extends T, IOException> parser) {
-            this.categoryClass = Objects.requireNonNull(categoryClass);
-            this.name = Objects.requireNonNull(name);
-            this.parser = Objects.requireNonNull((p, c) -> parser.apply(p));
+            this(categoryClass, name, (p, c) -> parser.apply(p), name.getForRestApiVersion());
+        }
+
+        public <T> Entry(Class<T> categoryClass, ParseField name, CheckedFunction<XContentParser, ? extends T, IOException> parser,
+                         Function<RestApiVersion, Boolean> restApiCompatibility) {
+            this(categoryClass, name, (p, c) -> parser.apply(p), restApiCompatibility);
         }
         /**
          * Creates a new entry which can be stored by the registry.
          * Prefer {@link Entry#Entry(Class, ParseField, CheckedFunction)} unless you need a context to carry around while parsing.
          */
         public <T> Entry(Class<T> categoryClass, ParseField name, ContextParser<Object, ? extends T> parser) {
+            this(categoryClass, name, parser, name.getForRestApiVersion());
+        }
+
+        public <T> Entry(Class<T> categoryClass, ParseField name, ContextParser<Object, ? extends T> parser,
+                         Function<RestApiVersion, Boolean> restApiCompatibility) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
             this.parser = Objects.requireNonNull(parser);
+            this.restApiCompatibility = restApiCompatibility;
         }
     }
 
-    private final Map<Class<?>, Map<String, Entry>> registry;
+    private final Map<RestApiVersion,Map<Class<?>, Map<String, Entry>>> registry;
+
 
     public NamedXContentRegistry(List<Entry> entries) {
+        this.registry = unmodifiableMap(createRegistry(entries));
+    }
+
+
+    private  Map<RestApiVersion,Map<Class<?>, Map<String, Entry>>> createRegistry(List<Entry> entries){
         if (entries.isEmpty()) {
-            registry = emptyMap();
-            return;
+            return emptyMap();
         }
-        entries = new ArrayList<>(entries);
-        entries.sort((e1, e2) -> e1.categoryClass.getName().compareTo(e2.categoryClass.getName()));
 
-        Map<Class<?>, Map<String, Entry>> registry = new HashMap<>();
-        Map<String, Entry> parsers = null;
-        Class<?> currentCategory = null;
+        Map<RestApiVersion,Map<Class<?>, Map<String, Entry>>> registry = new HashMap<>();
         for (Entry entry : entries) {
-            if (currentCategory != entry.categoryClass) {
-                if (currentCategory != null) {
-                    // we've seen the last of this category, put it into the big map
-                    registry.put(currentCategory, unmodifiableMap(parsers));
-                }
-                parsers = new HashMap<>();
-                currentCategory = entry.categoryClass;
-            }
-
             for (String name : entry.name.getAllNamesIncludedDeprecated()) {
-                Object old = parsers.put(name, entry);
-                if (old != null) {
-                    throw new IllegalArgumentException("NamedXContent [" + currentCategory.getName() + "][" + entry.name + "]" +
-                        " is already registered for [" + old.getClass().getName() + "]," +
-                        " cannot register [" + entry.parser.getClass().getName() + "]");
+                if (RestApiVersion.minimumSupported().matches(entry.restApiCompatibility)) {
+                    registerParsers(registry, entry, name, RestApiVersion.minimumSupported());
+                }
+                if (RestApiVersion.current().matches(entry.restApiCompatibility)) {
+                    registerParsers(registry, entry, name, RestApiVersion.current());
                 }
             }
         }
-        // handle the last category
-        registry.put(currentCategory, unmodifiableMap(parsers));
+        return registry;
+    }
 
-        this.registry = unmodifiableMap(registry);
+    private void registerParsers(Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> registry,
+                                 Entry entry,
+                                 String name,
+                                 RestApiVersion restApiVersion) {
+        final Map<Class<?>, Map<String, Entry>> classRegistry =
+            registry.computeIfAbsent(restApiVersion, (v) -> new HashMap<>());
+        final Map<String, Entry> parsers =
+            classRegistry.computeIfAbsent(entry.categoryClass, (v) -> new HashMap<>());
+        Object old = parsers.put(name, entry);
+        if (old != null) {
+            throw new IllegalArgumentException("NamedXContent [" + entry.categoryClass.getName() + "][" + entry.name + "]" +
+                " is already registered for [" + old.getClass().getName() + "]," +
+                " cannot register [" + entry.parser.getClass().getName() + "]");
+        }
     }
 
     /**
@@ -119,7 +126,14 @@ public class NamedXContentRegistry {
      * @throws NamedObjectNotFoundException if the categoryClass or name is not registered
      */
     public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
-        Map<String, Entry> parsers = registry.get(categoryClass);
+        Entry entry = lookupParser(categoryClass, name, parser);
+        return categoryClass.cast(entry.parser.parse(parser, context));
+    }
+
+    //scope for testing
+    public <T> Entry lookupParser(Class<T> categoryClass, String name, XContentParser parser) {
+        Map<String, Entry> parsers = registry.getOrDefault(parser.getRestApiVersion(), emptyMap())
+            .get(categoryClass);
         if (parsers == null) {
             if (registry.isEmpty()) {
                 // The "empty" registry will never work so we throw a better exception as a hint.
@@ -137,7 +151,7 @@ public class NamedXContentRegistry {
             throw new XContentParseException(parser.getTokenLocation(),
                     "unable to parse " + categoryClass.getSimpleName() + " with name [" + name + "]: parser didn't match");
         }
-        return categoryClass.cast(entry.parser.parse(parser, context));
+        return entry;
     }
 
 }

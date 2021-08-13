@@ -1,0 +1,163 @@
+[role="xpack"]
+[[migrate-index-allocation-filters]]
+== Migrate index allocation filters to node roles
+
+If you currently use custom node attributes and
+<<shard-allocation-filtering, attribute-based allocation filters>> to
+move indices through <<data-tiers, data tiers>> in a
+https://www.elastic.co/blog/implementing-hot-warm-cold-in-elasticsearch-with-index-lifecycle-management[hot-warm-cold architecture],
+we recommend that you switch to using the built-in node roles
+and automatic <<data-tier-allocation, data tier allocation>>.
+Using node roles enables {ilm-init} to automatically
+move indices between data tiers.
+
+NOTE: While we recommend relying on automatic data tier allocation to manage
+your data in a hot-warm-cold architecture,
+you can still use attribute-based allocation filters to
+control shard allocation for other purposes.
+
+To switch to using node roles:
+
+. <<assign-data-tier, Assign data nodes>> to the appropriate data tier.
+. <<remove-custom-allocation-settings, Remove the attribute-based allocation
+settings>> from your {ilm} policy.
+. <<stop-setting-custom-hot-attribute, Stop setting the custom hot attribute>>
+on new indices.
+. Update existing indices to <<set-tier-preference, set a tier preference>>.
+
+
+[discrete]
+[[assign-data-tier]]
+=== Assign data nodes to a data tier
+
+Configure the appropriate roles for each data node to assign it to one or more
+data tiers: `data_hot`, `data_content`, `data_warm`, `data_cold`, or `data_frozen`.
+A node can also have other <<modules-node,roles>>. By default, new nodes are
+configured with all roles.
+
+When you add a data tier to an {ess} deployment,
+one or more nodes are automatically configured with the corresponding role.
+To explicitly change the role of a node in an {ess} deployment, use the
+{cloud}/ec-api-deployment-crud.html#ec_update_a_deployment[Update deployment API].
+Replace the node's `node_type` configuration with the appropriate `node_roles`.
+For example, the following configuration adds the node to the hot and content
+tiers, and enables it to act as an ingest node, remote, and transform node.
+
+[source,yaml]
+----
+"node_roles": [
+  "data_hot",
+  "data_content",
+  "ingest",
+  "remote_cluster_client",
+  "transform"
+],
+----
+
+If you are directly managing your own cluster,
+configure the appropriate roles for each node in `elasticsearch.yml`.
+For example, the following setting configures a node to be a data-only
+node in the hot and content tiers.
+
+[source,yaml]
+----
+node.roles [ data_hot, data_content ]
+----
+
+[discrete]
+[[remove-custom-allocation-settings]]
+=== Remove custom allocation settings from existing {ilm-init} policies
+
+Update the allocate action for each lifecycle phase to remove the attribute-based
+allocation settings. This enables {ilm-init} to inject the
+<<ilm-migrate,migrate>> action into each phase
+to automatically transition the indices through the data tiers.
+
+If the allocate action does not set the number of replicas,
+remove the allocate action entirely. (An empty allocate action is invalid.)
+
+IMPORTANT: The policy must specify the corresponding phase for each data tier in
+your architecture. Each phase must be present so {ilm-init} can inject the
+migrate action to move indices through the data tiers.
+If you don't need to perform any other actions, the phase can be empty.
+For example, if you enable the warm and cold data tiers for a deployment,
+your policy must include the hot, warm, and cold phases.
+
+[discrete]
+[[stop-setting-custom-hot-attribute]]
+=== Stop setting the custom hot attribute on new indices
+
+When you create a data stream, its first backing index
+is now automatically assigned to `data_hot` nodes.
+Similarly, when you directly create an index, it
+is automatically assigned to `data_content` nodes.
+
+On {ess} deployments, remove the `cloud-hot-warm-allocation-0` index template
+that set the hot shard allocation attribute on all indices.
+
+[source,console]
+----
+DELETE _template/.cloud-hot-warm-allocation-0
+----
+// TEST[skip:no cloud template]
+
+If you're using a custom index template, update it to remove the <<shard-allocation-filtering, attribute-based allocation filters>> you used to assign new indices to the hot tier.
+
+[discrete]
+[[set-tier-preference]]
+=== Set a tier preference for existing indices.
+
+{ilm-init} automatically transitions managed indices through the available
+data tiers by automatically injecting a <<ilm-migrate,migrate action>>
+into each phase.
+
+To enable {ilm-init} to move an _existing_ managed index
+through the data tiers, update the index settings to:
+
+. Remove the custom allocation filter by setting it to `null`.
+. Set the <<data-tier-shard-filtering,tier preference>>.
+
+For example, if your old template set the `data` attribute to `hot`
+to allocate shards to the hot tier, set the `data` attribute to `null`
+and set the `_tier_preference` to `data_hot`.
+
+////
+[source,console]
+----
+PUT /my-index
+
+PUT /my-index/_settings
+{
+  "index.routing.allocation.require.data": "hot"
+}
+----
+////
+
+[source,console]
+----
+PUT my-index/_settings
+{
+  "index.routing.allocation.require.data": null,
+  "index.routing.allocation.include._tier_preference": "data_hot"
+}
+----
+// TEST[continued]
+
+For indices that have already transitioned out of the hot phase,
+the tier preference should include the appropriate fallback tiers
+to ensure index shards can be allocated if the preferred tier
+is unavailable.
+For example, specify the hot tier as the fallback for indices
+already in the warm phase.
+
+[source,console]
+----
+PUT my-index/_settings
+{
+  "index.routing.allocation.require.data": null,
+  "index.routing.allocation.include._tier_preference": "data_warm,data_hot"
+}
+----
+// TEST[continued]
+
+If an index is already in the cold phase, include the cold, warm, and hot tiers.

@@ -18,48 +18,48 @@ Instantiates a {transform}.
 [[put-transform-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-built-in roles and privileges:
+Requires the following privileges:
 
-* `transform_admin`
-* source index: `read`, `view_index_metadata`
-* destination index: `read`, `create_index`, `manage` and `index`
-
-For more information, see <<built-in-roles>>, <<security-privileges>>, and
-{ml-docs-setup-privileges}.
-
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`
+* destination index: `read`, `create_index`, index`.
 
 [[put-transform-desc]]
 == {api-description-title}
 
-This API defines a {transform}, which copies data from source indices,
-transforms it, and persists it into an entity-centric destination index. The
-entities are defined by the set of `group_by` fields in the `pivot` object. You
-can also think of the destination index as a two-dimensional tabular data
-structure (known as a {dataframe}). The ID for each document in the
-{dataframe} is generated from a hash of the entity, so there is a unique row
-per entity. For more information, see <<transforms>>.
+This API defines a {transform}, which copies data from source indices, 
+transforms it, and persists it into an entity-centric destination index. If you
+choose to use the pivot method for your {transform}, the entities are defined by
+the set of `group_by` fields in the `pivot` object. If you choose to use the
+latest method, the entities are defined by the `unique_key` field values in the
+`latest` object.
 
-When the {transform} is created, a series of validations occur to
-ensure its success. For example, there is a check for the existence of the
-source indices and a check that the destination index is not part of the source
-index pattern. You can use the `defer_validation` parameter to skip these
-checks.
+You can also think of the destination index as a two-dimensional tabular data 
+structure (known as a {dataframe}). The ID for each document in the {dataframe} 
+is generated from a hash of the entity, so there is a unique row per entity. For 
+more information, see <<transforms>>.
 
-Deferred validations are always run when the {transform} is started,
-with the exception of privilege checks. When {es} {security-features} are
-enabled, the {transform} remembers which roles the user that created
-it had at the time of creation and uses those same roles. If those roles do not
-have the required privileges on the source and destination indices, the
-{transform} fails when it attempts unauthorized operations.
+When the {transform} is created, a series of validations occur to ensure its 
+success. For example, there is a check for the existence of the source indices 
+and a check that the destination index is not part of the source index pattern. 
+You can use the `defer_validation` parameter to skip these checks.
 
-IMPORTANT:  You must use {kib} or this API to create a {transform}.
-            Do not put a {transform} directly into any
-            `.transform-internal*` indices using the Elasticsearch index API.
-            If {es} {security-features} are enabled, do not give users any
-            privileges on `.transform-internal*` indices. If you used transforms
-            prior 7.5, also do not give users any privileges on
-            `.data-frame-internal*` indices.
+Deferred validations are always run when the {transform} is started, with the 
+exception of privilege checks. When {es} {security-features} are enabled, the 
+{transform} remembers which roles the user that created it had at the time of 
+creation and uses those same roles. If those roles do not have the required 
+privileges on the source and destination indices, the {transform} fails when it 
+attempts unauthorized operations.
+
+IMPORTANT: You must use {kib} or this API to create a {transform}. Do not add a
+{transform} directly into any `.transform-internal*` indices using the {es}
+index API. If {es} {security-features} are enabled, do not give users any
+privileges on `.transform-internal*` indices. If you used {transforms} prior to
+7.5, also do not give users any privileges on `.data-frame-internal*` indices.
+
+You must choose either the latest or pivot method for your {transform}; you
+cannot use both in a single {transform}.
 
 [[put-transform-path-parms]]
 == {api-path-parms-title}
@@ -106,9 +106,29 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 
+//Begin latest
+`latest`::
+(Required^*^, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-latest]
++
+.Properties of `latest`
+[%collapsible%open]
+====
+
+`sort`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-sort]
+
+`unique_key`:::
+(Required, array of strings)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-unique-key]
+
+====
+//End latest
+
 //Begin pivot
 `pivot`::
-(Required, object)
+(Required^*^, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot]
 +
 .Properties of `pivot`
@@ -126,6 +146,32 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
 ====
 //End pivot
 
+//Begin retention policy
+`retention_policy`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention]
++
+.Properties of `retention_policy`
+[%collapsible%open]
+====
+`time`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
+`field`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
+
+`max_age`:::
+(Required, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
+=====
+====
+//End retention policy
+
 //Begin settings
 `settings`::
 (Optional, object)
@@ -134,6 +180,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
 .Properties of `settings`
 [%collapsible%open]
 ====
+`dates_as_epoch_millis`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
 `docs_per_second`:::
 (Optional, float)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
@@ -159,6 +208,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transform
 `query`:::
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+
+`runtime_mappings`:::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-runtime-mappings-transforms]
 ====
 //End source
 
@@ -183,14 +236,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 `delay`::::
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
-    
+
 `field`::::
 (Required, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
 --
 TIP: In general, it’s a good idea to use a field that contains the
-<<accessing-ingest-metadata,ingest timestamp>>. If you use a different field,
+<<access-ingest-metadata,ingest timestamp>>. If you use a different field,
 you might need to set the `delay` such that it accounts for data transmission
 delays.
 
@@ -204,9 +257,11 @@ delays.
 [[put-transform-example]]
 == {api-examples-title}
 
+The following {transform} uses the `pivot` method:
+
 [source,console]
 --------------------------------------------------
-PUT _transform/ecommerce_transform
+PUT _transform/ecommerce_transform1
 {
   "source": {
     "index": "kibana_sample_data_ecommerce",
@@ -236,7 +291,7 @@ PUT _transform/ecommerce_transform
   },
   "description": "Maximum priced ecommerce data by customer_id in Asia",
   "dest": {
-    "index": "kibana_sample_data_ecommerce_transform",
+    "index": "kibana_sample_data_ecommerce_transform1",
     "pipeline": "add_timestamp_pipeline"
   },
   "frequency": "5m",
@@ -244,6 +299,12 @@ PUT _transform/ecommerce_transform
     "time": {
       "field": "order_date",
       "delay": "60s"
+    }
+  },
+  "retention_policy": {
+    "time": {
+      "field": "order_date",
+      "max_age": "30d"
     }
   }
 }
@@ -258,3 +319,31 @@ When the {transform} is created, you receive the following results:
   "acknowledged" : true
 }
 ----
+
+The following {transform} uses the `latest` method:
+
+[source,console]
+--------------------------------------------------
+PUT _transform/ecommerce_transform2
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce"
+  },
+  "latest": {
+    "unique_key": ["customer_id"],
+    "sort": "order_date"
+  },
+  "description": "Latest order for each customer",
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform2"
+  },
+  "frequency": "5m",
+  "sync": {
+    "time": {
+      "field": "order_date",
+      "delay": "60s"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:kibana_sample_data_ecommerce]

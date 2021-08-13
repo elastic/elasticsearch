@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
@@ -28,6 +17,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseRestSpecIndexApi() throws Exception {
@@ -59,6 +49,8 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         restApi.getParams().forEach((key, value) -> assertThat(value, equalTo(false)));
         assertThat(restApi.isBodySupported(), equalTo(true));
         assertThat(restApi.isBodyRequired(), equalTo(true));
+        assertThat(restApi.getRequestMimeTypes(), containsInAnyOrder("application/json", "a/mime-type"));
+        assertThat(restApi.getResponseMimeTypes(), containsInAnyOrder("application/json"));
     }
 
     public void testParseRestSpecGetTemplateApi() throws Exception {
@@ -86,6 +78,8 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         assertThat(restApi.getParams().size(), equalTo(0));
         assertThat(restApi.isBodySupported(), equalTo(false));
         assertThat(restApi.isBodyRequired(), equalTo(false));
+        assertThat(restApi.getRequestMimeTypes(), nullValue());
+        assertThat(restApi.getResponseMimeTypes(), containsInAnyOrder("application/json"));
     }
 
     public void testParseRestSpecCountApi() throws Exception {
@@ -132,6 +126,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
             "  \"count\": {\n" +
             "    \"documentation\": \"whatever\",\n" +
             "    \"stability\": \"stable\",\n" +
+            "    \"visibility\": \"public\",\n" +
             "    \"url\": {\n" +
             "      \"paths\": [ \n" +
             "        {\n" +
@@ -167,6 +162,8 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         "      \"description\":\"Returns number of documents matching a query.\"\n" +
         "    },\n" +
         "    \"stability\": \"stable\",\n" +
+        "    \"visibility\": \"public\",\n" +
+        "    \"headers\": { \"accept\": [\"application/json\"] },\n" +
         "    \"url\":{\n" +
         "      \"paths\":[\n" +
         "        {\n" +
@@ -216,7 +213,8 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         "      }\n" +
         "    },\n" +
         "    \"body\":{\n" +
-        "      \"description\":\"A query to restrict the results specified with the Query DSL (optional)\"\n" +
+        "      \"description\":\"A query to restrict the results specified with the Query DSL (optional)\",\n" +
+        "      \"content_type\": [\"application/json\"]\n" +
         "    }\n" +
         "  }\n" +
         "}\n\n";
@@ -227,7 +225,9 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         "      \"url\":\"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html\",\n" +
         "      \"description\":\"Returns an index template.\"\n" +
         "    },\n" +
+        "    \"headers\": { \"accept\": [\"application/json\"] },\n" +
         "    \"stability\": \"stable\",\n" +
+        "    \"visibility\": \"public\",\n" +
         "    \"url\":{\n" +
         "      \"paths\":[\n" +
         "        {\n" +
@@ -260,6 +260,11 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         "      \"description\":\"Creates or updates a document in an index.\"\n" +
         "    },\n" +
         "    \"stability\": \"stable\",\n" +
+        "    \"visibility\": \"public\",\n" +
+        "    \"headers\": { " +
+        "       \"accept\": [\"application/json\"],\n " +
+        "       \"content_type\": [\"application/json\", \"a/mime-type\"]\n " +
+        "   },\n" +
         "    \"url\":{\n" +
         "      \"paths\":[\n" +
         "        {\n" +
@@ -336,6 +341,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         "    },\n" +
         "    \"body\":{\n" +
         "      \"description\":\"The document\",\n" +
+        "      \"content_type\": [\"application/json\"],\n" +
         "      \"required\":true\n" +
         "    }\n" +
         "  }\n" +

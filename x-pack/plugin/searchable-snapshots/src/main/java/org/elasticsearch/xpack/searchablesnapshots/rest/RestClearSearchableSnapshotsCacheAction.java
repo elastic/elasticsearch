@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
@@ -16,13 +17,15 @@ import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapsho
 
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestClearSearchableSnapshotsCacheAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(RestRequest.Method.POST, "/_searchable_snapshots/cache/clear"),
-            new Route(RestRequest.Method.POST, "/{index}/_searchable_snapshots/cache/clear")
+            new Route(POST, "/_searchable_snapshots/cache/clear"),
+            new Route(POST, "/{index}/_searchable_snapshots/cache/clear")
         );
     }
 

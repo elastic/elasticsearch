@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.input.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -18,9 +21,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpContentType;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
@@ -28,7 +31,6 @@ import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
-import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;
@@ -56,6 +58,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyMapOf;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -115,7 +118,7 @@ public class HttpInputTests extends ESTestCase {
 
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-        when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -134,7 +137,7 @@ public class HttpInputTests extends ESTestCase {
         String notJson = "This is not json";
         HttpResponse response = new HttpResponse(123, notJson.getBytes(StandardCharsets.UTF_8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-        when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -246,7 +249,7 @@ public class HttpInputTests extends ESTestCase {
 
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 
-        when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -267,7 +270,7 @@ public class HttpInputTests extends ESTestCase {
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
 
         Map<String, String[]> headers = new HashMap<>(1);
-        String contentType = randomFrom("application/json", "application/json; charset=UTF-8", "text/html", "application/yaml",
+        String contentType = randomFrom("application/json", "application/json;charset=utf-8", "text/html", "application/yaml",
                 "application/smile", "application/cbor");
         headers.put("Content-Type", new String[] { contentType });
         String body = "{\"foo\":\"bar\"}";

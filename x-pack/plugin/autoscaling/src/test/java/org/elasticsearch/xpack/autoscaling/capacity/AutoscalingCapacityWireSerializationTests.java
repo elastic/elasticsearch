@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.capacity;
@@ -29,22 +30,22 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
         AutoscalingCapacity.Builder builder = AutoscalingCapacity.builder().capacity(instance);
 
         if (randomBoolean()) {
-            // mutate tier
-            boolean hasBothStorageAndMemory = instance.tier().memory() != null && instance.tier().storage() != null;
+            // mutate total
+            boolean hasBothStorageAndMemory = instance.total().memory() != null && instance.total().storage() != null;
             if (randomBoolean()) {
                 builder.total(
                     randomByteSize(
                         hasBothStorageAndMemory && (instance.node() == null || instance.node().storage() == null),
-                        instance.tier().storage()
+                        instance.total().storage()
                     ),
-                    instance.tier().memory()
+                    instance.total().memory()
                 );
             } else {
                 builder.total(
-                    instance.tier().storage(),
+                    instance.total().storage(),
                     randomByteSize(
                         hasBothStorageAndMemory && (instance.node() == null || instance.node().memory() == null),
-                        instance.tier().memory()
+                        instance.total().memory()
                     )
                 );
             }
@@ -53,11 +54,11 @@ public class AutoscalingCapacityWireSerializationTests extends AbstractWireSeria
             if (instance.node() == null) {
                 builder.node(
                     AutoscalingTestCase.randomNullValueAutoscalingResources(
-                        instance.tier().storage() != null,
-                        instance.tier().memory() != null
+                        instance.total().storage() != null,
+                        instance.total().memory() != null
                     )
                 );
-            } else if (randomBoolean() && instance.tier().storage() != null || instance.tier().memory() == null) {
+            } else if (randomBoolean() && instance.total().storage() != null || instance.total().memory() == null) {
                 builder.node(randomByteSize(instance.node().memory() != null, instance.node().storage()), instance.node().memory());
             } else {
                 builder.node(instance.node().storage(), randomByteSize(instance.node().storage() != null, instance.node().memory()));

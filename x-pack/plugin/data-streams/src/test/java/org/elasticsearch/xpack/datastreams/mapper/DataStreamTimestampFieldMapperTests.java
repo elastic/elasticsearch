@@ -1,142 +1,99 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.datastreams.mapper;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataMapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.index.MapperTestUtils.assertConflicts;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
-public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
+public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(DataStreamsPlugin.class);
+    protected String fieldName() {
+        return DataStreamTimestampFieldMapper.NAME;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck(
+            "enabled",
+            timestampMapping(true, b -> b.startObject("@timestamp").field("type", "date").endObject()),
+            timestampMapping(false, b -> b.startObject("@timestamp").field("type", "date").endObject())
+        );
+        checker.registerUpdateCheck(
+            timestampMapping(false, b -> b.startObject("@timestamp").field("type", "date").endObject()),
+            timestampMapping(true, b -> b.startObject("@timestamp").field("type", "date").endObject()),
+            dm -> assertTrue(dm.metadataMapper(DataStreamTimestampFieldMapper.class).isEnabled())
+        );
+    }
+
+    private XContentBuilder timestampMapping(boolean enabled, CheckedConsumer<XContentBuilder, IOException> propertiesBuilder)
+        throws IOException {
+        return topMapping(b -> {
+            b.startObject("_data_stream_timestamp").field("enabled", enabled).endObject();
+            b.startObject("properties");
+            propertiesBuilder.accept(b);
+            b.endObject();
+        });
+    }
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new DataStreamsPlugin());
     }
 
     public void testPostParse() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_data_stream_timestamp")
-                .field("enabled", true)
-                .endObject()
-                .startObject("properties")
-                .startObject("@timestamp")
-                .field("type", randomBoolean() ? "date" : "date_nanos")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        DocumentMapper docMapper = createIndex("test").mapperService()
-            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper docMapper = createDocumentMapper(timestampMapping(true, b -> {
+            b.startObject("@timestamp");
+            b.field("type", randomBoolean() ? "date" : "date_nanos");
+            b.endObject();
+        }));
 
-        ParsedDocument doc = docMapper.parse(
-            new SourceToParse(
-                "test",
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("@timestamp", "2020-12-12").endObject()),
-                XContentType.JSON
-            )
-        );
+        ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2020-12-12")));
         assertThat(doc.rootDoc().getFields("@timestamp").length, equalTo(2));
 
-        Exception e = expectThrows(
-            MapperException.class,
-            () -> docMapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("@timestamp1", "2020-12-12").endObject()),
-                    XContentType.JSON
-                )
-            )
-        );
+        Exception e = expectThrows(MapperException.class, () -> docMapper.parse(source(b -> b.field("@timestamp1", "2020-12-12"))));
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
 
-        e = expectThrows(
-            MapperException.class,
-            () -> docMapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(
-                        XContentFactory.jsonBuilder().startObject().array("@timestamp", "2020-12-12", "2020-12-13").endObject()
-                    ),
-                    XContentType.JSON
-                )
-            )
-        );
+        e = expectThrows(MapperException.class, () -> docMapper.parse(source(b -> b.array("@timestamp", "2020-12-12", "2020-12-13"))));
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
     }
 
-    public void testValidateNonExistingField() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_data_stream_timestamp")
-                .field("enabled", true)
-                .endObject()
-                .startObject("properties")
-                .startObject("my_date_field")
-                .field("type", "date")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
+    public void testValidateNonExistingField() {
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> createIndex("test").mapperService()
-                .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE)
+            () -> createMapperService(timestampMapping(true, b -> b.startObject("my_date_field").field("type", "date").endObject()))
         );
         assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] does not exist"));
     }
 
-    public void testValidateInvalidFieldType() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_data_stream_timestamp")
-                .field("enabled", true)
-                .endObject()
-                .startObject("properties")
-                .startObject("@timestamp")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
+    public void testValidateInvalidFieldType() {
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> createIndex("test").mapperService()
-                .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE)
+            () -> createMapperService(timestampMapping(true, b -> b.startObject("@timestamp").field("type", "keyword").endObject()))
         );
         assertThat(
             e.getMessage(),
@@ -144,159 +101,82 @@ public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testValidateNotIndexed() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_data_stream_timestamp")
-                .field("enabled", true)
-                .endObject()
-                .startObject("properties")
-                .startObject("@timestamp")
-                .field("type", "date")
-                .field("index", "false")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> createIndex("test").mapperService()
-                .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE)
-        );
+    public void testValidateNotIndexed() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.field("index", false);
+            b.endObject();
+        })));
         assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not indexed"));
     }
 
-    public void testValidateNotDocValues() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_data_stream_timestamp")
-                .field("enabled", true)
-                .endObject()
-                .startObject("properties")
-                .startObject("@timestamp")
-                .field("type", "date")
-                .field("doc_values", "false")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> createIndex("test").mapperService()
-                .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE)
-        );
+    public void testValidateNotDocValues() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.field("doc_values", false);
+            b.endObject();
+        })));
         assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] doesn't have doc values"));
     }
 
-    public void testValidateNullValue() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_data_stream_timestamp")
-                .field("enabled", true)
-                .endObject()
-                .startObject("properties")
-                .startObject("@timestamp")
-                .field("type", "date")
-                .field("null_value", "2020-12-12")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> createIndex("test").mapperService()
-                .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE)
-        );
+    public void testValidateNullValue() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.field("null_value", "2020-12-12");
+            b.endObject();
+        })));
         assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] has disallowed [null_value] attribute specified"));
     }
 
-    public void testValidateIgnoreMalformed() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_data_stream_timestamp")
-                .field("enabled", true)
-                .endObject()
-                .startObject("properties")
-                .startObject("@timestamp")
-                .field("type", "date")
-                .field("ignore_malformed", "true")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> createIndex("test").mapperService()
-                .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE)
-        );
+    public void testValidateIgnoreMalformed() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.field("ignore_malformed", true);
+            b.endObject();
+        })));
         assertThat(
             e.getMessage(),
             equalTo("data stream timestamp field [@timestamp] has disallowed [ignore_malformed] attribute specified")
         );
     }
 
-    public void testValidateNotDisallowedAttribute() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_data_stream_timestamp")
-                .field("enabled", true)
-                .endObject()
-                .startObject("properties")
-                .startObject("@timestamp")
-                .field("type", "date")
-                .field("store", "true")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> createIndex("test").mapperService()
-                .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE)
-        );
+    public void testValidateNotDisallowedAttribute() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.field("store", true);
+            b.endObject();
+        })));
         assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] has disallowed attributes: [store]"));
     }
 
-    public void testCanUpdateTimestampFieldMapperFromDisabledToEnabled() throws IOException {
-        MapperService mapperService = createIndex("test").mapperService();
-        String mapping1 =
-            "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":false}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
-        String mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":true}, \"properties\": {\"@timestamp2\": "
-            + "{\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
-        assertConflicts(mapping1, mapping2, mapperService);
+    public void testValidateDefaultIgnoreMalformed() throws Exception {
+        Settings indexSettings = Settings.builder().put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), true).build();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(Version.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+            }))
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("data stream timestamp field [@timestamp] has disallowed [ignore_malformed] attribute specified")
+        );
 
-        mapping1 = "{\"type\":{\"properties\":{\"@timestamp\": {\"type\": \"date\"}}}}}";
-        mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":true}, \"properties\": "
-            + "{\"@timestamp2\": {\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
-        assertConflicts(mapping1, mapping2, mapperService);
-    }
-
-    public void testCannotUpdateTimestampFieldMapperFromEnabledToDisabled() throws IOException {
-        MapperService mapperService = createIndex("test").mapperService();
-        String mapping1 =
-            "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":true}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
-        String mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":false}, \"properties\": {\"@timestamp2\": "
-            + "{\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
-        assertConflicts(mapping1, mapping2, mapperService, "Cannot update parameter [enabled] from [true] to [false]");
+        MapperService mapperService = createMapperService(Version.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.field("ignore_malformed", false);
+            b.endObject();
+        }));
+        assertThat(mapperService, notNullValue());
+        assertThat(mapperService.documentMapper().mappers().getMapper("@timestamp"), notNullValue());
+        assertThat(((DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp")).getIgnoreMalformed(), is(false));
     }
 }

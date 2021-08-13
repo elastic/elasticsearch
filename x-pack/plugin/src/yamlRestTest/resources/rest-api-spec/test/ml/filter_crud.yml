@@ -1,0 +1,297 @@
+---
+setup:
+  - skip:
+      features:
+        - headers
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_filter:
+        filter_id: filter-foo
+        body:  >
+          {
+            "items": ["xyz", "abc"]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_filter:
+        filter_id: filter-foo2
+        body:  >
+          {
+            "description": "This filter has a description",
+            "items": ["123", "lmnop"]
+          }
+
+---
+"Test get filter API with bad ID":
+
+  - do:
+      catch: missing
+      ml.get_filters:
+        filter_id: "do_not_exist"
+
+---
+"Test get filter API":
+
+  - do:
+      ml.get_filters:
+        filter_id: "filter-foo"
+
+  - match: { count:   1 }
+  - match:
+      filters.0:
+        filter_id: "filter-foo"
+        items: ["abc", "xyz"]
+
+---
+"Test get filters API":
+
+  - do:
+      ml.get_filters: {}
+
+  - match: { count:   2 }
+  - match:
+      filters.0:
+        filter_id: "filter-foo"
+        items: ["abc", "xyz"]
+
+  - match:
+      filters.1:
+        filter_id: "filter-foo2"
+        description: "This filter has a description"
+        items: ["123", "lmnop"]
+
+  - do:
+      ml.get_filters:
+        from: 1
+        size: 1
+
+  - match: { count:   2 }
+
+  - match:
+      filters.0:
+        filter_id: "filter-foo2"
+        description: "This filter has a description"
+        items: ["123", "lmnop"]
+
+---
+"Test get filters API with expression ID":
+
+  - do:
+      ml.get_filters:
+        filter_id: "filter-foo,filter-foo2"
+
+  - match: { count:   2 }
+  - match:
+      filters.0:
+        filter_id: "filter-foo"
+        items: ["abc", "xyz"]
+
+  - match:
+      filters.1:
+        filter_id: "filter-foo2"
+        description: "This filter has a description"
+        items: ["123", "lmnop"]
+
+  - do:
+      ml.get_filters:
+        filter_id: "filter-foo*"
+
+  - match: { count:   2 }
+  - match:
+      filters.0:
+        filter_id: "filter-foo"
+        items: ["abc", "xyz"]
+
+  - match:
+      filters.1:
+        filter_id: "filter-foo2"
+        description: "This filter has a description"
+        items: ["123", "lmnop"]
+
+---
+"Test create filter given invalid filter_id":
+  - do:
+      catch: bad_request
+      ml.put_filter:
+        filter_id: Invalid
+        body:  >
+          {
+            "description": "this id is invalid due to an upper case character"
+          }
+
+---
+"Test create filter api":
+  - do:
+      ml.put_filter:
+        filter_id: new-filter
+        body:  >
+          {
+            "description": "A newly created filter",
+            "items": ["abc", "xyz"]
+          }
+
+  - match: { filter_id: new-filter }
+  - match: { description: "A newly created filter" }
+  - match: { items: ["abc", "xyz"]}
+
+  - do:
+      ml.get_filters:
+        filter_id: "new-filter"
+
+  - match: { count:   1 }
+  - match:
+      filters.0:
+        filter_id: "new-filter"
+        description: "A newly created filter"
+        items: ["abc", "xyz"]
+
+---
+"Test create filter api with mismatching body ID":
+  - do:
+      catch: /illegal_argument_exception/
+      ml.put_filter:
+        filter_id: "uri_id"
+        body:  >
+          {
+            "filter_id": "body_id",
+            "items": ["abc", "xyz"]
+          }
+
+---
+"Test update filter given no filter matches filter_id":
+  - do:
+      catch: missing
+      ml.update_filter:
+        filter_id: "missing_filter"
+        body:  >
+          {
+          }
+
+---
+"Test update filter":
+  - do:
+      ml.put_filter:
+        filter_id: "test_update_filter"
+        body:  >
+          {
+            "description": "old description",
+            "items": ["a", "b"]
+          }
+  - match: { filter_id: test_update_filter }
+
+  - do:
+      ml.update_filter:
+        filter_id: "test_update_filter"
+        body:  >
+          {
+            "description": "new description",
+            "add_items": ["c", "d"],
+            "remove_items": ["a"]
+          }
+  - match: { filter_id: test_update_filter }
+  - match: { description: "new description" }
+  - match: { items: ["b", "c", "d"] }
+
+  - do:
+      ml.get_filters:
+        filter_id: "test_update_filter"
+  - match:
+      filters.0:
+        filter_id: "test_update_filter"
+        description: "new description"
+        items: ["b", "c", "d"]
+
+  - do:
+      ml.delete_filter:
+        filter_id: test_update_filter
+
+---
+"Test update filter given remove item is not present":
+  - do:
+      catch: /Cannot remove item \[not present item\] as it is not present in filter \[filter-foo\]/
+      ml.update_filter:
+        filter_id: "filter-foo"
+        body:  >
+          {
+            "remove_items": ["not present item"]
+          }
+
+---
+"Test delete in-use filter":
+  - do:
+      ml.put_job:
+        job_id: filter-crud
+        body:  >
+          {
+            "job_id":"filter-crud",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "3600s",
+                "detectors" :[{"function":"mean","field_name":"responsetime", "by_field_name": "airline",
+                  "custom_rules": [
+                    {
+                      "scope": {
+                        "airline": {"filter_id": "filter-foo"}
+                      }
+                    }
+                  ]}]
+            },
+            "data_description" : {
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - do:
+      catch: /Cannot delete filter \[filter-foo\] currently used by jobs \[filter-crud\]/
+      ml.delete_filter:
+        filter_id: "filter-foo"
+
+---
+"Test non-existing filter":
+  - do:
+      catch: missing
+      ml.delete_filter:
+        filter_id: "does_not_exist"
+
+---
+"Test valid delete filter":
+
+  - do:
+      ml.get_filters:
+        filter_id: "filter-foo"
+
+  - match: { count:   1 }
+  - match:
+      filters.0:
+        filter_id: "filter-foo"
+        items: ["abc", "xyz"]
+
+  - do:
+      ml.delete_filter:
+        filter_id: "filter-foo"
+
+  - do:
+      catch: missing
+      ml.get_filters:
+        filter_id: "filter-foo"
+
+---
+"Test get all filter given no filter exists":
+
+  - do:
+      ml.delete_filter:
+        filter_id: "filter-foo"
+
+  - do:
+      ml.delete_filter:
+        filter_id: "filter-foo2"
+
+  - do:
+      ml.get_filters: {}
+  - match: { count: 0 }
+  - match: { filters: [] }
+

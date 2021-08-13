@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -19,7 +21,6 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -35,14 +36,9 @@ public class RestDeleteUserAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.singletonList(
-            new ReplacedRoute(DELETE, "/_security/user/{username}", DELETE, "/_xpack/security/user/{username}")
+        return List.of(
+            Route.builder(DELETE, "/_security/user/{username}")
+                .replaces(DELETE, "/_xpack/security/user/{username}", RestApiVersion.V_7).build()
         );
     }
 

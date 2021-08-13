@@ -1,10 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
@@ -27,33 +32,43 @@ public class ProblemTrackerTests extends ESTestCase {
     }
 
     public void testReportExtractionProblem() {
-        problemTracker.reportExtractionProblem("foo");
+        problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause"));
 
-        verify(auditor).error("foo", "Datafeed is encountering errors extracting data: foo");
+        verify(auditor).error("foo", "Datafeed is encountering errors extracting data: cause");
+        assertTrue(problemTracker.hasProblems());
+    }
+
+    public void testReportExtractionProblem_GivenSearchPhaseExecutionException() {
+        SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException("test-phase",
+            "partial shards failure", new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchException("for the cause!")) });
+
+        problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, searchPhaseExecutionException));
+
+        verify(auditor).error("foo", "Datafeed is encountering errors extracting data: for the cause!");
         assertTrue(problemTracker.hasProblems());
     }
 
     public void testReportAnalysisProblem() {
-        problemTracker.reportAnalysisProblem("foo");
+        problemTracker.reportAnalysisProblem(createAnalysisProblem("top level", "cause"));
 
-        verify(auditor).error("foo", "Datafeed is encountering errors submitting data for analysis: foo");
+        verify(auditor).error("foo", "Datafeed is encountering errors submitting data for analysis: cause");
         assertTrue(problemTracker.hasProblems());
     }
 
     public void testReportProblem_GivenSameProblemTwice() {
-        problemTracker.reportExtractionProblem("foo");
-        problemTracker.reportAnalysisProblem("foo");
+        problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause"));
+        problemTracker.reportAnalysisProblem(createAnalysisProblem("top level", "cause"));
 
-        verify(auditor, times(1)).error("foo", "Datafeed is encountering errors extracting data: foo");
+        verify(auditor, times(1)).error("foo", "Datafeed is encountering errors extracting data: cause");
         assertTrue(problemTracker.hasProblems());
     }
 
     public void testReportProblem_GivenSameProblemAfterFinishReport() {
-        problemTracker.reportExtractionProblem("foo");
+        problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause"));
         problemTracker.finishReport();
-        problemTracker.reportExtractionProblem("foo");
+        problemTracker.reportExtractionProblem(createExtractionProblem("top level", "cause"));
 
-        verify(auditor, times(1)).error("foo", "Datafeed is encountering errors extracting data: foo");
+        verify(auditor, times(1)).error("foo", "Datafeed is encountering errors extracting data: cause");
         assertTrue(problemTracker.hasProblems());
     }
 
@@ -108,12 +123,31 @@ public class ProblemTrackerTests extends ESTestCase {
     }
 
     public void testFinishReport_GivenRecovery() {
-        problemTracker.reportExtractionProblem("bar");
+        problemTracker.reportExtractionProblem(createExtractionProblem("top level", "bar"));
         problemTracker.finishReport();
         problemTracker.finishReport();
 
         verify(auditor).error("foo", "Datafeed is encountering errors extracting data: bar");
         verify(auditor).info("foo", "Datafeed has recovered data extraction and analysis");
         assertFalse(problemTracker.hasProblems());
+    }
+
+    private static DatafeedJob.ExtractionProblemException createExtractionProblem(String error, String cause) {
+        Exception causeException = new RuntimeException(cause);
+        Exception wrappedException = new TestWrappedException(error, causeException);
+        return new DatafeedJob.ExtractionProblemException(0L, wrappedException);
+    }
+
+    private static DatafeedJob.AnalysisProblemException createAnalysisProblem(String error, String cause) {
+        Exception causeException = new RuntimeException(cause);
+        Exception wrappedException = new TestWrappedException(error, causeException);
+        return new DatafeedJob.AnalysisProblemException(0L, false, wrappedException);
+    }
+
+    private static class TestWrappedException extends RuntimeException implements ElasticsearchWrapperException {
+
+        TestWrappedException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 }

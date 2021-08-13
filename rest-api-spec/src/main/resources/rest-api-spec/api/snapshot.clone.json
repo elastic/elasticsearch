@@ -5,6 +5,11 @@
       "description":"Clones indices from one snapshot into another snapshot in the same repository."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

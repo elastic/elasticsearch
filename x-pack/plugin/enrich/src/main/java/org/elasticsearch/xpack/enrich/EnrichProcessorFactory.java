@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
@@ -10,8 +11,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.Processor;
@@ -85,7 +86,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                 String relationStr = ConfigurationUtils.readStringProperty(TYPE, tag, config, "shape_relation", "intersects");
                 ShapeRelation shapeRelation = ShapeRelation.getRelationByName(relationStr);
                 String orientationStr = ConfigurationUtils.readStringProperty(TYPE, tag, config, "orientation", "CCW");
-                ShapeBuilder.Orientation orientation = ShapeBuilder.Orientation.fromString(orientationStr);
+                Orientation orientation = Orientation.fromString(orientationStr);
                 return new GeoMatchProcessor(
                     tag,
                     description,

@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -96,13 +97,12 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
             .setAnalysisConfig(analysisConfig)
             .setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
 
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, jobId);
         datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
         DatafeedConfig datafeedA = datafeedConfig.build();
-        registerDatafeed(datafeedA);
+
         putDatafeed(datafeedA);
 
         openJob(jobId);

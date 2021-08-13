@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.geo.parsers;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -51,13 +40,13 @@ public interface ShapeParser {
      *          if the parsers current token has been <code>null</code>
      * @throws IOException if the input could not be read
      */
-    static ShapeBuilder parse(XContentParser parser, AbstractGeometryFieldMapper geometryMapper) throws IOException {
-        AbstractShapeGeometryFieldMapper shapeMapper = null;
+    static ShapeBuilder<?, ?, ?> parse(XContentParser parser, AbstractGeometryFieldMapper<?> geometryMapper) throws IOException {
+        AbstractShapeGeometryFieldMapper<?> shapeMapper = null;
         if (geometryMapper != null) {
             if (geometryMapper instanceof AbstractShapeGeometryFieldMapper == false) {
                 throw new IllegalArgumentException("geometry must be a shape type");
             }
-             shapeMapper = (AbstractShapeGeometryFieldMapper) geometryMapper;
+             shapeMapper = (AbstractShapeGeometryFieldMapper<?>) geometryMapper;
         }
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;
@@ -76,11 +65,11 @@ public interface ShapeParser {
      *          if the parsers current token has been <code>null</code>
      * @throws IOException if the input could not be read
      */
-    static ShapeBuilder parse(XContentParser parser) throws IOException {
+    static ShapeBuilder<?, ?, ?> parse(XContentParser parser) throws IOException {
         return parse(parser, null);
     }
 
-    static ShapeBuilder parse(Object value) throws IOException {
+    static ShapeBuilder<?, ?, ?> parse(Object value) throws IOException {
         try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
                 Collections.singletonMap("value", value), null)) {
             parser.nextToken(); // start object

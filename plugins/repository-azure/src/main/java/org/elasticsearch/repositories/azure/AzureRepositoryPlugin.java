@@ -1,44 +1,45 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.azure;
 
+import com.azure.core.util.serializer.JacksonAdapter;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A plugin to add a repository type that writes to and from the Azure cloud storage service.
@@ -46,27 +47,56 @@ import java.util.Map;
 public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
     public static final String REPOSITORY_THREAD_POOL_NAME = "repository_azure";
+    public static final String NETTY_EVENT_LOOP_THREAD_POOL_NAME = "azure_event_loop";
+
+    static {
+        // Trigger static initialization with the plugin class loader
+        // so we have access to the proper xml parser
+        JacksonAdapter.createDefaultSerializerAdapter();
+    }
 
     // protected for testing
-    final AzureStorageService azureStoreService;
+    final SetOnce<AzureStorageService> azureStoreService = new SetOnce<>();
+    private final Settings settings;
+    private final Map<String, AzureStorageSettings> initialClientSettings;
 
     public AzureRepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
-        this.azureStoreService = createAzureStoreService(settings);
-    }
-
-    // non-static, package private for testing
-    AzureStorageService createAzureStoreService(final Settings settings) {
-        return new AzureStorageService(settings);
+        this.initialClientSettings = AzureStorageSettings.load(settings);
+        this.settings = settings;
     }
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
                                                            ClusterService clusterService, BigArrays bigArrays,
                                                            RecoverySettings recoverySettings) {
-        return Collections.singletonMap(AzureRepository.TYPE,
-                (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, clusterService, bigArrays,
-                    recoverySettings));
+        return Collections.singletonMap(AzureRepository.TYPE, metadata -> {
+            AzureStorageService storageService = azureStoreService.get();
+            assert storageService != null;
+            return new AzureRepository(metadata, namedXContentRegistry, storageService, clusterService, bigArrays, recoverySettings);
+        });
+    }
+
+    @Override
+    public Collection<Object> createComponents(Client client,
+                                               ClusterService clusterService,
+                                               ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService,
+                                               ScriptService scriptService,
+                                               NamedXContentRegistry xContentRegistry,
+                                               Environment environment,
+                                               NodeEnvironment nodeEnvironment,
+                                               NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver indexNameExpressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        AzureClientProvider azureClientProvider =
+            AzureClientProvider.create(threadPool, settings);
+        azureStoreService.set(createAzureStorageService(settings, azureClientProvider));
+        return List.of(azureClientProvider);
+    }
+
+    AzureStorageService createAzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {
+        return new AzureStorageService(settings, azureClientProvider);
     }
 
     @Override
@@ -86,11 +116,16 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        return Collections.singletonList(executorBuilder());
+        return List.of(executorBuilder(), nettyEventLoopExecutorBuilder(settings));
     }
 
     public static ExecutorBuilder<?> executorBuilder() {
-        return new ScalingExecutorBuilder(REPOSITORY_THREAD_POOL_NAME, 0, 32, TimeValue.timeValueSeconds(30L));
+        return new ScalingExecutorBuilder(REPOSITORY_THREAD_POOL_NAME, 0, 5, TimeValue.timeValueSeconds(30L));
+    }
+
+    public static ExecutorBuilder<?> nettyEventLoopExecutorBuilder(Settings settings) {
+        int eventLoopThreads = AzureClientProvider.eventLoopThreadsFromSettings(settings);
+        return new ScalingExecutorBuilder(NETTY_EVENT_LOOP_THREAD_POOL_NAME, 0, eventLoopThreads, TimeValue.timeValueSeconds(30L));
     }
 
     @Override
@@ -100,6 +135,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         if (clientsSettings.isEmpty()) {
             throw new SettingsException("If you want to use an azure repository, you need to define a client configuration.");
         }
-        azureStoreService.refreshAndClearCache(clientsSettings);
+        AzureStorageService storageService = azureStoreService.get();
+        assert storageService != null;
+        storageService.refreshSettings(clientsSettings);
     }
 }

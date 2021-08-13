@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -16,7 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -34,13 +35,15 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     public static final String NAME = "check-rollover-ready";
 
     private final ByteSizeValue maxSize;
+    private final ByteSizeValue maxPrimaryShardSize;
     private final TimeValue maxAge;
     private final Long maxDocs;
 
-    public WaitForRolloverReadyStep(StepKey key, StepKey nextStepKey, Client client, ByteSizeValue maxSize, TimeValue maxAge,
-                                    Long maxDocs) {
+    public WaitForRolloverReadyStep(StepKey key, StepKey nextStepKey, Client client,
+                                    ByteSizeValue maxSize, ByteSizeValue maxPrimaryShardSize, TimeValue maxAge, Long maxDocs) {
         super(key, nextStepKey, client);
         this.maxSize = maxSize;
+        this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
     }
@@ -55,8 +58,17 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
-        if (indexAbstraction.getParentDataStream() != null) {
-            rolloverTarget = indexAbstraction.getParentDataStream().getName();
+        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        if (dataStream != null) {
+            assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
+            if (dataStream.getWriteIndex().getIndex().equals(index) == false) {
+                logger.warn("index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
+                    index.getName(), dataStream.getName(),
+                    LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadata.index(index).getSettings()));
+                listener.onResponse(true, new WaitForRolloverReadyStep.EmptyInfo());
+                return;
+            }
+            rolloverTarget = dataStream.getName();
         } else {
             IndexMetadata indexMetadata = metadata.index(index);
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
@@ -129,11 +141,14 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
-        if (maxAge != null) {
-            rolloverRequest.addMaxIndexAgeCondition(maxAge);
-        }
         if (maxSize != null) {
             rolloverRequest.addMaxIndexSizeCondition(maxSize);
+        }
+        if (maxPrimaryShardSize != null) {
+            rolloverRequest.addMaxPrimaryShardSizeCondition(maxPrimaryShardSize);
+        }
+        if (maxAge != null) {
+            rolloverRequest.addMaxIndexAgeCondition(maxAge);
         }
         if (maxDocs != null) {
             rolloverRequest.addMaxIndexDocsCondition(maxDocs);
@@ -147,6 +162,10 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         return maxSize;
     }
 
+    ByteSizeValue getMaxPrimaryShardSize() {
+        return maxPrimaryShardSize;
+    }
+
     TimeValue getMaxAge() {
         return maxAge;
     }
@@ -157,7 +176,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), maxSize, maxAge, maxDocs);
+        return Objects.hash(super.hashCode(), maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     @Override
@@ -171,6 +190,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         WaitForRolloverReadyStep other = (WaitForRolloverReadyStep) obj;
         return super.equals(obj) &&
             Objects.equals(maxSize, other.maxSize) &&
+            Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize) &&
             Objects.equals(maxAge, other.maxAge) &&
             Objects.equals(maxDocs, other.maxDocs);
     }

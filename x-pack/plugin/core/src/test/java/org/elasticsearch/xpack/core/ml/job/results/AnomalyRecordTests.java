@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
@@ -132,6 +133,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         assertEquals(influence2.getInfluencerFieldValues(), serialisedInfFieldValues2);
     }
 
+    @SuppressWarnings({"unchecked"})
     public void testToXContentOrdersDuplicateInputFields() throws IOException {
         AnomalyRecord record = createTestInstance();
         record.setByFieldName("car-make");

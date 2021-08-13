@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import org.elasticsearch.gradle.PropertyNormalization
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.AntFixture
 
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.test.fixtures'
 
+final Project fixture = project(':test:fixtures:url-fixture')
 
 esplugin {
   description 'Module for URL repository'
@@ -32,37 +22,44 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk', 'count', 'snapshot'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk', 'count', 'snapshot'
   }
 }
 
- // This directory is shared between two URL repositories and one FS repository in YAML integration tests
-File repositoryDir = new File(project.buildDir, "shared-repository")
-
-/** A task to start the URLFixture which exposes the repositoryDir over HTTP **/
-task urlFixture(type: AntFixture) {
-  dependsOn testClasses
-  doFirst {
-    repositoryDir.mkdirs()
-  }
-  env 'CLASSPATH', "${-> project.sourceSets.test.runtimeClasspath.asPath}"
-  executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
-}
-tasks.named("yamlRestTest").configure {
-  dependsOn urlFixture
+dependencies {
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
 }
 
-tasks.named("internalClusterTest").configure {
-  dependsOn urlFixture
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger'
+  )
 }
+
+testFixtures.useFixture(fixture.path, 'url-fixture')
+
+def fixtureAddress = { fixtureName ->
+  int ephemeralPort = fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.80"
+  assert ephemeralPort > 0
+  'http://127.0.0.1:' + ephemeralPort
+}
+
+File repositoryDir = fixture.fsRepositoryDir as File
 
 testClusters.all {
   // repositoryDir is used by a FS repository to create snapshots
   setting 'path.repo', "${repositoryDir.absolutePath}", PropertyNormalization.IGNORE_VALUE
   // repositoryDir is used by two URL repositories to restore snapshots
   setting 'repositories.url.allowed_urls', {
-    "http://snapshot.test*,http://${urlFixture.addressAndPort}"
+    "http://snapshot.test*,${fixtureAddress('url-fixture')}"
   }, PropertyNormalization.IGNORE_VALUE
 }
 

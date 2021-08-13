@@ -18,6 +18,12 @@ Returns cluster nodes information.
 
 `GET /_nodes/<node_id>/<metric>`
 
+[[cluster-nodes-info-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
 
 [[cluster-nodes-info-api-desc]]
 ==== {api-description-title}
@@ -28,56 +34,58 @@ the cluster nodes information. All the nodes selective options are explained
 
 By default, it returns all attributes and core settings for a node.
 
-
+[role="child_attributes"]
 [[cluster-nodes-info-api-path-params]]
 ==== {api-path-parms-title}
 
 `<metric>`::
-		(Optional, string) Limits the information returned to the specific metrics.
-		A comma-separated list of the following options:
+(Optional, string)
+Limits the information returned to the specific metrics. Supports a
+comma-separated list, such as `http,ingest`.
 +
---
-
-
+[%collapsible%open]
+.Valid values for `<metric>`
+====
 `http`::
-		HTTP connection information.
+HTTP connection information.
 
 `ingest`::
-		Statistics about ingest preprocessing.
+Information about ingest pipelines and processors.
 
 `jvm`::
-		JVM stats, memory pool information, garbage collection, buffer pools, number
-		of loaded/unloaded classes.
+JVM stats, memory pool information, garbage collection, buffer pools, number of
+loaded/unloaded classes.
 
 `os`::
-		Operating system stats, load average, mem, swap.
+Operating system stats, load average, mem, swap.
 
 `plugins`::
-		Details about the installed plugins and modules per node. The following
-		information are available for each plugin and module:
 +
----
-		* `name`: plugin name
-		* `version`: version of Elasticsearch the plugin was built for
-		* `description`: short description of the plugin's purpose
-		* `classname`: fully-qualified class name of the plugin's entry point
-		* `has_native_controller`: whether or not the plugin has a native controller
-		process
----
+--
+Details about the installed plugins and modules per node. The following
+information is available for each plugin and module:
+
+* `name`: plugin name
+* `version`: version of Elasticsearch the plugin was built for
+* `description`: short description of the plugin's purpose
+* `classname`: fully-qualified class name of the plugin's entry point
+* `has_native_controller`: whether or not the plugin has a native controller
+process
+--
 
 `process`::
-		Process statistics, memory consumption, cpu usage, open file descriptors.
+Process statistics, memory consumption, cpu usage, open file descriptors.
 
 `settings`::
-
+Lists all node settings in use as defined in the `elasticsearch.yml` file.
 
 `thread_pool`::
-		Statistics about each thread pool, including current size, queue and
-		rejected tasks
+Statistics about each thread pool, including current size, queue and rejected
+tasks
 
 `transport`::
-		Transport statistics about sent and received bytes in cluster communication.
---
+Transport statistics about sent and received bytes in cluster communication.
+====
 
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
@@ -100,7 +108,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 `total_indexing_buffer`::
 		Total heap allowed to be used to hold recently indexed
-		documents before they must be written to disk.  This size is
+		documents before they must be written to disk. This size is
 		a shared pool across all shards on this node, and is
     controlled by <<indexing-buffer,Indexing Buffer settings>>.
 

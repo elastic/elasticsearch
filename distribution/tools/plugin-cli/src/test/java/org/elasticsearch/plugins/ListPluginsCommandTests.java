@@ -1,31 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -37,6 +18,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class ListPluginsCommandTests extends ESTestCase {
@@ -154,6 +143,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Elasticsearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: false",
+                "Licensed: false",
                 "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake"
@@ -177,6 +167,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Elasticsearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: true",
+                "Licensed: false",
                 "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake"
@@ -201,6 +192,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Elasticsearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: false",
+                "Licensed: false",
                 "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
@@ -212,6 +204,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Elasticsearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: false",
+                "Licensed: false",
                 "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake2"
@@ -262,7 +255,7 @@ public class ListPluginsCommandTests extends ESTestCase {
         buildFakePlugin(env, "fake desc 2", "fake_plugin2", "org.fake2");
 
         MockTerminal terminal = listPlugins(home);
-        String message = "plugin [fake_plugin1] was built for Elasticsearch version 1.0 but version " + Version.CURRENT + " is required";
+        String message = "plugin [fake_plugin1] was built for Elasticsearch version 1.0.0 but version " + Version.CURRENT + " is required";
         assertEquals("fake_plugin1\nfake_plugin2\n", terminal.getOutput());
         assertEquals("WARNING: " + message + "\n", terminal.getErrorOutput());
 

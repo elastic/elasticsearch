@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -75,7 +65,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -91,6 +81,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -103,7 +94,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         Map<String, Phase> phases = new HashMap<>();
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(RolloverAction.NAME, new RolloverAction(
-                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+                new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
         phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions)); // <1>
 
         Map<String, LifecycleAction> deleteActions =
@@ -175,7 +166,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> hotActions = new HashMap<>();
             hotActions.put(RolloverAction.NAME, new RolloverAction(
-                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+                new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
             phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
             Map<String, LifecycleAction> deleteActions =
                 Collections.singletonMap(DeleteAction.NAME,
@@ -250,7 +241,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> hotActions = new HashMap<>();
             hotActions.put(RolloverAction.NAME, new RolloverAction(
-                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+                new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
             phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
 
             Map<String, LifecycleAction> deleteActions =
@@ -264,7 +255,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(myPolicyAsPut);
 
             Map<String, Phase> otherPolicyPhases = new HashMap<>(phases);
-            Map<String, LifecycleAction> warmActions = Collections.singletonMap(ShrinkAction.NAME, new ShrinkAction(1));
+            Map<String, LifecycleAction> warmActions = Collections.singletonMap(ShrinkAction.NAME, new ShrinkAction(1, null));
             otherPolicyPhases.put("warm", new Phase("warm", new TimeValue(30, TimeUnit.DAYS), warmActions));
             otherPolicyAsPut = new LifecyclePolicy("other_policy", otherPolicyPhases);
 
@@ -350,7 +341,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> hotActions = new HashMap<>();
             hotActions.put(RolloverAction.NAME, new RolloverAction(
-                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+                new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
             phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
 
             LifecyclePolicy policy = new LifecyclePolicy("my_policy",
@@ -614,7 +605,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> warmActions = new HashMap<>();
-            warmActions.put(ShrinkAction.NAME, new ShrinkAction(3));
+            warmActions.put(ShrinkAction.NAME, new ShrinkAction(3, null));
             phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
 
             LifecyclePolicy policy = new LifecyclePolicy("my_policy",
@@ -632,7 +623,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertBusy(() -> assertNotNull(client.indexLifecycle()
                 .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
-                .getIndexResponses().get("my_index").getFailedStep()), 15, TimeUnit.SECONDS);
+                .getIndexResponses().get("my_index").getFailedStep()), 30, TimeUnit.SECONDS);
         }
 
         // tag::ilm-retry-lifecycle-policy-request
@@ -641,16 +632,24 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ilm-retry-lifecycle-policy-request
 
 
-        // tag::ilm-retry-lifecycle-policy-execute
-        AcknowledgedResponse response = client.indexLifecycle()
-            .retryLifecyclePolicy(request, RequestOptions.DEFAULT);
-        // end::ilm-retry-lifecycle-policy-execute
+        try {
+            // tag::ilm-retry-lifecycle-policy-execute
+            AcknowledgedResponse response = client.indexLifecycle()
+                .retryLifecyclePolicy(request, RequestOptions.DEFAULT);
+            // end::ilm-retry-lifecycle-policy-execute
 
-        // tag::ilm-retry-lifecycle-policy-response
-        boolean acknowledged = response.isAcknowledged(); // <1>
-        // end::ilm-retry-lifecycle-policy-response
+            // tag::ilm-retry-lifecycle-policy-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            // end::ilm-retry-lifecycle-policy-response
 
-        assertTrue(acknowledged);
+            assertTrue(acknowledged);
+        } catch (ElasticsearchException e) {
+            // the retry API might fail as the shrink action steps are retryable (so if the retry API reaches ES when ILM is retrying the
+            // failed `shrink` step, the retry API will fail)
+            // assert that's the exception we encountered (we want to test to fail if there is an actual error with the retry api)
+            assertThat(e.getMessage(), containsStringIgnoringCase("reason=cannot retry an action for an index [my_index] that has not " +
+                "encountered an error when running a Lifecycle Policy"));
+        }
 
         // tag::ilm-retry-lifecycle-policy-execute-listener
         ActionListener<AcknowledgedResponse> listener =
@@ -765,6 +764,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73317")
     public void testAddSnapshotLifecyclePolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1044,7 +1044,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(new String[]{repo}, new String[]{snapshotName});
             try {
                 final GetSnapshotsResponse snaps = client.snapshot().get(getSnapshotsRequest, RequestOptions.DEFAULT);
-                Optional<SnapshotInfo> info = snaps.getSnapshots(repo).stream().findFirst();
+                Optional<SnapshotInfo> info = snaps.getSnapshots().stream().findFirst();
                 if (info.isPresent()) {
                     info.ifPresent(si -> {
                         assertThat(si.snapshotId().getName(), equalTo(snapshotName));

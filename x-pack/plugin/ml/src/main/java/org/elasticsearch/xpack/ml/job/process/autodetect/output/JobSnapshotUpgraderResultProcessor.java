@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
@@ -10,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
+import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -52,6 +55,7 @@ public class JobSnapshotUpgraderResultProcessor {
     private final JobResultsPersister persister;
     private final AutodetectProcess process;
     private final JobResultsPersister.Builder bulkResultsPersister;
+    private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
 
@@ -64,6 +68,7 @@ public class JobSnapshotUpgraderResultProcessor {
         this.persister = Objects.requireNonNull(persister);
         this.process = Objects.requireNonNull(autodetectProcess);
         this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId).shouldRetry(this::isAlive);
+        this.flushListener = new FlushListener();
     }
 
     public void process() {
@@ -158,11 +163,11 @@ public class JobSnapshotUpgraderResultProcessor {
             logUnexpectedResult(Bucket.RESULT_TYPE_VALUE);
         }
         List<AnomalyRecord> records = result.getRecords();
-        if (records != null && !records.isEmpty()) {
+        if (records != null && records.isEmpty() == false) {
             logUnexpectedResult(AnomalyRecord.RESULT_TYPE_VALUE);
         }
         List<Influencer> influencers = result.getInfluencers();
-        if (influencers != null && !influencers.isEmpty()) {
+        if (influencers != null && influencers.isEmpty() == false) {
             logUnexpectedResult(Influencer.RESULT_TYPE_VALUE);
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
@@ -204,8 +209,32 @@ public class JobSnapshotUpgraderResultProcessor {
         }
         FlushAcknowledgement flushAcknowledgement = result.getFlushAcknowledgement();
         if (flushAcknowledgement != null) {
-            logUnexpectedResult(FlushAcknowledgement.TYPE.getPreferredName());
+            LOGGER.debug(
+                () -> new ParameterizedMessage(
+                    "[{}] [{}] Flush acknowledgement parsed from output for ID {}",
+                    jobId,
+                    snapshotId,
+                    flushAcknowledgement.getId()
+                )
+            );
+            flushListener.acknowledgeFlush(flushAcknowledgement, null);
         }
+    }
+
+    /**
+     * Blocks until a flush is acknowledged or the timeout expires, whichever happens first.
+     *
+     * @param flushId the id of the flush request to wait for
+     * @param timeout the timeout
+     * @return The {@link FlushAcknowledgement} if the flush has completed or the parsing finished; {@code null} if the timeout expired
+     */
+    @Nullable
+    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) throws Exception {
+        return failed ? null : flushListener.waitForFlush(flushId, timeout);
+    }
+
+    public void clearAwaitingFlush(String flushId) {
+        flushListener.clear(flushId);
     }
 
     public void awaitCompletion() throws TimeoutException {
@@ -229,7 +258,6 @@ public class JobSnapshotUpgraderResultProcessor {
             LOGGER.info("[{}] [{}] Interrupted waiting for model snapshot upgrade results processor to complete", jobId, snapshotId);
         }
     }
-
 
     /**
      * If failed then there was an error parsing the results that cannot be recovered from

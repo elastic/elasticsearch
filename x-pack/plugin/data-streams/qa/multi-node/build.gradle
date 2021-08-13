@@ -1,13 +1,15 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.java-rest-test'
 
 File repoDir = file("$buildDir/testclusters/repo")
 
-javaRestTest {
+tasks.named("javaRestTest").configure {
   /* To support taking index snapshots, we have to set path.repo setting */
   systemProperty 'tests.path.repo', repoDir
 }
 
-testClusters.javaRestTest {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
 
@@ -18,4 +20,9 @@ testClusters.javaRestTest {
   setting 'xpack.license.self_generated.type', 'trial'
   //disabling ILM history as it disturbs testDSXpackUsage test
   setting 'indices.lifecycle.history_index_enabled', 'false'
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
 }

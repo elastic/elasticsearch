@@ -14,6 +14,12 @@ typical search queries.
 
 `POST /<target>/_rank_eval`
 
+[[search-rank-eval-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
 
 [[search-rank-eval-api-desc]]
 ==== {api-description-title}
@@ -65,12 +71,9 @@ generation in your application.
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard (`*`) expressions are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[search-rank-eval-api-query-params]]
 ==== {api-query-parms-title}
@@ -202,6 +205,28 @@ GET /my-index-000001/_rank_eval
 <3> a reference to a previously defined template
 <4> the parameters to use to fill the template
 
+You can also use a <<create-search-template,stored search template>>.
+
+[source,js]
+--------------------------------
+GET /my_index/_rank_eval
+{ 
+   [...]
+  "templates": [
+     {
+        "id": "match_one_field_query",  <1>
+        "template": { <2>
+            "id": "match_one_field_query"
+        }
+     }
+  ], 
+  "requests": [...]
+}
+--------------------------------
+// NOTCONSOLE
+
+<1> the template id used for requests
+<2> the template id stored in the cluster state
 
 ===== Available evaluation metrics
 

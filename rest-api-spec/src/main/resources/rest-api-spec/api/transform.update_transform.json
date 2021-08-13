@@ -1,0 +1,42 @@
+{
+  "transform.update_transform":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/update-transform.html",
+      "description":"Updates certain properties of a transform."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept":[ "application/json"],
+      "content_type":["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_transform/{transform_id}/_update",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "transform_id":{
+              "type":"string",
+              "required":true,
+              "description":"The id of the transform."
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "defer_validation":{
+        "type":"boolean",
+        "required":false,
+        "description":"If validations should be deferred until transform starts, defaults to false."
+      }
+    },
+    "body":{
+      "description":"The update transform definition",
+      "required":true
+    }
+  }
+}

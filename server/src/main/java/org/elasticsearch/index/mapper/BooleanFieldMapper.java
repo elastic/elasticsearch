@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -24,19 +13,24 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -44,6 +38,7 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -83,43 +78,65 @@ public class BooleanFieldMapper extends FieldMapper {
             (n, c, o) -> o == null ? null : XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue)
             .acceptsNull();
 
+        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
+        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name) {
+        private final ScriptCompiler scriptCompiler;
+
+        public Builder(String name, ScriptCompiler scriptCompiler) {
             super(name);
+            this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.script.precludesParameters(nullValue);
+            addScriptValidation(script, indexed, docValues);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(meta, docValues, indexed, nullValue, stored);
+            return List.of(meta, docValues, indexed, nullValue, stored, script, onScriptError);
         }
 
         @Override
         public BooleanFieldMapper build(ContentPath contentPath) {
             MappedFieldType ft = new BooleanFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
-                docValues.getValue(), nullValue.getValue(), meta.getValue());
+                docValues.getValue(), nullValue.getValue(), scriptValues(), meta.getValue());
+
             return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+        }
+
+        private FieldValues<Boolean> scriptValues() {
+            if (script.get() == null) {
+                return null;
+            }
+            BooleanFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), BooleanFieldScript.CONTEXT);
+            return scriptFactory == null ? null : (lookup, ctx, doc, consumer) -> scriptFactory
+                .newFactory(name, script.get().getParams(), lookup)
+                .newInstance(ctx)
+                .runForDoc(doc, consumer);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler()));
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
         private final Boolean nullValue;
+        private final FieldValues<Boolean> scriptValues;
 
         public BooleanFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                Boolean nullValue, Map<String, String> meta) {
+                                Boolean nullValue, FieldValues<Boolean> scriptValues, Map<String, String> meta) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
+            this.scriptValues = scriptValues;
         }
 
         public BooleanFieldType(String name) {
-            this(name, true, false, true, false, Collections.emptyMap());
+            this(name, true, false, true, false, null, Collections.emptyMap());
         }
 
         public BooleanFieldType(String name, boolean searchable) {
-            this(name, searchable, false, true, false, Collections.emptyMap());
+            this(name, searchable, false, true, false, null, Collections.emptyMap());
         }
 
         @Override
@@ -128,11 +145,13 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-
+            if (this.scriptValues != null) {
+                return FieldValues.valueFetcher(this.scriptValues, context);
+            }
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
@@ -205,7 +224,8 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+                                SearchExecutionContext context) {
             failIfNotIndexed();
             return new TermRangeQuery(name(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
@@ -218,14 +238,21 @@ public class BooleanFieldMapper extends FieldMapper {
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
+    private final Script script;
+    private final FieldValues<Boolean> scriptValues;
+    private final ScriptCompiler scriptCompiler;
 
     protected BooleanFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo,
+            builder.script.get() != null, builder.onScriptError.getValue());
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.docValues.getValue();
+        this.script = builder.script.get();
+        this.scriptValues = builder.scriptValues();
+        this.scriptCompiler = builder.scriptCompiler;
     }
 
     @Override
@@ -234,23 +261,24 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (indexed == false && stored == false && hasDocValues == false) {
             return;
         }
 
-        Boolean value = context.parseExternalValue(Boolean.class);
-        if (value == null) {
-            XContentParser.Token token = context.parser().currentToken();
-            if (token == XContentParser.Token.VALUE_NULL) {
-                if (nullValue != null) {
-                    value = nullValue;
-                }
-            } else {
-                value = context.parser().booleanValue();
+        Boolean value = null;
+        XContentParser.Token token = context.parser().currentToken();
+        if (token == XContentParser.Token.VALUE_NULL) {
+            if (nullValue != null) {
+                value = nullValue;
             }
+        } else {
+            value = context.parser().booleanValue();
         }
+        indexValue(context, value);
+    }
 
+    private void indexValue(DocumentParserContext context, Boolean value) {
         if (value == null) {
             return;
         }
@@ -263,18 +291,23 @@ public class BooleanFieldMapper extends FieldMapper {
         if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         } else {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 
     @Override
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
+    }
+
+    @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(simpleName(), scriptCompiler).init(this);
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
 }

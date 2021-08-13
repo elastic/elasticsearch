@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.transforms;
 
@@ -252,9 +253,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "        \"detectors\" :[{\"function\":\"count\", \"by_field_name\" : \"domain_split\"}]\n" +
                 "    },\n" +
                 "    \"data_description\" : {\n" +
-                "        \"field_delimiter\":\",\",\n" +
                 "        \"time_field\":\"time\"\n" +
-                "        \n" +
                 "    }\n" +
                 "}");
         client().performRequest(createJobRequest);

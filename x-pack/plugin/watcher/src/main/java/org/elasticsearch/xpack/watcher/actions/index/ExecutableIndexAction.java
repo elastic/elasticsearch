@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
@@ -14,7 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -54,13 +55,14 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         this.bulkDefaultTimeout = action.timeout != null ? action.timeout : bulkDefaultTimeout;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
         Map<String, Object> data = payload.data();
         if (data.containsKey("_doc")) {
             Object doc = data.get("_doc");
             if (doc instanceof Iterable) {
-                return indexBulk((Iterable) doc, actionId, ctx);
+                return indexBulk((Iterable<?>) doc, actionId, ctx);
             }
             if (doc.getClass().isArray()) {
                 return indexBulk(new ArrayObjectIterator.Iterable(doc), actionId, ctx);
@@ -98,6 +100,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 action.refreshPolicy, new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 
+        ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
         IndexResponse response = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
                 () -> client.index(indexRequest).actionGet(indexDefaultTimeout));
         try (XContentBuilder builder = jsonBuilder()) {
@@ -107,7 +110,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         return new IndexAction.Result(Status.SUCCESS, new XContentSource(bytesReference, XContentType.JSON));
     }
 
-    Action.Result indexBulk(Iterable list, String actionId, WatchExecutionContext ctx) throws Exception {
+    Action.Result indexBulk(Iterable<?> list, String actionId, WatchExecutionContext ctx) throws Exception {
         if (action.docId != null) {
             throw illegalState("could not execute action [{}] of watch [{}]. [doc_id] cannot be used with bulk [_doc] indexing");
         }
@@ -118,11 +121,12 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         for (Object item : list) {
-            if (!(item instanceof Map)) {
+            if ((item instanceof Map) == false) {
                 throw illegalState("could not execute action [{}] of watch [{}]. failed to index payload data. " +
                         "[_data] field must either hold a Map or an List/Array of Maps", actionId, ctx.watch().id());
             }
 
+            @SuppressWarnings("unchecked")
             Map<String, Object> doc = (Map<String, Object>) item;
             if (doc.containsKey(INDEX_FIELD) || doc.containsKey(TYPE_FIELD) || doc.containsKey(ID_FIELD)) {
                 doc = mutableMap(doc);
@@ -141,6 +145,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             }
             bulkRequest.add(indexRequest);
         }
+        ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
         BulkResponse bulkResponse = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
                 () -> client.bulk(bulkRequest).actionGet(bulkDefaultTimeout));
         try (XContentBuilder jsonBuilder = jsonBuilder().startArray()) {

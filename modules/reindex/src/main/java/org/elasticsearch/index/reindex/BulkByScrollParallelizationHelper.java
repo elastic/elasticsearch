@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -68,17 +57,8 @@ class BulkByScrollParallelizationHelper {
         Client client,
         DiscoveryNode node,
         Runnable workerAction) {
-        initTaskState(task, request, client, new ActionListener<>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                executeSlicedAction(task, request, action, listener, client, node, workerAction);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        initTaskState(task, request, client, listener.delegateFailure(
+                (l, v) -> executeSlicedAction(task, request, action, l, client, node, workerAction)));
     }
 
     /**
@@ -125,18 +105,10 @@ class BulkByScrollParallelizationHelper {
         if (configuredSlices == AbstractBulkByScrollRequest.AUTO_SLICES) {
             ClusterSearchShardsRequest shardsRequest = new ClusterSearchShardsRequest();
             shardsRequest.indices(request.getSearchRequest().indices());
-            client.admin().cluster().searchShards(shardsRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(ClusterSearchShardsResponse response) {
-                    setWorkerCount(request, task, countSlicesBasedOnShards(response));
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            client.admin().cluster().searchShards(shardsRequest, listener.delegateFailure((l, response) -> {
+                setWorkerCount(request, task, countSlicesBasedOnShards(response));
+                l.onResponse(null);
+            }));
         } else {
             setWorkerCount(request, task, configuredSlices);
             listener.onResponse(null);

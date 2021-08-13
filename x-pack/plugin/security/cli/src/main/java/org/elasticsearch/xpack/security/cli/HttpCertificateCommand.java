@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.cli;
@@ -25,13 +26,13 @@ import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
@@ -105,6 +106,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
      * Magic bytes for an empty PKCS#12 file
      */
     private static final byte[] MAGIC_BYTES2_PKCS12 = new byte[] { (byte) 0x30, (byte) 0x56 };
+    private static final byte[] MAGIC_BYTES2_JDK16_PKCS12 = new byte[] { (byte) 0x30, (byte) 0x65 };
     /**
      * Magic bytes for a JKS keystore
      */
@@ -444,7 +446,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 skip = Strings.isNullOrEmpty(substitutions.get(key));
                 continue;
             } else if (line.equals("#else")) {
-                skip = !skip;
+                skip = skip == false;
                 continue;
             } else if (line.equals("#endif")) {
                 skip = false;
@@ -936,6 +938,9 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                         continue;
                     }
                 }
+                if (CertificateTool.checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, confirm) == false) {
+                    continue;
+                }
                 return password;
             } else {
                 terminal.println(Terminal.Verbosity.SILENT, "Passwords must be plain ASCII");
@@ -1001,7 +1006,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 terminal.println("");
                 return terminal.readSecret("Password for " + path.getFileName() + ":");
             });
-        } catch (IOException e) {
+        } catch (IOException | GeneralSecurityException e) {
             throw new ElasticsearchException("Failed to read private key from " + path, e);
         }
     }
@@ -1097,7 +1102,9 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 // No supported file type has less than 2 bytes
                 return FileType.UNRECOGNIZED;
             }
-            if (Arrays.equals(leadingBytes, MAGIC_BYTES1_PKCS12) || Arrays.equals(leadingBytes, MAGIC_BYTES2_PKCS12)) {
+            if (Arrays.equals(leadingBytes, MAGIC_BYTES1_PKCS12) ||
+                    Arrays.equals(leadingBytes, MAGIC_BYTES2_PKCS12) ||
+                    Arrays.equals(leadingBytes, MAGIC_BYTES2_JDK16_PKCS12)) {
                 return FileType.PKCS12;
             }
             if (Arrays.equals(leadingBytes, MAGIC_BYTES_JKS)) {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.ingest;
@@ -24,9 +13,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -37,22 +29,30 @@ import org.elasticsearch.ingest.Pipeline;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
     private BytesReference source;
     private XContentType xContentType;
+    private RestApiVersion restApiVersion;
 
     /**
      * Creates a new request with the given source and its content type
      */
     public SimulatePipelineRequest(BytesReference source, XContentType xContentType) {
+        this(source, xContentType, RestApiVersion.current());
+    }
+
+    public SimulatePipelineRequest(BytesReference source, XContentType xContentType, RestApiVersion restApiVersion) {
         this.source = Objects.requireNonNull(source);
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.restApiVersion = restApiVersion;
     }
 
     SimulatePipelineRequest() {
@@ -101,7 +101,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         out.writeOptionalString(id);
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
-        out.writeEnum(xContentType);
+        XContentHelper.writeTo(out, xContentType);
     }
 
     @Override
@@ -142,7 +142,8 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
 
     static final String SIMULATED_PIPELINE_ID = "_simulate_pipeline";
 
-    static Parsed parseWithPipelineId(String pipelineId, Map<String, Object> config, boolean verbose, IngestService ingestService) {
+    static Parsed parseWithPipelineId(String pipelineId, Map<String, Object> config, boolean verbose, IngestService ingestService,
+                                      RestApiVersion restApiVersion) {
         if (pipelineId == null) {
             throw new IllegalArgumentException("param [pipeline] is null");
         }
@@ -150,20 +151,21 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         if (pipeline == null) {
             throw new IllegalArgumentException("pipeline [" + pipelineId + "] does not exist");
         }
-        List<IngestDocument> ingestDocumentList = parseDocs(config);
+        List<IngestDocument> ingestDocumentList = parseDocs(config, restApiVersion);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    static Parsed parse(Map<String, Object> config, boolean verbose, IngestService ingestService) throws Exception {
+    static Parsed parse(Map<String, Object> config, boolean verbose, IngestService ingestService, RestApiVersion restApiVersion)
+        throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
         Pipeline pipeline = Pipeline.create(
             SIMULATED_PIPELINE_ID, pipelineConfig, ingestService.getProcessorFactories(), ingestService.getScriptService()
         );
-        List<IngestDocument> ingestDocumentList = parseDocs(config);
+        List<IngestDocument> ingestDocumentList = parseDocs(config, restApiVersion);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    private static List<IngestDocument> parseDocs(Map<String, Object> config) {
+    private static List<IngestDocument> parseDocs(Map<String, Object> config, RestApiVersion restApiVersion) {
         List<Map<String, Object>> docs =
             ConfigurationUtils.readList(null, null, config, Fields.DOCS);
         if (docs.isEmpty()) {
@@ -174,6 +176,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             if ((object instanceof Map) ==  false) {
                 throw new IllegalArgumentException("malformed [docs] section, should include an inner object");
             }
+            @SuppressWarnings("unchecked")
             Map<String, Object> dataMap = (Map<String, Object>) object;
             Map<String, Object> document = ConfigurationUtils.readMap(null, null,
                 dataMap, Fields.SOURCE);
@@ -183,9 +186,19 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                 dataMap, Metadata.ID.getFieldName(), "_id");
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
                 dataMap, Metadata.ROUTING.getFieldName());
+            if (restApiVersion == RestApiVersion.V_7 && dataMap.containsKey(Metadata.TYPE.getFieldName())) {
+                deprecationLogger.compatibleApiWarning("simulate_pipeline_with_types",
+                    "[types removal] specifying _type in pipeline simulation requests is deprecated");
+            }
             Long version = null;
             if (dataMap.containsKey(Metadata.VERSION.getFieldName())) {
-                version = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.VERSION.getFieldName());
+                String versionValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
+                    dataMap, Metadata.VERSION.getFieldName());
+                if (versionValue != null) {
+                    version = Long.valueOf(versionValue);
+                } else {
+                    throw new IllegalArgumentException("[_version] cannot be null");
+                }
             }
             VersionType versionType = null;
             if (dataMap.containsKey(Metadata.VERSION_TYPE.getFieldName())) {
@@ -195,15 +208,40 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             IngestDocument ingestDocument =
                 new IngestDocument(index, id, routing, version, versionType, document);
             if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
-                Long ifSeqNo = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_SEQ_NO.getFieldName());
-                ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo);
+                String ifSeqNoValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
+                    dataMap, Metadata.IF_SEQ_NO.getFieldName());
+                if (ifSeqNoValue != null) {
+                    Long ifSeqNo = Long.valueOf(ifSeqNoValue);
+                    ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo);
+                } else {
+                    throw new IllegalArgumentException("[_if_seq_no] cannot be null");
+                }
             }
             if (dataMap.containsKey(Metadata.IF_PRIMARY_TERM.getFieldName())) {
-                Long ifPrimaryTerm = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_PRIMARY_TERM.getFieldName());
-                ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm);
+                String ifPrimaryTermValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
+                    dataMap, Metadata.IF_PRIMARY_TERM.getFieldName());
+                if (ifPrimaryTermValue != null) {
+                    Long ifPrimaryTerm = Long.valueOf(ifPrimaryTermValue);
+                    ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm);
+                } else {
+                    throw new IllegalArgumentException("[_if_primary_term] cannot be null");
+                }
+            }
+            if (dataMap.containsKey(Metadata.DYNAMIC_TEMPLATES.getFieldName())) {
+                Map<String, String> dynamicTemplates = ConfigurationUtils.readMap(
+                    null, null, dataMap, Metadata.DYNAMIC_TEMPLATES.getFieldName());
+                if (dynamicTemplates != null) {
+                    ingestDocument.setFieldValue(Metadata.DYNAMIC_TEMPLATES.getFieldName(), new HashMap<>(dynamicTemplates));
+                } else {
+                    throw new IllegalArgumentException("[_dynamic_templates] cannot be null");
+                }
             }
             ingestDocumentList.add(ingestDocument);
         }
         return ingestDocumentList;
+    }
+
+    public RestApiVersion getRestApiVersion() {
+        return restApiVersion;
     }
 }

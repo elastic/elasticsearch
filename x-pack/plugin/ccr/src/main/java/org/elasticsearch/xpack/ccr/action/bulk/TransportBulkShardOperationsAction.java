@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action.bulk;
@@ -16,7 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
@@ -25,29 +26,20 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.index.engine.AlreadyProcessedFollowingEngineException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
 public class TransportBulkShardOperationsAction
         extends TransportWriteAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
-
-    private static final Function<IndexShard, String> EXECUTOR_NAME_FUNCTION = shard -> {
-        if (shard.indexSettings().getIndexMetadata().isSystem()) {
-            return Names.SYSTEM_WRITE;
-        } else {
-            return Names.WRITE;
-        }
-    };
 
     @Inject
     public TransportBulkShardOperationsAction(
@@ -59,25 +51,31 @@ public class TransportBulkShardOperationsAction
             final ShardStateAction shardStateAction,
             final ActionFilters actionFilters,
             final IndexingPressure indexingPressure,
-            final SystemIndices systemIndices) {
+            final SystemIndices systemIndices,
+            final ExecutorSelector executorSelector) {
         super(
-                settings,
-                BulkShardOperationsAction.NAME,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                actionFilters,
-                BulkShardOperationsRequest::new,
-                BulkShardOperationsRequest::new,
-                EXECUTOR_NAME_FUNCTION, false, indexingPressure, systemIndices);
+            settings,
+            BulkShardOperationsAction.NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            BulkShardOperationsRequest::new,
+            BulkShardOperationsRequest::new,
+            ExecutorSelector::getWriteExecutorForShard,
+            false,
+            indexingPressure,
+            systemIndices
+        );
     }
 
     @Override
     protected void doExecute(Task task, BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener) {
         // This is executed on the follower coordinator node and we need to mark the bytes.
-        Releasable releasable = indexingPressure.markCoordinatingOperationStarted(primaryOperationSize(request), false);
+        Releasable releasable = indexingPressure.markCoordinatingOperationStarted(primaryOperationCount(request),
+            primaryOperationSize(request), false);
         ActionListener<BulkShardOperationsResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         try {
             super.doExecute(task, request, releasingListener);
@@ -99,6 +97,11 @@ public class TransportBulkShardOperationsAction
     @Override
     protected long primaryOperationSize(BulkShardOperationsRequest request) {
         return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int primaryOperationCount(BulkShardOperationsRequest request) {
+        return request.getOperations().size();
     }
 
     public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
@@ -203,6 +206,11 @@ public class TransportBulkShardOperationsAction
     @Override
     protected long replicaOperationSize(BulkShardOperationsRequest request) {
         return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int replicaOperationCount(BulkShardOperationsRequest request) {
+        return request.getOperations().size();
     }
 
     // public for testing purposes only

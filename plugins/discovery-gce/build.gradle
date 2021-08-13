@@ -17,8 +17,6 @@ dependencies {
   api "com.google.http-client:google-http-client:${versions.google}"
   api "com.google.http-client:google-http-client-jackson2:${versions.google}"
   api 'com.google.code.findbugs:jsr305:1.3.9'
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
@@ -26,7 +24,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes'
+    include '_common', 'cluster', 'nodes'
   }
 }
 
@@ -34,12 +32,12 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /google-.*/, to: 'google'
 }
 
-check {
+tasks.named("check").configure {
   // also execute the QA tests when testing the plugin
   dependsOn 'qa:gce:check'
 }
 
-test {
+tasks.named("test").configure {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
 }
@@ -53,6 +51,55 @@ tasks.named("thirdPartyAudit").configure {
           'javax.servlet.ServletContextListener',
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
-          'org.apache.log.Logger'
+          'org.apache.log.Logger',
+          'org.apache.http.ConnectionReuseStrategy',
+          'org.apache.http.Header',
+          'org.apache.http.HttpEntity',
+          'org.apache.http.HttpEntityEnclosingRequest',
+          'org.apache.http.HttpHost',
+          'org.apache.http.HttpRequest',
+          'org.apache.http.HttpResponse',
+          'org.apache.http.HttpVersion',
+          'org.apache.http.RequestLine',
+          'org.apache.http.StatusLine',
+          'org.apache.http.client.AuthenticationHandler',
+          'org.apache.http.client.HttpClient',
+          'org.apache.http.client.HttpRequestRetryHandler',
+          'org.apache.http.client.RedirectHandler',
+          'org.apache.http.client.RequestDirector',
+          'org.apache.http.client.UserTokenHandler',
+          'org.apache.http.client.methods.HttpDelete',
+          'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
+          'org.apache.http.client.methods.HttpGet',
+          'org.apache.http.client.methods.HttpHead',
+          'org.apache.http.client.methods.HttpOptions',
+          'org.apache.http.client.methods.HttpPost',
+          'org.apache.http.client.methods.HttpPut',
+          'org.apache.http.client.methods.HttpRequestBase',
+          'org.apache.http.client.methods.HttpTrace',
+          'org.apache.http.conn.ClientConnectionManager',
+          'org.apache.http.conn.ConnectionKeepAliveStrategy',
+          'org.apache.http.conn.params.ConnManagerParams',
+          'org.apache.http.conn.params.ConnPerRouteBean',
+          'org.apache.http.conn.params.ConnRouteParams',
+          'org.apache.http.conn.routing.HttpRoutePlanner',
+          'org.apache.http.conn.scheme.PlainSocketFactory',
+          'org.apache.http.conn.scheme.Scheme',
+          'org.apache.http.conn.scheme.SchemeRegistry',
+          'org.apache.http.conn.ssl.SSLSocketFactory',
+          'org.apache.http.conn.ssl.X509HostnameVerifier',
+          'org.apache.http.entity.AbstractHttpEntity',
+          'org.apache.http.impl.client.DefaultHttpClient',
+          'org.apache.http.impl.client.DefaultHttpRequestRetryHandler',
+          'org.apache.http.impl.conn.ProxySelectorRoutePlanner',
+          'org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager',
+          'org.apache.http.message.BasicHttpResponse',
+          'org.apache.http.params.BasicHttpParams',
+          'org.apache.http.params.HttpConnectionParams',
+          'org.apache.http.params.HttpParams',
+          'org.apache.http.params.HttpProtocolParams',
+          'org.apache.http.protocol.HttpContext',
+          'org.apache.http.protocol.HttpProcessor',
+          'org.apache.http.protocol.HttpRequestExecutor'
   )
 }

@@ -5,6 +5,10 @@
       "description":"Adds a block to an index."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

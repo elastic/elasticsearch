@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -35,7 +24,10 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -50,25 +42,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
-import static org.hamcrest.Matchers.equalTo;
 
 public class SignificantTextAggregatorTests extends AggregatorTestCase {
-
-    /**
-     * For each provided field type, we also register an alias with name {@code <field>-alias}.
-     */
-    @Override
-    protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
-        return Arrays.stream(fieldTypes).collect(Collectors.toMap(
-            ft -> ft.name() + "-alias",
-            Function.identity()));
-    }
-
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
         return new SignificantTextAggregationBuilder("foo", fieldName);
@@ -78,7 +56,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(
             CoreValuesSourceType.BOOLEAN,
-            CoreValuesSourceType.BYTES
+            CoreValuesSourceType.KEYWORD
         );
     }
 
@@ -216,12 +194,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-
-
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () ->  searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType));
-                assertThat(e.getMessage(), equalTo("Field [this_field_does_not_exist] does not exist, SignificantText "
-                    + "requires an analyzed field"));
+                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType);
+                SignificantTerms terms = sampler.getAggregations().get("sig_text");
+                assertTrue(terms.getBuckets().isEmpty()); 
             }
         }
     }
@@ -327,6 +302,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 " }";
             doc.add(new StoredField("_source", new BytesRef(json)));
             doc.add(new SortedSetDocValuesField("kwd", i % 2 == 0 ? new BytesRef("even") : new BytesRef("odd")));
+            doc.add(new Field("kwd", i % 2 == 0 ? new BytesRef("even") : new BytesRef("odd"), KeywordFieldMapper.Defaults.FIELD_TYPE));
             writer.addDocument(doc);
         }
     }
@@ -359,5 +335,10 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 // with the internal exception discovered in issue https://github.com/elastic/elasticsearch/issues/25029
             }
         }
+    }
+
+    @Override
+    protected FieldMapper buildMockFieldMapper(MappedFieldType ft) {
+        return new MockFieldMapper(ft, Map.of(ft.name(), ft.getTextSearchInfo().getSearchAnalyzer()));
     }
 }

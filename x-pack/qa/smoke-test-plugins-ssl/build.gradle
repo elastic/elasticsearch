@@ -1,15 +1,15 @@
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 
-import org.elasticsearch.gradle.http.WaitForHttpResource
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
+  testImplementation project(':modules:transport-netty4')
   testImplementation project(':client:rest-high-level')
 }
 
@@ -39,11 +39,22 @@ def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
 }
 // Add keystores to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
 
-integTest.dependsOn(copyKeyCerts)
+['processTestResources', 'integTest', 'filepermissions', 'forbiddenPatterns'].each {
+  tasks.named(it).configure {
+    dependsOn(copyKeyCerts)
+  }
+}
 
-def pluginsCount = 0
+ext.pluginPaths = []
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
+      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
+      return
+    }
+  pluginPaths << pluginProject.path
+}
+
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
@@ -68,18 +79,13 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   user username: "test_user", password: "x-pack-test-password"
   user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
 
-  project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-    if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
-      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
-      return
-    }
-    plugin pluginProject.path
-    pluginsCount += 1
+  pluginPaths.each { pluginPath ->
+    plugin pluginPath
   }
 }
 
 ext.expansions = [
-  'expected.plugins.count': pluginsCount
+  'expected.plugins.count': pluginPaths.size()
 ]
 
 tasks.named("processTestResources").configure {
@@ -87,6 +93,6 @@ tasks.named("processTestResources").configure {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
-    MavenFilteringHack.filter(it, expansions)
+    filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
   }
 }

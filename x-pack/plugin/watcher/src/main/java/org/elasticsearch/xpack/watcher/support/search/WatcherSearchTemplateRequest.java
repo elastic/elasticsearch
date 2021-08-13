@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -131,9 +132,9 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         if (indices != null) {
             builder.array(INDICES_FIELD.getPreferredName(), indices);
         }
-        if (restTotalHitsAsInt) {
-            builder.field(REST_TOTAL_HITS_AS_INT_FIELD.getPreferredName(), restTotalHitsAsInt);
-        }
+
+        builder.field(REST_TOTAL_HITS_AS_INT_FIELD.getPreferredName(), restTotalHitsAsInt);
+
         if (searchSource != null && searchSource.length() > 0) {
             try (InputStream stream = searchSource.streamInput()) {
                 builder.rawField(BODY_FIELD.getPreferredName(), stream);
@@ -188,7 +189,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                         searchSource = BytesReference.bytes(builder);
                     }
                 } else if (INDICES_OPTIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    indicesOptions = IndicesOptions.fromXContent(parser);
+                    indicesOptions = IndicesOptions.fromXContent(parser, DEFAULT_INDICES_OPTIONS);
                 } else if (TEMPLATE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
                 } else {

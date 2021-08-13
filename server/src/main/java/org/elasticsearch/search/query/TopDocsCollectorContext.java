@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.query;
@@ -52,7 +41,7 @@ import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.action.search.MaxScoreCollector;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -177,13 +166,14 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         private CollapsingTopDocsCollectorContext(CollapseContext collapseContext,
                                                   @Nullable SortAndFormats sortAndFormats,
                                                   int numHits,
-                                                  boolean trackMaxScore) {
+                                                  boolean trackMaxScore,
+                                                  @Nullable FieldDoc after) {
             super(REASON_SEARCH_TOP_HITS, numHits);
             assert numHits > 0;
             assert collapseContext != null;
             Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
             this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
-            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits);
+            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, after);
 
             MaxScoreCollector maxScoreCollector;
             if (trackMaxScore) {
@@ -447,7 +437,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         } else if (searchContext.collapse() != null) {
             boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-            return new CollapsingTopDocsCollectorContext(searchContext.collapse(), searchContext.sort(), numDocs, trackScores);
+            return new CollapsingTopDocsCollectorContext(searchContext.collapse(), searchContext.sort(),
+                numDocs, trackScores, searchContext.searchAfter());
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;

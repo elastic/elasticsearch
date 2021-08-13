@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.store;
 
@@ -45,15 +34,16 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -111,11 +101,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CorruptedFileIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             // we really need local GW here since this also checks for corruption etc.
             // and we need to make sure primaries are not just trashed if we don't have replicas
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // speed up recoveries
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 5)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 5)
@@ -208,14 +198,14 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     Store store = indexShard.store();
                     store.incRef();
                     try {
-                        if (!Lucene.indexExists(store.directory()) && indexShard.state() == IndexShardState.STARTED) {
+                        if (Lucene.indexExists(store.directory()) == false && indexShard.state() == IndexShardState.STARTED) {
                             return;
                         }
                         BytesStreamOutput os = new BytesStreamOutput();
                         PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
                         CheckIndex.Status status = store.checkIndex(out);
                         out.flush();
-                        if (!status.clean) {
+                        if (status.clean == false) {
                             logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
                             throw new IOException("index check failure");
                         }
@@ -333,7 +323,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 dataNodeStats.add(stat);
             }
         }
@@ -393,7 +383,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 dataNodeStats.add(stat);
             }
         }
@@ -435,7 +425,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         BytesRef bytesRef = req.content().toBytesRef();
                         BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
                         request = new RecoveryFileChunkRequest(req.recoveryId(), req.requestSeqNo(), req.shardId(), req.metadata(),
-                            req.position(), array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
+                            req.position(), ReleasableBytesReference.wrap(array), req.lastChunk(), req.totalTranslogOps(),
+                            req.sourceThrottleTimeInNanos());
                     } else {
                         assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
                         final byte[] array = req.content().toBytesRef().bytes;
@@ -610,20 +601,18 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     private int numShards(String... index) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(index, false);
+        GroupShardsIterator<?> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(index, false);
         return shardIterators.size();
     }
 
     private List<Path> findFilesToCorruptOnNode(final String nodeName, final ShardId shardId) throws IOException {
         List<Path> files = new ArrayList<>();
-        for (Path path : internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPaths(shardId)) {
-            path = path.resolve("index");
-            if (Files.exists(path)) { // multi data path might only have one path in use
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
-                    for (Path item : stream) {
-                        if (item.getFileName().toString().startsWith("segments_")) {
-                            files.add(item);
-                        }
+        Path path = internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPath(shardId).resolve("index");
+        if (Files.exists(path)) { // multi data path might only have one path in use
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+                for (Path item : stream) {
+                    if (item.getFileName().toString().startsWith("segments_")) {
+                        files.add(item);
                     }
                 }
             }
@@ -638,7 +627,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     private ShardRouting corruptRandomPrimaryFile(final boolean includePerCommitFiles) throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         Index test = state.metadata().index("test").getIndex();
-        GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
+        GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();

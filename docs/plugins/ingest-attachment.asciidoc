@@ -28,6 +28,7 @@ include::install_remove.asciidoc[]
 | `indexed_chars_field`  | no        | `null`           | Field name from which you can overwrite the number of chars being used for extraction. See `indexed_chars`.
 | `properties`           | no        | all properties   | Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`
 | `ignore_missing`       | no        | `false`          | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+| `resource_name`        | no        |                  | Field containing the name of the resource to decode. If specified, the processor passes this resource name to the underlying Tika library to enable https://tika.apache.org/1.24.1/detection.html#Resource_Name_Based_Detection[Resource Name Based Detection].
 |======
 
 [discrete]
@@ -114,7 +115,7 @@ PUT _ingest/pipeline/attachment
 NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines
       using this processor in a dedicated ingest node.
-      
+
 [[ingest-attachment-cbor]]
 ==== Use the attachment processor with CBOR
 
@@ -139,7 +140,7 @@ PUT _ingest/pipeline/cbor-attachment
 
 The following Python script passes CBOR data to an HTTP indexing request that
 includes the `cbor-attachment` pipeline. The HTTP request headers use a
-a `content-type` of `application/cbor`.
+`content-type` of `application/cbor`.
 
 NOTE: Not all {es} clients support custom HTTP request headers.
 
@@ -156,8 +157,8 @@ with open(file, 'rb') as f:
     'data': f.read()
   }
   requests.put(
-    'http://localhost:9200/my-index-000001/_doc/my_id?pipeline=cbor-attachment', 
-    data=cbor2.dumps(doc), 
+    'http://localhost:9200/my-index-000001/_doc/my_id?pipeline=cbor-attachment',
+    data=cbor2.dumps(doc),
     headers=headers
   )
 ----
@@ -165,8 +166,8 @@ with open(file, 'rb') as f:
 [[ingest-attachment-extracted-chars]]
 ==== Limit the number of extracted chars
 
-To prevent extracting too many chars and overload the node memory, the number of chars being used for extraction 
-is limited by default to `100000`. You can change this value by setting `indexed_chars`. Use `-1` for no limit but 
+To prevent extracting too many chars and overload the node memory, the number of chars being used for extraction
+is limited by default to `100000`. You can change this value by setting `indexed_chars`. Use `-1` for no limit but
 ensure when setting this that your node will have enough HEAP to extract the content of very big documents.
 
 You can also define this limit per document by extracting from a given field the limit to set. If the document

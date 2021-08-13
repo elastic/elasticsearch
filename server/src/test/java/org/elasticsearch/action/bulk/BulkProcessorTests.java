@@ -1,39 +1,35 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,6 +47,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BulkProcessorTests extends ESTestCase {
 
@@ -107,6 +108,56 @@ public class BulkProcessorTests extends ESTestCase {
         bulkProcessor.close();
     }
 
+    public void testRetry() throws Exception {
+        final int maxAttempts = between(1, 3);
+        final AtomicInteger attemptRef = new AtomicInteger();
+
+        final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
+            final int attempt = attemptRef.incrementAndGet();
+            assertThat(attempt, lessThanOrEqualTo(maxAttempts));
+            if (attempt != 1) {
+                assertThat(Thread.currentThread().getName(), containsString("[BulkProcessorTests-retry-scheduler]"));
+            }
+
+            if (attempt == maxAttempts) {
+                listener.onFailure(new ElasticsearchException("final failure"));
+            } else {
+                listener.onFailure(new RemoteTransportException("remote", new EsRejectedExecutionException("retryable failure")));
+            }
+        };
+
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                fail("afterBulk should not return success");
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                assertThat(failure, instanceOf(ElasticsearchException.class));
+                assertThat(failure.getMessage(), equalTo("final failure"));
+                countDownLatch.countDown();
+            }
+        };
+
+        try (BulkProcessor bulkProcessor = BulkProcessor
+                .builder(consumer, listener, "BulkProcessorTests")
+                .setBackoffPolicy(BackoffPolicy.constantBackoff(TimeValue.ZERO, Integer.MAX_VALUE))
+                .build()) {
+            bulkProcessor.add(new IndexRequest());
+            bulkProcessor.flush();
+            assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
+        }
+
+        assertThat(attemptRef.get(), equalTo(maxAttempts));
+    }
+
     public void testConcurrentExecutions() throws Exception {
         final AtomicBoolean called = new AtomicBoolean(false);
         final AtomicReference<Throwable> exceptionRef = new AtomicReference<>();
@@ -134,7 +185,10 @@ public class BulkProcessorTests extends ESTestCase {
                 Math.min(concurrentBulkRequests + 1, concurrentClients);
         }
         assumeTrue("failed to find random values that allows test to run quickly", runTest);
-        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse() }, 0);
+        BulkResponse bulkResponse = new BulkResponse(
+            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), mockResponse()) },
+            0
+        );
         AtomicInteger failureCount = new AtomicInteger(0);
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger requestCount = new AtomicInteger(0);
@@ -163,7 +217,7 @@ public class BulkProcessorTests extends ESTestCase {
             String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
             BytesReference bytesReference =
                 BytesReference.fromByteBuffers(new ByteBuffer[]{ ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) });
-            List<Future> futures = new ArrayList<>();
+            List<Future<?>> futures = new ArrayList<>();
             for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments; ) {
                 futures.add(executorService.submit(() -> {
                     try {
@@ -184,7 +238,7 @@ public class BulkProcessorTests extends ESTestCase {
             startGate.countDown();
             startGate.await();
 
-            for (Future f : futures) {
+            for (Future<?> f : futures) {
                 try {
                     f.get();
                 } catch (Exception e) {
@@ -221,7 +275,10 @@ public class BulkProcessorTests extends ESTestCase {
         final int maxBatchSize = Integer.MAX_VALUE; //don't flush based on size
         final int concurrentBulkRequests = randomIntBetween(0, 20);
         final int simulateWorkTimeInMillis = 5;
-        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse() }, 0);
+        BulkResponse bulkResponse = new BulkResponse(
+            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), mockResponse()) },
+            0
+        );
         AtomicInteger failureCount = new AtomicInteger(0);
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger requestCount = new AtomicInteger(0);
@@ -264,7 +321,7 @@ public class BulkProcessorTests extends ESTestCase {
             String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
             BytesReference bytesReference =
                 BytesReference.fromByteBuffers(new ByteBuffer[]{ ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) });
-            List<Future> futures = new ArrayList<>();
+            List<Future<?>> futures = new ArrayList<>();
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
             for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments; ) {
                 futures.add(executorService.submit(() -> {
@@ -286,7 +343,7 @@ public class BulkProcessorTests extends ESTestCase {
             startGate.countDown();
             startGate.await();
 
-            for (Future f : futures) {
+            for (Future<?> f : futures) {
                 try {
                     f.get();
                 } catch (Exception e) {
@@ -306,7 +363,7 @@ public class BulkProcessorTests extends ESTestCase {
                 "Successful Bulks: " + successCount.get() + "\n" +
                 "Failed Bulks: " + failureCount.get() + "\n" +
                 "Total Documents: " + docCount.get() + "\n" +
-                "Max Documents: " + maxDocuments + "\n" +   
+                "Max Documents: " + maxDocuments + "\n" +
                 "Max Batch Size: " + maxBatchSize + "\n" +
                 "Concurrent Clients: " + concurrentClients + "\n" +
                 "Concurrent Bulk Requests: " + concurrentBulkRequests + "\n"
@@ -366,5 +423,9 @@ public class BulkProcessorTests extends ESTestCase {
                 }
             }
         };
+    }
+
+    private DocWriteResponse mockResponse() {
+        return new IndexResponse(new ShardId("index", "uid", 0), "id", 1, 1, 1, true);
     }
 }

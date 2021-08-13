@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
@@ -52,6 +53,7 @@ public class DelayedDataDetectorFactory {
                 datafeedConfig.getParsedQuery(xContentRegistry),
                 datafeedConfig.getIndices().toArray(new String[0]),
                 datafeedConfig.getIndicesOptions(),
+                datafeedConfig.getRuntimeMappings(),
                 client);
         } else {
             return new NullDelayedDataDetector();

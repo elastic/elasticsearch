@@ -1,37 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -51,8 +40,10 @@ public class TransformConfig implements ToXContentObject {
     public static final ParseField SETTINGS = new ParseField("settings");
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
+    public static final ParseField RETENTION_POLICY = new ParseField("retention_policy");
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
+    public static final ParseField LATEST_TRANSFORM = new ParseField("latest");
 
     private final String id;
     private final SourceConfig source;
@@ -61,7 +52,9 @@ public class TransformConfig implements ToXContentObject {
     private final SyncConfig syncConfig;
     private final SettingsConfig settings;
     private final PivotConfig pivotConfig;
+    private final LatestConfig latestConfig;
     private final String description;
+    private final RetentionPolicyConfig retentionPolicyConfig;
     private final Version transformVersion;
     private final Instant createTime;
 
@@ -75,10 +68,12 @@ public class TransformConfig implements ToXContentObject {
             TimeValue frequency = (TimeValue) args[3];
             SyncConfig syncConfig = (SyncConfig) args[4];
             PivotConfig pivotConfig = (PivotConfig) args[5];
-            String description = (String) args[6];
-            SettingsConfig settings = (SettingsConfig) args[7];
-            Instant createTime = (Instant) args[8];
-            String transformVersion = (String) args[9];
+            LatestConfig latestConfig = (LatestConfig) args[6];
+            String description = (String) args[7];
+            SettingsConfig settings = (SettingsConfig) args[8];
+            RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[9];
+            Instant createTime = (Instant) args[10];
+            String transformVersion = (String) args[11];
             return new TransformConfig(
                 id,
                 source,
@@ -86,8 +81,10 @@ public class TransformConfig implements ToXContentObject {
                 frequency,
                 syncConfig,
                 pivotConfig,
+                latestConfig,
                 description,
                 settings,
+                retentionPolicyConfig,
                 createTime,
                 transformVersion
             );
@@ -104,10 +101,16 @@ public class TransformConfig implements ToXContentObject {
             FREQUENCY,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p), SYNC);
+        PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), SYNC);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p), PIVOT_TRANSFORM);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p), LATEST_TRANSFORM);
         PARSER.declareString(optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p), SETTINGS);
+        PARSER.declareNamedObject(
+            optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
+            RETENTION_POLICY
+        );
         PARSER.declareField(
             optionalConstructorArg(),
             p -> TimeUtil.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
@@ -115,14 +118,6 @@ public class TransformConfig implements ToXContentObject {
             ObjectParser.ValueType.VALUE
         );
         PARSER.declareString(optionalConstructorArg(), VERSION);
-    }
-
-    private static SyncConfig parseSyncConfig(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-        SyncConfig syncConfig = parser.namedObject(SyncConfig.class, parser.currentName(), true);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-        return syncConfig;
     }
 
     public static TransformConfig fromXContent(final XContentParser parser) {
@@ -137,11 +132,26 @@ public class TransformConfig implements ToXContentObject {
      * A new, valid, TransformConfig with an appropriate destination and ID will have to be constructed to create
      * the transform.
      * @param source Source configuration for gathering the data
-     * @param pivotConfig Pivot config to preview
+     * @param pivotConfig Config to preview
      * @return A TransformConfig to preview, NOTE it will have a {@code null} id, destination and index.
      */
     public static TransformConfig forPreview(final SourceConfig source, final PivotConfig pivotConfig) {
-        return new TransformConfig(null, source, null, null, null, pivotConfig, null, null, null, null);
+        return new TransformConfig(null, source, null, null, null, pivotConfig, null, null, null, null, null, null);
+    }
+
+    /**
+     * Helper method for previewing a transform configuration
+     *
+     * The TransformConfig returned from this method should only be used for previewing the resulting data.
+     *
+     * A new, valid, TransformConfig with an appropriate destination and ID will have to be constructed to create
+     * the transform.
+     * @param source Source configuration for gathering the data
+     * @param latestConfig Config to preview
+     * @return A TransformConfig to preview, NOTE it will have a {@code null} id, destination and index.
+     */
+    public static TransformConfig forPreview(final SourceConfig source, final LatestConfig latestConfig) {
+        return new TransformConfig(null, source, null, null, null, null, latestConfig, null, null, null, null, null);
     }
 
     TransformConfig(
@@ -151,8 +161,10 @@ public class TransformConfig implements ToXContentObject {
         final TimeValue frequency,
         final SyncConfig syncConfig,
         final PivotConfig pivotConfig,
+        final LatestConfig latestConfig,
         final String description,
         final SettingsConfig settings,
+        final RetentionPolicyConfig retentionPolicyConfig,
         final Instant createTime,
         final String version
     ) {
@@ -162,8 +174,10 @@ public class TransformConfig implements ToXContentObject {
         this.frequency = frequency;
         this.syncConfig = syncConfig;
         this.pivotConfig = pivotConfig;
+        this.latestConfig = latestConfig;
         this.description = description;
         this.settings = settings;
+        this.retentionPolicyConfig = retentionPolicyConfig;
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.transformVersion = version == null ? null : Version.fromString(version);
     }
@@ -192,6 +206,10 @@ public class TransformConfig implements ToXContentObject {
         return pivotConfig;
     }
 
+    public LatestConfig getLatestConfig() {
+        return latestConfig;
+    }
+
     public Version getVersion() {
         return transformVersion;
     }
@@ -208,6 +226,11 @@ public class TransformConfig implements ToXContentObject {
     @Nullable
     public SettingsConfig getSettings() {
         return settings;
+    }
+
+    @Nullable
+    public RetentionPolicyConfig getRetentionPolicyConfig() {
+        return retentionPolicyConfig;
     }
 
     @Override
@@ -233,11 +256,19 @@ public class TransformConfig implements ToXContentObject {
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);
         }
+        if (latestConfig != null) {
+            builder.field(LATEST_TRANSFORM.getPreferredName(), latestConfig);
+        }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         if (settings != null) {
             builder.field(SETTINGS.getPreferredName(), settings);
+        }
+        if (retentionPolicyConfig != null) {
+            builder.startObject(RETENTION_POLICY.getPreferredName());
+            builder.field(retentionPolicyConfig.getName(), retentionPolicyConfig);
+            builder.endObject();
         }
         if (createTime != null) {
             builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
@@ -270,12 +301,27 @@ public class TransformConfig implements ToXContentObject {
             && Objects.equals(this.transformVersion, that.transformVersion)
             && Objects.equals(this.settings, that.settings)
             && Objects.equals(this.createTime, that.createTime)
-            && Objects.equals(this.pivotConfig, that.pivotConfig);
+            && Objects.equals(this.pivotConfig, that.pivotConfig)
+            && Objects.equals(this.latestConfig, that.latestConfig)
+            && Objects.equals(this.retentionPolicyConfig, that.retentionPolicyConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, frequency, syncConfig, settings, createTime, transformVersion, pivotConfig, description);
+        return Objects.hash(
+            id,
+            source,
+            dest,
+            frequency,
+            syncConfig,
+            settings,
+            createTime,
+            transformVersion,
+            pivotConfig,
+            latestConfig,
+            description,
+            retentionPolicyConfig
+        );
     }
 
     @Override
@@ -295,8 +341,10 @@ public class TransformConfig implements ToXContentObject {
         private TimeValue frequency;
         private SyncConfig syncConfig;
         private PivotConfig pivotConfig;
+        private LatestConfig latestConfig;
         private SettingsConfig settings;
         private String description;
+        private RetentionPolicyConfig retentionPolicyConfig;
 
         public Builder setId(String id) {
             this.id = id;
@@ -328,6 +376,11 @@ public class TransformConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setLatestConfig(LatestConfig latestConfig) {
+            this.latestConfig = latestConfig;
+            return this;
+        }
+
         public Builder setDescription(String description) {
             this.description = description;
             return this;
@@ -338,8 +391,26 @@ public class TransformConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setRetentionPolicyConfig(RetentionPolicyConfig retentionPolicyConfig) {
+            this.retentionPolicyConfig = retentionPolicyConfig;
+            return this;
+        }
+
         public TransformConfig build() {
-            return new TransformConfig(id, source, dest, frequency, syncConfig, pivotConfig, description, settings, null, null);
+            return new TransformConfig(
+                id,
+                source,
+                dest,
+                frequency,
+                syncConfig,
+                pivotConfig,
+                latestConfig,
+                description,
+                settings,
+                retentionPolicyConfig,
+                null,
+                null
+            );
         }
     }
 }

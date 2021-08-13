@@ -1,28 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.AntFixture
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.rest.YamlRestTestPlugin
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.AntFixture
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
@@ -34,7 +22,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes'
+    include '_common', 'cluster', 'nodes'
   }
 }
 
@@ -44,13 +32,13 @@ Map<String, Object> expansions = [
   'expected_nodes': ec2NumberOfNodes
 ]
 
-processYamlRestTestResources {
+tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 // disable default yamlRestTest task, use spezialized ones below
-yamlRestTest.enabled = false
+tasks.named("yamlRestTest").configure { enabled = false }
 
 /*
  * Test using various credential providers (see also https://docs.aws.amazon.com/sdk-for-java/v2/developer-guide/credentials.html):
@@ -64,61 +52,66 @@ yamlRestTest.enabled = false
  * custom Java security policy to work.
  */
 ['KeyStore', 'EnvVariables', 'SystemProperties', 'ContainerCredentials', 'InstanceProfile'].forEach { action ->
-  AntFixture fixture = tasks.create(name: "ec2Fixture${action}", type: AntFixture) {
+  TaskProvider<AntFixture> fixture = tasks.register("ec2Fixture${action}", AntFixture) {
     dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
     env 'CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}"
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     args 'org.elasticsearch.discovery.ec2.AmazonEC2Fixture', baseDir, "${buildDir}/testclusters/yamlRestTest${action}-1/config/unicast_hosts.txt"
   }
 
-  tasks.create(name: "yamlRestTest${action}", type: RestIntegTestTask) {
+  def yamlRestTestTask = tasks.register("yamlRestTest${action}", RestIntegTestTask) {
     dependsOn fixture
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
+    testClassesDirs = yamlRestTestSourceSet.getOutput().getClassesDirs()
+    classpath = yamlRestTestSourceSet.getRuntimeClasspath()
   }
-  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-  SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
-  "yamlRestTest${action}" {
-    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
-    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
-  }
-  check.dependsOn("yamlRestTest${action}")
 
-  testClusters."yamlRestTest${action}" {
+  tasks.named("check").configure {
+    dependsOn(yamlRestTestTask)
+  }
+
+  testClusters.matching { it.name == yamlRestTestTask.name}.configureEach {
     numberOfNodes = ec2NumberOfNodes
     plugin ':plugins:discovery-ec2'
 
     setting 'discovery.seed_providers', 'ec2'
     setting 'network.host', '_ec2_'
-    setting 'discovery.ec2.endpoint', { "http://${-> fixture.addressAndPort}" }, IGNORE_VALUE
+    setting 'discovery.ec2.endpoint', { "http://${-> fixture.get().addressAndPort}" }, IGNORE_VALUE
 
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${-> fixture.addressAndPort}" }, IGNORE_VALUE
+    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${-> fixture.get().addressAndPort}" }, IGNORE_VALUE
   }
 }
 
 // Extra config for KeyStore
-testClusters.yamlRestTestKeyStore {
+testClusters.matching { it.name == "yamlRestTestKeyStore" }.configureEach {
   keystore 'discovery.ec2.access_key', 'ec2_integration_test_access_key'
   keystore 'discovery.ec2.secret_key', 'ec2_integration_test_secret_key'
 }
 
 // Extra config for EnvVariables
-testClusters.yamlRestTestEnvVariables {
+testClusters.matching { it.name == "yamlRestTestEnvVariables" }.configureEach {
   environment 'AWS_ACCESS_KEY_ID', 'ec2_integration_test_access_key'
   environment 'AWS_SECRET_ACCESS_KEY', 'ec2_integration_test_secret_key'
 }
 
 // Extra config for SystemProperties
-testClusters.yamlRestTestSystemProperties {
+testClusters.matching { it.name == "yamlRestTestSystemProperties" }.configureEach {
   systemProperty 'aws.accessKeyId', 'ec2_integration_test_access_key'
   systemProperty 'aws.secretKey', 'ec2_integration_test_secret_key'
 }
 
 // Extra config for ContainerCredentials
-ec2FixtureContainerCredentials.env 'ACTIVATE_CONTAINER_CREDENTIALS', true
+tasks.named("ec2FixtureContainerCredentials").configure {
+  env 'ACTIVATE_CONTAINER_CREDENTIALS', true
+}
 
-testClusters.yamlRestTestContainerCredentials {
+testClusters.matching { it.name == "yamlRestTestContainerCredentials" }.configureEach {
   environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI',
     { "http://${-> tasks.findByName("ec2FixtureContainerCredentials").addressAndPort}/ecs_credentials_endpoint" }, IGNORE_VALUE
 }
 
 // Extra config for InstanceProfile
-ec2FixtureInstanceProfile.env 'ACTIVATE_INSTANCE_PROFILE', true
+tasks.named("ec2FixtureInstanceProfile").configure {
+  env 'ACTIVATE_INSTANCE_PROFILE', true
+}

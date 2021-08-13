@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.blobstore;
 
@@ -30,16 +19,19 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -55,6 +47,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -83,6 +78,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     private static final byte[] BUFFER = new byte[1024];
 
     private static HttpServer httpServer;
+    private static ExecutorService executorService;
     protected Map<String, HttpHandler> handlers;
 
     private static final Logger log = LogManager.getLogger();
@@ -90,13 +86,19 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + ESMockAPIBasedRepositoryIntegTestCase.class.getName() + "]");
+        // the EncryptedRepository can require more than one connection open at one time
+        executorService = EsExecutors.newScaling(ESMockAPIBasedRepositoryIntegTestCase.class.getName(), 0, 2, 60,
+                TimeUnit.SECONDS, threadFactory, new ThreadContext(Settings.EMPTY));
         httpServer.setExecutor(r -> {
-            try {
-                r.run();
-            } catch (Throwable t) {
-                log.error("Error in execution on mock http server IO thread", t);
-                throw t;
-            }
+            executorService.execute(() -> {
+                try {
+                    r.run();
+                } catch (Throwable t) {
+                    log.error("Error in execution on mock http server IO thread", t);
+                    throw t;
+                }
+            });
         });
         httpServer.start();
     }
@@ -111,6 +113,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     @AfterClass
     public static void stopHttpServer() {
         httpServer.stop(0);
+        ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         httpServer = null;
     }
 
@@ -124,12 +127,15 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
                     h = ((DelegatingHttpHandler) h).getDelegate();
                 }
                 if (h instanceof BlobStoreHttpHandler) {
-                    List<String> blobs = ((BlobStoreHttpHandler) h).blobs().keySet().stream()
-                        .filter(blob -> blob.contains("index") == false).collect(Collectors.toList());
-                    assertThat("Only index blobs should remain in repository but found " + blobs, blobs, hasSize(0));
+                    assertEmptyRepo(((BlobStoreHttpHandler) h).blobs());
                 }
             }
         }
+    }
+
+    protected void assertEmptyRepo(Map<String, BytesReference> blobsMap) {
+        List<String> blobs = blobsMap.keySet().stream().filter(blob -> blob.contains("index") == false).collect(Collectors.toList());
+        assertThat("Only index blobs should remain in repository but found " + blobs, blobs, hasSize(0));
     }
 
     protected abstract Map<String, HttpHandler> createHttpHandlers();
@@ -140,7 +146,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
      * Test the snapshot and restore of an index which has large segments files.
      */
     public final void testSnapshotWithLargeSegmentFiles() throws Exception {
-        final String repository = createRepository(randomName());
+        final String repository = createRepository(randomRepositoryName());
         final String index = "index-no-merges";
         createIndex(index, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -171,7 +177,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     }
 
     public void testRequestStats() throws Exception {
-        final String repository = createRepository(randomName());
+        final String repository = createRepository(randomRepositoryName());
         final String index = "index-no-merges";
         createIndex(index, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -238,8 +244,12 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     }
 
     protected static String httpServerUrl() {
+        return "http://" + serverUrl();
+    }
+
+    protected static String serverUrl() {
         InetSocketAddress address = httpServer.getAddress();
-        return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        return InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
     }
 
     /**

@@ -1,24 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
@@ -31,8 +20,8 @@ import java.util.Objects;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to functions for building aggregation components.  DO NOT
- * directly instantiate this class, instead get an already-configured copy from {@link QueryShardContext#getValuesSourceRegistry()}, or (in
- * the case of some test scenarios only) directly from {@link SearchModule#getValuesSourceRegistry()}
+ * directly instantiate this class, instead get an already-configured copy from {@link SearchExecutionContext#getValuesSourceRegistry()},
+ * or (in the case of some test scenarios only) directly from {@link SearchModule#getValuesSourceRegistry()}
  *
  */
 public class ValuesSourceRegistry {
@@ -54,7 +43,7 @@ public class ValuesSourceRegistry {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            RegistryKey that = (RegistryKey) o;
+            RegistryKey<?> that = (RegistryKey<?>) o;
             return name.equals(that.name) && supplierType.equals(that.supplierType);
         }
 
@@ -64,7 +53,8 @@ public class ValuesSourceRegistry {
         }
     }
 
-    public static final RegistryKey UNREGISTERED_KEY = new RegistryKey("unregistered", RegistryKey.class);
+    @SuppressWarnings("rawtypes")
+    public static final RegistryKey UNREGISTERED_KEY = new RegistryKey<>("unregistered", RegistryKey.class);
 
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
@@ -138,16 +128,16 @@ public class ValuesSourceRegistry {
         Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> mutableMap
     ) {
         /*
-         Make an immutatble copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
+         Make an immutable copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
          into a Map.of(), which is more read optimized than just using a hash map.
          */
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"rawtypes", "unchecked"})
         Map.Entry<RegistryKey<?>, Map<ValuesSourceType, ?>>[] copiedEntries = new Map.Entry[mutableMap.size()];
         int i = 0;
         for (Map.Entry<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> entry : mutableMap.entrySet()) {
             RegistryKey<?> topKey = entry.getKey();
             List<Map.Entry<ValuesSourceType, ?>> values = entry.getValue();
-            @SuppressWarnings("unchecked")
+            @SuppressWarnings({"rawtypes", "unchecked"})
             Map.Entry<RegistryKey<?>, Map<ValuesSourceType, ?>> newEntry = Map.entry(
                 topKey,
                 Map.ofEntries(values.toArray(new Map.Entry[0]))

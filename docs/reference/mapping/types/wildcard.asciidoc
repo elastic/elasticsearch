@@ -4,16 +4,74 @@
 [[wildcard-field-type]]
 === Wildcard field type
 
-A `wildcard` field stores values optimised for wildcard grep-like queries.
-Wildcard queries are possible on other field types but suffer from constraints:
+The `wildcard` field type is a specialized keyword field for unstructured
+machine-generated content you plan to search using grep-like
+<<query-dsl-wildcard-query,`wildcard`>> and <<query-dsl-regexp-query,`regexp`>>
+queries. The `wildcard` type is optimized for fields with large values or high
+cardinality.
 
-* `text` fields limit matching of any wildcard expressions to individual tokens rather than the original whole value held in a field
-* `keyword` fields are untokenized but slow at performing wildcard queries (especially patterns with leading wildcards).
+[[mapping-unstructured-content]]
+.Mapping unstructured content
+****
+You can map a field containing unstructured content to either a `text` or
+keyword family field. The best field type depends on the nature of the content
+and how you plan to search the field.
+
+Use the `text` field type if:
+
+* The content is human-readable, such as an email body or product description.
+* You plan to search the field for individual words or phrases, such as `the
+brown fox jumped`, using <<full-text-queries,full text queries>>. {es}
+<<analysis,analyzes>> `text` fields to return the most relevant results for
+these queries.
+
+Use a keyword family field type if:
+
+* The content is machine-generated, such as a log message or HTTP request
+information.
+* You plan to search the field for exact full values, such as `org.foo.bar`, or
+partial character sequences, such as `org.foo.*`, using
+<<term-level-queries,term-level queries>>.
+
+**Choosing a keyword family field type**
+
+If you choose a keyword family field type, you can map the field as a `keyword`
+or `wildcard` field depending on the cardinality and size of the field's values.
+Use the `wildcard` type if you plan to regularly search the field using a
+<<query-dsl-wildcard-query,`wildcard`>> or <<query-dsl-regexp-query,`regexp`>>
+query and meet one of the following criteria:
+
+* The field contains more than a million unique values. +
+AND +
+You plan to regularly search the field using a pattern with leading wildcards,
+such as `*foo` or `*baz`.
+
+* The field contains values larger than 32KB. +
+AND +
+You plan to regularly search the field using any wildcard pattern.
+
+Otherwise, use the `keyword` field type for faster searches, faster indexing,
+and lower storage costs. For an in-depth comparison and decision flowchart, see
+our
+https://www.elastic.co/blog/find-strings-within-strings-faster-with-the-new-elasticsearch-wildcard-field[related
+blog post].
+
+**Switching from a `text` field to a keyword field**
+
+If you previously used a `text` field to index unstructured machine-generated
+content, you can <<update-mapping,reindex to update the mapping>> to a `keyword`
+or `wildcard` field. We also recommend you update your application or workflow
+to replace any word-based <<full-text-queries,full text queries>> on the field
+to equivalent <<term-level-queries,term-level queries>>.
+****
 
 Internally the `wildcard` field indexes the whole field value using ngrams and stores the full string.
 The index is used as a rough filter to cut down the number of values that are then checked by retrieving and checking the full values.
 This field is especially well suited to run grep-like queries on log lines. Storage costs are typically lower than those of `keyword`
-fields but search speeds for exact matches on full terms are slower.
+fields but search speeds for exact matches on full terms are slower. If the
+field values share many prefixes, such as URLs for the same website, storage
+costs for a `wildcard` field may be higher than an equivalent `keyword` field.
+
 
 You index and search a wildcard field as follows
 
@@ -61,15 +119,16 @@ The following parameters are accepted by `wildcard` fields:
 <<null-value,`null_value`>>::
 
     Accepts a string value which is substituted for any explicit `null`
-    values.  Defaults to `null`, which means the field is treated as missing.
+    values. Defaults to `null`, which means the field is treated as missing.
 
 <<ignore-above,`ignore_above`>>::
 
-    Do not index any string longer than this value.  Defaults to `2147483647`
+    Do not index any string longer than this value. Defaults to `2147483647`
     so that all values would be accepted.
 
 [discrete]
 ==== Limitations
 
 * `wildcard` fields are untokenized like keyword fields, so do not support queries that rely on word positions such as phrase queries.
+* When running `wildcard` queries any `rewrite` parameter is ignored. The scoring is always a constant score.
 

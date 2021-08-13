@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -30,15 +31,15 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -68,7 +69,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -134,7 +134,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         final Map<String, Object> body = MapBuilder.<String, Object>newMapBuilder()
             .put("roles", Collections.singletonList("kibana_admin"))
             .put("full_name", "Thor Son of Odin")
-            .put("password", randomAlphaOfLengthBetween(8, 16))
+            .put("password", randomAlphaOfLengthBetween(inFipsJvm() ? 14 : 8, 16))
             .put("metadata", Collections.singletonMap("is_native", true))
             .map();
         final Response response = adminClient().performRequest(buildRequest("PUT", "/_security/user/thor", body));

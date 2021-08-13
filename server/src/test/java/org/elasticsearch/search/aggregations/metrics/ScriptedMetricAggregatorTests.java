@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -25,21 +14,14 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -48,12 +30,9 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.internal.SearchContext;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -66,7 +45,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -221,17 +199,15 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             private long total = 0;
 
             @Override
-            public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                 logger.debug("Used {} grabbing {} for {}", total, bytes, label);
                 total += bytes;
-                return total;
             }
 
             @Override
-            public long addWithoutBreaking(long bytes) {
+            public void addWithoutBreaking(long bytes) {
                 logger.debug("Used {} grabbing {}", total, bytes);
                 total += bytes;
-                return total;
             }
 
             @Override
@@ -524,60 +500,5 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             assertThat(oddMetric.aggregation(), equalTo(49));
         };
         testCase(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, verify, keywordField("t"), longField("number"));
-    }
-
-    protected <A extends Aggregator> A createAggregator(
-        Query query,
-        AggregationBuilder aggregationBuilder,
-        IndexSearcher indexSearcher,
-        IndexSettings indexSettings,
-        MultiBucketConsumer bucketConsumer,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        SearchContext searchContext = createSearchContext(
-            indexSearcher,
-            indexSettings,
-            query,
-            bucketConsumer,
-            circuitBreakerService,
-            fieldTypes
-        );
-        return createAggregator(aggregationBuilder, searchContext);
-    }
-
-    /**
-     * We cannot use Mockito for mocking QueryShardContext in this case because
-     * script-related methods (e.g. QueryShardContext#getLazyExecutableScript)
-     * is final and cannot be mocked
-     */
-    @Override
-    protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
-                                                        MapperService mapperService,
-                                                        IndexSettings indexSettings,
-                                                        CircuitBreakerService circuitBreakerService,
-                                                        BigArrays bigArrays) {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
-        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
-        ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
-        return new QueryShardContext(
-            0,
-            indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            null,
-            getIndexFieldDataLookup(mapperService, circuitBreakerService),
-            mapperService,
-            null,
-            scriptService,
-            xContentRegistry(),
-            writableRegistry(),
-            null,
-            null,
-            System::currentTimeMillis,
-            null,
-            null,
-            () -> true,
-            valuesSourceRegistry,
-            emptyMap()
-        );
     }
 }

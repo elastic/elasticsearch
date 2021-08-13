@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.literal.geo;
 
@@ -28,8 +29,6 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantNamedWriteable;
@@ -51,11 +50,7 @@ public class GeoShape implements ToXContentFragment, ConstantNamedWriteable {
 
     private final Geometry shape;
 
-    private static final GeometryValidator validator = new StandardValidator(true);
-
     private static final GeometryParser GEOMETRY_PARSER = new GeometryParser(true, true, true);
-
-    private static final WellKnownText WKT_PARSER = new WellKnownText(true, validator);
 
     public GeoShape(double lon, double lat) {
         shape = new Point(lon, lat);
@@ -80,17 +75,17 @@ public class GeoShape implements ToXContentFragment, ConstantNamedWriteable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(WKT_PARSER.toWKT(shape));
+        out.writeString(WellKnownText.toWKT(shape));
     }
 
     @Override
     public String toString() {
-        return WKT_PARSER.toWKT(shape);
+        return WellKnownText.toWKT(shape);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(WKT_PARSER.toWKT(shape));
+        return builder.value(WellKnownText.toWKT(shape));
     }
 
     public Geometry toGeometry() {

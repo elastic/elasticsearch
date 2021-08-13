@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -35,6 +25,14 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
 
     protected Condition(String name) {
         this.name = name;
+    }
+
+    /**
+     * Checks if this condition is available in a specific version.
+     * This makes sure BWC when introducing a new condition which is not recognized by older versions.
+     */
+    boolean includedInVersion(Version version) {
+        return true;
     }
 
     public abstract Result evaluate(Stats stats);
@@ -77,11 +75,13 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         public final long numDocs;
         public final long indexCreated;
         public final ByteSizeValue indexSize;
+        public final ByteSizeValue maxPrimaryShardSize;
 
-        public Stats(long numDocs, long indexCreated, ByteSizeValue indexSize) {
+        public Stats(long numDocs, long indexCreated, ByteSizeValue indexSize, ByteSizeValue maxPrimaryShardSize) {
             this.numDocs = numDocs;
             this.indexCreated = indexCreated;
             this.indexSize = indexSize;
+            this.maxPrimaryShardSize = maxPrimaryShardSize;
         }
     }
 

@@ -1,23 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.apache.tools.ant.filters.ReplaceTokens
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -33,14 +22,13 @@ final Project fixture = project(':test:fixtures:gcs-fixture')
 final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
-  testImplementation project(path: xpackModule('repositories-metering-api'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
   testImplementation repositoryPlugin
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'repositories-metering-api'
+    include 'indices', 'bulk', 'snapshot', 'nodes', '_common', 'repositories-metering-api'
   }
 }
 
@@ -62,11 +50,15 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   serviceAccountFile = new File(gcsServiceAccount)
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
-task createServiceAccountFile() {
+tasks.register("createServiceAccountFile") {
   doLast {
     KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(1024)
+    keyPairGenerator.initialize(2048)
     KeyPair keyPair = keyPairGenerator.generateKeyPair()
     String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
 
@@ -96,7 +88,7 @@ Map<String, Object> expansions = [
 
 tasks.named("processTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 if (useFixture) {
@@ -104,8 +96,11 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'gcs-fixture-repositories-metering')
 }
 
-integTest {
+tasks.named("integTest").configure {
   dependsOn ":plugins:repository-gcs:bundlePlugin"
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+  }
   systemProperty 'test.gcs.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repositories_metering" + BuildParams.testSeed
 }
@@ -116,7 +111,6 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 
   keystore 'gcs.client.repositories_metering.credentials_file', serviceAccountFile, IGNORE_VALUE
   if (useFixture) {
-    tasks.integTest.dependsOn createServiceAccountFile
     /* Use a closure on the string to delay evaluation until tests are executed */
     setting 'gcs.client.repositories_metering.endpoint', { "${-> fixtureAddress('gcs-fixture-repositories-metering')}" }, IGNORE_VALUE
     setting 'gcs.client.repositories_metering.token_uri', { "${-> fixtureAddress('gcs-fixture-repositories-metering')}/o/oauth2/token" }, IGNORE_VALUE

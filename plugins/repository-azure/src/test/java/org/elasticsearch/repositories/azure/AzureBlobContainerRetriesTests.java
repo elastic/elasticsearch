@@ -1,38 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.azure.storage.Constants;
-import com.microsoft.azure.storage.RetryExponentialRetry;
-import com.microsoft.azure.storage.RetryPolicyFactory;
-import com.microsoft.azure.storage.blob.BlobRequestOptions;
+import com.azure.storage.common.policy.RequestRetryOptions;
+import com.azure.storage.common.policy.RetryPolicyType;
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import fixture.azure.AzureHttpHandler;
-import org.apache.http.HttpStatus;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -40,7 +29,8 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
@@ -68,14 +58,16 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.LOCATION_MODE_SETTING;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
@@ -98,51 +90,79 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
     private static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1L;
 
     private HttpServer httpServer;
+    private HttpServer secondaryHttpServer;
     private ThreadPool threadPool;
+    private AzureClientProvider clientProvider;
 
     @Before
     public void setUp() throws Exception {
-        threadPool = new TestThreadPool(getTestClass().getName(), AzureRepositoryPlugin.executorBuilder());
+        threadPool = new TestThreadPool(getTestClass().getName(),
+            AzureRepositoryPlugin.executorBuilder(),
+            AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
+        );
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
+        secondaryHttpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        secondaryHttpServer.start();
+        clientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
+        clientProvider.start();
         super.setUp();
     }
 
     @After
     public void tearDown() throws Exception {
+        clientProvider.close();
         httpServer.stop(0);
+        secondaryHttpServer.stop(0);
         super.tearDown();
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }
 
     private BlobContainer createBlobContainer(final int maxRetries) {
+        return createBlobContainer(maxRetries, null, LocationMode.PRIMARY_ONLY);
+    }
+
+    private BlobContainer createBlobContainer(final int maxRetries, String secondaryHost, final LocationMode locationMode) {
         final Settings.Builder clientSettings = Settings.builder();
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
-        final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://"
-            + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        String endpoint =
+            "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + getEndpointForServer(httpServer, "account");
+        if (secondaryHost != null) {
+            endpoint += ";BlobSecondaryEndpoint=" + getEndpointForServer(secondaryHttpServer, "account");
+        }
         clientSettings.put(ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
         clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueMillis(500));
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "account");
-        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(10).getBytes(UTF_8));
+        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(UTF_8));
         secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
         clientSettings.setSecureSettings(secureSettings);
 
-        final AzureStorageService service = new AzureStorageService(clientSettings.build()) {
+        final AzureStorageService service = new AzureStorageService(clientSettings.build(), clientProvider) {
             @Override
-            RetryPolicyFactory createRetryPolicy(final AzureStorageSettings azureStorageSettings) {
-                return new RetryExponentialRetry(1, 10, 100, azureStorageSettings.getMaxRetries());
+            RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
+                return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
+                    maxRetries + 1,
+                    60,
+                    50L,
+                    100L,
+                    // The SDK doesn't work well with ip endponts. Secondary host endpoints that contain
+                    // a path causes the sdk to rewrite the endpoint with an invalid path, that's the reason why we provide just the host +
+                    // port.
+                    secondaryHost != null ? secondaryHost.replaceFirst("/account", "") : null);
             }
 
             @Override
-            BlobRequestOptions getBlobRequestOptionsForWriteBlob() {
-                BlobRequestOptions options = new BlobRequestOptions();
-                options.setSingleBlobPutThresholdInBytes(Math.toIntExact(ByteSizeUnit.MB.toBytes(1)));
-                return options;
+            long getUploadBlockSize() {
+                return ByteSizeUnit.MB.toBytes(1);
+            }
+
+            @Override
+            int getMaxReadRetries(String clientName) {
+                return maxRetries;
             }
         };
 
@@ -150,9 +170,11 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             Settings.builder()
                 .put(CONTAINER_SETTING.getKey(), "container")
                 .put(ACCOUNT_SETTING.getKey(), clientName)
+                .put(LOCATION_MODE_SETTING.getKey(), locationMode)
+                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
                 .build());
 
-        return new AzureBlobContainer(BlobPath.cleanPath(), new AzureBlobStore(repositoryMetadata, service, threadPool), threadPool);
+        return new AzureBlobContainer(BlobPath.EMPTY, new AzureBlobStore(repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE));
     }
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
@@ -167,7 +189,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                     blobContainer.readBlob("read_nonexistent_blob", position, length);
                 }
             });
-        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("not found"));
+        assertThat(exception.toString(), exception.getMessage().toLowerCase(Locale.ROOT), containsString("not found"));
     }
 
     public void testReadBlobWithRetries() throws Exception {
@@ -175,13 +197,14 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         final CountDown countDownHead = new CountDown(maxRetries);
         final CountDown countDownGet = new CountDown(maxRetries);
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext("/container/read_blob_max_retries", exchange -> {
+        httpServer.createContext("/account/container/read_blob_max_retries", exchange -> {
             try {
                 Streams.readFully(exchange.getRequestBody());
                 if ("HEAD".equals(exchange.getRequestMethod())) {
                     if (countDownHead.countDown()) {
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(bytes.length));
+                        exchange.getResponseHeaders().add("Content-Length", String.valueOf(bytes.length));
                         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                         return;
@@ -193,7 +216,9 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                         final int length = bytes.length - rangeStart;
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                        exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
                         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                        exchange.getResponseHeaders().add("ETag", UUIDs.base64UUID());
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                         exchange.getResponseBody().write(bytes, rangeStart, length);
                         return;
@@ -219,7 +244,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         final int maxRetries = randomIntBetween(1, 5);
         final CountDown countDownGet = new CountDown(maxRetries);
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext("/container/read_range_blob_max_retries", exchange -> {
+        httpServer.createContext("/account/container/read_range_blob_max_retries", exchange -> {
             try {
                 Streams.readFully(exchange.getRequestBody());
                 if ("HEAD".equals(exchange.getRequestMethod())) {
@@ -234,9 +259,13 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                         final int length = (rangeEnd.get() - rangeStart) + 1;
                         assertThat(length, lessThanOrEqualTo(bytes.length - rangeStart));
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.getResponseHeaders().add("Content-Range",
+                            "bytes " + rangeStart + "-" + (rangeStart + rangeEnd.get() + 1) + "/" + bytes.length);
                         exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                        exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
                         exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
+                        exchange.getResponseHeaders().add("ETag", UUIDs.base64UUID());
+                        exchange.sendResponseHeaders(RestStatus.PARTIAL_CONTENT.getStatus(), length);
                         exchange.getResponseBody().write(bytes, rangeStart, length);
                         return;
                     }
@@ -260,15 +289,16 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
     }
 
     public void testWriteBlobWithRetries() throws Exception {
-        final int maxRetries =  randomIntBetween(1, 5);
+        final int maxRetries = randomIntBetween(1, 5);
         final CountDown countDown = new CountDown(maxRetries);
 
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext("/container/write_blob_max_retries", exchange -> {
+        httpServer.createContext("/account/container/write_blob_max_retries", exchange -> {
             if ("PUT".equals(exchange.getRequestMethod())) {
                 if (countDown.countDown()) {
                     final BytesReference body = Streams.readFully(exchange.getRequestBody());
                     if (Objects.deepEquals(bytes, BytesReference.toBytes(body))) {
+                        exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                         exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
                     } else {
                         AzureHttpHandler.sendError(exchange, RestStatus.BAD_REQUEST);
@@ -297,23 +327,25 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
     }
 
     public void testWriteLargeBlob() throws Exception {
-        final int maxRetries = randomIntBetween(1, 5);
+        final int maxRetries = randomIntBetween(2, 5);
 
-        final int nbBlocks = randomIntBetween(1, 2);
-        final byte[] data = randomBytes(Constants.DEFAULT_STREAM_WRITE_IN_BYTES * nbBlocks);
+        final byte[] data = randomBytes((int) ByteSizeUnit.MB.toBytes(10));
+        int nbBlocks = (int) Math.ceil((double) data.length / (double) ByteSizeUnit.MB.toBytes(1));
 
         final int nbErrors = 2; // we want all requests to fail at least once
         final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * nbBlocks);
         final CountDown countDownComplete = new CountDown(nbErrors);
 
         final Map<String, BytesReference> blocks = new ConcurrentHashMap<>();
-        httpServer.createContext("/container/write_large_blob", exchange -> {
+        httpServer.createContext("/account/container/write_large_blob", exchange -> {
 
             if ("PUT".equals(exchange.getRequestMethod())) {
                 final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
 
                 final String blockId = params.get("blockid");
+                assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
+
                 if (Strings.hasText(blockId) && (countDownUploads.decrementAndGet() % 2 == 0)) {
                     blocks.put(blockId, Streams.readFully(exchange.getRequestBody()));
                     exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
@@ -336,6 +368,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                         block.writeTo(blob);
                     }
                     assertArrayEquals(data, blob.toByteArray());
+                    exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                     exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
                     exchange.close();
                     return;
@@ -350,31 +383,111 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
+
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
-            blobContainer.writeBlob("write_large_blob", stream, data.length * nbBlocks, false);
+            blobContainer.writeBlob("write_large_blob", stream, data.length, false);
         }
+
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
         assertThat(blocks.isEmpty(), is(true));
     }
 
-    public void testRetryUntilFail() throws IOException {
-        final AtomicBoolean requestReceived = new AtomicBoolean(false);
-        httpServer.createContext("/container/write_blob_max_retries", exchange -> {
-            try {
-                if (requestReceived.compareAndSet(false, true)) {
-                    throw new AssertionError("Should not receive two requests");
-                } else {
+    public void testWriteLargeBlobStreaming() throws Exception {
+        final int maxRetries = randomIntBetween(2, 5);
+
+        final int blobSize = (int) ByteSizeUnit.MB.toBytes(10);
+        final byte[] data = randomBytes(blobSize);
+
+        final int nbErrors = 2; // we want all requests to fail at least once
+        final AtomicInteger counterUploads = new AtomicInteger(0);
+        final AtomicLong bytesReceived = new AtomicLong(0L);
+        final CountDown countDownComplete = new CountDown(nbErrors);
+
+        final Map<String, BytesReference> blocks = new ConcurrentHashMap<>();
+        httpServer.createContext("/account/container/write_large_blob_streaming", exchange -> {
+
+            if ("PUT".equals(exchange.getRequestMethod())) {
+                final Map<String, String> params = new HashMap<>();
+                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
+
+                final String blockId = params.get("blockid");
+                assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
+
+                if (Strings.hasText(blockId) && (counterUploads.incrementAndGet() % 2 == 0)) {
+                    final BytesReference blockData = Streams.readFully(exchange.getRequestBody());
+                    blocks.put(blockId, blockData);
+                    bytesReceived.addAndGet(blockData.length());
                     exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                    exchange.close();
+                    return;
                 }
+
+                final String complete = params.get("comp");
+                if ("blocklist".equals(complete) && (countDownComplete.countDown())) {
+                    final String blockList = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
+                    final List<String> blockUids = Arrays.stream(blockList.split("<Latest>"))
+                            .filter(line -> line.contains("</Latest>"))
+                            .map(line -> line.substring(0, line.indexOf("</Latest>")))
+                            .collect(Collectors.toList());
+
+                    final ByteArrayOutputStream blob = new ByteArrayOutputStream();
+                    for (String blockUid : blockUids) {
+                        BytesReference block = blocks.remove(blockUid);
+                        assert block != null;
+                        block.writeTo(blob);
+                    }
+                    assertArrayEquals(data, blob.toByteArray());
+                    exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                    exchange.close();
+                    return;
+                }
+            }
+
+            if (randomBoolean()) {
+                Streams.readFully(exchange.getRequestBody());
+                AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+            }
+            exchange.close();
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(maxRetries);
+        blobContainer.writeBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
+            int outstanding = data.length;
+            while (outstanding > 0) {
+                if (randomBoolean()) {
+                    int toWrite = Math.toIntExact(Math.min(randomIntBetween(64, data.length), outstanding));
+                    out.write(data, data.length - outstanding, toWrite);
+                    outstanding -= toWrite;
+                } else {
+                    out.write(data[data.length - outstanding]);
+                    outstanding--;
+                }
+            }
+        });
+        assertEquals(blobSize, bytesReceived.get());
+    }
+
+    public void testRetryUntilFail() throws Exception {
+        final int maxRetries = randomIntBetween(2, 5);
+        final AtomicInteger requestsReceived = new AtomicInteger(0);
+        httpServer.createContext("/account/container/write_blob_max_retries", exchange -> {
+            try {
+                requestsReceived.incrementAndGet();
+                if (Streams.readFully(exchange.getRequestBody()).length() > 0) {
+                    throw new AssertionError("Should not receive any data");
+                }
+            } catch (IOException e) {
+              // Suppress the exception since it's expected that the
+              // connection is closed before anything can be read
             } finally {
                 exchange.close();
             }
         });
 
-        final BlobContainer blobContainer = createBlobContainer(randomIntBetween(2, 5));
+        final BlobContainer blobContainer = createBlobContainer(maxRetries);
         try (InputStream stream = new InputStream() {
-
             @Override
             public int read() throws IOException {
                 throw new IOException("foo");
@@ -387,17 +500,93 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
 
             @Override
             public void reset() {
-                throw new AssertionError("should not be called");
             }
         }) {
             final IOException ioe = expectThrows(IOException.class, () ->
                 blobContainer.writeBlob("write_blob_max_retries", stream, randomIntBetween(1, 128), randomBoolean()));
-            assertThat(ioe.getMessage(), is("foo"));
+            assertThat(ioe.getMessage(), is("Unable to write blob write_blob_max_retries"));
+            // The mock http server uses 1 thread to process the requests, it's possible that the
+            // call to writeBlob throws before all the requests have been processed in the http server,
+            // as the http server thread might get de-scheduled and the sdk keeps sending requests
+            // as it fails to read the InputStream to write.
+            assertBusy(() -> assertThat(requestsReceived.get(), equalTo(maxRetries + 1)));
+        }
+    }
+
+    public void testRetryFromSecondaryLocationPolicies() throws Exception {
+        final int maxRetries = randomIntBetween(1, 5);
+        final AtomicInteger failedHeadCalls = new AtomicInteger();
+        final AtomicInteger failedGetCalls = new AtomicInteger();
+        final byte[] bytes = randomBlobContent();
+
+        HttpHandler failingHandler = exchange -> {
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("HEAD".equals(exchange.getRequestMethod())) {
+                    failedHeadCalls.incrementAndGet();
+                    AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+                } else if ("GET".equals(exchange.getRequestMethod())) {
+                    failedGetCalls.incrementAndGet();
+                    AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+                }
+            } finally {
+                exchange.close();
+            }
+        };
+
+        HttpHandler workingHandler = exchange -> {
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("HEAD".equals(exchange.getRequestMethod())) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(bytes.length));
+                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(bytes.length));
+                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                } else if ("GET".equals(exchange.getRequestMethod())) {
+                    final int rangeStart = getRangeStart(exchange);
+                    assertThat(rangeStart, lessThan(bytes.length));
+                    final int length = bytes.length - rangeStart;
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(length));
+                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                    exchange.getResponseHeaders().add("ETag", UUIDs.base64UUID());
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
+                    exchange.getResponseBody().write(bytes, rangeStart, length);
+                }
+            } finally {
+                exchange.close();
+            }
+        };
+        LocationMode locationMode = randomFrom(LocationMode.PRIMARY_THEN_SECONDARY, LocationMode.SECONDARY_THEN_PRIMARY);
+
+        String secondaryHost = null;
+        String blobPath = "/account/container/read_blob_from_secondary";
+        if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY) {
+            httpServer.createContext(blobPath, failingHandler);
+            secondaryHttpServer.createContext(blobPath, workingHandler);
+            // The SDK doesn't work well with secondary host endpoints that contain
+            // a path, that's the reason why we sould provide just the host + port;
+            secondaryHost = getEndpointForServer(secondaryHttpServer, "account");
+        } else if (locationMode == LocationMode.SECONDARY_THEN_PRIMARY) {
+            secondaryHttpServer.createContext(blobPath, failingHandler);
+            httpServer.createContext(blobPath, workingHandler);
+            secondaryHost = getEndpointForServer(httpServer, "account");
+        }
+
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, secondaryHost, locationMode);
+        try (InputStream inputStream = blobContainer.readBlob("read_blob_from_secondary")) {
+            assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
+
+            // It does round robin, first tries on the primary, then on the secondary
+            assertThat(failedHeadCalls.get(), equalTo(1));
+            assertThat(failedGetCalls.get(), equalTo(1));
         }
     }
 
     private static byte[] randomBlobContent() {
-        return randomByteArrayOfLength(randomIntBetween(1, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
+        return randomByteArrayOfLength(randomIntBetween(1, 1 << 20)); // rarely up to 1mb
     }
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$");
@@ -428,28 +617,8 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         return Optional.of(Math.toIntExact(rangeEnd));
     }
 
-    private static void sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {
-        final int rangeStart = getRangeStart(exchange);
-        assertThat(rangeStart, lessThan(bytes.length));
-        final Optional<Integer> rangeEnd = getRangeEnd(exchange);
-        final int length;
-        if (rangeEnd.isPresent()) {
-            // adapt range end to be compliant to https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
-            final int effectiveRangeEnd = Math.min(rangeEnd.get(), bytes.length - 1);
-            length = effectiveRangeEnd - rangeStart;
-        } else {
-            length = bytes.length - rangeStart - 1;
-        }
-        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
-        exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-        exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
-        final int bytesToSend = randomIntBetween(0, length - 1);
-        if (bytesToSend > 0) {
-            exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
-        }
-        if (randomBoolean()) {
-            exchange.getResponseBody().flush();
-        }
+    private String getEndpointForServer(HttpServer server, String accountName) {
+        InetSocketAddress address = server.getAddress();
+        return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/" + accountName;
     }
 }

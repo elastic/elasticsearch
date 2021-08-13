@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
+import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -18,9 +21,7 @@ import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.getKeyStoreType;
-
+import java.util.Objects;
 
 /**
  * Represents the configuration for an SSLContext
@@ -30,14 +31,14 @@ public final class SSLConfiguration {
     // These settings are never registered, but they exist so that we can parse the values defined under grouped settings. Also, some are
     // implemented as optional settings, which provides a declarative manner for fallback as we typically fallback to values from a
     // different configuration
-    static final SSLConfigurationSettings SETTINGS_PARSER = SSLConfigurationSettings.withoutPrefix();
+    static final SSLConfigurationSettings SETTINGS_PARSER = SSLConfigurationSettings.withoutPrefix(true);
 
     private final KeyConfig keyConfig;
     private final TrustConfig trustConfig;
     private final List<String> ciphers;
     private final List<String> supportedProtocols;
-    private final SSLClientAuth sslClientAuth;
-    private final VerificationMode verificationMode;
+    private final SslClientAuthenticationMode sslClientAuth;
+    private final SslVerificationMode verificationMode;
     private final boolean explicitlyConfigured;
 
     /**
@@ -46,7 +47,7 @@ public final class SSLConfiguration {
      *
      * @param settings the SSL specific settings; only the settings under a *.ssl. prefix
      */
-    SSLConfiguration(Settings settings) {
+    public SSLConfiguration(Settings settings) {
         this.keyConfig = createKeyConfig(settings);
         this.trustConfig = createTrustConfig(settings, keyConfig);
         this.ciphers = getListOrDefault(SETTINGS_PARSER.ciphers, settings, XPackSettings.DEFAULT_CIPHERS);
@@ -59,7 +60,7 @@ public final class SSLConfiguration {
     /**
      * The configuration for the key, if any, that will be used as part of this ssl configuration
      */
-    KeyConfig keyConfig() {
+    public KeyConfig keyConfig() {
         return keyConfig;
     }
 
@@ -87,14 +88,14 @@ public final class SSLConfiguration {
     /**
      * The verification mode for this configuration; this mode controls certificate and hostname verification
      */
-    public VerificationMode verificationMode() {
+    public SslVerificationMode verificationMode() {
         return verificationMode;
     }
 
     /**
      * The client auth configuration
      */
-    SSLClientAuth sslClientAuth() {
+    SslClientAuthenticationMode sslClientAuth() {
         return sslClientAuth;
     }
 
@@ -129,30 +130,16 @@ public final class SSLConfiguration {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof SSLConfiguration)) return false;
+        if ((o instanceof SSLConfiguration) == false) return false;
 
         SSLConfiguration that = (SSLConfiguration) o;
 
-        if (this.keyConfig() != null ? !this.keyConfig().equals(that.keyConfig()) : that.keyConfig() != null) {
-            return false;
-        }
-        if (this.trustConfig() != null ? !this.trustConfig().equals(that.trustConfig()) : that.trustConfig() != null) {
-            return false;
-        }
-        if (this.cipherSuites() != null ? !this.cipherSuites().equals(that.cipherSuites()) : that.cipherSuites() != null) {
-            return false;
-        }
-        if (!this.supportedProtocols().equals(that.supportedProtocols())) {
-            return false;
-        }
-        if (this.verificationMode() != that.verificationMode()) {
-            return false;
-        }
-        if (this.sslClientAuth() != that.sslClientAuth()) {
-            return false;
-        }
-        return this.supportedProtocols() != null ?
-                this.supportedProtocols().equals(that.supportedProtocols()) : that.supportedProtocols() == null;
+        return Objects.equals(this.keyConfig(), that.keyConfig())
+            && Objects.equals(this.trustConfig(), that.trustConfig())
+            && Objects.equals(this.cipherSuites(), that.cipherSuites())
+            && Objects.equals(this.supportedProtocols(), that.supportedProtocols())
+            && Objects.equals(this.verificationMode(), that.verificationMode())
+            && Objects.equals(this.sslClientAuth(), that.sslClientAuth());
     }
 
     @Override
@@ -181,18 +168,19 @@ public final class SSLConfiguration {
 
     private static TrustConfig createCertChainTrustConfig(Settings settings, KeyConfig keyConfig) {
         String trustStorePath = SETTINGS_PARSER.truststorePath.get(settings).orElse(null);
-        String trustStoreType = getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
+        String trustStoreType = SSLConfigurationSettings.getKeyStoreType(SETTINGS_PARSER.truststoreType, settings, trustStorePath);
         List<String> caPaths = getListOrNull(SETTINGS_PARSER.caPaths, settings);
         if (trustStorePath != null && caPaths != null) {
             throw new IllegalArgumentException("you cannot specify a truststore and ca files");
         }
 
-        VerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
+        SslVerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings)
+            .orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
         if (verificationMode.isCertificateVerificationEnabled() == false) {
             return TrustAllConfig.INSTANCE;
         } else if (caPaths != null) {
             return new PEMTrustConfig(caPaths);
-        } else if (trustStorePath != null || trustStoreType.equalsIgnoreCase("pkcs11")) {
+        } else if (trustStorePath != null) {
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
             SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             return new StoreTrustConfig(trustStorePath, trustStoreType, trustStorePassword, trustStoreAlgorithm);

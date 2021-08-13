@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest.yaml;
@@ -31,13 +20,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.is;
+
 public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
         final Version version = VersionUtils.randomVersion(random());
         final ClientYamlTestExecutionContext context =
-            new ClientYamlTestExecutionContext(null, randomBoolean()) {
+            new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
                 @Override
                 ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
                         HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
@@ -64,5 +55,31 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
         assertEquals("foo2", headersRef.get().get("foo"));
         assertEquals("baz bar1", headersRef.get().get("foo1"));
+    }
+
+    public void testStashHeadersOnException() throws IOException {
+        final Version version = VersionUtils.randomVersion(random());
+        final ClientYamlTestExecutionContext context =
+            new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
+                @Override
+                ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
+                                                       HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
+                    throw new RuntimeException("boom!");
+                }
+
+                @Override
+                public Version esVersion() {
+                    return version;
+                }
+            };
+        final Map<String, String> headers = new HashMap<>();
+        headers.put("Accept", "application/json");
+        headers.put("Authorization", "Basic password==");
+        try {
+            context.callApi("test", Collections.emptyMap(), Collections.emptyList(), headers);
+        } catch (Exception e) {
+            //do nothing...behavior we are testing is the finally block of the production code
+        }
+        assertThat(context.stash().getValue("$request_headers"), is(headers));
     }
 }

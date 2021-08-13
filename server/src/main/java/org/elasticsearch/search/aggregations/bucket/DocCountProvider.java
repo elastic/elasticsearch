@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 
 import java.io.IOException;
@@ -33,17 +22,34 @@ import java.io.IOException;
  */
 public class DocCountProvider {
 
-    private NumericDocValues docCountValues;
+    public static final int DEFAULT_VALUE = DocCountFieldMapper.DocCountFieldType.DEFAULT_VALUE;
 
-    public long getDocCount(int doc) throws IOException {
-        if (docCountValues != null && docCountValues.advanceExact(doc)) {
-            return docCountValues.longValue();
+    private PostingsEnum docCountPostings;
+
+    public int getDocCount(int doc) throws IOException {
+        if (docCountPostings == null) {
+            return DEFAULT_VALUE;
+        }
+        if (docCountPostings.docID() < doc) {
+            docCountPostings.advance(doc);
+        }
+        if (docCountPostings.docID() == doc) {
+            return docCountPostings.freq();
         } else {
-            return 1L;
+            return DEFAULT_VALUE;
         }
     }
 
     public void setLeafReaderContext(LeafReaderContext ctx) throws IOException {
-        docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
+        docCountPostings = ctx.reader().postings(new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME));
+    }
+
+    public boolean alwaysOne() {
+        return docCountPostings == null;
+    }
+
+    @Override
+    public String toString() {
+        return "doc counts are " + (alwaysOne() ? "always one" : "based on " + docCountPostings);
     }
 }

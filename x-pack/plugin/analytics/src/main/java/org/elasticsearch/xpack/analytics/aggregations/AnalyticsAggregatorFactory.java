@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.aggregations;
 
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
@@ -17,6 +19,7 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.analytics.aggregations.bucket.histogram.HistoBackedHistogramAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.bucket.range.HistoBackedRangeAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedAvgAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedHDRPercentileRanksAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedHDRPercentilesAggregator;
@@ -98,6 +101,15 @@ public class AnalyticsAggregatorFactory {
 
     public static void registerHistoBackedMaxggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(MaxAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedMaxAggregator::new, true);
+    }
+
+    public static void registerHistoBackedRangeAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            RangeAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.HISTOGRAM,
+            HistoBackedRangeAggregator::build,
+            true
+        );
     }
 
 }

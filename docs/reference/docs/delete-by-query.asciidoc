@@ -49,6 +49,16 @@ POST /my-index-000001/_delete_by_query
 
 `POST /<target>/_delete_by_query`
 
+[[docs-delete-by-query-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>> for the target data stream, index,
+or alias:
+
+** `read`
+** `delete` or `write`
+
 [[docs-delete-by-query-api-desc]]
 ==== {api-description-title}
 
@@ -74,7 +84,10 @@ and all failed requests are returned in the response. Any delete requests that
 completed successfully still stick, they are not rolled back.
 
 You can opt to count version conflicts instead of halting and returning by
-setting `conflicts` to `proceed`.
+setting `conflicts` to `proceed`. Note that if you opt to count version conflicts
+the operation could attempt to delete more documents from the source
+than `max_docs` until it has successfully deleted `max_docs` documents, or it has gone through
+every document in the source query.
 
 ===== Refreshing shards
 
@@ -104,6 +117,7 @@ shards to become available. Both work exactly the way they work in the
 specify the `scroll` parameter to control how long it keeps the search context
 alive, for example `?scroll=10m`. The default is 5 minutes.
 
+[[docs-delete-by-query-throttle]]
 ===== Throttling delete requests
 
 To control the rate at which delete by query issues batches of delete operations,
@@ -114,7 +128,7 @@ to disable throttling.
 Throttling uses a wait time between batches so that the internal scroll requests
 can be given a timeout that takes the request padding into account. The padding
 time is the difference between the batch size divided by the
-`requests_per_second` and the time spent writing.  By default the batch size is
+`requests_per_second` and the time spent writing. By default the batch size is
 `1000`, so if `requests_per_second` is set to `500`:
 
 [source,txt]
@@ -154,12 +168,9 @@ documents being reindexed and cluster resources.
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases to search.
-Wildcard (`*`) expressions are supported.
-+
-To search all data streams or indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases to
+search. Supports wildcards (`*`). To search all data streams or indices, omit
+this parameter or use `* or `_all`.
 
 [[docs-delete-by-query-api-query-params]]
 ==== {api-query-parms-title}
@@ -198,7 +209,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=request_cache]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, Boolean) If `true`, {es} refreshes all shards involved in the
+delete by query after the request completes. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
@@ -213,7 +226,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_timeout]
+`search_timeout`::
+(Optional, <<time-units, time units>>)
+Explicit timeout for each search request.
+Defaults to no timeout.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=slices]
 
@@ -229,7 +245,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stats]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period each deletion request <<index-wait-for-active-shards,waits for active
+shards>>. Defaults to `1m` (one minute).
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
 
@@ -558,7 +577,7 @@ sub-request proportionally.
 portion of the documents. All documents will be addressed, but some slices may
 be larger than others. Expect larger slices to have a more even distribution.
 * Parameters like `requests_per_second` and `max_docs` on a request with
-slices` are distributed proportionally to each sub-request. Combine that with
+`slices` are distributed proportionally to each sub-request. Combine that with
 the point above about distribution being uneven and you should conclude that
 using `max_docs` with `slices` might not result in exactly `max_docs` documents
 being deleted.

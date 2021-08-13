@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin;
@@ -32,11 +21,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.BeforeClass;
 
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -45,14 +34,21 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class ReloadSecureSettingsIT extends ESIntegTestCase {
+
+    @BeforeClass
+    public static void disableInFips() {
+        // Reload secure settings with a password protected keystore is tested in ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT
+        assumeFalse("Cannot run in FIPS mode since the keystore will be password protected and sending a password in the reload" +
+            "settings api call, require TLS to be configured for the transport layer", inFipsJvm());
+    }
 
     public void testMissingKeystoreFile() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
@@ -402,17 +398,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     private SecureSettings writeEmptyKeystore(Environment environment, char[] password) throws Exception {
         final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
-        try {
-            keyStoreWrapper.save(environment.configFile(), password);
-        } catch (final AccessControlException e) {
-            if (e.getPermission() instanceof RuntimePermission && e.getPermission().getName().equals("accessUserInformation")) {
-                // this is expected: the save method is extra diligent and wants to make sure
-                // the keystore is readable, not relying on umask and whatnot. It's ok, we don't
-                // care about this in tests.
-            } else {
-                throw e;
-            }
-        }
+        keyStoreWrapper.save(environment.configFile(), password, false);
         return keyStoreWrapper;
     }
 

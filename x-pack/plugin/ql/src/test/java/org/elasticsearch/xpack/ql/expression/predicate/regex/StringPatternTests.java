@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 public class StringPatternTests extends ESTestCase {
 
@@ -23,7 +25,8 @@ public class StringPatternTests extends ESTestCase {
     }
 
     private boolean exactMatch(String pattern, char escape) {
-        return like(pattern, escape).isExactMatch();
+        String escaped = pattern.replace(Character.toString(escape), StringUtils.EMPTY);
+        return escaped.equals(like(pattern, escape).exactMatch());
     }
 
     private boolean matchesAll(String pattern) {
@@ -31,7 +34,7 @@ public class StringPatternTests extends ESTestCase {
     }
 
     private boolean exactMatch(String pattern) {
-        return rlike(pattern).isExactMatch();
+        return pattern.equals(rlike(pattern).exactMatch());
     }
 
     public void testWildcardMatchAll() throws Exception {

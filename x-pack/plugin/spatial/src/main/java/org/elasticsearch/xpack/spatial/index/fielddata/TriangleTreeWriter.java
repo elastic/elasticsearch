@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
@@ -74,8 +75,8 @@ class TriangleTreeWriter {
         }
         TriangleTreeNode newNode = components[mid];
         // find children
-        newNode.left = createTree(components, low, mid - 1, !splitX);
-        newNode.right = createTree(components, mid + 1, high, !splitX);
+        newNode.left = createTree(components, low, mid - 1, splitX == false);
+        newNode.right = createTree(components, mid + 1, high, splitX == false);
 
         // pull up max values to this node
         if (newNode.left != null) {

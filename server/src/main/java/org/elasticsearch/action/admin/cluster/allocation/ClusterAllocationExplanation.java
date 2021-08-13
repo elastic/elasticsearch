@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -26,7 +16,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -47,15 +37,27 @@ import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDec
  */
 public final class ClusterAllocationExplanation implements ToXContentObject, Writeable {
 
+    static final String NO_SHARD_SPECIFIED_MESSAGE = "No shard was specified in the explain API request, so this response " +
+        "explains a randomly chosen unassigned shard. There may be other unassigned shards in this cluster which cannot be assigned for " +
+        "different reasons. It may not be possible to assign this shard until one of the other shards is assigned correctly. To explain " +
+        "the allocation of other shards (whether assigned or unassigned) you must specify the target shard in the request to this API.";
+
+    private final boolean specificShard;
     private final ShardRouting shardRouting;
     private final DiscoveryNode currentNode;
     private final DiscoveryNode relocationTargetNode;
     private final ClusterInfo clusterInfo;
     private final ShardAllocationDecision shardAllocationDecision;
 
-    public ClusterAllocationExplanation(ShardRouting shardRouting, @Nullable DiscoveryNode currentNode,
-                                        @Nullable DiscoveryNode relocationTargetNode, @Nullable ClusterInfo clusterInfo,
-                                        ShardAllocationDecision shardAllocationDecision) {
+    public ClusterAllocationExplanation(
+        boolean specificShard,
+        ShardRouting shardRouting,
+        @Nullable DiscoveryNode currentNode,
+        @Nullable DiscoveryNode relocationTargetNode,
+        @Nullable ClusterInfo clusterInfo,
+        ShardAllocationDecision shardAllocationDecision) {
+
+        this.specificShard = specificShard;
         this.shardRouting = shardRouting;
         this.currentNode = currentNode;
         this.relocationTargetNode = relocationTargetNode;
@@ -64,6 +66,11 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+            this.specificShard = in.readBoolean();
+        } else {
+            this.specificShard = true; // suppress "this is a random shard" warning in BwC situations
+        }
         this.shardRouting = new ShardRouting(in);
         this.currentNode = in.readOptionalWriteable(DiscoveryNode::new);
         this.relocationTargetNode = in.readOptionalWriteable(DiscoveryNode::new);
@@ -73,11 +80,18 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+            out.writeBoolean(specificShard);
+        } // else suppress "this is a random shard" warning in BwC situations
         shardRouting.writeTo(out);
         out.writeOptionalWriteable(currentNode);
         out.writeOptionalWriteable(relocationTargetNode);
         out.writeOptionalWriteable(clusterInfo);
         shardAllocationDecision.writeTo(out);
+    }
+
+    public boolean isSpecificShard() {
+        return specificShard;
     }
 
     /**
@@ -142,6 +156,9 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(); {
+            if (isSpecificShard() == false) {
+                builder.field("note", NO_SHARD_SPECIFIED_MESSAGE);
+            }
             builder.field("index", shardRouting.getIndexName());
             builder.field("shard", shardRouting.getId());
             builder.field("primary", shardRouting.primary());

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
@@ -23,24 +12,25 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -96,6 +86,11 @@ public class Setting<T> implements ToXContentObject {
          * iff this setting can be dynamically updateable
          */
         Dynamic,
+
+        /**
+         * Operator only Dynamic setting
+         */
+        OperatorDynamic,
 
         /**
          * mark this setting as final, not updateable even when the context is not dynamic
@@ -167,8 +162,12 @@ public class Setting<T> implements ToXContentObject {
             this.properties = EMPTY_PROPERTIES;
         } else {
             final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
-            if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
+            if ((propertiesAsSet.contains(Property.Dynamic) || propertiesAsSet.contains(Property.OperatorDynamic))
+                && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
+            }
+            if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.OperatorDynamic)) {
+                throw new IllegalArgumentException("setting [" + key + "] cannot be both dynamic and operator dynamic");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
@@ -255,6 +254,18 @@ public class Setting<T> implements ToXContentObject {
      * @param key the settings key for this setting.
      * @param fallbackSetting a setting who's value to fallback on if this setting is not defined
      * @param parser a parser that parses the string rep into a complex datatype.
+     * @param validator a {@link Validator} for validating this setting
+     * @param properties properties for this setting like scope, filtering...
+     */
+    public Setting(String key, Setting<T> fallbackSetting, Function<String, T> parser, Validator<T> validator, Property... properties) {
+        this(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, parser, validator, properties);
+    }
+
+    /**
+     * Creates a new Setting instance
+     * @param key the settings key for this setting.
+     * @param fallbackSetting a setting who's value to fallback on if this setting is not defined
+     * @param parser a parser that parses the string rep into a complex datatype.
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Setting<T> fallbackSetting, Function<String, T> parser, Property... properties) {
@@ -294,7 +305,14 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> if this setting is dynamically updateable, otherwise <code>false</code>
      */
     public final boolean isDynamic() {
-        return properties.contains(Property.Dynamic);
+        return properties.contains(Property.Dynamic) || properties.contains(Property.OperatorDynamic);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is dynamically updateable by operators, otherwise <code>false</code>
+     */
+    public final boolean isOperatorOnly() {
+        return properties.contains(Property.OperatorDynamic);
     }
 
     /**
@@ -487,7 +505,14 @@ public class Setting<T> implements ToXContentObject {
      */
     public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
         if (exists(source) == false) {
-            builder.put(getKey(), getRaw(defaultSettings));
+            if (exists(defaultSettings)) {
+                // If the setting is only in the defaults, use the value from the defaults
+                builder.put(getKey(), getRaw(defaultSettings));
+            } else {
+                // If the setting is in neither `source` nor `default`, get the value
+                // from `source` as it may depend on the value of other settings
+                builder.put(getKey(), getRaw(source));
+            }
         }
     }
 
@@ -523,7 +548,8 @@ public class Setting<T> implements ToXContentObject {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
             Settings.DeprecationLoggerHolder.deprecationLogger
-                .deprecate(key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                .deprecate(DeprecationCategory.SETTINGS, key,
+                    "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
                     + "See the breaking changes documentation for the next major version.", key);
         }
     }
@@ -589,7 +615,7 @@ public class Setting<T> implements ToXContentObject {
          *
          * @return the setting
          */
-        Setting getSetting();
+        Setting<?> getSetting();
 
         /**
          * Validates the dependent setting value.
@@ -723,7 +749,7 @@ public class Setting<T> implements ToXContentObject {
     public interface AffixSettingDependency extends SettingDependency {
 
         @Override
-        AffixSetting getSetting();
+        AffixSetting<?> getSetting();
 
     }
 
@@ -767,7 +793,7 @@ public class Setting<T> implements ToXContentObject {
                     .map(s ->
                         new SettingDependency() {
                             @Override
-                            public Setting<Object> getSetting() {
+                            public Setting<?> getSetting() {
                                 return s.getSetting().getConcreteSettingForNamespace(namespace);
                             }
 
@@ -1366,6 +1392,37 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
+     *
+     * @param clazz the enum class
+     * @param key the key for the setting
+     * @param defaultValue the default value for this setting
+     * @param properties properties for this setting like scope, filtering...
+     * @param <T> the generics type parameter reflecting the actual type of the enum
+     * @return the setting object
+     */
+    public static <T extends Enum<T>> Setting<T> enumSetting(Class<T> clazz, String key, T defaultValue, Property... properties) {
+        return new Setting<>(key, defaultValue.toString(), e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), properties);
+    }
+
+    /**
+     * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
+     *
+     * @param clazz the enum class
+     * @param key the key for the setting
+     * @param fallbackSetting the fallback setting for this setting
+     * @param validator validator for this setting
+     * @param properties properties for this setting like scope, filtering...
+     * @param <T> the generics type parameter reflecting the actual type of the enum
+     * @return the setting object
+     */
+    public static <T extends Enum<T>> Setting<T> enumSetting(Class<T> clazz, String key, Setting<T> fallbackSetting,
+                                                             Validator<T> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw,
+            e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), validator, properties);
+    }
+
+    /**
      * Creates a setting which specifies a memory size. This can either be
      * specified as an absolute bytes value or as a percentage of the heap
      * memory.
@@ -1480,18 +1537,11 @@ public class Setting<T> implements ToXContentObject {
         // fromXContent doesn't use named xcontent or deprecation.
         try (XContentParser xContentParser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)) {
-            XContentParser.Token token = xContentParser.nextToken();
-            if (token != XContentParser.Token.START_ARRAY) {
-                throw new IllegalArgumentException("expected START_ARRAY but got " + token);
-            }
-            ArrayList<String> list = new ArrayList<>();
-            while ((token = xContentParser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                if (token != XContentParser.Token.VALUE_STRING) {
-                    throw new IllegalArgumentException("expected VALUE_STRING but got " + token);
-                }
-                list.add(xContentParser.text());
-            }
-            return list;
+            xContentParser.nextToken();
+            return XContentParserUtils.parseList(xContentParser, p -> {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, p.currentToken(), p);
+                return p.text();
+            });
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse array", e);
         }
@@ -1556,7 +1606,7 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    static void logSettingUpdate(Setting setting, Settings current, Settings previous, Logger logger) {
+    static void logSettingUpdate(Setting<?> setting, Settings current, Settings previous, Logger logger) {
         if (logger.isInfoEnabled()) {
             if (setting.isFiltered()) {
                 logger.info("updating [{}]", setting.key);

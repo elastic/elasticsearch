@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -19,8 +21,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.xpack.core.transform.transforms.AbstractSerializingTransformTestCase;
-import org.elasticsearch.xpack.core.transform.transforms.MockDeprecatedAggregationBuilder;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
+import org.elasticsearch.xpack.core.transform.MockDeprecatedAggregationBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -28,6 +30,10 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class AggregationConfigTests extends AbstractSerializingTransformTestCase<AggregationConfig> {
 
@@ -48,7 +54,6 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
         }
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-
             XContentBuilder content = builder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             source = XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();
         } catch (IOException e) {
@@ -94,7 +99,9 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig aggregationConfig = AggregationConfig.fromXContent(parser, true);
-            assertFalse(aggregationConfig.isValid());
+            ValidationException validationException = aggregationConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("pivot.aggregations must not be null"));
         }
 
         // strict throws
@@ -104,17 +111,19 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
     }
 
     public void testFailOnStrictPassOnLenient() throws IOException {
-        String source = "{\n" +
-                "          \"avg_rating\": { \"some_removed_agg\": { \"field\": \"rating\" } }\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"max_rating\": { \"max_rating\" : { \"field\" : \"rating\" } }\n" +
-                "        }";
+        String source = "{\n"
+            + "          \"avg_rating\": { \"some_removed_agg\": { \"field\": \"rating\" } }\n"
+            + "        },\n"
+            + "        {\n"
+            + "          \"max_rating\": { \"max_rating\" : { \"field\" : \"rating\" } }\n"
+            + "        }";
 
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig aggregationConfig = AggregationConfig.fromXContent(parser, true);
-            assertFalse(aggregationConfig.isValid());
+            ValidationException validationException = aggregationConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("pivot.aggregations must not be null"));
         }
 
         // strict throws
@@ -127,7 +136,7 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
         String source = "{\"dep_agg\": {\"" + MockDeprecatedAggregationBuilder.NAME + "\" : {}}}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig agg = AggregationConfig.fromXContent(parser, false);
-            assertTrue(agg.isValid());
+            assertNull(agg.validate(null));
             assertWarnings(MockDeprecatedAggregationBuilder.DEPRECATION_MESSAGE);
         }
     }
@@ -135,16 +144,15 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
     private static AggregationBuilder getRandomSupportedAggregation() {
         final int numberOfSupportedAggs = 4;
         switch (randomIntBetween(1, numberOfSupportedAggs)) {
-        case 1:
-            return AggregationBuilders.avg(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-        case 2:
-            return AggregationBuilders.min(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-        case 3:
-            return AggregationBuilders.max(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-        case 4:
-            return AggregationBuilders.sum(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 1:
+                return AggregationBuilders.avg("avg_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 2:
+                return AggregationBuilders.min("min_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 3:
+                return AggregationBuilders.max("max_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 4:
+                return AggregationBuilders.sum("sum_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
         }
-
         return null;
     }
 }

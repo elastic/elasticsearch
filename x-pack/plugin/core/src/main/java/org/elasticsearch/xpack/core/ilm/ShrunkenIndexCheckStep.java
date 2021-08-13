@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -9,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -19,6 +20,9 @@ import org.elasticsearch.index.Index;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
+
 /**
  * Verifies that an index was created through a shrink operation, rather than created some other way.
  * Also checks the name of the index to ensure it aligns with what is expected from an index shrunken via a previous step.
@@ -26,15 +30,14 @@ import java.util.Objects;
 public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public static final String NAME = "is-shrunken-index";
     private static final Logger logger = LogManager.getLogger(ShrunkenIndexCheckStep.class);
-    private String shrunkIndexPrefix;
 
-    public ShrunkenIndexCheckStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
+    public ShrunkenIndexCheckStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
-        this.shrunkIndexPrefix = shrunkIndexPrefix;
     }
 
-    String getShrunkIndexPrefix() {
-        return shrunkIndexPrefix;
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     @Override
@@ -50,31 +53,16 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
         if (Strings.isNullOrEmpty(shrunkenIndexSource)) {
             throw new IllegalStateException("step[" + NAME + "] is checking an un-shrunken index[" + index.getName() + "]");
         }
-        boolean isConditionMet = index.getName().equals(shrunkIndexPrefix + shrunkenIndexSource) &&
+
+        LifecycleExecutionState lifecycleState = fromIndexMetadata(idxMeta);
+        String targetIndexName = getShrinkIndexName(shrunkenIndexSource, lifecycleState);
+        boolean isConditionMet = index.getName().equals(targetIndexName) &&
                 clusterState.metadata().index(shrunkenIndexSource) == null;
         if (isConditionMet) {
             return new Result(true, null);
         } else {
             return new Result(false, new Info(shrunkenIndexSource));
         }
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), shrunkIndexPrefix);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        ShrunkenIndexCheckStep other = (ShrunkenIndexCheckStep) obj;
-        return super.equals(obj) &&
-                Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 
     public static final class Info implements ToXContentObject {

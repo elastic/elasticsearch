@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-oidc-logout]]
 === OpenID Connect logout API
+++++
+<titleabbrev>OpenID Connect logout</titleabbrev>
+++++
 
 Submits a request to invalidate a refresh token and an access token that was
 generated as a response to a call to `/_security/oidc/authenticate`.

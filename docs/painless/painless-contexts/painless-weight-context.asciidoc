@@ -3,7 +3,7 @@
 
 Use a Painless script to create a
 {ref}/index-modules-similarity.html[weight] for use in a
-<<painless-similarity-context, similarity script>>.  The weight makes up the
+<<painless-similarity-context, similarity script>>. The weight makes up the
 part of the similarity calculation that is independent of the document being
 scored, and so can be built up front and cached.
 
@@ -12,19 +12,19 @@ Queries that contain multiple terms calculate a separate weight for each term.
 *Variables*
 
 `query.boost` (`float`, read-only)::
-        The boost value if provided by the query.  If this is not provided the
+        The boost value if provided by the query. If this is not provided the
         value is `1.0f`.
 
 `field.docCount` (`long`, read-only)::
         The number of documents that have a value for the current field.
 
 `field.sumDocFreq` (`long`, read-only)::
-        The sum of all terms that exist for the current field.  If this is not
+        The sum of all terms that exist for the current field. If this is not
         available the value is `-1`.
 
 `field.sumTotalTermFreq` (`long`, read-only)::
         The sum of occurrences in the index for all the terms that exist in the
-        current field.  If this is not available the value is `-1`.
+        current field. If this is not available the value is `-1`.
 
 `term.docFreq` (`long`, read-only)::
         The number of documents that contain the current term in the index.

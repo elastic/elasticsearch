@@ -1,0 +1,318 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+#
+# Painless definition file. This defines the hierarchy of classes,
+# what methods and fields they have, etc.
+#
+
+#### Interfaces
+
+class java.time.chrono.ChronoLocalDate {
+  ChronoLocalDateTime atTime(LocalTime)
+  int compareTo(ChronoLocalDate)
+  boolean equals(Object)
+  String format(DateTimeFormatter)
+  ChronoLocalDate from(TemporalAccessor)
+  Chronology getChronology()
+  Era getEra()
+  int hashCode()
+  boolean isAfter(ChronoLocalDate)
+  boolean isBefore(ChronoLocalDate)
+  boolean isEqual(ChronoLocalDate)
+  boolean isLeapYear()
+  int lengthOfMonth()
+  int lengthOfYear()
+  ChronoLocalDate minus(TemporalAmount)
+  ChronoLocalDate minus(long,TemporalUnit)
+  ChronoLocalDate plus(TemporalAmount)
+  ChronoLocalDate plus(long,TemporalUnit)
+  Comparator timeLineOrder()
+  long toEpochDay()
+  String toString()
+  ChronoPeriod until(ChronoLocalDate)
+  ChronoLocalDate with(TemporalAdjuster)
+  ChronoLocalDate with(TemporalField,long)
+}
+
+class java.time.chrono.ChronoLocalDateTime {
+  ChronoZonedDateTime atZone(ZoneId)
+  int compareTo(ChronoLocalDateTime)
+  boolean equals(Object)
+  String format(DateTimeFormatter)
+  ChronoLocalDateTime from(TemporalAccessor)
+  int hashCode()
+  boolean isAfter(ChronoLocalDateTime)
+  boolean isBefore(ChronoLocalDateTime)
+  boolean isEqual(ChronoLocalDateTime)
+  Chronology getChronology()
+  ChronoLocalDateTime minus(TemporalAmount)
+  ChronoLocalDateTime minus(long,TemporalUnit)
+  ChronoLocalDateTime plus(TemporalAmount)
+  ChronoLocalDateTime plus(long,TemporalUnit)
+  Comparator timeLineOrder()
+  long toEpochSecond(ZoneOffset)
+  Instant toInstant(ZoneOffset)
+  ChronoLocalDate toLocalDate()
+  LocalTime toLocalTime()
+  String toString()
+  ChronoLocalDateTime with(TemporalAdjuster)
+  ChronoLocalDateTime with(TemporalField,long)
+}
+
+class java.time.chrono.Chronology {
+  int compareTo(Chronology)
+  ChronoLocalDate date(TemporalAccessor)
+  ChronoLocalDate date(Era,int,int,int)
+  ChronoLocalDate date(int,int,int)
+  ChronoLocalDate dateEpochDay(long)
+  ChronoLocalDate dateYearDay(Era,int,int)
+  ChronoLocalDate dateYearDay(int,int)
+  boolean equals(Object)
+  Era eraOf(int)
+  List eras()
+  Chronology from(TemporalAccessor)
+  Set getAvailableChronologies()
+  String getDisplayName(TextStyle,Locale)
+  String getId()
+  String getCalendarType()
+  int hashCode()
+  boolean isLeapYear(long)
+  ChronoLocalDateTime localDateTime(TemporalAccessor)
+  Chronology of(String)
+  Chronology ofLocale(Locale)
+  ChronoPeriod period(int,int,int)
+  int prolepticYear(Era,int)
+  ValueRange range(ChronoField)
+  ChronoLocalDate resolveDate(Map,ResolverStyle)
+  String toString()
+  ChronoZonedDateTime zonedDateTime(TemporalAccessor)
+  ChronoZonedDateTime zonedDateTime(Instant,ZoneId)
+}
+
+class java.time.chrono.ChronoPeriod {
+  ChronoPeriod between(ChronoLocalDate,ChronoLocalDate)
+  boolean equals(Object)
+  Chronology getChronology()
+  List getUnits()
+  int hashCode()
+  boolean isNegative()
+  boolean isZero()
+  ChronoPeriod minus(TemporalAmount)
+  ChronoPeriod multipliedBy(int)
+  ChronoPeriod negated()
+  ChronoPeriod normalized()
+  ChronoPeriod plus(TemporalAmount)
+  String toString()
+}
+
+class java.time.chrono.ChronoZonedDateTime {
+  int compareTo(ChronoZonedDateTime)
+  boolean equals(Object)
+  String format(DateTimeFormatter)
+  ChronoZonedDateTime from(TemporalAccessor)
+  Chronology getChronology()
+  ZoneOffset getOffset()
+  ZoneId getZone()
+  int hashCode()
+  boolean isBefore(ChronoZonedDateTime)
+  boolean isAfter(ChronoZonedDateTime)
+  boolean isEqual(ChronoZonedDateTime)
+  ChronoZonedDateTime minus(TemporalAmount)
+  ChronoZonedDateTime minus(long,TemporalUnit)
+  ChronoZonedDateTime plus(TemporalAmount)
+  ChronoZonedDateTime plus(long,TemporalUnit)
+  Comparator timeLineOrder()
+  Instant toInstant()
+  long toEpochSecond()
+  ChronoLocalDate toLocalDate()
+  LocalTime toLocalTime()
+  ChronoLocalDateTime toLocalDateTime()
+  String toString()
+  ChronoZonedDateTime with(TemporalAdjuster)
+  ChronoZonedDateTime with(TemporalField,long)
+  ChronoZonedDateTime withEarlierOffsetAtOverlap()
+  ChronoZonedDateTime withLaterOffsetAtOverlap()
+  ChronoZonedDateTime withZoneSameLocal(ZoneId)
+  ChronoZonedDateTime withZoneSameInstant(ZoneId)
+}
+
+class java.time.chrono.Era {
+  String getDisplayName(TextStyle,Locale)
+  int getValue()
+}
+
+#### Classes
+
+class java.time.chrono.AbstractChronology {
+}
+
+class java.time.chrono.HijrahChronology {
+  HijrahChronology INSTANCE
+  HijrahDate date(TemporalAccessor)
+  HijrahDate date(int,int,int)
+  HijrahDate date(Era,int,int,int)
+  HijrahDate dateEpochDay(long)
+  HijrahDate dateYearDay(int,int)
+  HijrahDate dateYearDay(Era,int,int)
+  HijrahEra eraOf(int)
+  HijrahDate resolveDate(Map,ResolverStyle)
+}
+
+class java.time.chrono.HijrahDate {
+  HijrahDate from(TemporalAccessor)
+  HijrahChronology getChronology()
+  HijrahEra getEra()
+  HijrahDate minus(TemporalAmount)
+  HijrahDate minus(long,TemporalUnit)
+  HijrahDate of(int,int,int)
+  HijrahDate plus(TemporalAmount)
+  HijrahDate plus(long,TemporalUnit)
+  HijrahDate with(TemporalField,long)
+  HijrahDate with(TemporalAdjuster)
+  HijrahDate withVariant(HijrahChronology)
+}
+
+class java.time.chrono.IsoChronology {
+  IsoChronology INSTANCE
+  LocalDate date(TemporalAccessor)
+  LocalDate date(int,int,int)
+  LocalDate date(Era,int,int,int)
+  LocalDate dateEpochDay(long)
+  LocalDate dateYearDay(int,int)
+  LocalDate dateYearDay(Era,int,int)
+  IsoEra eraOf(int)
+  LocalDateTime localDateTime(TemporalAccessor)
+  Period period(int,int,int)
+  LocalDate resolveDate(Map,ResolverStyle)
+  ZonedDateTime zonedDateTime(TemporalAccessor)
+  ZonedDateTime zonedDateTime(Instant,ZoneId)
+}
+
+class java.time.chrono.JapaneseChronology {
+  JapaneseChronology INSTANCE
+  JapaneseDate date(TemporalAccessor)
+  JapaneseDate date(int,int,int)
+  JapaneseDate date(Era,int,int,int)
+  JapaneseDate dateEpochDay(long)
+  JapaneseDate dateYearDay(int,int)
+  JapaneseDate dateYearDay(Era,int,int)
+  JapaneseEra eraOf(int)
+  JapaneseDate resolveDate(Map,ResolverStyle)
+}
+
+class java.time.chrono.JapaneseDate {
+  JapaneseDate of(int,int,int)
+  JapaneseDate from(TemporalAccessor)
+  JapaneseChronology getChronology()
+  JapaneseEra getEra()
+  JapaneseDate with(TemporalField,long)
+  JapaneseDate with(TemporalAdjuster)
+  JapaneseDate plus(TemporalAmount)
+  JapaneseDate minus(TemporalAmount)
+  JapaneseDate plus(long,TemporalUnit)
+  JapaneseDate minus(long,TemporalUnit)
+}
+
+class java.time.chrono.JapaneseEra {
+  JapaneseEra HEISEI
+  JapaneseEra MEIJI
+  JapaneseEra SHOWA
+  JapaneseEra TAISHO
+  int getValue()
+  JapaneseEra of(int)
+  JapaneseEra valueOf(String)
+  JapaneseEra[] values()
+}
+
+class java.time.chrono.MinguoChronology {
+  MinguoChronology INSTANCE
+  MinguoDate date(TemporalAccessor)
+  MinguoDate date(int,int,int)
+  MinguoDate date(Era,int,int,int)
+  MinguoDate dateEpochDay(long)
+  MinguoDate dateYearDay(int,int)
+  MinguoDate dateYearDay(Era,int,int)
+  MinguoEra eraOf(int)
+  MinguoDate resolveDate(Map,ResolverStyle)
+}
+
+class java.time.chrono.MinguoDate {
+  MinguoDate of(int,int,int)
+  MinguoDate from(TemporalAccessor)
+  MinguoChronology getChronology()
+  MinguoEra getEra()
+  MinguoDate with(TemporalField,long)
+  MinguoDate with(TemporalAdjuster)
+  MinguoDate plus(TemporalAmount)
+  MinguoDate minus(TemporalAmount)
+  MinguoDate plus(long,TemporalUnit)
+  MinguoDate minus(long,TemporalUnit)
+}
+
+class java.time.chrono.ThaiBuddhistChronology {
+  ThaiBuddhistChronology INSTANCE
+  ThaiBuddhistDate date(TemporalAccessor)
+  ThaiBuddhistDate date(int,int,int)
+  ThaiBuddhistDate date(Era,int,int,int)
+  ThaiBuddhistDate dateEpochDay(long)
+  ThaiBuddhistDate dateYearDay(int,int)
+  ThaiBuddhistDate dateYearDay(Era,int,int)
+  ThaiBuddhistEra eraOf(int)
+  ThaiBuddhistDate resolveDate(Map,ResolverStyle)
+}
+
+class java.time.chrono.ThaiBuddhistDate {
+  ThaiBuddhistDate of(int,int,int)
+  ThaiBuddhistDate from(TemporalAccessor)
+  ThaiBuddhistChronology getChronology()
+  ThaiBuddhistEra getEra()
+  ThaiBuddhistDate with(TemporalField,long)
+  ThaiBuddhistDate with(TemporalAdjuster)
+  ThaiBuddhistDate plus(TemporalAmount)
+  ThaiBuddhistDate minus(TemporalAmount)
+  ThaiBuddhistDate plus(long,TemporalUnit)
+  ThaiBuddhistDate minus(long,TemporalUnit)
+}
+
+#### Enums
+
+class java.time.chrono.HijrahEra {
+  HijrahEra AH
+  int getValue()
+  HijrahEra of(int)
+  HijrahEra valueOf(String)
+  HijrahEra[] values()
+}
+
+class java.time.chrono.IsoEra {
+  IsoEra BCE
+  IsoEra CE
+  int getValue()
+  IsoEra of(int)
+  IsoEra valueOf(String)
+  IsoEra[] values()
+}
+
+class java.time.chrono.MinguoEra {
+  MinguoEra BEFORE_ROC
+  MinguoEra ROC
+  int getValue()
+  MinguoEra of(int)
+  MinguoEra valueOf(String)
+  MinguoEra[] values()
+}
+
+class java.time.chrono.ThaiBuddhistEra {
+  ThaiBuddhistEra BE
+  ThaiBuddhistEra BEFORE_BE
+  int getValue()
+  ThaiBuddhistEra of(int)
+  ThaiBuddhistEra valueOf(String)
+  ThaiBuddhistEra[] values()
+}

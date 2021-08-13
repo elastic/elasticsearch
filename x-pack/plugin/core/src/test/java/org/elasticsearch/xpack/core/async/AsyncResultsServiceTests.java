@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.async;
 
@@ -12,7 +13,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -122,9 +124,10 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
     public void setup() {
         clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
+        BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         taskManager = transportService.getTaskManager();
         indexService = new AsyncTaskIndexService<>("test", clusterService, transportService.getThreadPool().getThreadContext(),
-            client(), ASYNC_SEARCH_ORIGIN, TestAsyncResponse::new, writableRegistry());
+            client(), ASYNC_SEARCH_ORIGIN, TestAsyncResponse::new, writableRegistry(), bigArrays);
 
     }
 
@@ -144,7 +147,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         service.retrieveResult(new GetAsyncResultRequest(randomAsyncId().getEncoded()), listener);
         assertFutureThrows(listener, ResourceNotFoundException.class);
         PlainActionFuture<AcknowledgedResponse> deleteListener = new PlainActionFuture<>();
-        deleteService.deleteResult(new DeleteAsyncResultRequest(randomAsyncId().getEncoded()), deleteListener);
+        deleteService.deleteResponse(new DeleteAsyncResultRequest(randomAsyncId().getEncoded()), deleteListener);
         assertFutureThrows(listener, ResourceNotFoundException.class);
     }
 
@@ -266,11 +269,11 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         assertThat(response.test, equalTo("final_response"));
 
         PlainActionFuture<AcknowledgedResponse> deleteListener = new PlainActionFuture<>();
-        deleteService.deleteResult(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
+        deleteService.deleteResponse(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
         assertThat(deleteListener.actionGet().isAcknowledged(), equalTo(true));
 
         deleteListener = new PlainActionFuture<>();
-        deleteService.deleteResult(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
+        deleteService.deleteResponse(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
         assertFutureThrows(deleteListener, ResourceNotFoundException.class);
     }
 }

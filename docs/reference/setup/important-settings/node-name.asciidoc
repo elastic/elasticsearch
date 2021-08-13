@@ -1,6 +1,6 @@
 [[node-name]]
 [discrete]
-=== Node name setting
+==== Node name setting
 
 {es} uses `node.name` as a human-readable identifier for a
 particular instance of {es}. This name is included in the response

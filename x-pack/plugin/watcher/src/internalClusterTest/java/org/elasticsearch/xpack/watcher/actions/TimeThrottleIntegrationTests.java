@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -28,6 +28,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
@@ -116,6 +117,6 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
                 .get();
 
-        assertHitCount(searchResponse, expectedCount);
+        assertThat(searchResponse.getHits().getTotalHits().value, is(oneOf(expectedCount, expectedCount + 1)));
     }
 }

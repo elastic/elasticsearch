@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -38,9 +27,10 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -82,11 +72,11 @@ public class SearchCancellationIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         boolean lowLevelCancellation = randomBoolean();
         logger.info("Using lowLevelCancellation: {}", lowLevelCancellation);
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), lowLevelCancellation)
             .build();
     }
@@ -148,8 +138,14 @@ public class SearchCancellationIT extends ESIntegTestCase {
             SearchResponse response = searchResponse.actionGet();
             logger.info("Search response {}", response);
             assertNotEquals("At least one shard should have failed", 0, response.getFailedShards());
+            for (ShardSearchFailure failure : response.getShardFailures()) {
+                // We should have fail because the search has been cancel. The status of the exceptions should be 400.
+                assertThat(ExceptionsHelper.status(failure.getCause()), equalTo(RestStatus.BAD_REQUEST));
+            }
             return response;
         } catch (SearchPhaseExecutionException ex) {
+            // We should have fail because the search has been cancel. The status of the response should be 400.
+            assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.BAD_REQUEST));
             logger.info("All shards failed with", ex);
             return null;
         }

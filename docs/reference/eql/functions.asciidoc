@@ -6,10 +6,7 @@
 <titleabbrev>Function reference</titleabbrev>
 ++++
 
-beta::[]
-
-{es} supports the following <<eql-functions,EQL functions>>. Most EQL functions
-are case-sensitive by default.
+{es} supports the following <<eql-functions,EQL functions>>.
 
 [discrete]
 [[eql-fn-add]]
@@ -63,14 +60,18 @@ If using a field as the argument, this parameter supports only
 === `between`
 
 Extracts a substring that's between a provided `left` and `right` text in a
-source string. Matching is case-sensitive.
+source string. Matching is case-sensitive by default.
 
 *Example*
 [source,eql]
 ----
 // file.path = "C:\\Windows\\System32\\cmd.exe"
-between(file.path, "system32\\\\", ".exe")                // returns "cmd"
+between(file.path, "System32\\\\", ".exe")                // returns "cmd"
+between(file.path, "system32\\\\", ".exe")                // returns ""
 between(file.path, "workspace\\\\", ".exe")               // returns ""
+
+// Make matching case-insensitive
+between~(file.path, "system32\\\\", ".exe")               // returns "cmd"
 
 // Greedy matching defaults to false.
 between(file.path, "\\\\", "\\\\", false)                 // returns "Windows"
@@ -79,11 +80,11 @@ between(file.path, "\\\\", "\\\\", false)                 // returns "Windows"
 between(file.path, "\\\\", "\\\\", true)                  // returns "Windows\\System32"
 
 // empty source string
-between("", "system32\\\\", ".exe")                       // returns ""
+between("", "System32\\\\", ".exe")                       // returns ""
 between("", "", "")                                       // returns ""
 
 // null handling
-between(null, "system32\\\\", ".exe")                     // returns null
+between(null, "System32\\\\", ".exe")                     // returns null
 ----
 
 *Syntax*
@@ -342,14 +343,18 @@ If using a field as the argument, this parameter supports only
 === `endsWith`
 
 Returns `true` if a source string ends with a provided substring. Matching is
-case-sensitive.
+case-sensitive by default.
 
 *Example*
 [source,eql]
 ----
 endsWith("regsvr32.exe", ".exe")          // returns true
+endsWith("regsvr32.exe", ".EXE")          // returns false
 endsWith("regsvr32.exe", ".dll")          // returns false
 endsWith("", "")                          // returns true
+
+// Make matching case-insensitive
+endsWith~("regsvr32.exe", ".EXE")         // returns true
 
 // file.name = "regsvr32.exe"
 endsWith(file.name, ".exe")               // returns true
@@ -407,7 +412,7 @@ field data types:
 === `indexOf`
 
 Returns the first position of a provided substring in a source string. Matching
-is case-sensitive.
+is case-sensitive by default.
 
 If an optional start position is provided, this function returns the first
 occurrence of the substring at or after the start position.
@@ -416,10 +421,15 @@ occurrence of the substring at or after the start position.
 [source,eql]
 ----
 // url.domain = "subdomain.example.com"
+indexOf(url.domain, "d")        // returns 3
+indexOf(url.domain, "D")        // returns null
 indexOf(url.domain, ".")        // returns 9
 indexOf(url.domain, ".", 9)     // returns 9
 indexOf(url.domain, ".", 10)    // returns 17
 indexOf(url.domain, ".", -6)    // returns 9
+
+// Make matching case-insensitive
+indexOf~(url.domain, "D")        // returns 4
 
 // empty strings
 indexOf("", "")                 // returns 0
@@ -569,7 +579,7 @@ modulo(process.args_count, -6)                      // returns 4
 modulo(process.args_count, 0.5)                     // returns 0
 
 // process.parent.args_count = 6
-add(process.args_count, process.parent.args_count)  // returns 4
+modulo(process.args_count, process.parent.args_count)  // returns 4
 
 // null handling
 modulo(null, 5)                                     // returns null
@@ -644,7 +654,7 @@ multiply(<factor, <factor>)
 +
 --
 (Required, integer or float or `null`)
-Factor to multiply.  If `null`, the function returns `null`.
+Factor to multiply. If `null`, the function returns `null`.
 
 Two factors are required. No more than two factors can be provided.
 
@@ -750,14 +760,18 @@ Fields are not supported as arguments.
 === `startsWith`
 
 Returns `true` if a source string begins with a provided substring. Matching is
-case-sensitive.
+case-sensitive by default.
 
 *Example*
 [source,eql]
 ----
 startsWith("regsvr32.exe", "regsvr32")  // returns true
+startsWith("regsvr32.exe", "Regsvr32")  // returns false
 startsWith("regsvr32.exe", "explorer")  // returns false
 startsWith("", "")                      // returns true
+
+// Make matching case-insensitive
+startsWith~("regsvr32.exe", "Regsvr32")  // returns true
 
 // process.name = "regsvr32.exe"
 startsWith(process.name, "regsvr32")    // returns true
@@ -850,15 +864,19 @@ If using a field as the argument, this parameter does not support the
 === `stringContains`
 
 Returns `true` if a source string contains a provided substring. Matching is
-case-sensitive.
+case-sensitive by default.
 
 *Example*
 [source,eql]
 ----
 // process.command_line = "start regsvr32.exe"
 stringContains(process.command_line, "regsvr32")  // returns true
+stringContains(process.command_line, "Regsvr32")  // returns false
 stringContains(process.command_line, "start ")    // returns true
 stringContains(process.command_line, "explorer")  // returns false
+
+// Make matching case-insensitive
+stringContains~(process.command_line, "Regsvr32")  // returns false
 
 // process.name = "regsvr32.exe"
 stringContains(command_line, process.name)        // returns true
@@ -1004,64 +1022,3 @@ If using a field as the argument, this parameter supports only
 <<number,`numeric`>> field data types.
 
 *Returns:* integer, float, or `null`
-
-[discrete]
-[[eql-fn-wildcard]]
-=== `wildcard`
-
-Returns `true` if a source string matches one or more provided wildcard
-expressions. Matching is case-sensitive.
-
-*Example*
-[source,eql]
-----
-// The two following expressions are equivalent.
-process.name == "*regsvr32*" or process.name == "*explorer*"
-wildcard(process.name, "*regsvr32*", "*explorer*")
-
-// process.name = "regsvr32.exe"
-wildcard(process.name, "*regsvr32*")                // returns true
-wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
-wildcard(process.name, "*explorer*")                // returns false
-wildcard(process.name, "*explorer*", "*scrobj*")    // returns false
-
-// empty strings
-wildcard("", "*start*")                             // returns false
-wildcard("", "*")                                   // returns true
-wildcard("", "")                                    // returns true
-
-// null handling
-wildcard(null, "*regsvr32*")                        // returns null
-wildcard(process.name, null)                        // returns null
-----
-
-*Syntax*
-[source,txt]
-----
-wildcard(<source>, <wildcard_exp>[, ...])
-----
-
-*Parameters*
-
-`<source>`::
-+
---
-(Required, string)
-Source string. If `null`, the function returns `null`.
-
-If using a field as the argument, this parameter supports only the following
-field data types:
-
-* A type in the <<keyword,`keyword`>> family
-* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
---
-
-`<wildcard_exp>`::
-+
---
-(Required{multi-arg-ref}, string)
-Wildcard expression used to match the source string. If `null`, the function
-returns `null`. Fields are not supported as arguments.
---
-
-*Returns:* boolean

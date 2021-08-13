@@ -1,0 +1,247 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin
+
+/*
+ * This script plugin configures formatting for Java source using Spotless
+ * for Gradle. Since the act of formatting existing source can interfere
+ * with developers' workflows, we don't automatically format all code
+ * (yet). Instead, we maintain a list of projects that are excluded from
+ * formatting, until we reach a point where we can comfortably format them
+ * in one go without too much disruption.
+ *
+ * Any new sub-projects must not be added to the exclusions list!
+ *
+ * To perform a reformat, run:
+ *
+ *     ./gradlew spotlessApply
+ *
+ * To check the current format, run:
+ *
+ *     ./gradlew spotlessJavaCheck
+ *
+ * This is also carried out by the `precommit` task.
+ *
+ * For more about Spotless, see:
+ *
+ * https://github.com/diffplug/spotless/tree/master/plugin-gradle
+ */
+
+// Do not add new sub-projects here!
+def projectPathsToExclude = [
+  ':client:benchmark',
+  ':client:client-benchmark-noop-api-plugin',
+  ':client:rest',
+  ':client:rest-high-level',
+  ':client:sniffer',
+  ':client:test',
+  ':example-plugins:custom-settings',
+  ':example-plugins:custom-significance-heuristic',
+  ':example-plugins:custom-suggester',
+  ':example-plugins:painless-whitelist',
+  ':example-plugins:rescore',
+  ':example-plugins:rest-handler',
+  ':example-plugins:script-expert-scoring',
+  ':example-plugins:security-authorization-engine',
+  ':libs:elasticsearch-cli',
+  ':libs:elasticsearch-core',
+  ':libs:elasticsearch-dissect',
+  ':libs:elasticsearch-geo',
+  ':libs:elasticsearch-grok',
+  ':libs:elasticsearch-nio',
+  ':libs:elasticsearch-plugin-classloader',
+  ':libs:elasticsearch-secure-sm',
+  ':libs:elasticsearch-ssl-config',
+  ':libs:elasticsearch-x-content',
+  ':modules:aggs-matrix-stats',
+  ':modules:analysis-common',
+  ':modules:ingest-common',
+  ':modules:ingest-geoip',
+  ':modules:ingest-user-agent',
+  ':modules:lang-expression',
+  ':modules:lang-mustache',
+  ':modules:lang-painless',
+  ':modules:lang-painless:spi',
+  ':modules:mapper-extras',
+  ':modules:parent-join',
+  ':modules:percolator',
+  ':modules:rank-eval',
+  ':modules:reindex',
+  ':modules:repository-url',
+  ':modules:systemd',
+  ':modules:tasks',
+  ':modules:transport-netty4',
+  ':plugins:analysis-icu',
+  ':plugins:analysis-kuromoji',
+  ':plugins:analysis-nori',
+  ':plugins:analysis-phonetic',
+  ':plugins:analysis-smartcn',
+  ':plugins:analysis-stempel',
+  ':plugins:analysis-ukrainian',
+  ':plugins:discovery-azure-classic',
+  ':plugins:discovery-ec2',
+  ':plugins:discovery-ec2:qa:amazon-ec2',
+  ':plugins:discovery-gce',
+  ':plugins:discovery-gce:qa:gce',
+  ':plugins:ingest-attachment',
+  ':plugins:mapper-annotated-text',
+  ':plugins:mapper-murmur3',
+  ':plugins:mapper-size',
+  ':plugins:repository-azure',
+  ':plugins:repository-gcs',
+  ':plugins:repository-hdfs',
+  ':plugins:repository-hdfs:hadoop-common',
+  ':plugins:repository-s3',
+  ':plugins:store-smb',
+  ':plugins:transport-nio',
+  ':qa:die-with-dignity',
+  ':rest-api-spec',
+  ':test:fixtures:geoip-fixture',
+  ':test:fixtures:krb5kdc-fixture',
+  ':test:fixtures:old-elasticsearch',
+  ':test:framework',
+  ':test:logger-usage',
+  ':x-pack:license-tools',
+  ':x-pack:plugin',
+  ':x-pack:plugin:analytics',
+  ':x-pack:plugin:async-search',
+  ':x-pack:plugin:async-search:qa',
+  ':x-pack:plugin:async-search:qa:security',
+  ':x-pack:plugin:autoscaling:qa:rest',
+  ':x-pack:plugin:ccr',
+  ':x-pack:plugin:ccr:qa',
+  ':x-pack:plugin:ccr:qa:rest',
+  ':x-pack:plugin:core',
+  ':x-pack:plugin:data-streams:qa:multi-node',
+  ':x-pack:plugin:data-streams:qa:rest',
+  ':x-pack:plugin:deprecation',
+  ':x-pack:plugin:enrich:qa:common',
+  ':x-pack:plugin:enrich:qa:rest',
+  ':x-pack:plugin:enrich:qa:rest-with-advanced-security',
+  ':x-pack:plugin:enrich:qa:rest-with-security',
+  ':x-pack:plugin:eql',
+  ':x-pack:plugin:eql:qa',
+  ':x-pack:plugin:eql:qa:common',
+  ':x-pack:plugin:eql:qa:rest',
+  ':x-pack:plugin:eql:qa:security',
+  ':x-pack:plugin:fleet:qa:rest',
+  ':x-pack:plugin:graph',
+  ':x-pack:plugin:graph:qa:with-security',
+  ':x-pack:plugin:identity-provider',
+  ':x-pack:plugin:identity-provider:qa:idp-rest-tests',
+  ':x-pack:plugin:ilm',
+  ':x-pack:plugin:ilm:qa:multi-node',
+  ':x-pack:plugin:ilm:qa:rest',
+  ':x-pack:plugin:ilm:qa:with-security',
+  ':x-pack:plugin:mapper-constant-keyword',
+  ':x-pack:plugin:mapper-flattened',
+  ':x-pack:plugin:ml',
+  ':x-pack:plugin:ml:qa:basic-multi-node',
+  ':x-pack:plugin:ml:qa:disabled',
+  ':x-pack:plugin:ml:qa:ml-with-security',
+  ':x-pack:plugin:ml:qa:native-multi-node-tests',
+  ':x-pack:plugin:ml:qa:single-node-tests',
+  ':x-pack:plugin:monitoring',
+  ':x-pack:plugin:ql',
+  ':x-pack:plugin:repository-encrypted:qa:azure',
+  ':x-pack:plugin:repository-encrypted:qa:gcs',
+  ':x-pack:plugin:repository-encrypted:qa:s3',
+  ':x-pack:plugin:rollup',
+  ':x-pack:plugin:rollup:qa:rest',
+  ':x-pack:plugin:search-business-rules',
+  ':x-pack:plugin:security',
+  ':x-pack:plugin:security:cli',
+  ':x-pack:plugin:security:qa:basic-enable-security',
+  ':x-pack:plugin:security:qa:security-basic',
+  ':x-pack:plugin:security:qa:security-disabled',
+  ':x-pack:plugin:security:qa:security-not-enabled',
+  ':x-pack:plugin:security:qa:security-trial',
+  ':x-pack:plugin:security:qa:service-account',
+  ':x-pack:plugin:security:qa:smoke-test-all-realms',
+  ':x-pack:plugin:security:qa:tls-basic',
+  ':x-pack:plugin:shutdown:qa:multi-node',
+  ':x-pack:plugin:spatial',
+  ':x-pack:plugin:sql',
+  ':x-pack:plugin:sql:jdbc',
+  ':x-pack:plugin:sql:qa',
+  ':x-pack:plugin:sql:qa:jdbc',
+  ':x-pack:plugin:sql:qa:jdbc:security',
+  ':x-pack:plugin:sql:qa:security',
+  ':x-pack:plugin:sql:sql-action',
+  ':x-pack:plugin:sql:sql-cli',
+  ':x-pack:plugin:sql:sql-client',
+  ':x-pack:plugin:sql:sql-proto',
+  ':x-pack:plugin:stack:qa:rest',
+  ':x-pack:plugin:text-structure:qa:text-structure-with-security',
+  ':x-pack:plugin:transform',
+  ':x-pack:plugin:transform:qa:multi-node-tests',
+  ':x-pack:plugin:transform:qa:single-node-tests',
+  ':x-pack:plugin:vectors',
+  ':x-pack:plugin:watcher',
+  ':x-pack:plugin:watcher:qa:rest',
+  ':x-pack:plugin:watcher:qa:with-monitoring',
+  ':x-pack:plugin:watcher:qa:with-security',
+  ':x-pack:plugin:wildcard',
+  ':x-pack:qa',
+  ':x-pack:qa:runtime-fields:core-with-mapped',
+  ':x-pack:qa:runtime-fields:core-with-search',
+  ':x-pack:qa:runtime-fields:with-security',
+  ':x-pack:qa:security-example-spi-extension',
+  ':x-pack:test:idp-fixture',
+  ':x-pack:test:smb-fixture'
+]
+
+subprojects {
+  plugins.withType(ElasticsearchJavaPlugin).whenPluginAdded {
+    if (projectPathsToExclude.contains(project.path) == false) {
+      project.apply plugin: "com.diffplug.spotless"
+
+      spotless {
+        java {
+          if (project.path == ':server') {
+            target 'src/*/java/org/elasticsearch/action/admin/cluster/repositories/**/*.java',
+                   'src/*/java/org/elasticsearch/action/admin/cluster/snapshots/**/*.java',
+                   'src/*/java/org/elasticsearch/index/snapshots/**/*.java',
+                   'src/*/java/org/elasticsearch/repositories/**/*.java',
+                   'src/*/java/org/elasticsearch/snapshots/**/*.java'
+
+            targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
+          } else {
+            // Normally this isn't necessary, but we have Java sources in
+            // non-standard places
+            target 'src/**/*.java'
+          }
+
+          toggleOffOn('@formatter:off', '@formatter:on') // use `@formatter:off` and `@formatter:on` to toggle formatting - ONLY IF STRICTLY NECESSARY
+          removeUnusedImports()
+          importOrderFile rootProject.file('build-tools-internal/elastic.importorder')
+          eclipse().configFile rootProject.file('build-tools-internal/formatterConfig.xml')
+          trimTrailingWhitespace()
+
+          // Sometimes Spotless will report a "misbehaving rule which can't make up its
+          // mind" and will recommend enabling the `paddedCell()` setting. If you
+          // enabled this setting and run the format check again,
+          // Spotless will write files to
+          // `$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
+          // different copies of the formatted files, so that you can see how they
+          // differ and infer what is the problem.
+
+          // The `paddedCell()` option is disabled for normal operation so that any
+          // misbehaviour is detected, and not just suppressed. You can enabled the
+          // option from the command line by running Gradle with `-Dspotless.paddedcell`.
+          if (providers.systemProperty('spotless.paddedcell').forUseAtConfigurationTime().isPresent()) {
+            paddedCell()
+          }
+        }
+      }
+
+      tasks.named("precommit").configure { dependsOn 'spotlessJavaCheck' }
+    }
+  }
+}

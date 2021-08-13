@@ -27,14 +27,16 @@ backing indices.
 
 image::images/data-streams/data-streams-diagram.svg[align="center"]
 
-Each data stream requires a matching <<indices-templates,index template>>. The
+A data stream requires a matching <<index-templates,index template>>. The
 template contains the mappings and settings used to configure the stream's
 backing indices.
 
+// tag::timestamp-reqs[]
 Every document indexed to a data stream must contain a `@timestamp` field,
 mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field type. If the
 index template doesn't specify a mapping for the `@timestamp` field, {es} maps
-`@timestamp` as a `date` field  with default options.
+`@timestamp` as a `date` field with default options.
+// end::timestamp-reqs[]
 
 The same index template can be used for multiple data streams. You cannot
 delete an index template in use by a data stream.
@@ -64,7 +66,6 @@ You also cannot perform operations on a write index that may hinder indexing,
 such as:
 
 * <<indices-clone-index,Clone>>
-* <<indices-close,Close>>
 * <<indices-delete-index,Delete>>
 * <<freeze-index-api,Freeze>>
 * <<indices-shrink-index,Shrink>>
@@ -74,16 +75,13 @@ such as:
 [[data-streams-rollover]]
 == Rollover
 
-When you create a data stream, {es} automatically creates a backing index for
-the stream. This index also acts as the stream's first write index. A
-<<indices-rollover-index,rollover>> creates a new backing index that becomes the
-stream's new write index.
+A <<indices-rollover-index,rollover>> creates a new backing index that becomes
+the stream's new write index.
 
 We recommend using <<index-lifecycle-management,{ilm-init}>> to automatically
 roll over data streams when the write index reaches a specified age or size.
 If needed, you can also <<manually-roll-over-a-data-stream,manually roll over>>
 a data stream.
-
 
 [discrete]
 [[data-streams-generation]]
@@ -97,12 +95,13 @@ convention:
 
 [source,text]
 ----
-.ds-<data-stream>-<generation>
+.ds-<data-stream>-<yyyy.MM.dd>-<generation>
 ----
 
-Backing indices with a higher generation contain more recent data. For example,
-the `web-server-logs` data stream has a generation of `34`. The stream's most
-recent backing index is named `.ds-web-server-logs-000034`.
+`<yyyy.MM.dd>` is the backing index's creation date. Backing indices with a
+higher generation contain more recent data. For example, the `web-server-logs`
+data stream has a generation of `34`. The stream's most recent backing index,
+created on 7 March 2099, is named `.ds-web-server-logs-2099.03.07-000034`.
 
 Some operations, such as a <<indices-shrink-index,shrink>> or
 <<snapshots-restore-snapshot,restore>>, can change a backing index's name.
@@ -121,10 +120,9 @@ documents directly to a data stream. Instead, use the
 If needed, you can <<update-delete-docs-in-a-backing-index,update or delete
 documents>> by submitting requests directly to the document's backing index.
 
-TIP: If you frequently update or delete existing documents, use an
-<<indices-add-alias,index alias>> and <<indices-templates,index template>>
-instead of a data stream. You can still use
-<<index-lifecycle-management,{ilm-init}>> to manage indices for the alias.
+TIP: If you frequently update or delete existing time series data, use an index
+alias with a write index instead of a data stream. See
+<<manage-time-series-data-without-data-streams>>.
 
 include::set-up-a-data-stream.asciidoc[]
 include::use-a-data-stream.asciidoc[]

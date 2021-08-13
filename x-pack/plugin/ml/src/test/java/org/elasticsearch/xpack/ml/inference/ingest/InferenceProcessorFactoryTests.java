@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.inference.ingest;
 
@@ -42,7 +43,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -56,8 +56,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     @Before
     public void setUpVariables() {
         ThreadPool tp = mock(ThreadPool.class);
-        ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(tp.generic()).thenReturn(executorService);
+        when(tp.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         client = mock(Client.class);
         Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
         ClusterSettings clusterSettings = new ClusterSettings(settings,

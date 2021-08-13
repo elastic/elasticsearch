@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
@@ -122,16 +111,15 @@ public class BytesRestResponseTests extends ESTestCase {
 
     public void testGuessRootCause() throws IOException {
         RestRequest request = new FakeRestRequest();
-        RestChannel channel = new DetailedExceptionRestChannel(request);
         {
             Exception e = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
-            BytesRestResponse response = new BytesRestResponse(channel, e);
+            BytesRestResponse response = new BytesRestResponse(new DetailedExceptionRestChannel(request), e);
             String text = response.content().utf8ToString();
             assertThat(text, containsString("{\"root_cause\":[{\"type\":\"exception\",\"reason\":\"an error occurred reading data\"}]"));
         }
         {
             Exception e = new FileNotFoundException("/foo/bar");
-            BytesRestResponse response = new BytesRestResponse(channel, e);
+            BytesRestResponse response = new BytesRestResponse(new DetailedExceptionRestChannel(request), e);
             String text = response.content().utf8ToString();
             assertThat(text, containsString("{\"root_cause\":[{\"type\":\"file_not_found_exception\",\"reason\":\"/foo/bar\"}]"));
         }

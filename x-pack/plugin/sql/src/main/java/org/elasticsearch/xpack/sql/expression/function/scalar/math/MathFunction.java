@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -18,6 +18,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public abstract class MathFunction extends UnaryScalarFunction {
@@ -50,14 +51,14 @@ public abstract class MathFunction extends UnaryScalarFunction {
     public DataType dataType() {
         return DataTypes.DOUBLE;
     }
-    
+
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
-        return isNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return isNumeric(field(), sourceText(), DEFAULT);
     }
 
     @Override

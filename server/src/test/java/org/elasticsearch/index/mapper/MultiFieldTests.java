@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -22,27 +11,18 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.containsString;
@@ -50,22 +30,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MultiFieldTests extends ESSingleNodeTestCase {
+public class MultiFieldTests extends MapperServiceTestCase {
 
     public void testMultiFieldMultiFields() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-fields.json");
-        testMultiField(mapping);
-    }
-
-    private void testMultiField(String mapping) throws Exception {
-        IndexService indexService = createIndex("test");
-        MapperService mapperService = indexService.mapperService();
-
-        indexService.mapperService().merge("person", new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
+        MapperService mapperService = createMapperService(mapping);
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        Document doc = mapperService.documentMapper().parse(
+        LuceneDocument doc = mapperService.documentMapper().parse(
             new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
@@ -128,20 +100,21 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     }
 
     public void testBuildThenParse() throws Exception {
-        IndexService indexService = createIndex("test");
-        DocumentMapper builderDocMapper = new DocumentMapper.Builder(new RootObjectMapper.Builder("person", Version.CURRENT).add(
-                new TextFieldMapper.Builder("name", createDefaultIndexAnalyzers()).store(true)
-                        .addMultiField(new TextFieldMapper.Builder("indexed", createDefaultIndexAnalyzers()).index(true))
-                        .addMultiField(new TextFieldMapper.Builder("not_indexed", createDefaultIndexAnalyzers()).index(false).store(true))
-        ), indexService.mapperService()).build();
-
-        String builtMapping = builderDocMapper.mappingSource().string();
-        // reparse it
-        DocumentMapper docMapper = indexService.mapperService().parse("person", new CompressedXContent(builtMapping));
-
+        DocumentMapper builderDocMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("store", true);
+            b.startObject("fields");
+            {
+                b.startObject("indexed").field("type", "text").endObject();
+                b.startObject("not_indexed").field("type", "text").field("index", false).field("store", true).endObject();
+            }
+            b.endObject();
+            b.endObject();
+        }));
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = builderDocMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -169,24 +142,24 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         String[] multiFieldNames = new String[randomIntBetween(2, 10)];
         Set<String> seenFields = new HashSet<>();
         for (int i = 0; i < multiFieldNames.length; i++) {
-            multiFieldNames[i] = randomValueOtherThanMany(s -> !seenFields.add(s), () -> randomAlphaOfLength(4));
+            multiFieldNames[i] = randomValueOtherThanMany(s -> seenFields.add(s) == false, () -> randomAlphaOfLength(4));
         }
 
-        XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("my_field").field("type", "text").startObject("fields");
-        for (String multiFieldName : multiFieldNames) {
-            builder = builder.startObject(multiFieldName).field("type", "text").endObject();
-        }
-        builder = builder.endObject().endObject().endObject().endObject().endObject();
-        String mapping = Strings.toString(builder);
-        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            for (String multiFieldName : multiFieldNames) {
+                b.startObject(multiFieldName).field("type", "text").endObject();
+            }
+            b.endObject();
+        }));
         Arrays.sort(multiFieldNames);
 
         Map<String, Object> sourceAsMap =
-            XContentHelper.convertToMap(docMapper.mappingSource().compressedReference(), true, builder.contentType()).v2();
+            XContentHelper.convertToMap(docMapper.mappingSource().compressedReference(), true, XContentType.JSON).v2();
         @SuppressWarnings("unchecked")
         Map<String, Object> multiFields =
-            (Map<String, Object>) XContentMapValues.extractValue("type.properties.my_field.fields", sourceAsMap);
+            (Map<String, Object>) XContentMapValues.extractValue("_doc.properties.field.fields", sourceAsMap);
         assertThat(multiFields.size(), equalTo(multiFieldNames.length));
 
         int i = 0;
@@ -196,49 +169,37 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testObjectFieldNotAllowed() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
-            .field("type", "text").startObject("fields").startObject("multi").field("type", "object")
-            .endObject().endObject()
-            .endObject().endObject().endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
+    public void testObjectFieldNotAllowed() {
         MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> mapperService.parse("type", new CompressedXContent(mapping)));
+            () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "text");
+                b.startObject("fields");
+                b.startObject("multi").field("type", "object").endObject();
+                b.endObject();
+            })));
         assertThat(exception.getMessage(), containsString("cannot be used in multi field"));
     }
 
-    public void testNestedFieldNotAllowed() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
-            .field("type", "text").startObject("fields").startObject("multi").field("type", "nested")
-            .endObject().endObject()
-            .endObject().endObject().endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
+    public void testNestedFieldNotAllowed() {
         MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> mapperService.parse("type", new CompressedXContent(mapping)));
+            () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "text");
+                b.startObject("fields");
+                b.startObject("multi").field("type", "nested").endObject();
+                b.endObject();
+            })));
         assertThat(exception.getMessage(), containsString("cannot be used in multi field"));
     }
 
-    public void testMultiFieldWithDot() throws IOException {
-        XContentBuilder mapping = jsonBuilder();
-        mapping.startObject()
-                .startObject("my_type")
-                .startObject("properties")
-                .startObject("city")
-                .field("type", "text")
-                .startObject("fields")
-                .startObject("raw.foo")
-                .field("type", "text")
-                .field("index", "not_analyzed")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-
-        MapperService mapperService = createIndex("test").mapperService();
+    public void testMultiFieldWithDot() {
         MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> mapperService.parse("my_type", new CompressedXContent(Strings.toString(mapping))));
-        assertThat(exception.getMessage(), equalTo("Field name [raw.foo] which is a multi field of [city] cannot contain '.'"));
+            () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "text");
+                b.startObject("fields");
+                b.startObject("raw.foo").field("type", "text").endObject();
+                b.endObject();
+            })));
+        assertThat(exception.getMessage(),
+            equalTo("Failed to parse mapping: Field name [raw.foo] which is a multi field of [field] cannot contain '.'"));
     }
 }

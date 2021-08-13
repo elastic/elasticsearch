@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -92,15 +81,25 @@ public class TransportClusterAllocationExplainAction
         ShardRouting shardRouting = findShardToExplain(request, allocation);
         logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);
 
-        ClusterAllocationExplanation cae = explainShard(shardRouting, allocation,
-            request.includeDiskInfo() ? clusterInfo : null, request.includeYesDecisions(), allocationService);
+        ClusterAllocationExplanation cae = explainShard(
+            shardRouting,
+            allocation,
+            request.includeDiskInfo() ? clusterInfo : null,
+            request.includeYesDecisions(),
+            request.useAnyUnassignedShard() == false,
+            allocationService);
         listener.onResponse(new ClusterAllocationExplainResponse(cae));
     }
 
     // public for testing
-    public static ClusterAllocationExplanation explainShard(ShardRouting shardRouting, RoutingAllocation allocation,
-                                                            ClusterInfo clusterInfo, boolean includeYesDecisions,
-                                                            AllocationService allocationService) {
+    public static ClusterAllocationExplanation explainShard(
+        ShardRouting shardRouting,
+        RoutingAllocation allocation,
+        ClusterInfo clusterInfo,
+        boolean includeYesDecisions,
+        boolean isSpecificShard,
+        AllocationService allocationService) {
+
         allocation.setDebugMode(includeYesDecisions ? DebugMode.ON : DebugMode.EXCLUDE_YES_DECISIONS);
 
         ShardAllocationDecision shardDecision;
@@ -110,23 +109,32 @@ public class TransportClusterAllocationExplainAction
             shardDecision = allocationService.explainShardAllocation(shardRouting, allocation);
         }
 
-        return new ClusterAllocationExplanation(shardRouting,
+        return new ClusterAllocationExplanation(
+            isSpecificShard,
+            shardRouting,
             shardRouting.currentNodeId() != null ? allocation.nodes().get(shardRouting.currentNodeId()) : null,
             shardRouting.relocatingNodeId() != null ? allocation.nodes().get(shardRouting.relocatingNodeId()) : null,
-            clusterInfo, shardDecision);
+            clusterInfo,
+            shardDecision);
     }
 
     // public for testing
     public static ShardRouting findShardToExplain(ClusterAllocationExplainRequest request, RoutingAllocation allocation) {
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {
-            // If we can use any shard, just pick the first unassigned one (if there are any)
-            RoutingNodes.UnassignedShards.UnassignedIterator ui = allocation.routingNodes().unassigned().iterator();
-            if (ui.hasNext()) {
-                foundShard = ui.next();
+            // If we can use any shard, return the first unassigned primary (if there is one) or the first unassigned replica (if not)
+            for (ShardRouting unassigned : allocation.routingNodes().unassigned()) {
+                if (foundShard == null || unassigned.primary()) {
+                    foundShard = unassigned;
+                }
+                if (foundShard.primary()) {
+                    break;
+                }
             }
             if (foundShard == null) {
-                throw new IllegalArgumentException("unable to find any unassigned shards to explain [" + request + "]");
+                throw new IllegalArgumentException("No shard was specified in the request which means the response should explain a " +
+                    "randomly-chosen unassigned shard, but there are no unassigned shards in this cluster. To explain the allocation of " +
+                    "an assigned shard you must specify the target shard in the request.");
             }
         } else {
             String index = request.getIndex();

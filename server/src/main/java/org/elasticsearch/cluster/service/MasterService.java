@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.service;
@@ -39,14 +28,14 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -65,6 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -73,9 +63,16 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class MasterService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(MasterService.class);
 
-    public static final Setting<TimeValue> MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING =
-        Setting.positiveTimeSetting("cluster.service.slow_master_task_logging_threshold", TimeValue.timeValueSeconds(10),
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
+        "cluster.service.slow_master_task_logging_threshold",
+        TimeValue.timeValueSeconds(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope);
+
+    public static final Setting<TimeValue> MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
+        "cluster.service.master_service_starvation_logging_threshold",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope);
 
     static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
@@ -86,6 +83,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private java.util.function.Supplier<ClusterState> clusterStateSupplier;
 
     private volatile TimeValue slowTaskLoggingThreshold;
+    private final TimeValue starvationLoggingThreshold;
 
     protected final ThreadPool threadPool;
 
@@ -97,6 +95,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
         this.slowTaskLoggingThreshold = MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, this::setSlowTaskLoggingThreshold);
+
+        this.starvationLoggingThreshold = MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(settings);
 
         this.threadPool = threadPool;
     }
@@ -123,10 +123,14 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
         return EsExecutors.newSinglePrioritizing(
-                nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
-                daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
-                threadPool.getThreadContext(),
-                threadPool.scheduler());
+            nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
+            daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
+            threadPool.getThreadContext(),
+            threadPool.scheduler(),
+            new MasterServiceStarvationWatcher(
+                starvationLoggingThreshold.getMillis(),
+                threadPool::relativeTimeInMillis,
+                () -> threadPoolExecutor));
     }
 
     @SuppressWarnings("unchecked")
@@ -184,8 +188,8 @@ public class MasterService extends AbstractLifecycleComponent {
         return clusterStateSupplier.get();
     }
 
-    private static boolean isMasterUpdateThread() {
-        return Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME);
+    public static boolean isMasterUpdateThread() {
+        return Thread.currentThread().getName().contains('[' + MASTER_UPDATE_THREAD_NAME + ']');
     }
 
     public static boolean assertNotMasterUpdateThread(String reason) {
@@ -196,7 +200,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private void runTasks(TaskInputs taskInputs) {
         final String summary = taskInputs.summary;
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             logger.debug("processing [{}]: ignoring, master service not started", summary);
             return;
         }
@@ -204,7 +208,7 @@ public class MasterService extends AbstractLifecycleComponent {
         logger.debug("executing cluster state update for [{}]", summary);
         final ClusterState previousClusterState = state();
 
-        if (!previousClusterState.nodes().isLocalNodeElectedMaster() && taskInputs.runOnlyWhenMaster()) {
+        if (previousClusterState.nodes().isLocalNodeElectedMaster() == false && taskInputs.runOnlyWhenMaster()) {
             logger.debug("failing [{}]: local node is no longer master", summary);
             taskInputs.onNoLongerMaster();
             return;
@@ -779,7 +783,7 @@ public class MasterService extends AbstractLifecycleComponent {
     public <T> void submitStateUpdateTasks(final String source,
                                            final Map<T, ClusterStateTaskListener> tasks, final ClusterStateTaskConfig config,
                                            final ClusterStateTaskExecutor<T> executor) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             return;
         }
         final ThreadContext threadContext = threadPool.getThreadContext();
@@ -794,9 +798,67 @@ public class MasterService extends AbstractLifecycleComponent {
         } catch (EsRejectedExecutionException e) {
             // ignore cases where we are shutting down..., there is really nothing interesting
             // to be done here...
-            if (!lifecycle.stoppedOrClosed()) {
+            if (lifecycle.stoppedOrClosed() == false) {
                 throw e;
             }
+        }
+    }
+
+    private static class MasterServiceStarvationWatcher implements PrioritizedEsThreadPoolExecutor.StarvationWatcher {
+
+        private final long warnThreshold;
+        private final LongSupplier nowMillisSupplier;
+        private final Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorSupplier;
+
+        // accesses of these mutable fields are synchronized (on this)
+        private long lastLogMillis;
+        private long nonemptySinceMillis;
+        private boolean isEmpty = true;
+
+        MasterServiceStarvationWatcher(
+                long warnThreshold,
+                LongSupplier nowMillisSupplier,
+                Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorSupplier) {
+            this.nowMillisSupplier = nowMillisSupplier;
+            this.threadPoolExecutorSupplier = threadPoolExecutorSupplier;
+            this.warnThreshold = warnThreshold;
+        }
+
+        @Override
+        public synchronized void onEmptyQueue() {
+            isEmpty = true;
+        }
+
+        @Override
+        public void onNonemptyQueue() {
+            final long nowMillis = nowMillisSupplier.getAsLong();
+            final long nonemptyDurationMillis;
+            synchronized (this) {
+                if (isEmpty) {
+                    isEmpty = false;
+                    nonemptySinceMillis = nowMillis;
+                    lastLogMillis = nowMillis;
+                    return;
+                }
+
+                if (nowMillis - lastLogMillis < warnThreshold) {
+                    return;
+                }
+
+                lastLogMillis = nowMillis;
+                nonemptyDurationMillis = nowMillis - nonemptySinceMillis;
+            }
+
+            final PrioritizedEsThreadPoolExecutor threadPoolExecutor = threadPoolExecutorSupplier.get();
+            final TimeValue maxTaskWaitTime = threadPoolExecutor.getMaxTaskWaitTime();
+            logger.warn("pending task queue has been nonempty for [{}/{}ms] which is longer than the warn threshold of [{}ms];" +
+                    " there are currently [{}] pending tasks, the oldest of which has age [{}/{}ms]",
+                TimeValue.timeValueMillis(nonemptyDurationMillis),
+                nonemptyDurationMillis,
+                warnThreshold,
+                threadPoolExecutor.getNumberOfPendingTasks(),
+                maxTaskWaitTime,
+                maxTaskWaitTime.millis());
         }
     }
 

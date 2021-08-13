@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
@@ -17,10 +18,11 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
@@ -30,7 +32,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.TranslogHandler;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -58,7 +59,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.engine.EngineTestCase.createMapperService;
 import static org.elasticsearch.index.engine.EngineTestCase.getDocIds;
 import static org.elasticsearch.index.engine.EngineTestCase.getNumVersionLookups;
 import static org.elasticsearch.index.engine.EngineTestCase.getTranslog;
@@ -270,7 +270,7 @@ public class FollowingEngineTests extends ESTestCase {
                 globalCheckpoint::longValue,
                 () -> RetentionLeases.EMPTY,
                 () -> primaryTerm.get(),
-                EngineTestCase.tombstoneDocSupplier());
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
     }
 
     private static Store createStore(
@@ -279,7 +279,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private FollowingEngine createEngine(Store store, EngineConfig config) throws IOException {
-        store.createEmpty(config.getIndexSettings().getIndexVersionCreated().luceneVersion);
+        store.createEmpty();
         final String translogUuid = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store.associateIndexWithNewTranslog(translogUuid);
@@ -480,7 +480,7 @@ public class FollowingEngineTests extends ESTestCase {
                 }
                 assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
                 assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
-                EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, createMapperService());
+                EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower);
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(follower);
             }
         };
@@ -491,7 +491,7 @@ public class FollowingEngineTests extends ESTestCase {
         IndexMetadata leaderIndexMetadata = IndexMetadata.builder(index.getName()).settings(leaderSettings).build();
         IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetadata, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
-            leaderStore.createEmpty(leaderIndexMetadata.getCreationVersion().luceneVersion);
+            leaderStore.createEmpty();
             EngineConfig leaderConfig = engineConfig(shardId, leaderIndexSettings, threadPool, leaderStore, logger, xContentRegistry());
             leaderStore.associateIndexWithNewTranslog(Translog.createEmptyTranslog(
                 leaderConfig.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L));
@@ -515,7 +515,6 @@ public class FollowingEngineTests extends ESTestCase {
 
     private void fetchOperations(AtomicBoolean stopped, AtomicLong lastFetchedSeqNo,
                                  InternalEngine leader, FollowingEngine follower) throws IOException {
-        final MapperService mapperService = EngineTestCase.createMapperService();
         final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), follower.config().getIndexSettings());
         while (stopped.get() == false) {
             final long checkpoint = leader.getProcessedLocalCheckpoint();
@@ -527,7 +526,7 @@ public class FollowingEngineTests extends ESTestCase {
                     final long fromSeqNo = randomLongBetween(Math.max(lastSeqNo - 5, 0), lastSeqNo + 1);
                     final long toSeqNo = randomLongBetween(nextSeqNo, Math.min(nextSeqNo + 5, checkpoint));
                     try (Translog.Snapshot snapshot =
-                             shuffleSnapshot(leader.newChangesSnapshot("test", mapperService::fieldType, fromSeqNo, toSeqNo, true))) {
+                             shuffleSnapshot(leader.newChangesSnapshot("test", fromSeqNo, toSeqNo, true, randomBoolean()))) {
                         follower.advanceMaxSeqNoOfUpdatesOrDeletes(leader.getMaxSeqNoOfUpdatesOrDeletes());
                         Translog.Operation op;
                         while ((op = snapshot.next()) != null) {

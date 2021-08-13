@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.smoketest;
 
@@ -25,7 +26,7 @@ import org.elasticsearch.client.xpack.XPackUsageRequest;
 import org.elasticsearch.client.xpack.XPackUsageResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +52,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -120,7 +120,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         } catch (URISyntaxException e) {
             throw new ElasticsearchException("exception while reading the store", e);
         }
-        if (!Files.exists(keyStore)) {
+        if (Files.exists(keyStore) == false) {
             throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
         }
     }

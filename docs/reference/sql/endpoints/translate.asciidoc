@@ -22,20 +22,22 @@ Which returns:
 --------------------------------------------------
 {
   "size": 10,
-  "docvalue_fields": [
+  "_source": false,
+  "fields": [
+    {
+      "field": "author"
+    },
+    {
+      "field": "name"
+    },
+    {
+      "field": "page_count"
+    },
     {
       "field": "release_date",
-      "format": "epoch_millis"
+      "format": "strict_date_optional_time_nanos"
     }
   ],
-  "_source": {
-    "includes": [
-      "author",
-      "name",
-      "page_count"
-    ],
-    "excludes": []
-  },
   "sort": [
     {
       "page_count": {
@@ -53,5 +55,5 @@ In this case, SQL will use the <<scroll-search-results,scroll>>
 API. If the result contained an aggregation then SQL would use
 the normal <<search-request-body,search>> API.
 
-The request body accepts all of the <<sql-rest-fields,fields>> that
-the <<sql-rest,SQL REST API>> accepts except `cursor`.
+The request body accepts the same <<sql-search-api-request-body,parameters>> as
+the <<sql-search-api,SQL search API>>, excluding `cursor`.

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANYDa
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -33,13 +22,13 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -249,7 +238,7 @@ public enum RangeType {
         @Override
         public Query rangeQuery(String field, boolean hasDocValues, Object lowerTerm, Object upperTerm, boolean includeLower,
                                 boolean includeUpper, ShapeRelation relation, @Nullable ZoneId timeZone,
-                                @Nullable DateMathParser parser, QueryShardContext context) {
+                                @Nullable DateMathParser parser, SearchExecutionContext context) {
             ZoneId zone = (timeZone == null) ? ZoneOffset.UTC : timeZone;
 
             DateMathParser dateMathParser = (parser == null) ?
@@ -557,6 +546,10 @@ public enum RangeType {
         }
     };
 
+    public final String name;
+    private final NumberFieldMapper.NumberType numberType;
+    public final LengthType lengthType;
+
     RangeType(String name, LengthType lengthType) {
         this.name = name;
         this.numberType = null;
@@ -600,7 +593,7 @@ public enum RangeType {
     }
 
     public abstract Field getRangeField(String name, RangeFieldMapper.Range range);
-    public List<IndexableField> createFields(ParseContext context, String name, RangeFieldMapper.Range range, boolean indexed,
+    public List<IndexableField> createFields(DocumentParserContext context, String name, RangeFieldMapper.Range range, boolean indexed,
                                              boolean docValued, boolean stored) {
         assert range != null : "range cannot be null when creating fields";
         List<IndexableField> fields = new ArrayList<>();
@@ -653,7 +646,7 @@ public enum RangeType {
 
     public Query rangeQuery(String field, boolean hasDocValues, Object from, Object to, boolean includeFrom, boolean includeTo,
                             ShapeRelation relation, @Nullable ZoneId timeZone, @Nullable DateMathParser dateMathParser,
-                            QueryShardContext context) {
+                            SearchExecutionContext context) {
         Object lower = from == null ? minValue() : parseValue(from, false, dateMathParser);
         Object upper = to == null ? maxValue() : parseValue(to, false, dateMathParser);
         return createRangeQuery(field, hasDocValues, lower, upper, includeFrom, includeTo, relation);
@@ -710,9 +703,9 @@ public enum RangeType {
         return new FieldMapper.TypeParser((n, c) -> new RangeFieldMapper.Builder(n, this, c.getSettings()));
     }
 
-    public final String name;
-    private final NumberFieldMapper.NumberType numberType;
-    public final LengthType lengthType;
+    NumberFieldMapper.NumberType numberType() {
+        return numberType;
+    }
 
     public enum LengthType {
         FIXED_4 {

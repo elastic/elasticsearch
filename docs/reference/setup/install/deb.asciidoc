@@ -105,36 +105,6 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
-ifeval::["{release-state}"!="unreleased"]
-
-[NOTE]
-==================================================
-
-An alternative package which contains only features that are available under the
-Apache 2.0 license is also available. To install it, use the following sources list:
-
-ifeval::["{release-state}"=="prerelease"]
-
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
---------------------------------------------------
-
-endif::[]
-
-ifeval::["{release-state}"!="prerelease"]
-
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/oss-{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
---------------------------------------------------
-
-endif::[]
-
-==================================================
-
-endif::[]
-
 [[install-deb]]
 ==== Download and install the Debian package manually
 
@@ -157,10 +127,6 @@ sudo dpkg -i elasticsearch-{version}-amd64.deb
 --------------------------------------------
 <1> Compares the SHA of the downloaded Debian package and the published checksum, which should output
     `elasticsearch-{version}-amd64.deb: OK`.
-    
-Alternatively, you can download the following package, which contains only 
-features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-amd64.deb    
 
 endif::[]
 
@@ -191,7 +157,7 @@ include::sysconfig-file.asciidoc[]
 
 NOTE: Distributions that use `systemd` require that system resource limits be
 configured via `systemd` rather than via the `/etc/sysconfig/elasticsearch`
-file.  See <<systemd>> for more information.
+file. See <<systemd>> for more information.
 
 [[deb-layout]]
 ==== Directory layout of Debian package
@@ -226,13 +192,13 @@ locations for a Debian-based system:
 
 | data
   | The location of the data files of each index / shard allocated
-    on the node. Can hold multiple locations.
+    on the node.
   | /var/lib/elasticsearch
   | path.data
 
 | jdk
   | The bundled Java Development Kit used to run Elasticsearch. Can
-    be overridden by setting the `JAVA_HOME` environment variable
+    be overridden by setting the `ES_JAVA_HOME` environment variable
     in `/etc/default/elasticsearch`.
   | /usr/share/elasticsearch/jdk
  d|

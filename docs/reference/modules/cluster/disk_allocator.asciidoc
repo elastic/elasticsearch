@@ -2,9 +2,62 @@
 ==== Disk-based shard allocation settings
 [[disk-based-shard-allocation-description]]
 // tag::disk-based-shard-allocation-description-tag[]
-{es} considers the available disk space on a node before deciding
-whether to allocate new shards to that node or to actively relocate shards away
-from that node.
+
+The disk-based shard allocator ensures that all nodes have enough disk space
+without performing more shard movements than necessary. It allocates shards
+based on a pair of thresholds known as the _low watermark_ and the _high
+watermark_. Its primary goal is to ensure that no node exceeds the high
+watermark, or at least that any such overage is only temporary. If a node
+exceeds the high watermark then {es} will solve this by moving some of its
+shards onto other nodes in the cluster.
+
+NOTE: It is normal for nodes to temporarily exceed the high watermark from time
+to time.
+
+The allocator also tries to keep nodes clear of the high watermark by
+forbidding the allocation of more shards to a node that exceeds the low
+watermark. Importantly, if all of your nodes have exceeded the low watermark
+then no new shards can be allocated and {es} will not be able to move any
+shards between nodes in order to keep the disk usage below the high watermark.
+You must ensure that your cluster has enough disk space in total and that there
+are always some nodes below the low watermark.
+
+Shard movements triggered by the disk-based shard allocator must also satisfy
+all other shard allocation rules such as
+<<cluster-shard-allocation-filtering,allocation filtering>> and
+<<forced-awareness,forced awareness>>. If these rules are too strict then they
+can also prevent the shard movements needed to keep the nodes' disk usage under
+control. If you are using <<data-tiers,data tiers>> then {es} automatically
+configures allocation filtering rules to place shards within the appropriate
+tier, which means that the disk-based shard allocator works independently
+within each tier.
+
+If a node is filling up its disk faster than {es} can move shards elsewhere
+then there is a risk that the disk will completely fill up. To prevent this, as
+a last resort, once the disk usage reaches the _flood-stage_ watermark {es}
+will block writes to indices with a shard on the affected node. It will also
+continue to move shards onto the other nodes in the cluster. When disk usage
+on the affected node drops below the high watermark, {es} automatically removes
+the write block.
+
+[[disk-based-shard-allocation-does-not-balance]]
+[TIP]
+====
+It is normal for the nodes in your cluster to be using very different amounts
+of disk space. The <<shards-rebalancing-settings,balance>> of the cluster
+depends only on the number of shards on each node and the indices to which
+those shards belong. It considers neither the sizes of these shards nor the
+available disk space on each node, for the following reasons:
+
+* Disk usage changes over time. Balancing the disk usage of individual nodes
+would require a lot more shard movements, perhaps even wastefully undoing
+earlier movements. Moving a shard consumes resources such as I/O and network
+bandwidth and may evict data from the filesystem cache. These resources are
+better spent handling your searches and indexing where possible.
+
+* A cluster with equal disk usage on every node typically performs no better
+than one that has unequal disk usage, as long as no disk is too full.
+====
 
 You can use the following settings to control disk-based allocation:
 
@@ -12,7 +65,7 @@ You can use the following settings to control disk-based allocation:
 // tag::cluster-routing-disk-threshold-tag[]
 `cluster.routing.allocation.disk.threshold_enabled` {ess-icon}::
 (<<dynamic-cluster-setting,Dynamic>>)
-Defaults to `true`.  Set to `false` to disable the disk allocation decider.
+Defaults to `true`. Set to `false` to disable the disk allocation decider.
 // end::cluster-routing-disk-threshold-tag[]
 
 [[cluster-routing-watermark-low]]
@@ -31,10 +84,10 @@ Controls the high watermark. It defaults to `90%`, meaning that {es} will attemp
 
 `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`::
     (<<static-cluster-setting,Static>>)
-    For a single data node, the default is to disregard disk watermarks when
-    making an allocation decision. This is deprecated behavior and will be
-    changed in 8.0. This setting can be set to `true` to enable the
-    disk watermarks for a single data node cluster (will become default in 8.0).
+In earlier releases, the default behaviour was to disregard disk watermarks for a single
+data node cluster when making an allocation decision. This is deprecated behavior
+since 7.14 and has been removed in 8.0. The only valid value for this setting
+is now `true`. The setting will be removed in a future release.
 
 [[cluster-routing-flood-stage]]
 // tag::cluster-routing-flood-stage-tag[]
@@ -59,6 +112,20 @@ PUT /my-index-000001/_settings
 // TEST[setup:my_index]
 --
 // end::cluster-routing-flood-stage-tag[]
+
+[[cluster-routing-flood-stage-frozen]]
+// tag::cluster-routing-flood-stage-tag[]
+`cluster.routing.allocation.disk.watermark.flood_stage.frozen` {ess-icon}::
+(<<dynamic-cluster-setting,Dynamic>>)
+Controls the flood stage watermark for dedicated frozen nodes, which defaults to
+95%.
+
+`cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom` {ess-icon}::
+(<<dynamic-cluster-setting,Dynamic>>)
+Controls the max headroom for the flood stage watermark for dedicated frozen
+nodes. Defaults to 20GB when
+`cluster.routing.allocation.disk.watermark.flood_stage.frozen` is not explicitly
+set. This caps the amount of free space required on dedicated frozen nodes.
 
 `cluster.info.update.interval`::
     (<<dynamic-cluster-setting,Dynamic>>)

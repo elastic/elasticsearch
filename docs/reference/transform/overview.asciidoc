@@ -5,11 +5,26 @@
 <titleabbrev>Overview</titleabbrev>
 ++++
 
-You can use {transforms} to _pivot_ your data into a new entity-centric index. 
-By transforming and summarizing your data, it becomes possible to visualize and 
+You can choose either of the following methods to transform your data:
+<<pivot-transform-overview,pivot>> or <<latest-transform-overview,latest>>.
+
+IMPORTANT: All {transforms} leave your source index intact. They create a new
+index that is dedicated to the transformed data.
+
+{transforms-cap} are persistent tasks; they are stored in cluster state which 
+makes them resilient for node failures. Refer to <<transform-checkpoints>> and 
+<<ml-transform-checkpoint-errors>> to learn more about the machinery behind 
+{transforms}.
+
+
+[[pivot-transform-overview]]
+== Pivot {transforms}
+
+You can use {transforms} to _pivot_ your data into a new entity-centric index.
+By transforming and summarizing your data, it becomes possible to visualize and
 analyze it in alternative and interesting ways.
 
-A lot of {es} indices are organized as a stream of events: each event is an 
+A lot of {es} indices are organized as a stream of events: each event is an
 individual document, for example a single item purchase. {transforms-cap} enable
 you to summarize this data, bringing it into an organized, more
 analysis-friendly format. For example, you can summarize all the purchases of a
@@ -24,57 +39,71 @@ group your data. You can select categorical fields (terms) and numerical fields
 for grouping. If you use numerical fields, the field values are bucketed using
 an interval that you specify.
 
-The second step is deciding how you want to aggregate the grouped data. When 
-using aggregations, you practically ask questions about the index. There are 
-different types of aggregations, each with its own purpose and output. To learn 
-more about the supported aggregations and group-by fields, see 
+The second step is deciding how you want to aggregate the grouped data. When
+using aggregations, you practically ask questions about the index. There are
+different types of aggregations, each with its own purpose and output. To learn
+more about the supported aggregations and group-by fields, see
 <<put-transform>>.
 
 As an optional step, you can also add a query to further limit the scope of the
 aggregation.
 
-The {transform} performs a composite aggregation that paginates through all the 
-data defined by the source index query. The output of the aggregation is stored 
-in a _destination index_. Each time the {transform} queries the source index, it 
-creates a _checkpoint_. You can decide whether you want the {transform} to run 
+The {transform} performs a composite aggregation that paginates through all the
+data defined by the source index query. The output of the aggregation is stored
+in a _destination index_. Each time the {transform} queries the source index, it
+creates a _checkpoint_. You can decide whether you want the {transform} to run
 once or continuously. A _batch {transform}_ is a single operation that has a
 single checkpoint. _{ctransforms-cap}_ continually increment and process
 checkpoints as new source data is ingested.
 
-Imagine that you run a webshop that sells clothes. Every order creates a 
-document that contains a unique order ID, the name and the category of the 
-ordered product, its price, the ordered quantity, the exact date of the order, 
-and some customer information (name, gender, location, etc). Your dataset 
+Imagine that you run a webshop that sells clothes. Every order creates a
+document that contains a unique order ID, the name and the category of the
+ordered product, its price, the ordered quantity, the exact date of the order,
+and some customer information (name, gender, location, etc). Your data set
 contains all the transactions from last year.
 
 If you want to check the sales in the different categories in your last fiscal
-year, define a {transform} that groups the data by the product categories 
-(women's shoes, men's clothing, etc.) and the order date. Use the last year as 
-the interval for the order date. Then add a sum aggregation on the ordered 
+year, define a {transform} that groups the data by the product categories
+(women's shoes, men's clothing, etc.) and the order date. Use the last year as
+the interval for the order date. Then add a sum aggregation on the ordered
 quantity. The result is an entity-centric index that shows the number of sold
 items in every product category in the last year.
 
 [role="screenshot"]
-image::images/pivot-preview.png["Example of a {transform} pivot in {kib}"]
+image::images/pivot-preview.png["Example of a pivot {transform} preview in {kib}"]
 
-IMPORTANT: The {transform} leaves your source index intact. It
-creates a new index that is dedicated to the transformed data.
+[[latest-transform-overview]]
+== Latest {transforms}
 
-[discrete]
+You can use the `latest` type of {transform} to copy the most recent documents
+into a new index. You must identify one or more fields as the unique key for
+grouping your data, as well as a date field that sorts the data chronologically.
+For example, you can use this type of {transform} to keep track of the latest
+purchase for each customer or the latest event for each host.
+
+[role="screenshot"]
+image::images/latest-preview.png["Example of a latest {transform} preview in {kib}"]
+
+As in the case of a pivot, a latest {transform} can run once or continuously. It
+performs a composite aggregation on the data in the source index and stores the
+output in the destination index. If the {transform} runs continuously, new unique
+key values are automatically added to the destination index and the most recent
+documents for existing key values are automatically updated at each checkpoint.
+
 [[transform-performance]]
 == Performance considerations
 
 {transforms-cap} perform search aggregations on the source indices then index
 the results into the destination index. Therefore, a {transform} never takes
-less time or uses less resources than the aggregation and indexing processes. 
+less time or uses less resources than the aggregation and indexing processes.
 
 If your {transform} must process a lot of historic data, it has high resource
 usage initially--particularly during the first checkpoint.
 
-For better performance, make sure that your search aggregations and queries are 
-optimized and that your {transform} is processing only necessary data. Consider 
-whether you can apply a source query to the {transform} to reduce the scope of 
-data it processes. Also consider whether the cluster has sufficient resources in 
+For better performance, make sure that your search aggregations and queries are
+optimized and that your {transform} is processing only necessary data. Consider
+whether you can apply a source query to the {transform} to reduce the scope of
+data it processes. Also consider whether the cluster has sufficient resources in
 place to support both the composite aggregation search and the indexing of its
 results.
 
@@ -87,4 +116,3 @@ current rate, use the following information from the
 ```
 documents_processed / search_time_in_ms * 1000
 ```
-

@@ -4,9 +4,8 @@
 <titleabbrev>Resolve index</titleabbrev>
 ++++
 
-Resolves the specified name(s) and/or index patterns for indices, index
-aliases, and data streams. Multiple patterns and remote clusters are
-supported.
+Resolves the specified name(s) and/or index patterns for indices, aliases, and
+data streams. Multiple patterns and remote clusters are supported.
 
 ////
 [source,console]
@@ -50,12 +49,19 @@ DELETE /_index_template/foo_data_stream
 ----
 GET /_resolve/index/my-index-*
 ----
+// TEST[skip:unable to ignore deprecation warning]
 
 [[resolve-index-api-request]]
 ==== {api-request-title}
 
 `GET /_resolve/index/<name>`
 
+[[resolve-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target data stream, index, or index alias.
 
 [[resolve-index-api-path-params]]
 ==== {api-path-parms-title}
@@ -64,7 +70,7 @@ GET /_resolve/index/my-index-*
 +
 --
 (Required, string) Comma-separated name(s) or index pattern(s) of the
-indices, index aliases, and data streams to resolve. Resources on
+indices, aliases, and data streams to resolve. Resources on
 <<modules-remote-clusters,remote clusters>> can be specified using the
 `<cluster>:<name>` syntax.
 --
@@ -128,7 +134,7 @@ The API returns the following response:
     {
       "name": "foo",
       "backing_indices": [
-        ".ds-foo-000001"
+        ".ds-foo-2099.03.07-000001"
       ],
       "timestamp_field": "@timestamp"
     }
@@ -136,6 +142,8 @@ The API returns the following response:
 }
 ----
 // TESTRESPONSE[s/remoteCluster1:/remotecluster-/]
+// TESTRESPONSE[s/.ds-foo-2099.03.07-000001/$body.data_streams.0.backing_indices.0/]
+
 <1> All indices matching the supplied names or expressions
 <2> All aliases matching the supplied names or expressions
 <3> All data streams matching the supplied names or expressions

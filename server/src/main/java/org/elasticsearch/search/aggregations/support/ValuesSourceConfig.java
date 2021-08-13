@@ -1,24 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -228,7 +217,7 @@ public class ValuesSourceConfig {
      */
     public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType, AggregationContext context) {
         FieldContext fieldContext = context.buildFieldContext(fieldType);
-        ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType(); 
+        ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType();
         return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, null, context);
     }
 
@@ -276,7 +265,7 @@ public class ValuesSourceConfig {
         this.timeZone = timeZone;
         this.format = format == null ? DocValueFormat.RAW : format;
 
-        if (!valid()) {
+        if (valid() == false) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(
                 "value source config is invalid; must have either a field context or a script or marked as unwrapped");
@@ -371,8 +360,11 @@ public class ValuesSourceConfig {
         return valuesSource.roundingPreparer();
     }
 
-    public boolean hasGlobalOrdinals() {
-        return valuesSource.hasGlobalOrdinals();
+    /**
+     * Check if this values source supports using global and segment ordinals.
+     */
+    public boolean hasOrdinals() {
+        return valuesSource.hasOrdinals();
     }
 
     /**

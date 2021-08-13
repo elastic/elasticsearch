@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[xpack-sql]]
-= SQL access
+= SQL
 
 :sql-tests: {xes-repo-dir}/../../plugin/sql/qa/
 :sql-specs: {sql-tests}server/src/main/resources/
@@ -16,7 +16,7 @@ X-Pack includes a SQL feature to execute SQL queries against {es}
 indices and return results in tabular format.
 
 The following chapters aim to cover everything from usage, to syntax and drivers.
-Experience users or those in a hurry might want to jump directly to 
+Experienced users or those in a hurry might want to jump directly to
 the list of SQL <<sql-commands, commands>> and <<sql-functions, functions>>.
 
 <<sql-overview, Overview>>::

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.deprecation.logging;
@@ -30,7 +31,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.xpack.core.ClientHelper;
 
@@ -64,7 +65,10 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
         final Configuration configuration = context.getConfiguration();
 
-        final EcsLayout ecsLayout = ECSJsonLayout.newBuilder().setType("deprecation").setConfiguration(configuration).build();
+        final EcsLayout ecsLayout = ECSJsonLayout.newBuilder()
+            .setDataset("deprecation.elasticsearch")
+            .setConfiguration(configuration)
+            .build();
 
         this.filter = new RateLimitingFilter();
         this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, ecsLayout, consumer);
@@ -121,7 +125,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         // This configuration disables the size count and size thresholds,
         // and instead uses a scheduled flush only. This means that calling
         // processor.add() will not block the calling thread.
-        return BulkProcessor.builder(client::bulk, listener)
+        return BulkProcessor.builder(client::bulk, listener, "deprecation-indexing")
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
             .setConcurrentRequests(Math.max(2, EsExecutors.allocatedProcessors(settings)))
             .setBulkActions(-1)

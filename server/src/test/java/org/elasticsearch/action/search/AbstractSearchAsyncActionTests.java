@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -25,8 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -87,7 +75,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
         return new AbstractSearchAsyncAction<SearchPhaseResult>("test", logger, null, nodeIdToConnection,
                 Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f),
-                Collections.singletonMap("name", Sets.newHashSet("bar", "baz")), null, request, listener,
+            null, request, listener,
                 new GroupShardsIterator<>(
                     Collections.singletonList(
                         new SearchShardIterator(null, null, Collections.emptyList(), null)
@@ -142,21 +130,19 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     }
 
     public void testBuildShardSearchTransportRequest() {
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean()).preference("_shards:1,3");
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         final AtomicLong expected = new AtomicLong();
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
             new ArraySearchPhaseResults<>(10), null, false, expected);
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         SearchShardIterator iterator = new SearchShardIterator(clusterAlias, new ShardId(new Index("name", "foo"), 1),
             Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
-        ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
+        ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator, 10);
         assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
         assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());
         assertEquals(2.0f, shardSearchTransportRequest.indexBoost(), 0.0f);
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
-        assertArrayEquals(new String[] {"bar", "baz"}, shardSearchTransportRequest.indexRoutings());
-        assertEquals("_shards:1,3", shardSearchTransportRequest.preference());
         assertEquals(clusterAlias, shardSearchTransportRequest.getClusterAlias());
     }
 

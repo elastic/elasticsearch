@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
@@ -114,23 +103,6 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         this.fpp = fpp;
     }
 
-    public SetBackedScalingCuckooFilter(SetBackedScalingCuckooFilter other) {
-        this.threshold = other.threshold;
-        this.isSetMode = other.isSetMode;
-        this.rng = other.rng;
-        this.breaker = other.breaker;
-        this.capacity = other.capacity;
-        this.fpp = other.fpp;
-        if (isSetMode) {
-            this.hashes = new HashSet<>(other.hashes);
-        } else {
-            this.filters = new ArrayList<>(other.filters);
-            this.numBuckets = filters.get(0).getNumBuckets();
-            this.fingerprintMask = filters.get(0).getFingerprintMask();
-            this.bitsPerEntry = filters.get(0).getBitsPerEntry();
-        }
-    }
-
     public SetBackedScalingCuckooFilter(StreamInput in, Random rng) throws IOException {
         this.threshold = in.readVInt();
         this.isSetMode = in.readBoolean();
@@ -159,6 +131,27 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         } else {
             out.writeList(filters);
         }
+    }
+
+    /**
+     * Returns the number of distinct values that are tracked before converting to an approximate representation.
+     * */
+    public int getThreshold() {
+        return threshold;
+    }
+
+    /**
+     * Returns the random number generator used for the cuckoo hashing process.
+     * */
+    public Random getRng() {
+        return rng;
+    }
+
+    /**
+     * Returns the false-positive rate used for the cuckoo filters.
+     * */
+    public double getFpp() {
+        return fpp;
     }
 
     /**

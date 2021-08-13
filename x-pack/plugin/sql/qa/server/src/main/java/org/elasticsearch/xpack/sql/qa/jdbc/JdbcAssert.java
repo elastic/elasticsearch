@@ -1,8 +1,9 @@
 /*
  /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
@@ -56,8 +57,6 @@ public class JdbcAssert {
     private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
 
     private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
-
-    private static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     static {
         for (EsType type : EsType.values()) {
@@ -148,7 +147,7 @@ public class JdbcAssert {
             String expectedName = expectedMeta.getColumnName(column);
             String actualName = actualMeta.getColumnName(column);
 
-            if (!expectedName.equals(actualName)) {
+            if (expectedName.equals(actualName) == false) {
                 // to help debugging, indicate the previous column (which also happened to match and thus was correct)
                 String expectedSet = expectedName;
                 String actualSet = actualName;
@@ -249,7 +248,7 @@ public class JdbcAssert {
                         String columnClassName = metaData.getColumnClassName(column);
 
                         // fix for CSV which returns the shortName not fully-qualified name
-                        if (columnClassName != null && !columnClassName.contains(".")) {
+                        if (columnClassName != null && columnClassName.contains(".") == false) {
                             switch (columnClassName) {
                                 case "Date":
                                     columnClassName = "java.sql.Date";
@@ -314,7 +313,7 @@ public class JdbcAssert {
                         if (actualObject instanceof Geometry) {
                             // We need to convert the expected object to libs/geo Geometry for comparision
                             try {
-                                expectedObject = WKT.fromWKT(expectedObject.toString());
+                                expectedObject = WellKnownText.fromWKT(StandardValidator.instance(true), true, expectedObject.toString());
                             } catch (IOException | ParseException ex) {
                                 fail(ex.getMessage());
                             }

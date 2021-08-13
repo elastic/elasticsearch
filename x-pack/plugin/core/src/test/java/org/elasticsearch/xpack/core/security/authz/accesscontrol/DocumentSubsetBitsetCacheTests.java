@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
@@ -27,15 +28,17 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -60,6 +63,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -74,28 +78,27 @@ import static org.mockito.Mockito.when;
 
 public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
-    private static final String MISSING_FIELD_NAME = "does-not-exist";
     private static final int FIELD_COUNT = 10;
     private ExecutorService singleThreadExecutor;
 
     @Before
-    public void setUpExecutor() throws Exception {
+    public void setUpExecutor() {
         singleThreadExecutor = Executors.newSingleThreadExecutor();
     }
 
     @After
-    public void cleanUpExecutor() throws Exception {
+    public void cleanUpExecutor() {
         singleThreadExecutor.shutdown();
     }
 
     public void testSameBitSetIsReturnedForIdenticalQuery() throws Exception {
         final DocumentSubsetBitsetCache cache = newCache(Settings.EMPTY);
-        runTestOnIndex((shardContext, leafContext) -> {
-            final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(shardContext);
+        runTestOnIndex((searchExecutionContext, leafContext) -> {
+            final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
             final BitSet bitSet1 = cache.getBitSet(query1, leafContext);
             assertThat(bitSet1, notNullValue());
 
-            final Query query2 = QueryBuilders.termQuery("field-1", "value-1").toQuery(shardContext);
+            final Query query2 = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
             final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
             assertThat(bitSet2, notNullValue());
 
@@ -105,8 +108,10 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
     public void testNullBitSetIsReturnedForNonMatchingQuery() throws Exception {
         final DocumentSubsetBitsetCache cache = newCache(Settings.EMPTY);
-        runTestOnIndex((shardContext, leafContext) -> {
-            final Query query = QueryBuilders.termQuery(MISSING_FIELD_NAME, "any-value").rewrite(shardContext).toQuery(shardContext);
+        runTestOnIndex((searchExecutionContext, leafContext) -> {
+            final Query query = QueryBuilders.termQuery("not-mapped", "any-value")
+                .rewrite(searchExecutionContext)
+                .toQuery(searchExecutionContext);
             final BitSet bitSet = cache.getBitSet(query, leafContext);
             assertThat(bitSet, nullValue());
         });
@@ -116,9 +121,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         final DocumentSubsetBitsetCache cache = newCache(Settings.EMPTY);
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        runTestOnIndex((shardContext, leafContext) -> {
+        runTestOnIndex((searchExecutionContext, leafContext) -> {
             for (int i = 1; i <= randomIntBetween(3, 6); i++) {
-                final Query query = QueryBuilders.termQuery("dne-" + i, "dne- " + i).toQuery(shardContext);
+                final Query query = QueryBuilders.termQuery("dne-" + i, "dne- " + i).toQuery(searchExecutionContext);
                 final BitSet bitSet = cache.getBitSet(query, leafContext);
                 assertThat(bitSet, nullValue());
                 assertThat(cache.ramBytesUsed(), equalTo(0L));
@@ -141,12 +146,12 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        runTestOnIndex((shardContext, leafContext) -> {
+        runTestOnIndex((searchExecutionContext, leafContext) -> {
             Query previousQuery = null;
             BitSet previousBitSet = null;
             for (int i = 1; i <= 5; i++) {
                 final TermQueryBuilder queryBuilder = QueryBuilders.termQuery("field-" + i, "value-" + i);
-                final Query query = queryBuilder.toQuery(shardContext);
+                final Query query = queryBuilder.toQuery(searchExecutionContext);
                 final BitSet bitSet = cache.getBitSet(query, leafContext);
                 assertThat(bitSet, notNullValue());
                 assertThat(bitSet.ramBytesUsed(), equalTo(expectedBytesPerBitSet));
@@ -165,7 +170,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 previousQuery = query;
                 previousBitSet = bitSet;
 
-                assertThat(cache.getBitSet(queryBuilder.toQuery(shardContext), leafContext), sameInstance(bitSet));
+                assertThat(cache.getBitSet(queryBuilder.toQuery(searchExecutionContext), leafContext), sameInstance(bitSet));
                 assertThat(cache.entryCount(), equalTo(expectedCount));
                 assertThat(cache.ramBytesUsed(), equalTo(expectedCount * expectedBytesPerBitSet));
             }
@@ -208,9 +213,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                     " consider increasing the value of [xpack.security.dls.bitset.cache.size]"
             ));
 
-            runTestOnIndex((shardContext, leafContext) -> {
+            runTestOnIndex((searchExecutionContext, leafContext) -> {
                 final TermQueryBuilder queryBuilder = QueryBuilders.termQuery("field-1", "value-1");
-                final Query query = queryBuilder.toQuery(shardContext);
+                final Query query = queryBuilder.toQuery(searchExecutionContext);
                 final BitSet bitSet = cache.getBitSet(query, leafContext);
                 assertThat(bitSet, notNullValue());
                 assertThat(bitSet.ramBytesUsed(), equalTo(expectedBytesPerBitSet));
@@ -250,10 +255,10 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                     " consider increasing the value of [xpack.security.dls.bitset.cache.size]"
             ));
 
-            runTestOnIndex((shardContext, leafContext) -> {
+            runTestOnIndex((searchExecutionContext, leafContext) -> {
                 for (int i = 1; i <= 3; i++) {
                     final TermQueryBuilder queryBuilder = QueryBuilders.termQuery("field-" + i, "value-" + i);
-                    final Query query = queryBuilder.toQuery(shardContext);
+                    final Query query = queryBuilder.toQuery(searchExecutionContext);
                     final BitSet bitSet = cache.getBitSet(query, leafContext);
                     assertThat(bitSet, notNullValue());
                     assertThat(bitSet.ramBytesUsed(), equalTo(expectedBytesPerBitSet));
@@ -275,12 +280,12 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        runTestOnIndex((shardContext, leafContext) -> {
-            final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(shardContext);
+        runTestOnIndex((searchExecutionContext, leafContext) -> {
+            final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
             final BitSet bitSet1 = cache.getBitSet(query1, leafContext);
             assertThat(bitSet1, notNullValue());
 
-            final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(shardContext);
+            final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
             assertBusy(() -> {
                 // Force the cache to perform eviction
                 final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
@@ -319,12 +324,12 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        runTestOnIndex((shardContext, leafContext) -> {
-            final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(shardContext);
+        runTestOnIndex((searchExecutionContext, leafContext) -> {
+            final Query query1 = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
             final BitSet bitSet1 = cache.getBitSet(query1, leafContext);
             assertThat(bitSet1, notNullValue());
 
-            final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(shardContext);
+            final Query query2 = QueryBuilders.termQuery("field-2", "value-2").toQuery(searchExecutionContext);
             final BitSet bitSet2 = cache.getBitSet(query2, leafContext);
             assertThat(bitSet2, notNullValue());
 
@@ -390,7 +395,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                             for (int field = 1; field <= FIELD_COUNT; field++) {
                                 final TermQueryBuilder queryBuilder = QueryBuilders.termQuery("field-" + field, "value-" + field);
                                 final TestIndexContext randomContext = randomFrom(contexts);
-                                final Query query = queryBuilder.toQuery(randomContext.queryShardContext);
+                                final Query query = queryBuilder.toQuery(randomContext.searchExecutionContext);
                                 final BitSet bitSet = cache.getBitSet(query, randomContext.leafReaderContext);
                                 assertThat(bitSet, notNullValue());
                                 assertThat(bitSet.ramBytesUsed(), equalTo(expectedBytesPerBitSet));
@@ -429,11 +434,11 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         final int iterations = randomIntBetween(3, 10);
         AtomicInteger counter = new AtomicInteger(0);
 
-        final CheckedBiConsumer<QueryShardContext, LeafReaderContext, Exception> consumer = new CheckedBiConsumer<>() {
+        final CheckedBiConsumer<SearchExecutionContext, LeafReaderContext, Exception> consumer = new CheckedBiConsumer<>() {
             @Override
-            public void accept(QueryShardContext shardContext, LeafReaderContext leafContext) throws Exception {
+            public void accept(SearchExecutionContext searchExecutionContext, LeafReaderContext leafContext) throws Exception {
                 final int count = counter.incrementAndGet();
-                final Query query = QueryBuilders.termQuery("field-1", "value-1").toQuery(shardContext);
+                final Query query = QueryBuilders.termQuery("field-1", "value-1").toQuery(searchExecutionContext);
                 final BitSet bitSet = cache.getBitSet(query, leafContext);
 
                 assertThat(bitSet, notNullValue());
@@ -454,9 +459,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
         for (int i = 1; i <= randomIntBetween(2, 5); i++) {
-            runTestOnIndex((shardContext, leafContext) -> {
+            runTestOnIndex((searchExecutionContext, leafContext) -> {
                 for (int j = 1; j <= randomIntBetween(2, 10); j++) {
-                    final Query query = QueryBuilders.termQuery("field-" + j, "value-1").toQuery(shardContext);
+                    final Query query = QueryBuilders.termQuery("field-" + j, "value-1").toQuery(searchExecutionContext);
                     final BitSet bitSet = cache.getBitSet(query, leafContext);
                     assertThat(bitSet, notNullValue());
                 }
@@ -505,10 +510,10 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         }
     }
 
-    private void runTestOnIndex(CheckedBiConsumer<QueryShardContext, LeafReaderContext, Exception> body) throws Exception {
+    private void runTestOnIndex(CheckedBiConsumer<SearchExecutionContext, LeafReaderContext, Exception> body) throws Exception {
         runTestOnIndices(1, ctx -> {
             final TestIndexContext indexContext = ctx.get(0);
-            body.accept(indexContext.queryShardContext, indexContext.leafReaderContext);
+            body.accept(indexContext.searchExecutionContext, indexContext.leafReaderContext);
         });
     }
 
@@ -516,15 +521,15 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         private final Directory directory;
         private final IndexWriter indexWriter;
         private final DirectoryReader directoryReader;
-        private final QueryShardContext queryShardContext;
+        private final SearchExecutionContext searchExecutionContext;
         private final LeafReaderContext leafReaderContext;
 
         private TestIndexContext(Directory directory, IndexWriter indexWriter, DirectoryReader directoryReader,
-                                 QueryShardContext queryShardContext, LeafReaderContext leafReaderContext) {
+                                 SearchExecutionContext searchExecutionContext, LeafReaderContext leafReaderContext) {
             this.directory = directory;
             this.indexWriter = indexWriter;
             this.directoryReader = directoryReader;
-            this.queryShardContext = queryShardContext;
+            this.searchExecutionContext = searchExecutionContext;
             this.leafReaderContext = leafReaderContext;
         }
 
@@ -536,7 +541,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         }
     }
 
-    private TestIndexContext testIndex(MapperService mapperService, Client client) throws IOException {
+    private TestIndexContext testIndex(MappingLookup mappingLookup, Client client) throws IOException {
         TestIndexContext context = null;
 
         final long nowInMillis = randomNonNegativeLong();
@@ -563,11 +568,11 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             directoryReader = DirectoryReader.open(directory);
             final LeafReaderContext leaf = directoryReader.leaves().get(0);
 
-            final QueryShardContext shardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+            final SearchExecutionContext searchExecutionContext = new SearchExecutionContext(shardId.id(), 0, indexSettings,
+                null, null, null, mappingLookup, null, null, xContentRegistry(), writableRegistry(),
                 client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null, () -> true, null, emptyMap());
 
-            context = new TestIndexContext(directory, iw, directoryReader, shardContext, leaf);
+            context = new TestIndexContext(directory, iw, directoryReader, searchExecutionContext, leaf);
             return context;
         } finally {
             if (context == null) {
@@ -585,15 +590,15 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     private void runTestOnIndices(int numberIndices, CheckedConsumer<List<TestIndexContext>, Exception> body) throws Exception {
-        final MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType(Mockito.anyString())).thenAnswer(invocation -> {
-            final String fieldName = (String) invocation.getArguments()[0];
-            if (fieldName.equals(MISSING_FIELD_NAME)) {
-                return null;
-            } else {
-                return new KeywordFieldMapper.KeywordFieldType(fieldName);
-            }
-        });
+        List<FieldMapper> types = new ArrayList<>();
+        for (int i = 0; i < 11; i++) { // the tests use fields 1 to 10.
+            // This field has a value.
+            types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("field-" + i)));
+            // This field never has a value
+            types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
+        }
+
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, emptyList(), emptyList());
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
@@ -601,7 +606,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         final List<TestIndexContext> context = new ArrayList<>(numberIndices);
         try {
             for (int i = 0; i < numberIndices; i++) {
-                context.add(testIndex(mapperService, client));
+                context.add(testIndex(mappingLookup, client));
             }
 
             body.accept(context);

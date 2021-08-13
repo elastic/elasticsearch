@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.rescore;
@@ -26,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -43,7 +31,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
@@ -142,8 +130,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
-            null, null, null, null, null,
+        SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings,
+            null, null, null, null, null, null,
             xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap()) {
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -154,11 +142,11 @@ public class QueryRescorerBuilderTests extends ESTestCase {
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             QueryRescorerBuilder rescoreBuilder = randomRescoreBuilder();
-            QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.buildContext(mockShardContext);
+            QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.buildContext(mockContext);
             int expectedWindowSize = rescoreBuilder.windowSize() == null ? RescorerBuilder.DEFAULT_WINDOW_SIZE :
                 rescoreBuilder.windowSize().intValue();
             assertEquals(expectedWindowSize, rescoreContext.getWindowSize());
-            Query expectedQuery = Rewriteable.rewrite(rescoreBuilder.getRescoreQuery(), mockShardContext).toQuery(mockShardContext);
+            Query expectedQuery = Rewriteable.rewrite(rescoreBuilder.getRescoreQuery(), mockContext).toQuery(mockContext);
             assertEquals(expectedQuery, rescoreContext.query());
             assertEquals(rescoreBuilder.getQueryWeight(), rescoreContext.queryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getRescoreQueryWeight(), rescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);
@@ -174,7 +162,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
     class AlwaysRewriteQueryBuilder extends MatchAllQueryBuilder {
 
         @Override
-        protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
             return new MatchAllQueryBuilder();
         }
     }
@@ -186,8 +174,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, null, null, null,
+        SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings,
+                null, null, null, null, null, null,
                 xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap()) {
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -205,7 +193,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         rescoreBuilder.setScoreMode(QueryRescoreMode.Max);
         rescoreBuilder.windowSize(randomIntBetween(0, 100));
 
-        QueryRescorerBuilder rescoreRewritten = rescoreBuilder.rewrite(mockShardContext);
+        QueryRescorerBuilder rescoreRewritten = rescoreBuilder.rewrite(mockContext);
         assertEquals(rescoreRewritten.getQueryWeight(), rescoreBuilder.getQueryWeight(), 0.01f);
         assertEquals(rescoreRewritten.getRescoreQueryWeight(), rescoreBuilder.getRescoreQueryWeight(), 0.01f);
         assertEquals(rescoreRewritten.getScoreMode(), rescoreBuilder.getScoreMode());

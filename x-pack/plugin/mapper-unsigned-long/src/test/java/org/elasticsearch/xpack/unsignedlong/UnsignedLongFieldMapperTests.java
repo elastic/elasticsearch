@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.unsignedlong;
@@ -11,6 +12,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
@@ -24,6 +26,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
@@ -40,6 +43,11 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     @Override
     protected Object getSampleValueForDocument() {
         return 123;
+    }
+
+    @Override
+    protected boolean supportsSearchLookup() {
+        return false;
     }
 
     @Override
@@ -89,7 +97,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", 10.5)));
             MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("For input string: [10.5]"));
+            assertThat(e.getCause().getMessage(), containsString("Value \"10.5\" has a decimal part"));
         }
     }
 
@@ -198,6 +206,28 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testDecimalParts() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "unsigned_long"));
+        DocumentMapper mapper = createDocumentMapper(mapping);
+        {
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("100.5", 100.5, 100.5f))));
+            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            assertThat(e.getCause().getMessage(), containsString("Value \"100.5\" has a decimal part"));
+        }
+        {
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("0.9", 0.9, 0.9f))));
+            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            assertThat(e.getCause().getMessage(), containsString("Value \"0.9\" has a decimal part"));
+        }
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomFrom("100.", "100.0", "100.00", 100.0, 100.0f))));
+        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
+        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
+
+        doc = mapper.parse(source(b -> b.field("field", randomFrom("0.", "0.0", ".00", 0.0, 0.0f))));
+        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE));
+        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE));
+    }
+
     public void testIndexingOutOfRangeValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         for (Object outOfRangeValue : new Object[] { "-1", -1L, "18446744073709551616", new BigInteger("18446744073709551616") }) {
@@ -215,4 +245,26 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        Number n = randomNumericValue();
+        return randomBoolean() ? n : n.toString();
+    }
+
+    private Number randomNumericValue() {
+        switch (randomInt(8)) {
+            case 0:
+                return randomNonNegativeByte();
+            case 1:
+                return (short) between(0, Short.MAX_VALUE);
+            case 2:
+                return randomInt(Integer.MAX_VALUE);
+            case 3:
+            case 4:
+                return randomNonNegativeLong();
+            default:
+                BigInteger big = BigInteger.valueOf(randomLongBetween(0, Long.MAX_VALUE)).shiftLeft(1);
+                return big.add(randomBoolean() ? BigInteger.ONE : BigInteger.ZERO);
+        }
+    }
 }

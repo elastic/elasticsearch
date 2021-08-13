@@ -5,12 +5,12 @@
 --
 
 [id="{upid}-{api}"]
-=== Put Component Template API
+=== Create or update component template API
 
-The Put Component Template API allows to create or change a component template.
+Creates or updates a component template.
 
 [id="{upid}-{api}-request"]
-==== Put Component Template Request
+==== Request
 
 A +{request}+ specifies the name of the component template and the template definition,
 which can consist of the settings, mappings or aliases, together with a version (which
@@ -52,7 +52,7 @@ include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Put Component Templates Response
+==== Response
 
 The returned +{response}+ allows to retrieve information about the
 executed operation as follows:

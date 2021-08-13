@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
@@ -14,7 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -86,6 +87,7 @@ public class SearchInputTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
     }
 
+    @SuppressWarnings("unchecked")
     public void testExecute() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
@@ -94,6 +96,7 @@ public class SearchInputTests extends ESTestCase {
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
+        @SuppressWarnings("rawtypes")
         ArgumentCaptor<Map> headersCaptor = ArgumentCaptor.forClass(Map.class);
         when(client.filterWithHeader(headersCaptor.capture())).thenReturn(client);
 

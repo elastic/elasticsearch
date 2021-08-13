@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -9,7 +10,7 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -76,11 +77,6 @@ public class TimeSyncConfig implements SyncConfig {
     }
 
     @Override
-    public boolean isValid() {
-        return true;
-    }
-
-    @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeTimeValue(delay);
@@ -130,7 +126,7 @@ public class TimeSyncConfig implements SyncConfig {
 
     @Override
     public String getWriteableName() {
-        return TransformField.TIME_BASED_SYNC.getPreferredName();
+        return TransformField.TIME.getPreferredName();
     }
 
     @Override

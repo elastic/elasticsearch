@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.topmetrics;
@@ -9,7 +10,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -63,7 +64,7 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
     }
 
     public void testNoStrings() throws IOException {
-        assertNoValues(toConfig(null, CoreValuesSourceType.BYTES, DocValueFormat.RAW, false));
+        assertNoValues(toConfig(null, CoreValuesSourceType.KEYWORD, DocValueFormat.RAW, false));
     }
 
     private void assertNoValues(ValuesSourceConfig config) throws IOException {
@@ -226,9 +227,9 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
 
     private ValuesSourceConfig toConfig(SortedSetDocValues values) throws IOException {
         ValuesSource.Bytes.WithOrdinals source = mock(ValuesSource.Bytes.WithOrdinals.class);
-        when(source.globalOrdinalsValues(null)).thenReturn(values);
-        ValuesSourceConfig config = toConfig(source, CoreValuesSourceType.BYTES, DocValueFormat.RAW, true);
-        when(config.hasGlobalOrdinals()).thenReturn(true);
+        when(source.ordinalsValues(null)).thenReturn(values);
+        ValuesSourceConfig config = toConfig(source, CoreValuesSourceType.KEYWORD, DocValueFormat.RAW, true);
+        when(config.hasOrdinals()).thenReturn(true);
         return config;
     }
 

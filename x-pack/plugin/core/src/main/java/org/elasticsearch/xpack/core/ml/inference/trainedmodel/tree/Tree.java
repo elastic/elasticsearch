@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
@@ -9,7 +10,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +43,6 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
     public static final ParseField TREE_STRUCTURE = new ParseField("tree_structure");
-    public static final ParseField TARGET_TYPE = new ParseField("target_type");
     public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
 
     private static final ObjectParser<Tree.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -55,7 +55,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             Tree.Builder::new);
         parser.declareStringArray(Tree.Builder::setFeatureNames, FEATURE_NAMES);
         parser.declareObjectArray(Tree.Builder::setNodes, (p, c) -> TreeNode.fromXContent(p, lenient), TREE_STRUCTURE);
-        parser.declareString(Tree.Builder::setTargetType, TARGET_TYPE);
+        parser.declareString(Tree.Builder::setTargetType, TargetType.TARGET_TYPE);
         parser.declareStringArray(Tree.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
         return parser;
     }
@@ -79,7 +79,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             throw new IllegalArgumentException("[tree_structure] must not be empty");
         }
         this.nodes = Collections.unmodifiableList(nodes);
-        this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
+        this.targetType = ExceptionsHelper.requireNonNull(targetType, TargetType.TARGET_TYPE);
         this.classificationLabels = classificationLabels == null ? null : Collections.unmodifiableList(classificationLabels);
     }
 
@@ -125,7 +125,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         builder.startObject();
         builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
         builder.field(TREE_STRUCTURE.getPreferredName(), nodes);
-        builder.field(TARGET_TYPE.getPreferredName(), targetType.toString());
+        builder.field(TargetType.TARGET_TYPE.getPreferredName(), targetType.toString());
         if(classificationLabels != null) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }

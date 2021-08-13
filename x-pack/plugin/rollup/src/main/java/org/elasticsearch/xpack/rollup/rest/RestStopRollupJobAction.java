@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -22,7 +24,10 @@ public class RestStopRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_rollup/job/{id}/_stop"));
+        return List.of(
+            Route.builder(POST, "/_rollup/job/{id}/_stop")
+                .replaces(POST, "/_xpack/rollup/job/{id}/_stop", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

@@ -1,18 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -20,6 +17,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.license.License.OperationMode.BASIC;
+import static org.elasticsearch.license.License.OperationMode.ENTERPRISE;
 import static org.elasticsearch.license.License.OperationMode.GOLD;
 import static org.elasticsearch.license.License.OperationMode.MISSING;
 import static org.elasticsearch.license.License.OperationMode.PLATINUM;
@@ -38,7 +36,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     /** Creates a license state with the given license type and active state, and checks the given method returns expected. */
     void assertAllowed(OperationMode mode, boolean active, Predicate<XPackLicenseState> predicate, boolean expected) {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(mode, active, null);
+        licenseState.update(mode, active, Long.MAX_VALUE, null);
         assertEquals(expected, predicate.test(licenseState));
     }
 
@@ -80,196 +78,95 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSecurityDefaults() {
-        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        assertThat(licenseState.isSecurityEnabled(), is(true));
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(true));
-
-        licenseState = TestUtils.newTestLicenseState();
-        assertSecurityNotAllowed(licenseState);
-    }
-
-    public void testTransportSslDoesNotAutomaticallyEnableSecurityOnTrialLicense() {
-        Settings settings = Settings.builder().put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), true).build();
-        final XPackLicenseState licenseState= new XPackLicenseState(settings, () -> 0);
-        assertSecurityNotAllowed(licenseState);
-    }
-
-    public void testSecurityBasicWithoutExplicitSecurityEnabled() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(BASIC, true, null);
-
-        assertThat(licenseState.isSecurityEnabled(), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE), is(true));
-
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY), is(true));
-        assertThat(licenseState.isSecurityEnabled(), is(false));
-    }
-
-    public void testSecurityBasicWithExplicitSecurityEnabled() {
-        final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(BASIC, true, null);
-
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE), is(true));
-
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY), is(true));
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-    }
-
-    public void testSecurityDefaultBasicExpired() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(BASIC, false, null);
-
-        assertThat(licenseState.isSecurityEnabled(), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE), is(true));
-    }
-
-    public void testSecurityEnabledBasicExpired() {
-        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(BASIC, false, null);
-
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE), is(true));
     }
 
     public void testSecurityStandard() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(STANDARD, true, null);
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        licenseState.update(STANDARD, true, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
     public void testSecurityStandardExpired() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(STANDARD, false, null);
+        XPackLicenseState licenseState = new XPackLicenseState( () -> 0);
+        licenseState.update(STANDARD, false, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
-    public void testSecurityGold() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(GOLD, true, null);
+    public void testSecurityBasic() {
+        XPackLicenseState licenseState = new XPackLicenseState( () -> 0);
+        licenseState.update(BASIC, true, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.isSecurityEnabled(), is(true));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
+        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
+    }
+
+
+
+    public void testSecurityGold() {
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        licenseState.update(GOLD, true, Long.MAX_VALUE, null);
+
         assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE), is(true));
     }
 
     public void testSecurityGoldExpired() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(GOLD, false, null);
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        licenseState.update(GOLD, false, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE), is(true));
     }
 
     public void testSecurityPlatinum() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(PLATINUM, true, null);
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        licenseState.update(PLATINUM, true, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE), is(true));
     }
 
     public void testSecurityPlatinumExpired() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(PLATINUM, false, null);
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        licenseState.update(PLATINUM, false, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE), is(true));
-    }
-
-    public void testNewTrialDefaultsSecurityOff() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(TRIAL, true, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
-
-        assertThat(licenseState.isSecurityEnabled(), is(false));
-        assertSecurityNotAllowed(licenseState);
-    }
-
-    private void assertSecurityNotAllowed(XPackLicenseState licenseState) {
-        assertThat(licenseState.isSecurityEnabled(), is(false));
     }
 
     public void testSecurityAckBasicToNotGoldOrStandard() {
@@ -282,11 +179,11 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSecurityAckTrialGoldOrPlatinumToBasic() {
-        assertAckMessages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 7);
+        assertAckMessages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 6);
     }
 
     public void testSecurityAckStandardToBasic() {
-        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 1);
+        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 0);
     }
 
     public void testSecurityAckAnyToStandard() {
@@ -310,11 +207,6 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testMonitoringAckNotBasicToBasic() {
         OperationMode from = randomFrom(STANDARD, GOLD, PLATINUM, TRIAL);
         assertAckMessages(XPackField.MONITORING, from, BASIC, 2);
-    }
-
-    public void testMonitoringAllowed() {
-        assertAllowed(randomMode(), true, s -> s.checkFeature(Feature.MONITORING), true);
-        assertAllowed(randomMode(), false, s -> s.checkFeature(Feature.MONITORING), false);
     }
 
     public void testMonitoringUpdateRetention() {
@@ -346,6 +238,24 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAllowed(GOLD, false, s -> s.checkFeature(Feature.WATCHER), false);
         assertAllowed(PLATINUM, false, s -> s.checkFeature(Feature.WATCHER), false);
         assertAllowed(STANDARD, false, s -> s.checkFeature(Feature.WATCHER), false);
+    }
+
+    public void testEncryptedSnapshotsWithInactiveLicense() {
+        assertAllowed(BASIC, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(TRIAL, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(GOLD, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(PLATINUM, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(ENTERPRISE, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(STANDARD, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+    }
+
+    public void testEncryptedSnapshotsWithActiveLicense() {
+        assertAllowed(BASIC, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(TRIAL, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), true);
+        assertAllowed(GOLD, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(PLATINUM, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), true);
+        assertAllowed(ENTERPRISE, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), true);
+        assertAllowed(STANDARD, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
     }
 
     public void testGraphPlatinumTrial() throws Exception {
@@ -411,73 +321,56 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAllowed(STANDARD, false, s -> s.checkFeature(Feature.LOGSTASH), false);
     }
 
-    public void testSqlDefaults() {
+    public void testJdbcDefaults() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.SQL), is(true));
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(true));
     }
 
-    public void testSqlBasic() {
+    public void testJdbcBasic() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(BASIC, true, null);
-
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.SQL), is(true));
+        licenseState.update(BASIC, true, Long.MAX_VALUE, null);
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
-    public void testSqlBasicExpired() {
+    public void testJdbcStandard() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(BASIC, false, null);
+        licenseState.update(STANDARD, true, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.SQL), is(false));
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
-    public void testSqlStandard() {
+    public void testJdbcStandardExpired() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(STANDARD, true, null);
+        licenseState.update(STANDARD, false, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.SQL), is(true));
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
-    public void testSqlStandardExpired() {
+    public void testJdbcGold() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(STANDARD, false, null);
+        licenseState.update(GOLD, true, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.SQL), is(false));
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
-    public void testSqlGold() {
+    public void testJdbcGoldExpired() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(GOLD, true, null);
+        licenseState.update(GOLD, false, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.SQL), is(true));
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
-    public void testSqlGoldExpired() {
+    public void testJdbcPlatinum() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(GOLD, false, null);
+        licenseState.update(PLATINUM, true, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.SQL), is(false));
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
-    }
-
-    public void testSqlPlatinum() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(PLATINUM, true, null);
-
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.SQL), is(true));
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(true));
     }
 
-    public void testSqlPlatinumExpired() {
+    public void testJdbcPlatinumExpired() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(PLATINUM, false, null);
+        licenseState.update(PLATINUM, false, Long.MAX_VALUE, null);
 
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.SQL), is(false));
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
@@ -496,56 +389,56 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testCcrBasic() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(BASIC, true, null);
+        state.update(BASIC, true, Long.MAX_VALUE, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrBasicExpired() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(BASIC, false, null);
+        state.update(BASIC, false, Long.MAX_VALUE, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrStandard() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(STANDARD, true, null);
+        state.update(STANDARD, true, Long.MAX_VALUE, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrStandardExpired() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(STANDARD, false, null);
+        state.update(STANDARD, false, Long.MAX_VALUE, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrGold() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(GOLD, true, null);
+        state.update(GOLD, true, Long.MAX_VALUE, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrGoldExpired() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(GOLD, false, null);
+        state.update(GOLD, false, Long.MAX_VALUE, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrPlatinum() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(PLATINUM, true, null);
+        state.update(PLATINUM, true, Long.MAX_VALUE, null);
 
         assertTrue(state.checkFeature(XPackLicenseState.Feature.CCR));
     }
 
     public void testCcrPlatinumExpired() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(PLATINUM, false, null);
+        state.update(PLATINUM, false, Long.MAX_VALUE, null);
 
         assertFalse(state.checkFeature(XPackLicenseState.Feature.CCR));
     }
@@ -558,31 +451,13 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAckMessages(XPackField.CCR, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
     }
 
-    public void testTransformBasic() throws Exception {
-        assertAllowed(BASIC, true, s -> s.checkFeature(Feature.TRANSFORM), true);
-    }
-
-    public void testTransformStandard() throws Exception {
-        assertAllowed(STANDARD, true, s -> s.checkFeature(Feature.TRANSFORM), true);
-    }
-
-    public void testTransformInactiveBasic() {
-        assertAllowed(BASIC, false, s -> s.checkFeature(Feature.TRANSFORM), false);
-    }
-
     public void testLastUsed() {
-        Feature basicFeature = Feature.SECURITY;
         Feature goldFeature = Feature.SECURITY_DLS_FLS;
         AtomicInteger currentTime = new AtomicInteger(100); // non zero start time
-        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, currentTime::get);
-        assertThat("basic features not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
+        XPackLicenseState licenseState = new XPackLicenseState(currentTime::get);
         assertThat("initial epoch time", licenseState.getLastUsed(), not(hasKey(goldFeature)));
-        licenseState.isAllowed(basicFeature);
-        assertThat("basic features still not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
         licenseState.isAllowed(goldFeature);
         assertThat("isAllowed does not track", licenseState.getLastUsed(), not(hasKey(goldFeature)));
-        licenseState.checkFeature(basicFeature);
-        assertThat("basic features still not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
         licenseState.checkFeature(goldFeature);
         assertThat("checkFeature tracks used time", licenseState.getLastUsed(), hasEntry(goldFeature, 100L));
         currentTime.set(200);

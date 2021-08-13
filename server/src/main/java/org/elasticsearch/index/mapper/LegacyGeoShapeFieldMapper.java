@@ -1,24 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -31,30 +19,36 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -79,15 +73,19 @@ import java.util.Set;
  * @deprecated use {@link GeoShapeFieldMapper}
  */
 @Deprecated
-public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>, Shape> {
+public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>> {
 
     public static final String CONTENT_TYPE = "geo_shape";
 
     public static final Set<String> DEPRECATED_PARAMETERS
-        = Set.of("strategy", "tree", "tree_levels", "precision", "distance_error_pct", "points only");
+        = Set.of("strategy", "tree", "tree_levels", "precision", "distance_error_pct", "points_only");
 
     public static boolean containsDeprecatedParameter(Set<String> paramKeys) {
         return DEPRECATED_PARAMETERS.stream().anyMatch(paramKeys::contains);
+    }
+
+    public static Set<String> getDeprecatedParameters(Set<String> paramKeys) {
+        return DEPRECATED_PARAMETERS.stream().filter((p) -> paramKeys.contains(p)).collect(Collectors.toSet());
     }
 
     public static class Defaults {
@@ -311,33 +309,36 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             GeoShapeFieldType ft = buildFieldType(parser, contentPath);
             return new LegacyGeoShapeFieldMapper(name, ft,
                 multiFieldsBuilder.build(this, contentPath), copyTo.build(),
-                new LegacyGeoShapeIndexer(ft), parser, this);
+                parser, this);
         }
     }
 
     private static class LegacyGeoShapeParser extends Parser<ShapeBuilder<?, ?, ?>> {
-        /**
-         * Note that this parser is only used for formatting values.
-         */
-        private final GeometryParser geometryParser;
 
         private LegacyGeoShapeParser() {
-            this.geometryParser = new GeometryParser(true, true, true);
         }
 
         @Override
-        public ShapeBuilder<?, ?, ?> parse(XContentParser parser) throws IOException, ParseException {
-            return ShapeParser.parse(parser);
-        }
-
-        @Override
-        public Object format(ShapeBuilder<?, ?, ?> value, String format) {
-            Geometry geometry = value.buildGeometry();
-            return geometryParser.geometryFormat(format).toXContentAsObject(geometry);
+        public void parse(
+            XContentParser parser,
+            CheckedConsumer<ShapeBuilder<?, ?, ?>, IOException> consumer,
+            Consumer<Exception> onMalformed
+        ) throws IOException {
+            try {
+                if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        parse(parser, consumer, onMalformed);
+                    }
+                } else {
+                    consumer.accept(ShapeParser.parse(parser));
+                }
+            } catch (ElasticsearchParseException e) {
+                onMalformed.accept(e);
+            }
         }
     }
 
-    public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {
+    public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>> implements GeoShapeQueryable {
 
         private String tree = Defaults.TREE;
         private SpatialStrategy strategy = Defaults.STRATEGY;
@@ -356,7 +357,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         private GeoShapeFieldType(String name, boolean indexed, Orientation orientation,
                                   LegacyGeoShapeParser parser, Map<String, String> meta) {
-            super(name, indexed, false, false, false, parser, orientation, meta);
+            super(name, indexed, false, false, parser, orientation, meta);
             this.queryProcessor = new LegacyGeoShapeQueryProcessor(this);
         }
 
@@ -365,13 +366,13 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
             throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
         }
 
         @Override
         public Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
-                            QueryShardContext context) {
+                            SearchExecutionContext context) {
             return queryProcessor.geoShapeQuery(shape, fieldName, strategy, relation, context);
         }
 
@@ -451,6 +452,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
             throw new IllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
         }
+
+        @Override
+        protected Function<List<ShapeBuilder<?, ?, ?>>, List<Object>> getFormatter(String format) {
+            return GeometryFormatterFactory.getFormatter(format, ShapeBuilder::buildGeometry);
+        }
     }
 
     private final Version indexCreatedVersion;
@@ -458,11 +464,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     public LegacyGeoShapeFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                      MultiFields multiFields, CopyTo copyTo,
-                                     LegacyGeoShapeIndexer indexer, LegacyGeoShapeParser parser,
+                                     LegacyGeoShapeParser parser,
                                      Builder builder) {
         super(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER),
             builder.ignoreMalformed.get(), builder.coerce.get(), builder.ignoreZValue.get(), builder.orientation.get(),
-            multiFields, copyTo, indexer, parser);
+            multiFields, copyTo, parser);
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.builder = builder;
     }
@@ -477,18 +483,28 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Override
-    protected void addStoredFields(ParseContext context, Shape geometry) {
-        // noop: we do not store geo_shapes; and will not store legacy geo_shape types
-    }
-
-    @Override
-    protected void addDocValuesFields(String name, Shape geometry, List<IndexableField> fields, ParseContext context) {
-        // doc values are not supported
-    }
-
-    @Override
-    protected void addMultiFields(ParseContext context, Shape geometry) {
-        // noop (completion suggester currently not compatible with geo_shape)
+    protected void index(DocumentParserContext context, ShapeBuilder<?, ?, ?> shapeBuilder) throws IOException {
+        if (shapeBuilder == null) {
+            return;
+        }
+        Shape shape = shapeBuilder.buildS4J();
+        if (fieldType().pointsOnly()) {
+            // index configured for pointsOnly
+            if (shape instanceof XShapeCollection && ((XShapeCollection<?>) shape).pointsOnly()) {
+                // MULTIPOINT data: index each point separately
+                @SuppressWarnings("unchecked") List<Shape> shapes = ((XShapeCollection<Shape>) shape).getShapes();
+                for (Shape s : shapes) {
+                    context.doc().addAll(Arrays.asList(fieldType().defaultPrefixTreeStrategy().createIndexableFields(s)));
+                }
+                return;
+            } else if (shape instanceof Point == false) {
+                throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a "
+                    + ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass())
+                    + " was found");
+            }
+        }
+        context.doc().addAll(Arrays.asList(fieldType().defaultPrefixTreeStrategy().createIndexableFields(shape)));
+        context.addToFieldNames(fieldType().name());
     }
 
     @Override

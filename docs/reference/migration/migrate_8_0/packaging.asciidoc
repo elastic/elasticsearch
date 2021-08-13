@@ -1,6 +1,9 @@
 [discrete]
 [[breaking_80_packaging_changes]]
-=== Packaging changes
+==== Packaging changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
 .Java 11 is required.
@@ -13,5 +16,17 @@ line tools.
 *Impact* +
 Use Java 11 or higher. Attempts to run {es} 8.0 using earlier Java versions will
 fail.
+====
+
+.JAVA_HOME is no longer supported.
+[%collapsible]
+====
+*Details* +
+`JAVA_HOME` is no longer supported to set the path for the JDK. Instead, use
+the bundled JDK (preferable), or set `ES_JAVA_HOME`.
+
+*Impact* +
+Use the bundled JDK (preferable), or set `ES_JAVA_HOME`. `JAVA_HOME` will be
+ignored.
 ====
 //end::notable-breaking-changes[]

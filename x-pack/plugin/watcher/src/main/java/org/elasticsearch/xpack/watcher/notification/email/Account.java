@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
 import javax.activation.CommandMap;
@@ -29,6 +30,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -357,20 +359,20 @@ public class Account {
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
                 EmailDefaults that = (EmailDefaults) o;
-
-                if (bcc != null ? !bcc.equals(that.bcc) : that.bcc != null) return false;
-                if (cc != null ? !cc.equals(that.cc) : that.cc != null) return false;
-                if (from != null ? !from.equals(that.from) : that.from != null) return false;
-                if (priority != that.priority) return false;
-                if (replyTo != null ? !replyTo.equals(that.replyTo) : that.replyTo != null) return false;
-                if (subject != null ? !subject.equals(that.subject) : that.subject != null) return false;
-                if (to != null ? !to.equals(that.to) : that.to != null) return false;
-
-                return true;
+                return Objects.equals(bcc, that.bcc)
+                    && Objects.equals(cc, that.cc)
+                    && Objects.equals(from, that.from)
+                    && priority == that.priority
+                    && Objects.equals(replyTo, that.replyTo)
+                    && Objects.equals(subject, that.subject)
+                    && Objects.equals(to, that.to);
             }
 
             @Override

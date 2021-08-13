@@ -1,22 +1,11 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 apply plugin: "elasticsearch.publish"
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -43,8 +32,15 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
 }
 
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+
     // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
     'com.google.protobuf.ExtensionRegistry',
     'com.google.protobuf.MessageLite$Builder',
@@ -97,6 +93,7 @@ thirdPartyAudit {
     'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
+    'com.github.luben.zstd.Zstd',
     'com.jcraft.jzlib.Deflater',
     'com.jcraft.jzlib.Inflater',
     'com.jcraft.jzlib.JZlib$WrapperType',
@@ -109,11 +106,6 @@ thirdPartyAudit {
     'com.ning.compress.lzf.util.ChunkDecoderFactory',
     'com.ning.compress.lzf.util.ChunkEncoderFactory',
     'lzma.sdk.lzma.Encoder',
-    'net.jpountz.lz4.LZ4Compressor',
-    'net.jpountz.lz4.LZ4Factory',
-    'net.jpountz.lz4.LZ4FastDecompressor',
-    'net.jpountz.xxhash.XXHash32',
-    'net.jpountz.xxhash.XXHashFactory',
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
     'org.eclipse.jetty.alpn.ALPN',
@@ -124,6 +116,8 @@ thirdPartyAudit {
     'org.conscrypt.HandshakeListener',
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
     'io.netty.internal.tcnative.Buffer',
     'io.netty.internal.tcnative.Library',
     'io.netty.internal.tcnative.SSL',
@@ -131,8 +125,11 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
     'io.netty.internal.tcnative.CertificateCallback',
     'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.ResultCallback',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.netty.internal.tcnative.SSLSession',
+	  'io.netty.internal.tcnative.SSLSessionCache',
 
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration'

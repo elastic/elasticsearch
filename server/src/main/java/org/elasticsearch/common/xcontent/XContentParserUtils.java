@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
@@ -23,8 +12,11 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.CheckedFunction;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
@@ -161,5 +153,26 @@ public final class XContentParserUtils {
         } else {
             throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: empty key");
         }
+    }
+
+    /**
+     * Parses a list of a given type from the given {@code parser}. Assumes that the parser is currently positioned on a
+     * {@link Token#START_ARRAY} token and will fail if it is not. The returned list may or may not be mutable.
+     *
+     * @param parser      x-content parser
+     * @param valueParser parser for expected list value type
+     * @return list parsed from parser
+     */
+    public static <T> List<T> parseList(XContentParser parser,
+                                        CheckedFunction<XContentParser, T, IOException> valueParser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(Token.START_ARRAY, parser.currentToken(), parser);
+        if (parser.nextToken() == Token.END_ARRAY) {
+            return List.of();
+        }
+        final ArrayList<T> list = new ArrayList<>();
+        do {
+            list.add(valueParser.apply(parser));
+        } while (parser.nextToken() != Token.END_ARRAY);
+        return list;
     }
 }

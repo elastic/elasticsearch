@@ -1,0 +1,7 @@
+limited_operator:
+  cluster:
+    - "cluster:admin/voting_config/add_exclusions"
+    - "monitor"
+    - "cluster:admin/settings/update"
+    - "cluster:admin/snapshot/restore"
+    - "cluster:admin/shutdown/*"

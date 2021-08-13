@@ -1,26 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
@@ -34,6 +30,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -51,7 +48,8 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     }
 
     @Override
-    protected void doAssertLuceneQuery(ScriptScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(ScriptScoreQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
         Query wrappedQuery = queryBuilder.query().rewrite(context).toQuery(context);
         if (wrappedQuery instanceof MatchNoDocsQuery) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
@@ -98,19 +96,38 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
      */
     @Override
     public void testCacheability() throws IOException {
+        Directory directory = newDirectory();
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+        iw.addDocument(new Document());
+        final IndexSearcher searcher = new IndexSearcher(iw.getReader());
+        iw.close();
+        assertThat(searcher.getIndexReader().leaves().size(), greaterThan(0));
+
         Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
         ScriptScoreQueryBuilder queryBuilder = new ScriptScoreQueryBuilder(
             new TermQueryBuilder(KEYWORD_FIELD_NAME, "value"), script);
 
-        QueryShardContext context = createShardContext();
-        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
-        assertNotNull(rewriteQuery.toQuery(context));
+        SearchExecutionContext context = createSearchExecutionContext(searcher);
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+        Query luceneQuery = rewriteQuery.toQuery(context);
+        assertNotNull(luceneQuery);
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+
+        // test query cache
+        if (rewriteQuery instanceof MatchNoneQueryBuilder == false) {
+            Weight queryWeight = context.searcher().createWeight(searcher.rewrite(luceneQuery), ScoreMode.COMPLETE, 1.0f);
+            for (LeafReaderContext ctx : context.getIndexReader().leaves()) {
+                assertFalse("" + searcher.rewrite(luceneQuery) + " " + rewriteQuery.toString(), queryWeight.isCacheable(ctx));
+            }
+        }
+
+        searcher.getIndexReader().close();
+        directory.close();
     }
 
     @Override
     public void testMustRewrite() throws IOException {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "foo");
         String scriptStr = "1";
@@ -124,17 +141,17 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     public void testRewriteToMatchNone() throws IOException {
         Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
         ScriptScoreQueryBuilder builder = new ScriptScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "value"), script);
-        QueryBuilder rewrite = builder.rewrite(createShardContext());
+        QueryBuilder rewrite = builder.rewrite(createSearchExecutionContext());
         assertThat(rewrite, instanceOf(MatchNoneQueryBuilder.class));
     }
 
     public void testDisallowExpensiveQueries() {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(false);
 
         ScriptScoreQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> queryBuilder.toQuery(queryShardContext));
+                () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[script score] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 e.getMessage());
     }

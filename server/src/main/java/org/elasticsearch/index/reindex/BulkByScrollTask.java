@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -53,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -141,7 +130,7 @@ public class BulkByScrollTask extends CancellableTask {
      * a leader task.
      */
     public LeaderBulkByScrollTaskState getLeaderState() {
-        if (!isLeader()) {
+        if (isLeader() == false) {
             throw new IllegalStateException("This task is not set to be a leader for other slice subtasks");
         }
         return leaderState;
@@ -178,7 +167,7 @@ public class BulkByScrollTask extends CancellableTask {
      * worker task.
      */
     public WorkerBulkByScrollTaskState getWorkerState() {
-        if (!isWorker()) {
+        if (isWorker() == false) {
             throw new IllegalStateException("This task is not set to be a worker");
         }
         return workerState;
@@ -195,11 +184,6 @@ public class BulkByScrollTask extends CancellableTask {
         if (isWorker()) {
             workerState.handleCancel();
         }
-    }
-
-    @Override
-    public boolean shouldCancelChildrenOnCancellation() {
-        return true;
     }
 
     /**
@@ -383,11 +367,10 @@ public class BulkByScrollTask extends CancellableTask {
             FIELDS_SET.add(SLICES_FIELD);
         }
 
-        @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Tuple<Long, Long>, Void> RETRIES_PARSER = new ConstructingObjectParser<>(
             "bulk_by_scroll_task_status_retries",
             true,
-            a -> new Tuple(a[0], a[1])
+            a -> new Tuple<>(((Long) a[0]), (Long) a[1])
         );
         static {
             RETRIES_PARSER.declareLong(constructorArg(), new ParseField(RETRIES_BULK_FIELD));
@@ -831,8 +814,8 @@ public class BulkByScrollTask extends CancellableTask {
             return
                 Objects.equals(sliceId, other.sliceId) &&
                     total == other.total &&
-                    (!includeUpdated || updated == other.updated) &&
-                    (!includeCreated || created == other.created) &&
+                    (includeUpdated == false || updated == other.updated) &&
+                    (includeCreated == false || created == other.created) &&
                     deleted == other.deleted &&
                     batches == other.batches &&
                     versionConflicts == other.versionConflicts &&

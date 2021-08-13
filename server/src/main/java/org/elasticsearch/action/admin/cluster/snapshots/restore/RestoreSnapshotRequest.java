@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
@@ -22,7 +11,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,6 +42,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private String[] featureStates = Strings.EMPTY_ARRAY;
     private String renamePattern;
     private String renameReplacement;
     private boolean waitForCompletion;
@@ -62,11 +52,13 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
+    // This field does not get serialised (except toString for debugging purpose) because it is always set locally by authz
+    private boolean skipOperatorOnlyState = false;
+
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
 
-    public RestoreSnapshotRequest() {
-    }
+    public RestoreSnapshotRequest() {}
 
     /**
      * Constructs a new put repository request with the provided repository and snapshot names.
@@ -85,6 +77,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         repository = in.readString();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        featureStates = in.readStringArray();
         renamePattern = in.readOptionalString();
         renameReplacement = in.readOptionalString();
         waitForCompletion = in.readBoolean();
@@ -103,6 +96,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeString(repository);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
+        out.writeStringArray(featureStates);
         out.writeOptionalString(renamePattern);
         out.writeOptionalString(renameReplacement);
         out.writeBoolean(waitForCompletion);
@@ -128,6 +122,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is missing", validationException);
+        }
+        if (featureStates == null) {
+            validationException = addValidationError("featureStates is missing", validationException);
         }
         if (indexSettings == null) {
             validationException = addValidationError("indexSettings are missing", validationException);
@@ -448,6 +445,37 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         return snapshotUuid;
     }
 
+    public boolean skipOperatorOnlyState() {
+        return skipOperatorOnlyState;
+    }
+
+    public void skipOperatorOnlyState(boolean skipOperatorOnlyState) {
+        this.skipOperatorOnlyState = skipOperatorOnlyState;
+    }
+
+    /**
+     * @return Which feature states should be included in the snapshot
+     */
+    @Nullable
+    public String[] featureStates() {
+        return featureStates;
+    }
+
+    /**
+     * @param featureStates The feature states to be included in the snapshot
+     */
+    public RestoreSnapshotRequest featureStates(String[] featureStates) {
+        this.featureStates = featureStates;
+        return this;
+    }
+
+    /**
+     * @param featureStates The feature states to be included in the snapshot
+     */
+    public RestoreSnapshotRequest featureStates(List<String> featureStates) {
+        return featureStates(featureStates.toArray(Strings.EMPTY_ARRAY));
+    }
+
     /**
      * Parses restore definition
      *
@@ -465,6 +493,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                     indices((ArrayList<String>) entry.getValue());
                 } else {
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
+                }
+            } else if (name.equals("feature_states")) {
+                if (entry.getValue() instanceof List) {
+                    featureStates((List<String>) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed feature_states section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
                 partial(nodeBooleanValue(entry.getValue(), "partial"));
@@ -485,18 +519,18 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                     throw new IllegalArgumentException("malformed rename_replacement");
                 }
             } else if (name.equals("index_settings")) {
-                if (!(entry.getValue() instanceof Map)) {
+                if ((entry.getValue() instanceof Map) == false) {
                     throw new IllegalArgumentException("malformed index_settings section");
                 }
                 indexSettings((Map<String, Object>) entry.getValue());
             } else if (name.equals("ignore_index_settings")) {
-                    if (entry.getValue() instanceof String) {
-                        ignoreIndexSettings(Strings.splitStringByCommaToArray((String) entry.getValue()));
-                    } else if (entry.getValue() instanceof List) {
-                        ignoreIndexSettings((List<String>) entry.getValue());
-                    } else {
-                        throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
-                    }
+                if (entry.getValue() instanceof String) {
+                    ignoreIndexSettings(Strings.splitStringByCommaToArray((String) entry.getValue()));
+                } else if (entry.getValue() instanceof List) {
+                    ignoreIndexSettings((List<String>) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
+                }
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -510,6 +544,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        toXContentFragment(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    private void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("indices");
         for (String index : indices) {
             builder.value(index);
@@ -523,6 +563,13 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         if (renameReplacement != null) {
             builder.field("rename_replacement", renameReplacement);
+        }
+        if (featureStates != null && featureStates.length > 0) {
+            builder.startArray("feature_states");
+            for (String plugin : featureStates) {
+                builder.value(plugin);
+            }
+            builder.endArray();
         }
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
@@ -539,8 +586,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             builder.value(ignoreIndexSetting);
         }
         builder.endArray();
-        builder.endObject();
-        return builder;
     }
 
     @Override
@@ -553,32 +598,53 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RestoreSnapshotRequest that = (RestoreSnapshotRequest) o;
-        return waitForCompletion == that.waitForCompletion &&
-            includeGlobalState == that.includeGlobalState &&
-            partial == that.partial &&
-            includeAliases == that.includeAliases &&
-            Objects.equals(snapshot, that.snapshot) &&
-            Objects.equals(repository, that.repository) &&
-            Arrays.equals(indices, that.indices) &&
-            Objects.equals(indicesOptions, that.indicesOptions) &&
-            Objects.equals(renamePattern, that.renamePattern) &&
-            Objects.equals(renameReplacement, that.renameReplacement) &&
-            Objects.equals(indexSettings, that.indexSettings) &&
-            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings) &&
-            Objects.equals(snapshotUuid, that.snapshotUuid);
+        return waitForCompletion == that.waitForCompletion
+            && includeGlobalState == that.includeGlobalState
+            && partial == that.partial
+            && includeAliases == that.includeAliases
+            && Objects.equals(snapshot, that.snapshot)
+            && Objects.equals(repository, that.repository)
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Arrays.equals(featureStates, that.featureStates)
+            && Objects.equals(renamePattern, that.renamePattern)
+            && Objects.equals(renameReplacement, that.renameReplacement)
+            && Objects.equals(indexSettings, that.indexSettings)
+            && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
+            && Objects.equals(snapshotUuid, that.snapshotUuid)
+            && skipOperatorOnlyState == that.skipOperatorOnlyState;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(snapshot, repository, indicesOptions, renamePattern, renameReplacement, waitForCompletion,
-            includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid);
+        int result = Objects.hash(
+            snapshot,
+            repository,
+            indicesOptions,
+            renamePattern,
+            renameReplacement,
+            waitForCompletion,
+            includeGlobalState,
+            partial,
+            includeAliases,
+            indexSettings,
+            snapshotUuid,
+            skipOperatorOnlyState
+        );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
+        result = 31 * result + Arrays.hashCode(featureStates);
         return result;
     }
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString((ToXContentObject) (builder, params) -> {
+            builder.startObject();
+            toXContentFragment(builder, params);
+            builder.field("skipOperatorOnlyState", skipOperatorOnlyState);
+            builder.endObject();
+            return builder;
+        });
     }
 }

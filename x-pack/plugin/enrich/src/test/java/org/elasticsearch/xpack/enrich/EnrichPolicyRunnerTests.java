@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
@@ -17,7 +18,6 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MapperService;
@@ -72,7 +73,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, GeoPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, GeoPlugin.class, LocalStateEnrich.class);
     }
 
     private static ThreadPool testThreadPool;

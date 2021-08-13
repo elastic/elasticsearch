@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plugin;
 
@@ -24,7 +25,7 @@ import java.util.List;
  */
 public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsRequest, SqlStatsResponse,
         SqlStatsRequest.NodeStatsRequest, SqlStatsResponse.NodeStatsResponse> {
-    
+
     // the plan executor holds the metrics
     private final PlanExecutor planExecutor;
 
@@ -57,7 +58,7 @@ public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsReques
     protected SqlStatsResponse.NodeStatsResponse nodeOperation(SqlStatsRequest.NodeStatsRequest request, Task task) {
         SqlStatsResponse.NodeStatsResponse statsResponse = new SqlStatsResponse.NodeStatsResponse(clusterService.localNode());
         statsResponse.setStats(planExecutor.metrics().stats());
-        
+
         return statsResponse;
     }
 }

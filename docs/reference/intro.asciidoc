@@ -95,7 +95,7 @@ metadata, the real power comes from being able to easily access the full suite
 of search capabilities built on the Apache Lucene search engine library.
 
 {es} provides a simple, coherent REST API for managing your cluster and indexing
-and searching your data.  For testing purposes, you can easily submit requests
+and searching your data. For testing purposes, you can easily submit requests
 directly from the command line or through the Developer Console in {kib}. From
 your applications, you can use the
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} client]
@@ -164,7 +164,7 @@ embroidery_ needles.
 ===== But wait, there’s more
 
 Want to automate the analysis of your time series data? You can use
-{ml-docs}/ml-overview.html[machine learning] features to create accurate
+{ml-docs}/ml-ad-overview.html[machine learning] features to create accurate
 baselines of normal behavior in your data and identify anomalous patterns. With
 machine learning, you can detect:
 
@@ -261,6 +261,6 @@ secondary clusters are read-only followers.
 As with any enterprise system, you need tools to secure, manage, and
 monitor your {es} clusters. Security, monitoring, and administrative features
 that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{kib}]
-as a control center for managing a cluster. Features like <<rollup-overview,
+as a control center for managing a cluster. Features like <<xpack-rollup,
 data rollups>> and <<index-lifecycle-management, index lifecycle management>>
 help you intelligently manage your data over time.

@@ -1,35 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TermVectorsResponse {
     private final String index;
@@ -127,7 +117,7 @@ public class TermVectorsResponse {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (!(obj instanceof TermVectorsResponse)) return false;
+        if ((obj instanceof TermVectorsResponse) == false) return false;
         TermVectorsResponse other = (TermVectorsResponse) obj;
         return index.equals(other.index)
             && Objects.equals(id, other.id)
@@ -203,7 +193,7 @@ public class TermVectorsResponse {
         @Override
         public boolean equals(Object obj) {
             if (this == obj) return true;
-            if (!(obj instanceof TermVector)) return false;
+            if ((obj instanceof TermVector) == false) return false;
             TermVector other = (TermVector) obj;
             return fieldName.equals(other.fieldName)
                 && Objects.equals(fieldStatistics, other.fieldStatistics)
@@ -267,7 +257,7 @@ public class TermVectorsResponse {
             @Override
             public boolean equals(Object obj) {
                 if (this == obj) return true;
-                if (!(obj instanceof FieldStatistics)) return false;
+                if ((obj instanceof FieldStatistics) == false) return false;
                 FieldStatistics other = (FieldStatistics) obj;
                 return docCount == other.docCount
                     && sumDocFreq == other.sumDocFreq
@@ -374,7 +364,7 @@ public class TermVectorsResponse {
             @Override
             public boolean equals(Object obj) {
                 if (this == obj) return true;
-                if (!(obj instanceof Term)) return false;
+                if ((obj instanceof Term) == false) return false;
                 Term other = (Term) obj;
                 return term.equals(other.term)
                     && termFreq == other.termFreq
@@ -456,7 +446,7 @@ public class TermVectorsResponse {
             @Override
             public boolean equals(Object obj) {
                 if (this == obj) return true;
-                if (!(obj instanceof Token)) return false;
+                if ((obj instanceof Token) == false) return false;
                 Token other = (Token) obj;
                 return Objects.equals(startOffset, other.startOffset)
                     && Objects.equals(endOffset,other.endOffset)

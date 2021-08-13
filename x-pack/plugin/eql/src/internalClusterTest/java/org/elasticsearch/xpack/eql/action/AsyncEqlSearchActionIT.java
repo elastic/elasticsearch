@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.action;
@@ -14,12 +15,15 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -31,12 +35,13 @@ import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
-import org.elasticsearch.xpack.eql.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.eql.plugin.EqlAsyncGetResultAction;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.junit.After;
 
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -284,8 +289,10 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             if (doc.isExists()) {
                 String value = doc.getSource().get("result").toString();
                 try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
-                    try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
-                        in.setVersion(Version.readVersion(in));
+                    final Version version = Version.readVersion(buf);
+                    final InputStream compressedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(buf);
+                    try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(compressedIn), registry)) {
+                        in.setVersion(version);
                         return new StoredAsyncResponse<>(EqlSearchResponse::new, in);
                     }
                 }
@@ -342,9 +349,6 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(FakePainlessScriptPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), FakePainlessScriptPlugin.class);
     }
-
 }

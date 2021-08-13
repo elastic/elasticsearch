@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.fs;
@@ -56,14 +45,27 @@ public class FsRepository extends BlobStoreRepository {
 
     public static final String TYPE = "fs";
 
-    public static final Setting<String> LOCATION_SETTING =
-        new Setting<>("location", "", Function.identity(), Property.NodeScope);
-    public static final Setting<String> REPOSITORIES_LOCATION_SETTING =
-        new Setting<>("repositories.fs.location", LOCATION_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size",
-            new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
-    public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING = Setting.byteSizeSetting("repositories.fs.chunk_size",
-        new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
+    public static final Setting<String> LOCATION_SETTING = new Setting<>("location", "", Function.identity(), Property.NodeScope);
+    public static final Setting<String> REPOSITORIES_LOCATION_SETTING = new Setting<>(
+        "repositories.fs.location",
+        LOCATION_SETTING,
+        Function.identity(),
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+        "chunk_size",
+        new ByteSizeValue(Long.MAX_VALUE),
+        new ByteSizeValue(5),
+        new ByteSizeValue(Long.MAX_VALUE),
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+        "repositories.fs.chunk_size",
+        new ByteSizeValue(Long.MAX_VALUE),
+        new ByteSizeValue(5),
+        new ByteSizeValue(Long.MAX_VALUE),
+        Property.NodeScope
+    );
     private final Environment environment;
 
     private final ByteSizeValue chunkSize;
@@ -71,28 +73,46 @@ public class FsRepository extends BlobStoreRepository {
     /**
      * Constructs a shared file system repository.
      */
-    public FsRepository(RepositoryMetadata metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
-                        ClusterService clusterService, BigArrays bigArrays, RecoverySettings recoverySettings) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.cleanPath());
+    public FsRepository(
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings
+    ) {
+        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
-            logger.warn("the repository location is missing, it should point to a shared file system location"
-                + " that is available on all master and data nodes");
+            logger.warn(
+                "the repository location is missing, it should point to a shared file system location"
+                    + " that is available on all master and data nodes"
+            );
             throw new RepositoryException(metadata.name(), "missing location");
         }
         Path locationFile = environment.resolveRepoFile(location);
         if (locationFile == null) {
             if (environment.repoFiles().length > 0) {
-                logger.warn("The specified location [{}] doesn't start with any "
-                    + "repository paths specified by the path.repo setting: [{}] ", location, environment.repoFiles());
-                throw new RepositoryException(metadata.name(), "location [" + location
-                    + "] doesn't match any of the locations specified by path.repo");
+                logger.warn(
+                    "The specified location [{}] doesn't start with any " + "repository paths specified by the path.repo setting: [{}] ",
+                    location,
+                    environment.repoFiles()
+                );
+                throw new RepositoryException(
+                    metadata.name(),
+                    "location [" + location + "] doesn't match any of the locations specified by path.repo"
+                );
             } else {
-                logger.warn("The specified location [{}] should start with a repository path specified by"
-                    + " the path.repo setting, but the path.repo setting was not set on this node", location);
-                throw new RepositoryException(metadata.name(), "location [" + location
-                    + "] doesn't match any of the locations specified by path.repo because this setting is empty");
+                logger.warn(
+                    "The specified location [{}] should start with a repository path specified by"
+                        + " the path.repo setting, but the path.repo setting was not set on this node",
+                    location
+                );
+                throw new RepositoryException(
+                    metadata.name(),
+                    "location [" + location + "] doesn't match any of the locations specified by path.repo because this setting is empty"
+                );
             }
         }
 
@@ -113,5 +133,12 @@ public class FsRepository extends BlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    @Override
+    public boolean hasAtomicOverwrites() {
+        // We overwrite a file by deleting the old file and then renaming the new file into place, which is not atomic.
+        // Also on Windows the overwrite may fail if the file is opened for reading at the time.
+        return false;
     }
 }

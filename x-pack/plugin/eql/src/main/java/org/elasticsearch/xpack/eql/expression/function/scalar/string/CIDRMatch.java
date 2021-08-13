@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -9,7 +10,6 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -28,6 +28,8 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatchFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.fromIndex;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isIPAndExact;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
@@ -59,23 +61,23 @@ public class CIDRMatch extends ScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isIPAndExact(input, sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isIPAndExact(input, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
         int index = 1;
         for (Expression addr : addresses) {
-            resolution = isFoldable(addr, sourceText(), ParamOrdinal.fromIndex(index));
+            resolution = isFoldable(addr, sourceText(), fromIndex(index));
             if (resolution.unresolved()) {
                 break;
             }
 
-            resolution = isStringAndExact(addr, sourceText(), ParamOrdinal.fromIndex(index));
+            resolution = isStringAndExact(addr, sourceText(), fromIndex(index));
             if (resolution.unresolved()) {
                 break;
             }
@@ -134,9 +136,6 @@ public class CIDRMatch extends ScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
-        }
         return new CIDRMatch(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
 }

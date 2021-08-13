@@ -1,741 +1,513 @@
+[chapter]
 [[getting-started]]
-= Getting started with {es}
+= Quick start
 
-[partintro]
---
-Ready to take {es} for a test drive and see for yourself how you can use the
-REST APIs to store, search, and analyze data?
+This guide helps beginners learn how to:
 
-Follow this getting started tutorial to:
-
-. Get an {es} cluster up and running
-. Index some sample documents
-. Search for documents using the {es} query language
-. Analyze the results using bucket and metrics aggregations
-
-
-Need more context?
-
-Check out the <<elasticsearch-intro,
-{es} Introduction>> to learn the lingo and understand the basics of
-how {es} works. If you're already familiar with {es} and want to see how it works
-with the rest of the stack, you might want to jump to the
-{stack-gs}/get-started-elastic-stack.html[Elastic Stack
-Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
-{beats}, and {ls}.
-
-TIP: The fastest way to get started with {es} is to
-{ess-trial}[start a free 14-day
-trial of {ess}] in the cloud.
---
-
-[[getting-started-install]]
-== Get {es} up and running
-
-To take {es} for a test drive, you can create a 
-{ess-trial}[hosted deployment]  on 
-the {ess} or set up a multi-node {es} cluster on your own
-Linux, macOS, or Windows machine.
+* Install and run {es} in a test environment
+* Add data to {es}
+* Search and sort data
+* Extract fields from unstructured content during a search
 
 [discrete]
-[[run-elasticsearch-hosted]]
-=== Run {es} on Elastic Cloud
+[[run-elasticsearch]]
+=== Step 1. Run {es}
 
-When you create a deployment on the {es} Service, the service provisions
-a three-node {es} cluster along with Kibana and APM.
+The simplest way to set up {es} is to create a managed deployment with {ess} on
+{ecloud}. If you prefer to manage your own test environment, you can install and
+run {es} using Docker.
 
-To create a deployment:
-
-. Sign up for a {ess-trial}[free trial] 
-and verify your email address.
-. Set a password for your account.
-. Click **Create Deployment**.
-
-Once you've created a deployment, you're ready to <<getting-started-index>>.
+include::{es-repo-dir}/tab-widgets/code.asciidoc[]
+include::{es-repo-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
 
 [discrete]
-[[run-elasticsearch-local]]
-=== Run {es} locally on Linux, macOS, or Windows
+[[send-requests-to-elasticsearch]]
+=== Step 2. Send requests to {es}
 
-When you create a deployment on the {ess}, a master node and
-two data nodes are provisioned automatically. By installing from the tar or zip 
-archive, you can start multiple instances of {es} locally to see how a multi-node 
-cluster behaves.
+You send data and other requests to {es} using REST APIs. This lets you interact
+with {es} using any client that sends HTTP requests, such as
+https://curl.se[curl]. You can also use {kib}'s console to send requests to
+{es}.
 
-To run a three-node {es} cluster locally:
-
-. Download the {es} archive for your OS:
-+
-Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz[elasticsearch-{version}-linux-x86_64.tar.gz]
-+
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
---------------------------------------------------
-// NOTCONSOLE
-+
-macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz[elasticsearch-{version}-darwin-x86_64.tar.gz]
-+
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
---------------------------------------------------
-// NOTCONSOLE
-+
-Windows:
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip[elasticsearch-{version}-windows-x86_64.zip]
-
-. Extract the archive:
-+
-Linux:
-+
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-tar -xvf elasticsearch-{version}-linux-x86_64.tar.gz
---------------------------------------------------
-+
-macOS:
-+
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-tar -xvf elasticsearch-{version}-darwin-x86_64.tar.gz
---------------------------------------------------
-+
-Windows PowerShell:
-+
-["source","powershell",subs="attributes,callouts"]
---------------------------------------------------
-Expand-Archive elasticsearch-{version}-windows-x86_64.zip
---------------------------------------------------
-
-. Start {es} from the `bin` directory:
-+
-Linux and macOS:
-+
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-cd elasticsearch-{version}/bin
-./elasticsearch
---------------------------------------------------
-+
-Windows:
-+
-["source","powershell",subs="attributes,callouts"]
---------------------------------------------------
-cd elasticsearch-{version}\bin
-.\elasticsearch.bat
---------------------------------------------------
-+
-You now have a single-node {es} cluster up and running!
-
-. Start two more instances of {es} so you can see how a typical multi-node
-cluster behaves. You need to specify unique data and log paths
-for each node.
-+
-Linux and macOS:
-+
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-./elasticsearch -Epath.data=data2 -Epath.logs=log2
-./elasticsearch -Epath.data=data3 -Epath.logs=log3
---------------------------------------------------
-+
-Windows:
-+
-["source","powershell",subs="attributes,callouts"]
---------------------------------------------------
-.\elasticsearch.bat -E path.data=data2 -E path.logs=log2
-.\elasticsearch.bat -E path.data=data3 -E path.logs=log3
---------------------------------------------------
-+
-The additional nodes are assigned unique IDs. Because you're running all three
-nodes locally, they automatically join the cluster with the first node.
-
-. Use the cat health API to verify that your three-node cluster is up running.
-The cat APIs return information about your cluster and indices in a
-format that's easier to read than raw JSON.
-+
-You can interact directly with your cluster by submitting HTTP requests to
-the {es} REST API. If you have Kibana installed and running, you can also
-open Kibana and submit requests through the Dev Console.
-+
-TIP: You'll want to check out the
-https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
-clients] when you're ready to start using {es} in your own applications.
-+
-[source,console]
---------------------------------------------------
-GET /_cat/health?v
---------------------------------------------------
-+
-The response should indicate that the status of the `elasticsearch` cluster
-is `green` and it has three nodes:
-+
-[source,txt]
---------------------------------------------------
-epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
-1565052807 00:53:27  elasticsearch green           3         3      6   3    0    0        0             0                  -                100.0%
---------------------------------------------------
-// TESTRESPONSE[s/1565052807 00:53:27  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
-// TESTRESPONSE[s/3         3      6   3/\\d+         \\d+      \\d+   \\d+/]
-// TESTRESPONSE[s/0             0                  -/0             \\d+                  (-|\\d+(\.\\d+)?(micros|ms|s))/]
-// TESTRESPONSE[non_json]
-+
-NOTE: The cluster status will remain yellow if you are only running a single
-instance of {es}. A single node cluster is fully functional, but data
-cannot be replicated to another node to provide resiliency. Replica shards must
-be available for the cluster status to be green. If the cluster status is red,
-some data is unavailable.
+include::{es-repo-dir}/tab-widgets/api-call-widget.asciidoc[]
 
 [discrete]
-[[gs-curl]]
-=== Talking to {es} with cURL commands
+[[add-data]]
+=== Step 3. Add data
 
-Most of the examples in this guide enable you to copy the appropriate cURL
-command and submit the request to your local {es} instance from the command line.
+You add data to {es} as JSON objects called documents. {es} stores these
+documents in searchable indices.
 
-A request to Elasticsearch consists of the same parts as any HTTP request:
+For time series data, such as logs and metrics, you typically add documents to a
+data stream made up of multiple auto-generated backing indices.
 
-[source,sh]
---------------------------------------------------
-curl -X<VERB> '<PROTOCOL>://<HOST>:<PORT>/<PATH>?<QUERY_STRING>' -d '<BODY>'
---------------------------------------------------
-// NOTCONSOLE
-
-This example uses the following variables:
-
-`<VERB>`:: The appropriate HTTP method or verb. For example, `GET`, `POST`,
-`PUT`, `HEAD`, or `DELETE`.
-`<PROTOCOL>`:: Either `http` or `https`. Use the latter if you have an HTTPS
-proxy in front of {es} or you use {es} {security-features} to encrypt HTTP
-communications.
-`<HOST>`:: The hostname of any node in your {es} cluster. Alternatively, use
-+localhost+ for a node on your local machine.
-`<PORT>`:: The port running the {es} HTTP service, which defaults to `9200`.
-`<PATH>`:: The API endpoint, which can contain multiple components, such as
-`_cluster/stats` or `_nodes/stats/jvm`.
-`<QUERY_STRING>`:: Any optional query-string parameters. For example, `?pretty`
-will _pretty-print_  the JSON response to make it easier to read.
-`<BODY>`:: A JSON-encoded request body (if necessary).
-
-If the {es} {security-features} are enabled, you must also provide a valid user
-name (and password) that has authority to run the API. For example, use the
-`-u` or `--u` cURL command parameter. For details about which security
-privileges are required to run each API, see <<rest-apis>>.
-
-{es} responds to each API request with an HTTP status code like `200 OK`. With
-the exception of `HEAD` requests, it also returns a JSON-encoded response body. 
+A data stream requires an index template that matches its name. {es} uses this
+template to configure the stream's backing indices. Documents sent to a data
+stream must have a `@timestamp` field.
 
 [discrete]
-[[gs-other-install]]
-=== Other installation options
+[[add-single-document]]
+==== Add a single document
 
-Installing {es} from an archive file enables you to easily install and run
-multiple instances locally so you can try things out. To run a single instance,
-you can  run {es} in a Docker container, install {es} using the DEB or RPM
-packages on Linux, install using Homebrew on macOS, or install using the MSI
-package installer on Windows. See <<install-elasticsearch>> for more information.
-
-[[getting-started-index]]
-== Index some documents
-
-Once you have a cluster up and running, you're ready to index some data.
-There are a variety of ingest options for {es}, but in the end they all
-do the same thing: put JSON documents into an {es} index.
-
-You can do this directly with a simple PUT request that specifies
-the index you want to add the document, a unique document ID, and one or more
-`"field": "value"` pairs in the request body:
+Submit the following indexing request to add a single log entry to the
+`logs-my_app-default` data stream. Since `logs-my_app-default` doesn't exist, the
+request automatically creates it using the built-in `logs-*-*` index template.
 
 [source,console]
---------------------------------------------------
-PUT /customer/_doc/1
+----
+POST logs-my_app-default/_doc
 {
-  "name": "John Doe"
-}
---------------------------------------------------
-
-This request automatically creates the `customer` index if it doesn't already
-exist, adds a new document that has an ID of `1`, and stores and
-indexes the `name` field.
-
-Since this is a new document, the response shows that the result of the
-operation was that version 1 of the document was created:
-
-[source,console-result]
---------------------------------------------------
-{
-  "_index" : "customer",
-  "_id" : "1",
-  "_version" : 1,
-  "result" : "created",
-  "_shards" : {
-    "total" : 2,
-    "successful" : 2,
-    "failed" : 0
-  },
-  "_seq_no" : 26,
-  "_primary_term" : 4
-}
---------------------------------------------------
-// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/]
-// TESTRESPONSE[s/"successful" : \d+/"successful" : $body._shards.successful/]
-// TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
-
-
-The new document is available immediately from any node in the cluster.
-You can retrieve it with a GET request that specifies its document ID:
-
-[source,console]
---------------------------------------------------
-GET /customer/_doc/1
---------------------------------------------------
-// TEST[continued]
-
-The response indicates that a document with the specified ID was found
-and shows the original source fields that were indexed.
-
-[source,console-result]
---------------------------------------------------
-{
-  "_index" : "customer",
-  "_id" : "1",
-  "_version" : 1,
-  "_seq_no" : 26,
-  "_primary_term" : 4,
-  "found" : true,
-  "_source" : {
-    "name": "John Doe"
+  "@timestamp": "2099-05-06T16:21:15.000Z",
+  "event": {
+    "original": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736"
   }
 }
---------------------------------------------------
-// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ ]
-// TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
+----
+// TEST[s/_doc/_doc?refresh=wait_for/]
 
-[discrete]
-[[getting-started-batch-processing]]
-=== Indexing documents in bulk
+The response includes metadata that {es} generates for the document:
 
-If you have a lot of documents to index, you can submit them in batches with
-the {ref}/docs-bulk.html[bulk API]. Using bulk to batch document
-operations is significantly faster than submitting requests individually as it minimizes network roundtrips. 
-
-The optimal batch size depends on a number of factors: the document size and complexity, the indexing and search load, and the resources available to your cluster. A good place to start is with batches of 1,000 to 5,000 documents
-and a total payload between 5MB and 15MB. From there, you can experiment
-to find the sweet spot.
-
-To get some data into {es} that you can start searching and analyzing:
-
-. Download the https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[`accounts.json`] sample data set. The documents in this randomly-generated data set represent user accounts with the following information:
-+
-[source,js]
---------------------------------------------------
-{
-  "account_number": 0,
-  "balance": 16623,
-  "firstname": "Bradshaw",
-  "lastname": "Mckenzie",
-  "age": 29,
-  "gender": "F",
-  "address": "244 Columbus Place",
-  "employer": "Euron",
-  "email": "bradshawmckenzie@euron.com",
-  "city": "Hobucken",
-  "state": "CO"
-}
---------------------------------------------------
-// NOTCONSOLE
-
-. Index the account data into the `bank` index with the following `_bulk` request:
-+
-[source,sh]
---------------------------------------------------
-curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_bulk?pretty&refresh" --data-binary "@accounts.json"
-curl "localhost:9200/_cat/indices?v"
---------------------------------------------------
-// NOTCONSOLE
-+
-////
-This replicates the above in a document-testing friendly way but isn't visible
-in the docs:
-+
-[source,console]
---------------------------------------------------
-GET /_cat/indices?v
---------------------------------------------------
-// TEST[setup:bank]
-////
-+
-The response indicates that 1,000 documents were indexed successfully.
-+
-[source,txt]
---------------------------------------------------
-health status index uuid                   pri rep docs.count docs.deleted store.size pri.store.size
-yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    128.6kb        128.6kb
---------------------------------------------------
-// TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
-// TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ non_json]
-
-[[getting-started-search]]
-== Start searching
-
-Once you have ingested some data into an {es} index, you can search it
-by sending requests to the `_search` endpoint. To access the full suite of
-search capabilities, you use the {es} Query DSL to specify the
-search criteria in the request body. You specify the name of the index you 
-want to search in the request URI.
-
-For example, the following request retrieves all documents in the `bank`
-index sorted by account number:
-
-[source,console]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": { "match_all": {} },
-  "sort": [
-    { "account_number": "asc" }
-  ]
-}
---------------------------------------------------
-// TEST[continued]
-
-By default, the `hits` section of the response includes the first 10 documents
-that match the search criteria:
+* The backing `_index` that contains the document. {es} automatically generates
+  the names of backing indices.
+* A unique `_id` for the document within the index.
 
 [source,console-result]
---------------------------------------------------
+----
 {
-  "took" : 63,
-  "timed_out" : false,
-  "_shards" : {
-    "total" : 5,
-    "successful" : 5,
-    "skipped" : 0,
-    "failed" : 0
+  "_index": ".ds-logs-my_app-default-2099-05-06-000001",
+  "_id": "gl5MJXMBMk1dGnErnBW8",
+  "_version": 1,
+  "result": "created",
+  "_shards": {
+    "total": 2,
+    "successful": 1,
+    "failed": 0
   },
-  "hits" : {
-    "total" : {
-        "value": 1000,
-        "relation": "eq"
+  "_seq_no": 0,
+  "_primary_term": 1
+}
+----
+// TESTRESPONSE[s/"_index": ".ds-logs-my_app-default-2099-05-06-000001"/"_index": $body._index/]
+// TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body._id/]
+
+[discrete]
+[[add-multiple-documents]]
+==== Add multiple documents
+
+Use the `_bulk` endpoint to add multiple documents in one request. Bulk data
+must be newline-delimited JSON (NDJSON). Each line must end in a newline
+character (`\n`), including the last line.
+
+[source,console]
+----
+PUT logs-my_app-default/_bulk
+{ "create": { } }
+{ "@timestamp": "2099-05-07T16:24:32.000Z", "event": { "original": "192.0.2.242 - - [07/May/2020:16:24:32 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0" } }
+{ "create": { } }
+{ "@timestamp": "2099-05-08T16:25:42.000Z", "event": { "original": "192.0.2.255 - - [08/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638" } }
+----
+// TEST[continued]
+// TEST[s/_bulk/_bulk?refresh=wait_for/]
+
+[discrete]
+[[qs-search-data]]
+=== Step 4. Search data
+
+Indexed documents are available for search in near real-time. The following
+search matches all log entries in `logs-my_app-default` and sorts them by
+`@timestamp` in descending order.
+
+[source,console]
+----
+GET logs-my_app-default/_search
+{
+  "query": {
+    "match_all": { }
+  },
+  "sort": [
+    {
+      "@timestamp": "desc"
+    }
+  ]
+}
+----
+// TEST[continued]
+
+By default, the `hits` section of the response includes up to the first 10
+documents that match the search. The `_source` of each hit contains the original
+JSON object submitted during indexing.
+
+[source,console-result]
+----
+{
+  "took": 2,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 3,
+      "relation": "eq"
     },
-    "max_score" : null,
-    "hits" : [ {
-      "_index" : "bank",
-      "_id" : "0",
-      "sort": [0],
-      "_score" : null,
-      "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
-    }, {
-      "_index" : "bank",
-      "_id" : "1",
-      "sort": [1],
-      "_score" : null,
-      "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
-    }, ...
+    "max_score": null,
+    "hits": [
+      {
+        "_index": ".ds-logs-my_app-default-2099-05-06-000001",
+        "_id": "PdjWongB9KPnaVm2IyaL",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2099-05-08T16:25:42.000Z",
+          "event": {
+            "original": "192.0.2.255 - - [08/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638"
+          }
+        },
+        "sort": [
+          4081940742000
+        ]
+      },
+      ...
     ]
   }
 }
---------------------------------------------------
-// TESTRESPONSE[s/"took" : 63/"took" : $body.took/]
-// TESTRESPONSE[s/\.\.\./$body.hits.hits.2, $body.hits.hits.3, $body.hits.hits.4, $body.hits.hits.5, $body.hits.hits.6, $body.hits.hits.7, $body.hits.hits.8, $body.hits.hits.9/]
+----
+// TESTRESPONSE[s/"took": 2/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".ds-logs-my_app-default-2099-05-06-000001"/"_index": $body.hits.hits.0._index/]
+// TESTRESPONSE[s/"_id": "PdjWongB9KPnaVm2IyaL"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/\.\.\./$body.hits.hits.1,$body.hits.hits.2/]
 
-The response also provides the following information about the search request:
+[discrete]
+[[get-specific-fields]]
+==== Get specific fields
 
-* `took` – how long it took {es} to run the query, in milliseconds
-* `timed_out` – whether or not the search request timed out
-* `_shards` – how many shards were searched and a breakdown of how many shards
-succeeded, failed, or were skipped. 
-* `max_score` – the score of the most relevant document found
-* `hits.total.value` - how many matching documents were found
-* `hits.sort` - the document's sort position (when not sorting by relevance score)
-* `hits._score` - the document's relevance score (not applicable when using `match_all`)
-
-Each search request is self-contained: {es} does not maintain any
-state information across requests. To page through the search hits, specify
-the `from` and `size` parameters in your request. 
-
-For example, the following request gets hits 10 through 19:
+Parsing the entire `_source` is unwieldy for large documents. To exclude it from
+the response, set the `_source` parameter to `false`. Instead, use the `fields`
+parameter to retrieve the fields you want.
 
 [source,console]
---------------------------------------------------
-GET /bank/_search
+----
+GET logs-my_app-default/_search
 {
-  "query": { "match_all": {} },
-  "sort": [
-    { "account_number": "asc" }
+  "query": {
+    "match_all": { }
+  },
+  "fields": [
+    "@timestamp"
   ],
-  "from": 10,
-  "size": 10
-}
---------------------------------------------------
-// TEST[continued]
-
-Now that you've seen how to submit a basic search request, you can start to
-construct queries that are a bit more interesting than `match_all`.
-
-To search for specific terms within a field, you can use a `match` query. 
-For example, the following request searches the `address` field to find 
-customers whose addresses contain `mill` or `lane`:
-
-[source,console]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": { "match": { "address": "mill lane" } }
-}
---------------------------------------------------
-// TEST[continued]
-
-To perform a phrase search rather than matching individual terms, you use
-`match_phrase` instead of `match`. For example, the following request only 
-matches addresses that contain the phrase `mill lane`: 
-
-[source,console]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": { "match_phrase": { "address": "mill lane" } }
-}
---------------------------------------------------
-// TEST[continued]
-
-To construct more complex queries, you can use a `bool` query to combine
-multiple query criteria. You can designate criteria as required (must match), 
-desirable (should match), or undesirable (must not match).
-
-For example, the following request searches the `bank` index for accounts that
-belong to customers who are 40 years old, but excludes anyone who lives in
-Idaho (ID):
-
-[source,console]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": {
-    "bool": {
-      "must": [
-        { "match": { "age": "40" } }
-      ],
-      "must_not": [
-        { "match": { "state": "ID" } }
-      ]
+  "_source": false,
+  "sort": [
+    {
+      "@timestamp": "desc"
     }
-  }
+  ]
 }
---------------------------------------------------
+----
 // TEST[continued]
+// TEST[s/_search/_search?filter_path=hits.hits&size=1/]
 
-Each `must`, `should`, and `must_not` element in a Boolean query is referred
-to as a query clause. How well a document meets the criteria in each `must` or
-`should` clause contributes to the document's _relevance score_. The higher the
-score, the better the document matches your search criteria. By default, {es}
-returns documents ranked by these relevance scores. 
-
-The criteria in a `must_not` clause is treated as a _filter_. It affects whether
-or not the document is included in the results, but does not contribute to
-how documents are scored. You can also explicitly specify arbitrary filters to
-include or exclude documents based on structured data. 
-
-For example, the following request uses a range filter to limit the results to
-accounts with a balance between $20,000 and $30,000 (inclusive). 
-
-[source,console]
---------------------------------------------------
-GET /bank/_search
-{
-  "query": {
-    "bool": {
-      "must": { "match_all": {} },
-      "filter": {
-        "range": {
-          "balance": {
-            "gte": 20000,
-            "lte": 30000
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[continued]
-
-[[getting-started-aggregations]]
-== Analyze results with aggregations
-
-{es} aggregations enable you to get meta-information about your search results
-and answer questions like, "How many account holders are in Texas?" or 
-"What's the average balance of accounts in Tennessee?" You can search 
-documents, filter hits, and use aggregations to analyze the results all in one
-request. 
-
-For example, the following request uses a `terms` aggregation to group
-all of the accounts in the `bank` index by state, and returns the ten states
-with the most accounts in descending order:
-
-[source,console]
---------------------------------------------------
-GET /bank/_search
-{
-  "size": 0,
-  "aggs": {
-    "group_by_state": {
-      "terms": {
-        "field": "state.keyword"
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[continued]
-
-The `buckets` in the response are the values of the `state` field. The 
-`doc_count` shows the number of accounts in each state. For example, you
-can see that there are 27 accounts in `ID` (Idaho). Because the request
-set `size=0`, the response only contains the aggregation results.
+The response contains each hit's `fields` values as a flat array.
 
 [source,console-result]
---------------------------------------------------
+----
 {
-  "took": 29,
-  "timed_out": false,
-  "_shards": {
-    "total": 5,
-    "successful": 5,
-    "skipped" : 0,
-    "failed": 0
+  ...
+  "hits": {
+    ...
+    "hits": [
+      {
+        "_index": ".ds-logs-my_app-default-2099-05-06-000001",
+        "_id": "PdjWongB9KPnaVm2IyaL",
+        "_score": null,
+        "fields": {
+          "@timestamp": [
+            "2099-05-08T16:25:42.000Z"
+          ]
+        },
+        "sort": [
+          4081940742000
+        ]
+      },
+      ...
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/"_index": ".ds-logs-my_app-default-2099-05-06-000001"/"_index": $body.hits.hits.0._index/]
+// TESTRESPONSE[s/"_id": "PdjWongB9KPnaVm2IyaL"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/4081940742000\n        \]\n      \},\n/4081940742000\]}/]
+
+[discrete]
+[[search-date-range]]
+==== Search a date range
+
+To search across a specific time or IP range, use a `range` query.
+
+[source,console]
+----
+GET logs-my_app-default/_search
+{
+  "query": {
+    "range": {
+      "@timestamp": {
+        "gte": "2099-05-05",
+        "lt": "2099-05-08"
+      }
+    }
   },
-  "hits" : {
-     "total" : {
-        "value": 1000,
-        "relation": "eq"
-     },
-    "max_score" : null,
-    "hits" : [ ]
+  "fields": [
+    "@timestamp"
+  ],
+  "_source": false,
+  "sort": [
+    {
+      "@timestamp": "desc"
+    }
+  ]
+}
+----
+// TEST[continued]
+
+You can use date math to define relative time ranges. The following query
+searches for data from the past day, which won't match any log entries in
+`logs-my_app-default`.
+
+[source,console]
+----
+GET logs-my_app-default/_search
+{
+  "query": {
+    "range": {
+      "@timestamp": {
+        "gte": "now-1d/d",
+        "lt": "now/d"
+      }
+    }
   },
+  "fields": [
+    "@timestamp"
+  ],
+  "_source": false,
+  "sort": [
+    {
+      "@timestamp": "desc"
+    }
+  ]
+}
+----
+// TEST[continued]
+
+[discrete]
+[[extract-fields]]
+==== Extract fields from unstructured content
+
+You can extract <<runtime-search-request,runtime fields>> from unstructured
+content, such as log messages, during a search.
+
+Use the following search to extract the `source.ip` runtime field from
+`event.original`. To include it in the response, add `source.ip` to the `fields`
+parameter.
+
+[source,console]
+----
+GET logs-my_app-default/_search
+{
+  "runtime_mappings": {
+    "source.ip": {
+      "type": "ip",
+      "script": """
+        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "event.original" ].value)?.sourceip;
+        if (sourceip != null) emit(sourceip);
+      """
+    }
+  },
+  "query": {
+    "range": {
+      "@timestamp": {
+        "gte": "2099-05-05",
+        "lt": "2099-05-08"
+      }
+    }
+  },
+  "fields": [
+    "@timestamp",
+    "source.ip"
+  ],
+  "_source": false,
+  "sort": [
+    {
+      "@timestamp": "desc"
+    }
+  ]
+}
+----
+// TEST[continued]
+
+[discrete]
+[[combine-queries]]
+==== Combine queries
+
+You can use the `bool` query to combine multiple queries. The following search
+combines two `range` queries: one on `@timestamp` and one on the `source.ip`
+runtime field.
+
+[source,console]
+----
+GET logs-my_app-default/_search
+{
+  "runtime_mappings": {
+    "source.ip": {
+      "type": "ip",
+      "script": """
+        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "event.original" ].value)?.sourceip;
+        if (sourceip != null) emit(sourceip);
+      """
+    }
+  },
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "range": {
+            "@timestamp": {
+              "gte": "2099-05-05",
+              "lt": "2099-05-08"
+            }
+          }
+        },
+        {
+          "range": {
+            "source.ip": {
+              "gte": "192.0.2.0",
+              "lte": "192.0.2.240"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "fields": [
+    "@timestamp",
+    "source.ip"
+  ],
+  "_source": false,
+  "sort": [
+    {
+      "@timestamp": "desc"
+    }
+  ]
+}
+----
+// TEST[continued]
+
+[discrete]
+[[aggregate-data]]
+==== Aggregate data
+
+Use aggregations to summarize data as metrics, statistics, or other analytics.
+
+The following search uses an aggregation to calculate the
+`average_response_size` using the `http.response.body.bytes` runtime field. The
+aggregation only runs on documents that match the `query`.
+
+[source,console]
+----
+GET logs-my_app-default/_search
+{
+  "runtime_mappings": {
+    "http.response.body.bytes": {
+      "type": "long",
+      "script": """
+        String bytes=grok('%{COMMONAPACHELOG}').extract(doc[ "event.original" ].value)?.bytes;
+        if (bytes != null) emit(Integer.parseInt(bytes));
+      """
+    }
+  },
+  "aggs": {
+    "average_response_size":{
+      "avg": {
+        "field": "http.response.body.bytes"
+      }
+    }
+  },
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "range": {
+            "@timestamp": {
+              "gte": "2099-05-05",
+              "lt": "2099-05-08"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "fields": [
+    "@timestamp",
+    "http.response.body.bytes"
+  ],
+  "_source": false,
+  "sort": [
+    {
+      "@timestamp": "desc"
+    }
+  ]
+}
+----
+// TEST[continued]
+
+The response’s `aggregations` object contains aggregation results.
+
+[source,console-result]
+----
+{
+  ...
   "aggregations" : {
-    "group_by_state" : {
-      "doc_count_error_upper_bound": 20,
-      "sum_other_doc_count": 770,
-      "buckets" : [ {
-        "key" : "ID",
-        "doc_count" : 27
-      }, {
-        "key" : "TX",
-        "doc_count" : 27
-      }, {
-        "key" : "AL",
-        "doc_count" : 25
-      }, {
-        "key" : "MD",
-        "doc_count" : 25
-      }, {
-        "key" : "TN",
-        "doc_count" : 23
-      }, {
-        "key" : "MA",
-        "doc_count" : 21
-      }, {
-        "key" : "NC",
-        "doc_count" : 21
-      }, {
-        "key" : "ND",
-        "doc_count" : 21
-      }, {
-        "key" : "ME",
-        "doc_count" : 20
-      }, {
-        "key" : "MO",
-        "doc_count" : 20
-      } ]
+    "average_response_size" : {
+      "value" : 12368.0
     }
   }
 }
---------------------------------------------------
-// TESTRESPONSE[s/"took": 29/"took": $body.took/]
+----
+// TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits",/]
 
+[discrete]
+[[explore-more-search-options]]
+==== Explore more search options
 
-You can combine aggregations to build more complex summaries of your data. For 
-example, the following request nests an `avg` aggregation within the previous
-`group_by_state` aggregation to calculate the average account balances for
-each state.
+To keep exploring, index more data to your data stream and check out <<common-search-options>>.
+
+[discrete]
+[[clean-up]]
+=== Step 5. Clean up
+
+When you're done, delete your test data stream and its backing indices.
 
 [source,console]
---------------------------------------------------
-GET /bank/_search
-{
-  "size": 0,
-  "aggs": {
-    "group_by_state": {
-      "terms": {
-        "field": "state.keyword"
-      },
-      "aggs": {
-        "average_balance": {
-          "avg": {
-            "field": "balance"
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
+----
+DELETE _data_stream/logs-my_app-default
+----
 // TEST[continued]
 
-Instead of sorting the results by count, you could sort using the result of
-the nested aggregation by specifying the order within the `terms` aggregation:
+You can also delete your test deployment.
 
-[source,console]
---------------------------------------------------
-GET /bank/_search
-{
-  "size": 0,
-  "aggs": {
-    "group_by_state": {
-      "terms": {
-        "field": "state.keyword",
-        "order": {
-          "average_balance": "desc"
-        }
-      },
-      "aggs": {
-        "average_balance": {
-          "avg": {
-            "field": "balance"
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[continued]
+include::{es-repo-dir}/tab-widgets/quick-start-cleanup-widget.asciidoc[]
 
-In addition to basic bucketing and metrics aggregations like these, {es}
-provides specialized aggregations for operating on multiple fields and 
-analyzing particular types of data such as dates, IP addresses, and geo 
-data. You can also feed the results of individual aggregations into pipeline
-aggregations for further analysis.
+[discrete]
+[[whats-next]]
+=== What's next?
 
-The core analysis capabilities provided by aggregations enable advanced
-features such as using machine learning to detect anomalies. 
+* Get the most out of your time series data by setting up data tiers and
+{ilm-init}. See <<use-elasticsearch-for-time-series-data>>.
 
-[[getting-started-next-steps]]
-== Where to go from here
+* Use {fleet} and {agent} to collect logs and metrics directly from your data
+sources and send them to {es}. See the
+{fleet-guide}/fleet-quick-start.html[{fleet} quick start guide].
 
-Now that you've set up a cluster, indexed some documents, and run some
-searches and aggregations, you might want to:
-
-* {stack-gs}/get-started-elastic-stack.html#install-kibana[Dive in to the Elastic
-Stack Tutorial] to install Kibana, Logstash, and Beats and
-set up a basic system monitoring solution.
-
-* {kibana-ref}/add-sample-data.html[Load one of the sample data sets into Kibana]
-to see how you can use {es} and Kibana together to visualize your data.
-
-* Try out one of the Elastic search solutions:
-** https://swiftype.com/documentation/site-search/crawler-quick-start[Site Search]
-** https://swiftype.com/documentation/app-search/getting-started[App Search]
-** https://swiftype.com/documentation/enterprise-search/getting-started[Enterprise Search]
+* Use {kib} to explore, visualize, and manage your {es} data. See the
+{kibana-ref}/get-started.html[{kib} quick start guide].

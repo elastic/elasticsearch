@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.termvectors;
@@ -38,6 +27,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -176,7 +166,7 @@ public class TermVectorsUnitTests extends ESTestCase {
 
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
-        TermVectorsRequest.parseRequest(tvr, parser);
+        TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
 
         Set<String> fields = tvr.selectedFields();
         assertThat(fields.contains("a"), equalTo(true));
@@ -197,7 +187,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         inputBytes = new BytesArray(" {\"offsets\":false, \"positions\":false, \"payloads\":true}");
         tvr = new TermVectorsRequest(null, null);
         parser = createParser(JsonXContent.jsonXContent, inputBytes);
-        TermVectorsRequest.parseRequest(tvr, parser);
+        TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
         additionalFields = "";
         RestTermVectorsAction.addFieldStringsFromParameter(tvr, additionalFields);
         assertThat(tvr.selectedFields(), equalTo(null));
@@ -214,7 +204,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         boolean threwException = false;
         try {
             XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
-            TermVectorsRequest.parseRequest(tvr, parser);
+            TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
         } catch (Exception e) {
             threwException = true;
         }

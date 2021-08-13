@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.http;
 
@@ -30,12 +19,13 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -59,13 +49,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
@@ -75,10 +64,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(ScriptedBlockPlugin.class);
-        plugins.addAll(super.nodePlugins());
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), ScriptedBlockPlugin.class);
     }
 
     public void testAutomaticCancellationDuringQueryPhase() throws Exception {
@@ -106,28 +92,15 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> error = new AtomicReference<>();
-        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                error.set(exception);
-                latch.countDown();
-            }
-        });
+        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
         cancellable.cancel();
         ensureSearchTaskIsCancelled(searchAction, nodeIdToName::get);
 
         disableBlocks(plugins);
-        latch.await();
-        assertThat(error.get(), instanceOf(CancellationException.class));
+        expectThrows(CancellationException.class, future::actionGet);
     }
 
     public void testAutomaticCancellationDuringFetchPhase() throws Exception {
@@ -155,28 +128,15 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> error = new AtomicReference<>();
-        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                error.set(exception);
-                latch.countDown();
-            }
-        });
+        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
         cancellable.cancel();
         ensureSearchTaskIsCancelled(searchAction, nodeIdToName::get);
 
         disableBlocks(plugins);
-        latch.await();
-        assertThat(error.get(), instanceOf(CancellationException.class));
+        expectThrows(CancellationException.class, future::actionGet);
     }
 
     private static Map<String, String> readNodesInfo() {

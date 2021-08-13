@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 
 import org.apache.tools.ant.filters.FixCrLfFilter
-import org.elasticsearch.gradle.ConcatFilesTask
-import org.elasticsearch.gradle.DependenciesInfoTask
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.NoticeTask
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.ConcatFilesTask
+import org.elasticsearch.gradle.internal.DependenciesInfoTask
+import org.elasticsearch.gradle.internal.NoticeTask
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -32,6 +21,11 @@ import java.nio.file.Path
 plugins {
   id 'base'
 }
+
+configurations {
+  log4jConfig
+}
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -41,12 +35,15 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
   files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
   headerLine = "name,version,url,license,sourceURL"
-  target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
-
+  target = new File(providers.systemProperty('csv')
+                      .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
+                      .forUseAtConfigurationTime()
+                      .get()
+  )
   // explicitly add our dependency on the JDK
   String jdkVersion = VersionProperties.versions.get('bundled_jdk').split('@')[0]
   String jdkMajorVersion = jdkVersion.split('[+.]')[0]
-  String sourceUrl = "https://hg.openjdk.java.net/jdk-updates/jdk${jdkMajorVersion}u/archive/jdk-${jdkVersion}.tar.gz"
+  String sourceUrl = "https://github.com/openjdk/jdk${jdkMajorVersion}u/archive/refs/tags/jdk-${jdkVersion}.tar.gz"
   additionalLines << "OpenJDK,${jdkVersion},https://openjdk.java.net/,GPL-2.0-with-classpath-exception,${sourceUrl}".toString()
 
   // Explicitly add the dependency on the RHEL UBI Docker base image
@@ -55,7 +52,7 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
     '8',
     'https://catalog.redhat.com/software/containers/ubi8/ubi-minimal/5c359a62bed8bd75a2c3fba8',
     'Custom;https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf',
-    'https://oss-dependencies.elastic.co/redhat/ubi/ubi-minimal-8-source.tar.gz'
+    'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/8/ubi-minimal-8-source.tar.gz'
   ]
   additionalLines << rhelUbiFields.join(',')
 }
@@ -69,10 +66,6 @@ def buildServerNoticeTaskProvider = tasks.register("buildServerNotice", NoticeTa
 
 // other distributions include notices from modules as well, which are added below later
 def buildDefaultNoticeTaskProvider = tasks.register("buildDefaultNotice", NoticeTask) {
-  licensesDir new File(project(':distribution').projectDir, 'licenses')
-}
-
-def buildOssNoticeTaskProvider = tasks.register("buildOssNotice", NoticeTask) {
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
 
@@ -99,13 +92,8 @@ String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
 String externalTestOutputs = 'build/outputs/external-test'
 
-def processOssOutputsTaskProvider = tasks.register("processOssOutputs", Sync) {
-  into ossOutputs
-}
-
 def processDefaultOutputsTaskProvider = tasks.register("processDefaultOutputs", Sync) {
   into defaultOutputs
-  from processOssOutputsTaskProvider
 }
 
 def processSystemdOutputsTaskProvider = tasks.register("processSystemdOutputs", Sync) {
@@ -122,35 +110,21 @@ def processTransportOutputsTaskProvider = tasks.register("processTransportOutput
   into transportOutputs
 }
 
-// these are dummy tasks that can be used to depend on the relevant sub output dir
-def buildOssModulesTaskProvider = tasks.register("buildOssModules") {
-  dependsOn processOssOutputsTaskProvider
-  outputs.dir "${ossOutputs}/modules"
+def defaultModulesFiles = fileTree("${defaultOutputs}/modules") {
+  builtBy processDefaultOutputsTaskProvider
 }
-tasks.register("buildOssBin") {
-  dependsOn "processOssOutputs"
-  outputs.dir "${ossOutputs}/bin"
+
+def defaultBinFiles = fileTree("${defaultOutputs}/bin") {
+  builtBy processDefaultOutputsTaskProvider
 }
-tasks.register("buildOssConfig") {
-  dependsOn "processOssOutputs"
-  outputs.dir "${ossOutputs}/config"
+def defaultConfigFiles = fileTree("${defaultOutputs}/config") {
+  builtBy processDefaultOutputsTaskProvider
 }
-def buildDefaultModulesTaskProvider = tasks.register("buildDefaultModules") {
-  dependsOn processDefaultOutputsTaskProvider
-  outputs.dir "${defaultOutputs}/modules"
+
+def systemdModuleFiles = fileTree("${systemdOutputs}/modules") {
+  builtBy processSystemdOutputsTaskProvider
 }
-tasks.register("buildDefaultBin") {
-  dependsOn processDefaultOutputsTaskProvider
-  outputs.dir "${defaultOutputs}/bin"
-}
-def buildDefaultConfigTaskProvider = tasks.register("buildDefaultConfig") {
-  dependsOn processOssOutputsTaskProvider
-  outputs.dir "${defaultOutputs}/config"
-}
-def buildSystemdModuleTaskProvider = tasks.register("buildSystemdModule") {
-  dependsOn "processSystemdOutputs"
-  outputs.dir "${systemdOutputs}/modules"
-}
+
 def buildTransportModulesTaskProvider = tasks.register("buildTransportModules") {
   dependsOn processTransportOutputsTaskProvider
   outputs.dir "${transportOutputs}/modules"
@@ -179,7 +153,7 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
       exclude 'config/log4j2.properties'
 
       eachFile { details ->
-        String name = module.plugins.hasPlugin('elasticsearch.esplugin') ? module.esplugin.name : module.es_meta_plugin.name
+        String name = module.plugins.hasPlugin('elasticsearch.internal-es-plugin') ? module.esplugin.name : module.es_meta_plugin.name
         // Copy all non config/bin files
         // Note these might be unde a subdirectory in the case of a meta plugin
         if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
@@ -194,57 +168,36 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
   }
 }
 
-// log4j config could be contained in modules, so we must join it together using these tasks
-def buildOssLog4jConfigTaskProvider = tasks.register("buildOssLog4jConfig") {
-  dependsOn "processOssOutputs"
-  ext.contents = []
-  ext.log4jFile = file("${ossOutputs}/log4j2.properties")
-  outputs.file log4jFile
-}
 def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfig") {
-  dependsOn processDefaultOutputsTaskProvider
-  ext.contents = []
-  ext.log4jFile = file("${defaultOutputs}/log4j2.properties")
-  outputs.file log4jFile
-}
+  mustRunAfter('processDefaultOutputs')
 
-Closure writeLog4jProperties = {
-  String mainLog4jProperties = file('src/config/log4j2.properties').getText('UTF-8')
-  it.log4jFile.setText(mainLog4jProperties, 'UTF-8')
-  for (String moduleLog4jProperties : it.contents.reverse()) {
-    it.log4jFile.append(moduleLog4jProperties, 'UTF-8')
+  def outputFile = file("${defaultOutputs}/log4j2.properties")
+  def inputFiles = fileTree('src/config').matching { include 'log4j2.properties' }
+  project(':modules').subprojects.each {
+    inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
   }
-}
-buildOssLog4jConfigTaskProvider.configure {
-  doLast(writeLog4jProperties)
-}
-
-buildDefaultLog4jConfigTaskProvider.configure {
-  doLast(writeLog4jProperties)
-}
-
-// copy log4j2.properties from modules that have it
-void copyLog4jProperties(TaskProvider buildTask, Project module) {
-  buildTask.configure {
-    Configuration moduleConfig = moduleZip(module)
-
-    dependsOn moduleConfig
-    doFirst {
-      FileTree tree = zipTree(moduleConfig.singleFile)
-      FileTree filtered = tree.matching {
-        include 'config/log4j2.properties'
-        include '*/config/log4j2.properties' // could be in a bundled plugin
-      }
-      if (filtered.isEmpty() == false) {
-        contents.add('\n\n' + filtered.singleFile.getText('UTF-8'))
-      }
-    }
+  project(':x-pack:plugin').subprojects.each {
+    inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
   }
 
+  inputs.files(inputFiles)
+  outputs.file outputFile
+
+  doLast {
+    outputFile.setText('', 'UTF-8')
+    inputFiles.files.eachWithIndex(
+      { f, i ->
+        if (i != 0) {
+          outputFile.append('\n\n', 'UTF-8')
+        }
+        outputFile.append(f.text, 'UTF-8')
+      }
+    )
+  }
 }
 
 ext.restTestExpansions = [
-  'expected.modules.count': 0,
+  'expected.modules.count': 0
 ]
 // we create the buildOssModules task above but fill it here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
@@ -259,19 +212,12 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
       licensesDir licenses
       source module.file('src/main/java')
     }
-    buildOssNoticeTaskProvider.configure {
-      licensesDir licenses
-      source module.file('src/main/java')
-    }
   }
 
-  copyModule(processOssOutputsTaskProvider, module)
+  copyModule(processDefaultOutputsTaskProvider, module)
   if (module.name.startsWith('transport-')) {
     copyModule(processTransportOutputsTaskProvider, module)
   }
-
-  copyLog4jProperties(buildOssLog4jConfigTaskProvider, module)
-  copyLog4jProperties(buildDefaultLog4jConfigTaskProvider, module)
 
   restTestExpansions['expected.modules.count'] += 1
 }
@@ -287,7 +233,6 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
     }
   }
   copyModule(processDefaultOutputsTaskProvider, xpackModule)
-  copyLog4jProperties(buildDefaultLog4jConfigTaskProvider, xpackModule)
 }
 
 copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
@@ -304,11 +249,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   // Setup all required JDKs
   project.jdks {
     ['darwin', 'windows', 'linux'].each { platform ->
-      (platform == 'linux' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+      (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
         "bundled_${platform}_${architecture}" {
           it.platform = platform
           it.version = VersionProperties.getBundledJdk(platform)
-          it.vendor = VersionProperties.bundledJdkVendor
+          it.vendor = (platform == 'darwin' && architecture == 'aarch64') ? 'azul' : VersionProperties.bundledJdkVendor
           it.architecture = architecture
         }
       }
@@ -320,7 +265,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -341,6 +286,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
+    libsGeoIpCli project(':distribution:tools:geoip-cli')
   }
 
   project.ext {
@@ -348,17 +294,20 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = { oss ->
+    libFiles = { testDistro ->
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
+        into('tools/geoip-cli') {
+          from(configurations.libsGeoIpCli)
+        }
         into('tools/plugin-cli') {
           from(configurations.libsPluginCli)
         }
         into('tools/keystore-cli') {
           from(configurations.libsKeystoreCli)
         }
-        if (oss == false) {
+        if (testDistro == false) {
           into('tools/security-cli') {
             from(configurations.libsSecurityCli)
           }
@@ -366,10 +315,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    modulesFiles = { oss, platform ->
+    modulesFiles = { platform ->
       copySpec {
         eachFile {
-          if (it.relativePath.segments[-2] == 'bin' || (platform == 'darwin-x86_64' && it.relativePath.segments[-2] == 'MacOS')) {
+          if (it.relativePath.segments[-2] == 'bin' || ((platform == 'darwin-x86_64' || platform == 'darwin-aarch64') && it.relativePath.segments[-2] == 'MacOS')) {
             // bin files, wherever they are within modules (eg platform specific) should be executable
             // and MacOS is an alternative to bin on macOS
             it.mode = 0755
@@ -377,24 +326,16 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             it.mode = 0644
           }
         }
-        def buildModules
-        if (oss) {
-          buildModules = buildOssModulesTaskProvider
-        } else {
-          buildModules = buildDefaultModulesTaskProvider
-        }
-        List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64']
+        List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
         if (platform != null) {
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
           excludePlatforms = []
         }
-        from(buildModules) {
+        from(defaultModulesFiles) {
           // geo registers the geo_shape mapper that is overridden by
           // the geo_shape mapper registered in the x-pack-spatial plugin
-          if (oss == false) {
-            exclude "**/geo/**"
-          }
+          exclude "**/geo/**"
 
           for (String excludePlatform : excludePlatforms) {
             exclude "**/platform/${excludePlatform}/**"
@@ -404,7 +345,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from(buildExternalTestModulesTaskProvider)
         }
         if (project.path.startsWith(':distribution:packages')) {
-          from(buildSystemdModuleTaskProvider)
+          from(systemdModuleFiles)
         }
       }
     }
@@ -413,25 +354,20 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       from buildTransportModulesTaskProvider
     }
 
-    configFiles = { distributionType, oss, jdk ->
+    configFiles = { distributionType, testDistro, jdk ->
       copySpec {
         with copySpec {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
+          filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
         }
-        if (oss) {
-          from project(':distribution').buildOssLog4jConfig
-          from project(':distribution').buildOssConfig
-        } else {
-          from project(':distribution').buildDefaultLog4jConfig
-          from project(':distribution').buildDefaultConfig
-        }
+        from buildDefaultLog4jConfigTaskProvider
+        from defaultConfigFiles
       }
     }
 
-    binFiles = { distributionType, oss, jdk ->
+    binFiles = { distributionType, testDistro, jdk ->
       copySpec {
         // non-windows files, for all distributions
         with copySpec {
@@ -439,7 +375,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
+          filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -447,7 +383,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
+            filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
           }
           with copySpec {
             from '../src/bin'
@@ -457,10 +393,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          if (oss) {
-            from project(':distribution').buildOssBin
-          } else {
-            from project(':distribution').buildDefaultBin
+          if(testDistro == false) {
+            from(defaultBinFiles)
           }
           if (distributionType != 'zip') {
             exclude '*.bat'
@@ -469,16 +403,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    noticeFile = { oss, jdk ->
+    noticeFile = { testDistro, jdk ->
       copySpec {
-        if (project.name == 'integ-test-zip') {
+        if (testDistro) {
           from buildServerNoticeTaskProvider
         } else {
-          if (oss && jdk) {
-            from buildOssNoticeTaskProvider
-          } else if (oss) {
-            from buildOssNoJdkNoticeTaskProvider
-          } else if (jdk) {
+         if (jdk) {
             from buildDefaultNoticeTaskProvider
           } else {
             from buildDefaultNoJdkNoticeTaskProvider
@@ -530,30 +460,23 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
  *  <dt>path.env</dt>
  *  <dd>The env file sourced before bin/elasticsearch to set environment
  *    variables. Think /etc/defaults/elasticsearch.</dd>
- *  <dt>heap.min and heap.max</dt>
- *  <dd>Default min and max heap</dd>
  *  <dt>scripts.footer</dt>
  *  <dd>Footer appended to control scripts embedded in the distribution that is
  *    (almost) entirely there for cosmetic reasons.</dd>
- *  <dt>stopping.timeout</dt>
- *  <dd>RPM's init script needs to wait for elasticsearch to stop before
- *    returning from stop and it needs a maximum time to wait. This is it. One
- *    day. DEB retries forever.</dd>
  * </dl>
  */
 subprojects {
-  ext.expansionsForDistribution = { distributionType, oss, jdk ->
-    final String defaultHeapSize = "1g"
+  ext.expansionsForDistribution = { distributionType, testDistro, jdk ->
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
     final String packagingPathLogs = "path.logs: ${pathLogs}"
     final String packagingLoggc = "${pathLogs}/gc.log"
 
     String licenseText
-    if (oss) {
-      licenseText = rootProject.file('licenses/APACHE-LICENSE-2.0.txt').getText('UTF-8')
+    if (testDistro) {
+      licenseText = rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     } else {
-      licenseText = rootProject.file('licenses/ELASTIC-LICENSE.txt').getText('UTF-8')
+      licenseText = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     }
     // license text needs to be indented with a single space
     licenseText = ' ' + licenseText.replace('\n', '\n ')
@@ -563,6 +486,7 @@ subprojects {
     Map<String, Object> expansions = [
       'project.name': project.name,
       'project.version': version,
+      'project.minor.version': "${VersionProperties.elasticsearchVersion.major}.${VersionProperties.elasticsearchVersion.minor}",
 
       'path.conf': [
         'deb': '/etc/elasticsearch',
@@ -597,9 +521,6 @@ subprojects {
         'def': 'logs/gc.log'
       ],
 
-      'heap.min': defaultHeapSize,
-      'heap.max': defaultHeapSize,
-
       'heap.dump.path': [
         'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
         'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
@@ -612,10 +533,6 @@ subprojects {
         'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
       ],
 
-      'stopping.timeout': [
-        'rpm': 86400,
-      ],
-
       'scripts.footer': [
         /* Debian needs exit 0 on these scripts so we add it here and preserve
           the pretty footer. */
@@ -624,7 +541,7 @@ subprojects {
       ],
 
       'es.distribution.flavor': [
-        'def': oss ? 'oss' : 'default'
+        'def': testDistro ? 'oss' : 'default'
       ],
 
       'es.distribution.type': [
@@ -639,7 +556,7 @@ subprojects {
       ],
 
       'license.name': [
-        'deb': oss ? 'ASL-2.0' : 'Elastic-License'
+        'deb': testDistro ? 'ASL-2.0' : 'Elastic-License'
       ],
 
       'license.text': [
@@ -647,7 +564,7 @@ subprojects {
       ],
     ]
     Map<String, String> result = [:]
-    expansions = expansions.each { key, value ->
+    expansions.each { key, value ->
       if (value instanceof Map) {
         // 'def' is for default but its three characters like 'rpm' and 'deb'
         value = value[distributionType] ?: value['def']
@@ -655,7 +572,8 @@ subprojects {
           return
         }
       }
-      result[key] = value
+      // expansions is String->Object but result is String->String, so we have to coerce the values
+      result[key] = value.toString()
     }
     return result
   }
@@ -673,19 +591,27 @@ subprojects {
   }
 }
 
-['archives:windows-zip', 'archives:oss-windows-zip',
- 'archives:darwin-tar', 'archives:oss-darwin-tar',
- 'archives:linux-aarch64-tar', 'archives:oss-linux-aarch64-tar',
- 'archives:linux-tar', 'archives:oss-linux-tar',
+['archives:windows-zip',
+ 'archives:darwin-tar',
+ 'archives:darwin-aarch64-tar',
+ 'archives:linux-aarch64-tar',
+ 'archives:linux-tar',
  'archives:integ-test-zip',
  'packages:rpm', 'packages:deb',
  'packages:aarch64-rpm', 'packages:aarch64-deb',
- 'packages:oss-rpm', 'packages:oss-deb',
- 'packages:aarch64-oss-rpm', 'packages:aarch64-oss-deb'
 ].forEach { subName ->
   Project subproject = project("${project.path}:${subName}")
   Configuration configuration = configurations.create(subproject.name)
   dependencies {
     "${configuration.name}" project(path: subproject.path, configuration:'default')
   }
+}
+
+// This artifact makes it possible for other projects to pull
+// in the final log4j2.properties configuration, as it appears in the
+// archive distribution.
+artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
+  type 'file'
+  name 'log4j2.properties'
+  builtBy 'buildDefaultLog4jConfig'
 }

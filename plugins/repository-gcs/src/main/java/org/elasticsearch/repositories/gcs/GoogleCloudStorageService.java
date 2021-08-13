@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.gcs;
@@ -23,6 +12,8 @@ import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.util.SecurityUtils;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
@@ -32,14 +23,22 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Maps;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URL;
+import java.security.KeyStore;
 import java.util.Map;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.emptyMap;
 
 public class GoogleCloudStorageService {
@@ -129,7 +128,13 @@ public class GoogleCloudStorageService {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
             // requires java.lang.RuntimePermission "setFactory"
             // Pin the TLS trust certificates.
-            builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
+            // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
+            // store format not compatible with FIPS mode.
+            final KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
+            try (InputStream keyStoreStream = GoogleUtils.class.getResourceAsStream("google.jks")) {
+                SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
+            }
+            builder.trustCertificates(certTrustStore);
             return builder.build();
         });
 
@@ -173,10 +178,37 @@ public class GoogleCloudStorageService {
         }
         if (Strings.hasLength(clientSettings.getProjectId())) {
             storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
+        } else {
+            String defaultProjectId = null;
+            try {
+                defaultProjectId = ServiceOptions.getDefaultProjectId();
+                if (defaultProjectId != null) {
+                    storageOptionsBuilder.setProjectId(defaultProjectId);
+                }
+            } catch (Exception e) {
+                logger.warn("failed to load default project id", e);
+            }
+            if (defaultProjectId == null) {
+                try {
+                    // fallback to manually load project ID here as the above ServiceOptions method has the metadata endpoint hardcoded,
+                    // which makes it impossible to test
+                    SocketAccess.doPrivilegedVoidIOException(() -> {
+                        final String projectId = getDefaultProjectId();
+                        if (projectId != null) {
+                            storageOptionsBuilder.setProjectId(projectId);
+                        }
+                    });
+                } catch (Exception e) {
+                    logger.warn("failed to load default project id fallback", e);
+                }
+            }
         }
         if (clientSettings.getCredential() == null) {
-            logger.warn("\"Application Default Credentials\" are not supported out of the box."
-                    + " Additional file system permissions have to be granted to the plugin.");
+            try {
+                storageOptionsBuilder.setCredentials(GoogleCredentials.getApplicationDefault());
+            } catch (Exception e) {
+                logger.warn("failed to load Application Default Credentials", e);
+            }
         } else {
             ServiceAccountCredentials serviceAccountCredentials = clientSettings.getCredential();
             // override token server URI
@@ -189,6 +221,30 @@ public class GoogleCloudStorageService {
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
         return storageOptionsBuilder.build();
+    }
+
+    /**
+     * This method imitates what MetadataConfig.getProjectId() does, but does not have the endpoint hardcoded.
+     */
+    @SuppressForbidden(reason = "ok to open connection here")
+    private static String getDefaultProjectId() throws IOException {
+        String metaHost = System.getenv("GCE_METADATA_HOST");
+        if (metaHost == null) {
+            metaHost = "metadata.google.internal";
+        }
+        URL url = new URL("http://" + metaHost + "/computeMetadata/v1/project/project-id");
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(5000);
+        connection.setRequestProperty("Metadata-Flavor", "Google");
+        try (InputStream input = connection.getInputStream()) {
+            if (connection.getResponseCode() == 200) {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, UTF_8))) {
+                    return reader.readLine();
+                }
+            }
+        }
+        return null;
     }
 
     /**

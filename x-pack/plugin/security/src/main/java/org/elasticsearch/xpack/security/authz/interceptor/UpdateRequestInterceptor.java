@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.interceptor;
 
@@ -12,6 +13,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+
+import java.util.Map;
 
 /**
  * A request interceptor that fails update request if field or document level security is enabled.
@@ -27,8 +31,9 @@ public class UpdateRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     }
 
     @Override
-    protected void disableFeatures(IndicesRequest updateRequest, boolean fieldLevelSecurityEnabled, boolean documentLevelSecurityEnabled,
-                                   ActionListener<Void> listener) {
+    void disableFeatures(IndicesRequest indicesRequest,
+                         Map<String, IndicesAccessControl.IndexAccessControl> indicesAccessControlByIndex,
+                         ActionListener<Void> listener) {
         listener.onFailure(new ElasticsearchSecurityException("Can't execute an update request if field or document level security " +
             "is enabled", RestStatus.BAD_REQUEST));
     }

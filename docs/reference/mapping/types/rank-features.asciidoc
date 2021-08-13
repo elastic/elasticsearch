@@ -20,6 +20,10 @@ PUT my-index-000001
     "properties": {
       "topics": {
         "type": "rank_features" <1>
+      },
+      "negative_reviews" : {
+        "type": "rank_features",
+        "positive_score_impact": false <2>
       }
     }
   }
@@ -27,9 +31,13 @@ PUT my-index-000001
 
 PUT my-index-000001/_doc/1
 {
-  "topics": { <2>
+  "topics": { <3>
     "politics": 20,
     "economics": 50.8
+  },
+  "negative_reviews": {
+    "1star": 10,
+    "2star": 100
   }
 }
 
@@ -38,21 +46,38 @@ PUT my-index-000001/_doc/2
   "topics": {
     "politics": 5.2,
     "sports": 80.1
+  },
+  "negative_reviews": {
+    "1star": 1,
+    "2star": 10
   }
 }
 
 GET my-index-000001/_search
 {
-  "query": {
+  "query": { <4>
     "rank_feature": {
       "field": "topics.politics"
+    }
+  }
+}
+
+GET my-index-000001/_search
+{
+  "query": { <5>
+    "rank_feature": {
+      "field": "negative_reviews.1star"
     }
   }
 }
 --------------------------------------------------
 
 <1> Rank features fields must use the `rank_features` field type
-<2> Rank features fields must be a hash with string keys and strictly positive numeric values
+<2> Rank features that correlate negatively with the score need to declare it
+<3> Rank features fields must be a hash with string keys and strictly positive numeric values
+<4> This query ranks documents by how much they are about the "politics" topic.
+<5> This query ranks documents inversely to the number of "1star" reviews they received.
+
 
 NOTE: `rank_features` fields only support single-valued features and strictly
 positive values. Multi-valued fields and zero or negative values will be rejected.
@@ -63,3 +88,8 @@ only be queried using <<query-dsl-rank-feature-query,`rank_feature`>> queries.
 NOTE: `rank_features` fields only preserve 9 significant bits for the
 precision, which translates to a relative error of about 0.4%.
 
+Rank features that correlate negatively with the score should set
+`positive_score_impact` to `false` (defaults to `true`). This will be used by
+the <<query-dsl-rank-feature-query,`rank_feature`>> query to modify the scoring formula
+in such a way that the score decreases with the value of the feature instead of
+increasing.

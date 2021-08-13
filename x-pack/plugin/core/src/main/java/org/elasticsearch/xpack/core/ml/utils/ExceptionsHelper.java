@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
@@ -9,8 +10,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -112,7 +114,36 @@ public class ExceptionsHelper {
         return requireNonNull(obj, paramName.getPreferredName());
     }
 
+    /**
+     * @see org.elasticsearch.ExceptionsHelper#unwrapCause(Throwable)
+     */
     public static Throwable unwrapCause(Throwable t) {
-       return org.elasticsearch.ExceptionsHelper.unwrapCause(t);
+        return org.elasticsearch.ExceptionsHelper.unwrapCause(t);
+    }
+
+    /**
+     * Unwrap the exception stack and return the most likely cause.
+     * This method has special handling for {@link SearchPhaseExecutionException}
+     * where it returns the cause of the first shard failure.
+     *
+     * @param t raw Throwable
+     * @return unwrapped throwable if possible
+     */
+    public static Throwable findSearchExceptionRootCause(Throwable t) {
+        // circuit breaking exceptions are at the bottom
+        Throwable unwrappedThrowable = unwrapCause(t);
+
+        if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
+            SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) unwrappedThrowable;
+            for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
+                Throwable unwrappedShardFailure = unwrapCause(shardFailure.getCause());
+
+                if (unwrappedShardFailure instanceof ElasticsearchException) {
+                    return unwrappedShardFailure;
+                }
+            }
+        }
+
+        return unwrappedThrowable;
     }
 }

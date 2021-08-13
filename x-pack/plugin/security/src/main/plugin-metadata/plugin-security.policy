@@ -1,8 +1,8 @@
 grant {
   permission java.lang.RuntimePermission "setFactory";
 
-  // needed because of problems in unbound LDAP library
-  permission java.util.PropertyPermission "*", "read,write";
+  // needed for SAML
+  permission java.util.PropertyPermission "org.apache.xml.security.ignoreLineBreaks", "read,write";
 
   // needed during initialization of OpenSAML library where xml security algorithms are registered
   // see https://github.com/apache/santuario-java/blob/e79f1fe4192de73a975bc7246aee58ed0703343d/src/main/java/org/apache/xml/security/utils/JavaUtils.java#L205-L220
@@ -31,4 +31,17 @@ grant {
   // needed for kerberos file permission tests to access user information
   permission java.lang.RuntimePermission "accessUserInformation";
   permission java.lang.RuntimePermission "getFileStoreAttributes";
+};
+
+grant codeBase "${codebase.netty-common}" {
+   // for reading the system-wide configuration for the backlog of established sockets
+   permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
+   // Netty sets custom classloader for some of its internal threads
+   permission java.lang.RuntimePermission "setContextClassLoader";
+};
+
+grant codeBase "${codebase.netty-transport}" {
+   // Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
+   // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
+   permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 };

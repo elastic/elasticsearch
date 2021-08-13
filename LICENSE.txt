@@ -1,10 +1,7 @@
-Source code in this repository is covered by one of three licenses: (i) the
-Apache License 2.0 (ii) an Apache License 2.0 compatible license (iii) the
-Elastic License. The default license throughout the repository is Apache License
-2.0 unless the header specifies another license. Elastic Licensed code is found
-only in the x-pack directory.
-
-The build produces two sets of binaries - one set that falls under the Elastic
-License and another set that falls under Apache License 2.0. The binaries that
-contain `-oss` in the artifact name are licensed under Apache License 2.0 and
-these binaries do not package any code from the x-pack directory.
+Source code in this repository is covered by (i) a dual license under the Server
+Side Public License, v 1 and the Elastic License 2.0 or (ii) an Apache License
+2.0 compatible license or (iii) solely under the Elastic License 2.0, in each
+case, as noted in the applicable header. The default throughout the repository
+is a dual license under the Server Side Public License, v 1 and the Elastic
+License 2.0, unless the header specifies another license. Code that is licensed
+solely under the Elastic License 2.0 is found only in the x-pack folder.

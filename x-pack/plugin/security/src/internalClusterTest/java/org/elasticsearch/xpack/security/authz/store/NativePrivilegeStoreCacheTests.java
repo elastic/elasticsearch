@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authz.store;
@@ -249,18 +250,17 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
             .addIndices(new String[] { "*" }, new String[] { "read" }, null, null, null, false)
             .get();
         assertTrue(putRoleResponse.isCreated());
-
+        final Hasher hasher = getFastStoredHashAlgoForTests();
         final PutUserResponse putUserResponse = new PutUserRequestBuilder(client)
             .username(testRoleCacheUser)
             .roles(testRole)
-            .password(new SecureString("password".toCharArray()),
-                Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")))
+            .password(new SecureString("longerpassword".toCharArray()), hasher)
             .get();
         assertTrue(putUserResponse.created());
 
         // The created user can access cluster health because its role grants access
         final Client testRoleCacheUserClient = client.filterWithHeader(singletonMap("Authorization",
-                "Basic " + Base64.getEncoder().encodeToString((testRoleCacheUser + ":password").getBytes(StandardCharsets.UTF_8))));
+            "Basic " + Base64.getEncoder().encodeToString((testRoleCacheUser + ":longerpassword").getBytes(StandardCharsets.UTF_8))));
         new ClusterHealthRequestBuilder(testRoleCacheUserClient, ClusterHealthAction.INSTANCE).get();
 
         // Directly deleted the role document

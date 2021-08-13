@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.TimeValue;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 
@@ -27,9 +29,10 @@ public class ReadOnlyStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         getClient().admin().indices().execute(AddIndexBlockAction.INSTANCE,
-            new AddIndexBlockRequest(WRITE, indexMetadata.getIndex().getName()).masterNodeTimeout(getMasterTimeout(currentState)),
+            new AddIndexBlockRequest(WRITE, indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE),
             ActionListener.wrap(response -> {
                 if (response.isAcknowledged() == false) {
                     throw new ElasticsearchException("read only add block index request failed to be acknowledged");

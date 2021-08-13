@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -23,13 +12,12 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -39,30 +27,29 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
-import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -72,10 +59,8 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -94,6 +79,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -122,7 +108,6 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
 
@@ -138,11 +123,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         ClusterService cs = getInstanceFromNode(ClusterService.class);
         final Index index = cs.state().metadata().index("test").getIndex();
-        Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
-        logger.info("--> paths: [{}]", (Object)shardPaths);
+        Path shardPath = env.availableShardPath(new ShardId(index, 0));
+        logger.info("--> path: [{}]", shardPath);
         // Should not be able to acquire the lock because it's already open
         try {
-            NodeEnvironment.acquireFSLockForPaths(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), shardPaths);
+            NodeEnvironment.acquireFSLockForPaths(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), shardPath);
             fail("should not have been able to acquire the lock");
         } catch (LockObtainFailedException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
@@ -150,16 +135,17 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // Test without the regular shard lock to assume we can acquire it
         // (worst case, meaning that the shard lock could be acquired and
         // we're green to delete the shard's directory)
-        ShardLock sLock = new DummyShardLock(new ShardId(index, 0));
-        try {
-            env.deleteShardDirectoryUnderLock(sLock, IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
-            fail("should not have been able to delete the directory");
-        } catch (LockObtainFailedException e) {
-            assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
-        }
+        final ShardLock sLock = new DummyShardLock(new ShardId(index, 0));
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
+
+        final LockObtainFailedException exception = expectThrows(LockObtainFailedException.class, () ->
+            env.deleteShardDirectoryUnderLock(sLock, indexSettings, indexPaths -> {
+                assert false : "should not be called " + indexPaths;
+            }));
+        assertThat(exception.getMessage(), exception.getMessage(), containsString("unable to acquire write.lock"));
     }
 
-    public void testDurableFlagHasEffect() throws Exception {
+    public void testDurableFlagHasEffect() {
         createIndex("test");
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
@@ -250,12 +236,16 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
         ensureGreen("test");
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
-        clusterInfoService.refresh();
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
         ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        Long test = clusterInfoService.getClusterInfo().getShardSize(state.getRoutingTable().index("test")
-            .getShards().get(0).primaryShard());
+        ShardRouting shardRouting = state.getRoutingTable().index("test").getShards().get(0).primaryShard();
+        Long test = clusterInfoService.getClusterInfo().getShardSize(shardRouting);
         assertNotNull(test);
         assertTrue(test > 0);
+
+        Optional<Long> dataSetSize = clusterInfoService.getClusterInfo().getShardDataSetSize(shardRouting.shardId());
+        assertTrue(dataSetSize.isPresent());
+        assertThat(dataSetSize.get(), greaterThan(0L));
     }
 
     public void testIndexCanChangeCustomDataPath() throws Exception {
@@ -554,71 +544,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
-    /** Check that the accounting breaker correctly matches the segments API for memory usage */
-    private void checkAccountingBreaker() {
-        CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class);
-        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        long usedMem = acctBreaker.getUsed();
-        assertThat(usedMem, greaterThan(0L));
-        NodesStatsResponse response = client().admin().cluster().prepareNodesStats().setIndices(true).setBreaker(true).get();
-        NodeStats stats = response.getNodes().get(0);
-        assertNotNull(stats);
-        SegmentsStats segmentsStats = stats.getIndices().getSegments();
-        CircuitBreakerStats breakerStats = stats.getBreaker().getStats(CircuitBreaker.ACCOUNTING);
-        assertEquals(usedMem, segmentsStats.getMemoryInBytes());
-        assertEquals(usedMem, breakerStats.getEstimated());
-    }
-
-    public void testCircuitBreakerIncrementedByIndexShard() throws Exception {
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("network.breaker.inflight_requests.overhead", 0.0)).get();
-
-        // Generate a couple of segments
-        client().prepareIndex("test").setId("1")
-            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).get();
-        // Use routing so 2 documents are guaranteed to be on the same shard
-        String routing = randomAlphaOfLength(5);
-        client().prepareIndex("test").setId("2")
-            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
-        client().prepareIndex("test").setId("3")
-            .setSource("{\"foo\":\"" + randomAlphaOfLength(100) + "\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
-
-        checkAccountingBreaker();
-        // Test that force merging causes the breaker to be correctly adjusted
-        logger.info("--> force merging to a single segment");
-        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).setFlush(randomBoolean()).get();
-        client().admin().indices().prepareRefresh().get();
-        checkAccountingBreaker();
-
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("indices.breaker.total.limit", "1kb")).get();
-
-        // Test that we're now above the parent limit due to the segments
-        Exception e = expectThrows(Exception.class,
-                () -> client().prepareSearch("test")
-                    .addAggregation(AggregationBuilders.terms("foo_terms").field("foo.keyword")).get());
-        logger.info("--> got an expected exception", e);
-        assertThat(e.getCause(), notNullValue());
-        assertThat(e.getCause().getMessage(), containsString("[parent] Data too large, data for [<agg [foo_terms]>]"));
-
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
-                        .putNull("indices.breaker.total.limit")
-                        .putNull("network.breaker.inflight_requests.overhead")).get();
-
-        // Test that deleting the index causes the breaker to correctly be decremented
-        logger.info("--> deleting index");
-        client().admin().indices().prepareDelete("test").get();
-
-        // Accounting breaker should now be 0
-        CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class);
-        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-        assertThat(acctBreaker.getUsed(), equalTo(0L));
-    }
-
     public static final IndexShard recoverShard(IndexShard newShard) throws IOException {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
@@ -652,7 +577,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 Arrays.asList(listeners),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
-                cbs);
+                cbs,
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {
@@ -728,7 +654,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             }
         }
         IndexShard shard = indexService.getShard(0);
-        try (Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, numOps - 1, true);
+        try (Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, numOps - 1, true, randomBoolean());
              Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()) {
             List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
             List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);

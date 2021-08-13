@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
@@ -22,7 +11,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,6 +23,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
@@ -81,7 +71,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             state == ShardRoutingState.RELOCATING : expectedShardSize + " state: " + state;
         assert expectedShardSize >= 0 || state != ShardRoutingState.INITIALIZING || state != ShardRoutingState.RELOCATING :
             expectedShardSize + " state: " + state;
-        assert !(state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) : "unassigned shard must be created with meta";
+        assert (state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) == false : "unassigned shard must be created with meta";
         assert (state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.INITIALIZING) == (recoverySource != null) :
             "recovery source only available on unassigned or initializing shard but was " + state;
         assert recoverySource == null || recoverySource == PeerRecoverySource.INSTANCE || primary :
@@ -438,7 +428,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      */
     public ShardRouting moveUnassignedFromPrimary() {
         assert state == ShardRoutingState.UNASSIGNED : "expected an unassigned shard " + this;
-        if (!primary) {
+        if (primary == false) {
             throw new IllegalShardRoutingStateException(this, "Not primary, can't move to replica");
         }
         return new ShardRouting(shardId, currentNodeId, relocatingNodeId, false, state, PeerRecoverySource.INSTANCE, unassignedInfo,
@@ -530,28 +520,13 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
     /** returns true if the current routing is identical to the other routing in all but meta fields, i.e., unassigned info */
     public boolean equalsIgnoringMetadata(ShardRouting other) {
-        if (primary != other.primary) {
-            return false;
-        }
-        if (shardId != null ? !shardId.equals(other.shardId) : other.shardId != null) {
-            return false;
-        }
-        if (currentNodeId != null ? !currentNodeId.equals(other.currentNodeId) : other.currentNodeId != null) {
-            return false;
-        }
-        if (relocatingNodeId != null ? !relocatingNodeId.equals(other.relocatingNodeId) : other.relocatingNodeId != null) {
-            return false;
-        }
-        if (allocationId != null ? !allocationId.equals(other.allocationId) : other.allocationId != null) {
-            return false;
-        }
-        if (state != other.state) {
-            return false;
-        }
-        if (recoverySource != null ? !recoverySource.equals(other.recoverySource) : other.recoverySource != null) {
-            return false;
-        }
-        return true;
+        return primary == other.primary
+            && Objects.equals(shardId, other.shardId)
+            && Objects.equals(currentNodeId, other.currentNodeId)
+            && Objects.equals(relocatingNodeId, other.relocatingNodeId)
+            && Objects.equals(allocationId, other.allocationId)
+            && state == other.state
+            && Objects.equals(recoverySource, other.recoverySource);
     }
 
     @Override
@@ -559,14 +534,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || !(o instanceof ShardRouting)) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
         ShardRouting that = (ShardRouting) o;
-        if (unassignedInfo != null ? !unassignedInfo.equals(that.unassignedInfo) : that.unassignedInfo != null) {
-            return false;
-        }
-        return equalsIgnoringMetadata(that);
+        return Objects.equals(unassignedInfo, that.unassignedInfo) && equalsIgnoringMetadata(that);
     }
 
     /**

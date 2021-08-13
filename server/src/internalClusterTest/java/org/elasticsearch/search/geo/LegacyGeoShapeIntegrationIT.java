@@ -1,30 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,6 +25,7 @@ import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -46,10 +37,16 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
 
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
     /**
      * Test that orientation parameter correctly persists across cluster restart
      */
     public void testOrientationPersistence() throws Exception {
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         String idxName = "orientation";
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties").startObject("location")
@@ -60,7 +57,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
                 .endObject().endObject());
 
         // create index
-        assertAcked(prepareCreate(idxName).setMapping(mapping));
+        assertAcked(prepareCreate(idxName).setMapping(mapping).setSettings(settings(version).build()));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties").startObject("location")
@@ -70,7 +67,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject());
 
-        assertAcked(prepareCreate(idxName+"2").setMapping(mapping));
+        assertAcked(prepareCreate(idxName+"2").setMapping(mapping).setSettings(settings(version).build()));
         ensureGreen(idxName, idxName+"2");
 
         internalCluster().fullRestart();
@@ -83,10 +80,10 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(fieldType, instanceOf(LegacyGeoShapeFieldMapper.GeoShapeFieldType.class));
 
         LegacyGeoShapeFieldMapper.GeoShapeFieldType gsfm = (LegacyGeoShapeFieldMapper.GeoShapeFieldType)fieldType;
-        ShapeBuilder.Orientation orientation = gsfm.orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+        Orientation orientation = gsfm.orientation();
+        assertThat(orientation, equalTo(Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.LEFT));
+        assertThat(orientation, equalTo(Orientation.CW));
 
         // right orientation test
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
@@ -96,9 +93,9 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
 
         gsfm = (LegacyGeoShapeFieldMapper.GeoShapeFieldType)fieldType;
         orientation = gsfm.orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.RIGHT));
+        assertThat(orientation, equalTo(Orientation.CCW));
     }
 
     /**
@@ -106,7 +103,8 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
      */
     public void testIgnoreMalformed() throws Exception {
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test")
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        assertAcked(prepareCreate("test").setSettings(settings(version).build())
             .setMapping("shape", "type=geo_shape,tree=quadtree,ignore_malformed=true").get());
         ensureGreen();
 
@@ -147,9 +145,9 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
             "    }\n" +
             "  }}";
 
-
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping).get());
+        assertAcked(prepareCreate("test").setSettings(settings(version).build()).setMapping(mapping).get());
         ensureGreen();
 
         String source = "{\n" +
@@ -173,7 +171,8 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
      */
     public void testLegacyCircle() throws Exception {
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test")
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        assertAcked(prepareCreate("test").setSettings(settings(version).build())
             .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
         ensureGreen();
 
@@ -192,9 +191,10 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
     }
 
     public void testDisallowExpensiveQueries() throws InterruptedException, IOException {
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         try {
             // create index
-            assertAcked(client().admin().indices().prepareCreate("test")
+            assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(version).build())
                     .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash").get());
             ensureGreen();
 

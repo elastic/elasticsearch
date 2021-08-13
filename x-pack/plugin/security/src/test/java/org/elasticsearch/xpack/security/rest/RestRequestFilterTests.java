@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest;
 
@@ -34,8 +35,10 @@ public class RestRequestFilterTests extends ESTestCase {
         Map<String, Object> map = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
+        @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
+        @SuppressWarnings("unchecked")
         Map<String, Object> second = (Map<String, Object>) root.get("second");
         assertNotNull(second);
         assertEquals("bar", second.get("foo"));
@@ -53,8 +56,10 @@ public class RestRequestFilterTests extends ESTestCase {
         Map<String, Object> map = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
+        @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
+        @SuppressWarnings("unchecked")
         Map<String, Object> second = (Map<String, Object>) root.get("second");
         assertNotNull(second);
         assertEquals("bar", second.get("foo"));
@@ -72,8 +77,10 @@ public class RestRequestFilterTests extends ESTestCase {
         Map<String, Object> map = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
+        @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
+        @SuppressWarnings("unchecked")
         Map<String, Object> second = (Map<String, Object>) root.get("second");
         assertNotNull(second);
         assertEquals("bar", second.get("foo"));

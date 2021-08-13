@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.cli;
 
@@ -21,10 +22,11 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -35,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
@@ -592,8 +593,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
      * @param prompt   whether to prompt the user or not
      * @return the {@link PrivateKey} that was read from the file
      */
-    private static PrivateKey readPrivateKey(String path, char[] password, Terminal terminal, boolean prompt)
-        throws Exception {
+    private static PrivateKey readPrivateKey(String path, char[] password, Terminal terminal, boolean prompt) throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
             return PemUtils.readPrivateKey(resolvePath(path), () -> {

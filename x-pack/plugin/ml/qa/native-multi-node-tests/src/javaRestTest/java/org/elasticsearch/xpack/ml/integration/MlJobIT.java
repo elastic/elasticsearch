@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,6 +46,10 @@ public class MlJobIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE = UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user",
             SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+    private static final RequestOptions POST_DATA = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> Collections.singletonList(
+            "Posting data directly to anomaly detection jobs is deprecated, "
+                + "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
 
     @Override
     protected Settings restClientSettings() {
@@ -125,8 +131,7 @@ public class MlJobIT extends ESRestTestCase {
         Map<String, Object> usage = entityAsMap(client().performRequest(new Request("GET", "_xpack/usage")));
         assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
         assertEquals(2, XContentMapValues.extractValue("ml.jobs.closed.count", usage));
-        Response openResponse = client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/job-1/_open"));
-        assertThat(entityAsMap(openResponse), hasEntry("opened", true));
+        openJob("job-1");
         usage = entityAsMap(client().performRequest(new Request("GET", "_xpack/usage")));
         assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
         assertEquals(1, XContentMapValues.extractValue("ml.jobs.closed.count", usage));
@@ -134,20 +139,16 @@ public class MlJobIT extends ESRestTestCase {
     }
 
     private Response createFarequoteJob(String jobId) throws IOException {
-        Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        request.setJsonEntity(
-                  "{\n"
-                + "    \"description\":\"Analysis of response time by airline\",\n"
-                + "    \"analysis_config\" : {\n"
-                + "        \"bucket_span\": \"3600s\",\n"
-                + "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
-                + "    },\n" + "    \"data_description\" : {\n"
-                + "        \"field_delimiter\":\",\",\n"
-                + "        \"time_field\":\"time\",\n"
-                + "        \"time_format\":\"yyyy-MM-dd HH:mm:ssX\"\n"
-                + "    }\n"
-                + "}");
-        return client().performRequest(request);
+        return putJob(jobId, "{\n"
+            + "    \"description\":\"Analysis of response time by airline\",\n"
+            + "    \"analysis_config\" : {\n"
+            + "        \"bucket_span\": \"3600s\",\n"
+            + "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
+            + "    },\n" + "    \"data_description\" : {\n"
+            + "        \"time_field\":\"time\",\n"
+            + "        \"time_format\":\"yyyy-MM-dd HH:mm:ssX\"\n"
+            + "    }\n"
+            + "}");
     }
 
     public void testCantCreateJobWithSameID() throws Exception {
@@ -159,13 +160,10 @@ public class MlJobIT extends ESRestTestCase {
                 "  \"results_index_name\" : \"%s\"}";
 
         String jobId = "cant-create-job-with-same-id-job";
-        Request createJob1 = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJob1.setJsonEntity(String.format(Locale.ROOT, jobTemplate, "index-1"));
-        client().performRequest(createJob1);
-
-        Request createJob2 = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJob2.setJsonEntity(String.format(Locale.ROOT, jobTemplate, "index-2"));
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createJob2));
+        putJob(jobId, String.format(Locale.ROOT, jobTemplate, "index-1"));
+        ResponseException e = expectThrows(ResponseException.class,
+            () -> putJob(jobId, String.format(Locale.ROOT, jobTemplate, "index-2"))
+        );
 
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString("The job cannot be created with the Id '" + jobId + "'. The Id is already used."));
@@ -181,14 +179,10 @@ public class MlJobIT extends ESRestTestCase {
 
         String jobId1 = "create-jobs-with-index-name-option-job-1";
         String indexName = "non-default-index";
-        Request createJob1 = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1);
-        createJob1.setJsonEntity(String.format(Locale.ROOT, jobTemplate, indexName));
-        client().performRequest(createJob1);
+        putJob(jobId1, String.format(Locale.ROOT, jobTemplate, indexName));
 
         String jobId2 = "create-jobs-with-index-name-option-job-2";
-        Request createJob2 = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId2);
-        createJob2.setEntity(createJob1.getEntity());
-        client().performRequest(createJob2);
+        putJob(jobId2, String.format(Locale.ROOT, jobTemplate, indexName));
 
         // With security enabled GET _aliases throws an index_not_found_exception
         // if no aliases have been created. In multi-node tests the alias may not
@@ -311,9 +305,7 @@ public class MlJobIT extends ESRestTestCase {
         String jobId2 = "create-job-in-shared-index-updates-mapping-job-2";
         String byFieldName2 = "cpu-usage";
 
-        Request createJob1Request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1);
-        createJob1Request.setJsonEntity(String.format(Locale.ROOT, jobTemplate, byFieldName1));
-        client().performRequest(createJob1Request);
+        putJob(jobId1, String.format(Locale.ROOT, jobTemplate, byFieldName1));
 
         // Check the index mapping contains the first by_field_name
         Request getResultsMappingRequest = new Request("GET",
@@ -323,10 +315,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(resultsMappingAfterJob1, containsString(byFieldName1));
         assertThat(resultsMappingAfterJob1, not(containsString(byFieldName2)));
 
-        Request createJob2Request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId2);
-        createJob2Request.setJsonEntity(String.format(Locale.ROOT, jobTemplate, byFieldName2));
-        client().performRequest(createJob2Request);
-
+        putJob(jobId2, String.format(Locale.ROOT, jobTemplate, byFieldName2));
         // Check the index mapping now contains both fields
         String resultsMappingAfterJob2 = EntityUtils.toString(client().performRequest(getResultsMappingRequest).getEntity());
         assertThat(resultsMappingAfterJob2, containsString(byFieldName1));
@@ -346,9 +335,7 @@ public class MlJobIT extends ESRestTestCase {
         String jobId2 = "create-job-in-custom-shared-index-updates-mapping-job-2";
         String byFieldName2 = "cpu-usage";
 
-        Request createJob1Request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1);
-        createJob1Request.setJsonEntity(String.format(Locale.ROOT, jobTemplate, byFieldName1));
-        client().performRequest(createJob1Request);
+        putJob(jobId1, String.format(Locale.ROOT, jobTemplate, byFieldName1));
 
         // Check the index mapping contains the first by_field_name
         Request getResultsMappingRequest = new Request("GET",
@@ -358,9 +345,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(resultsMappingAfterJob1, containsString(byFieldName1));
         assertThat(resultsMappingAfterJob1, not(containsString(byFieldName2)));
 
-        Request createJob2Request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId2);
-        createJob2Request.setJsonEntity(String.format(Locale.ROOT, jobTemplate, byFieldName2));
-        client().performRequest(createJob2Request);
+        putJob(jobId2, String.format(Locale.ROOT, jobTemplate, byFieldName2));
 
         // Check the index mapping now contains both fields
         String resultsMappingAfterJob2 = EntityUtils.toString(client().performRequest(getResultsMappingRequest).getEntity());
@@ -389,13 +374,10 @@ public class MlJobIT extends ESRestTestCase {
             byFieldName2 = "response";
         }
 
-        Request createJob1Request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1);
-        createJob1Request.setJsonEntity(String.format(Locale.ROOT, jobTemplate, byFieldName1));
-        client().performRequest(createJob1Request);
+        putJob(jobId1, String.format(Locale.ROOT, jobTemplate, byFieldName1));
 
-        Request createJob2Request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId2);
-        createJob2Request.setJsonEntity(String.format(Locale.ROOT, jobTemplate, byFieldName2));
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createJob2Request));
+        ResponseException e = expectThrows(ResponseException.class,
+            () -> putJob(jobId2, String.format(Locale.ROOT, jobTemplate, byFieldName2)));
         assertThat(e.getMessage(),
                 containsString("This job would cause a mapping clash with existing field [response] - " +
                         "avoid the clash by assigning a dedicated results index"));
@@ -417,8 +399,8 @@ public class MlJobIT extends ESRestTestCase {
         try {
             ResponseException exception = expectThrows(
                 ResponseException.class,
-                () -> client().performRequest(
-                new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open")));
+                () -> openJob(jobId)
+            );
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(429));
             assertThat(EntityUtils.toString(exception.getResponse().getEntity()),
                 containsString("Cannot open jobs because persistent task assignment is disabled by the " +
@@ -461,6 +443,41 @@ public class MlJobIT extends ESRestTestCase {
                 client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")));
     }
 
+    public void testOutOfOrderData() throws Exception {
+        String jobId = "job-with-out-of-order-docs";
+        createFarequoteJob(jobId);
+
+        openJob(jobId);
+
+        Request postDataRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
+        // Post data is deprecated, so expect a deprecation warning
+        postDataRequest.setOptions(POST_DATA);
+        // Bucket span is 1h (3600s). So, posting data within the same hour should not result in out of order data
+        postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"responsetime\":100, \"time\":\"2019-07-01 00:00:00Z\" }");
+        client().performRequest(postDataRequest);
+        postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"responsetime\":100, \"time\":\"2019-07-01 00:30:00Z\" }");
+        client().performRequest(postDataRequest);
+        // out of order, but in the same time bucket
+        postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"responsetime\":100, \"time\":\"2019-07-01 00:10:00Z\" }");
+        client().performRequest(postDataRequest);
+
+        Response flushResponse =
+            client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
+        assertThat(entityAsMap(flushResponse), hasEntry("flushed", true));
+
+        closeJob(jobId);
+
+        String stats = EntityUtils.toString(
+            client().performRequest(new Request("GET", "_ml/anomaly_detectors/" + jobId + "/_stats")).getEntity()
+        );
+        //assert 2019-07-01 00:30:00Z
+        assertThat(stats, containsString("\"latest_record_timestamp\":1561941000000"));
+        assertThat(stats, containsString("\"out_of_order_timestamp_count\":0"));
+        assertThat(stats, containsString("\"processed_record_count\":3"));
+
+        client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId));
+    }
+
     public void testDeleteJob_TimingStatsDocumentIsDeleted() throws Exception {
         String jobId = "delete-job-with-timing-stats-document-job";
         String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
@@ -470,11 +487,11 @@ public class MlJobIT extends ESRestTestCase {
             EntityUtils.toString(client().performRequest(new Request("GET", indexName + "/_count")).getEntity()),
             containsString("\"count\":0"));  // documents related to the job do not exist yet
 
-        Response openResponse =
-            client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
-        assertThat(entityAsMap(openResponse), hasEntry("opened", true));
+        openJob(jobId);
 
         Request postDataRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
+        // Post data is deprecated, so expect a deprecation warning
+        postDataRequest.setOptions(POST_DATA);
         postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"response_time\":100, \"time\":\"2019-07-01 00:00:00Z\" }");
         client().performRequest(postDataRequest);
         postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"response_time\":100, \"time\":\"2019-07-01 02:00:00Z\" }");
@@ -484,9 +501,7 @@ public class MlJobIT extends ESRestTestCase {
             client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
         assertThat(entityAsMap(flushResponse), hasEntry("flushed", true));
 
-        Response closeResponse =
-            client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close"));
-        assertThat(entityAsMap(closeResponse), hasEntry("closed", true));
+        closeJob(jobId);
 
         String timingStatsDoc =
             EntityUtils.toString(
@@ -709,8 +724,8 @@ public class MlJobIT extends ESRestTestCase {
         String jobId = "delete-job-multiple-times";
         createFarequoteJob(jobId);
 
-        ConcurrentMapLong<Response> responses = ConcurrentCollections.newConcurrentMapLong();
-        ConcurrentMapLong<ResponseException> responseExceptions = ConcurrentCollections.newConcurrentMapLong();
+        Map<Long, Response> responses = ConcurrentCollections.newConcurrentMap();
+        Map<Long, ResponseException> responseExceptions = ConcurrentCollections.newConcurrentMap();
         AtomicReference<IOException> ioe = new AtomicReference<>();
         AtomicInteger recreationGuard = new AtomicInteger(0);
         AtomicReference<Response> recreationResponse = new AtomicReference<>();
@@ -832,6 +847,28 @@ public class MlJobIT extends ESRestTestCase {
         }).build());
         Response response = client().performRequest(aliasesRequest);
         return EntityUtils.toString(response.getEntity());
+    }
+
+    private void openJob(String jobId) throws IOException {
+        Response openResponse = client().performRequest(new Request(
+            "POST",
+            MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open"
+        ));
+        assertThat(entityAsMap(openResponse), hasEntry("opened", true));
+    }
+
+    private void closeJob(String jobId) throws IOException {
+        Response openResponse = client().performRequest(new Request(
+            "POST",
+            MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close"
+        ));
+        assertThat(entityAsMap(openResponse), hasEntry("closed", true));
+    }
+
+    private Response putJob(String jobId, String jsonBody) throws IOException {
+        Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        request.setJsonEntity(jsonBody);
+        return client().performRequest(request);
     }
 
     @After

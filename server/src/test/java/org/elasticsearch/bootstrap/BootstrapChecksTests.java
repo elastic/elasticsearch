@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -23,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -108,7 +97,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         final String discoveryType = randomFrom(ZEN2_DISCOVERY_TYPE, "single-node");
 
-        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
+        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), "single-node".equals(discoveryType) == false);
     }
 
     public void testEnforceLimitsWhenPublishingToNonLocalAddress() {
@@ -126,7 +115,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         final String discoveryType = randomFrom(ZEN2_DISCOVERY_TYPE, "single-node");
 
-        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
+        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), "single-node".equals(discoveryType) == false);
     }
 
     public void testExceptionAggregation() {
@@ -137,7 +126,14 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final NodeValidationException e =
                 expectThrows(NodeValidationException.class,
                     () -> BootstrapChecks.check(emptyContext, true, checks));
-        assertThat(e, hasToString(allOf(containsString("bootstrap checks failed"), containsString("first"), containsString("second"))));
+        assertThat(e, hasToString(allOf(
+                containsString("[2] bootstrap checks failed"),
+                containsString("You must address the points described in the following [2] lines before starting Elasticsearch"),
+                containsString("bootstrap check failure [1] of [2]:"),
+                containsString("first"),
+                containsString("bootstrap check failure [2] of [2]:"),
+                containsString("second")
+        )));
         final Throwable[] suppressed = e.getSuppressed();
         assertThat(suppressed.length, equalTo(2));
         assertThat(suppressed[0], instanceOf(IllegalStateException.class));
@@ -421,14 +417,20 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     public void testSystemCallFilterCheck() throws NodeValidationException {
         final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
-        BootstrapContext context = randomBoolean() ? createTestContext(Settings.builder().put("bootstrap.system_call_filter", true)
-            .build(), null) : emptyContext;
+        final BootstrapContext context;
+        if (randomBoolean()) {
+            context = createTestContext(Settings.builder().put("bootstrap.system_call_filter", true).build(), null);
+        } else {
+            context = emptyContext;
+        }
 
         final BootstrapChecks.SystemCallFilterCheck systemCallFilterEnabledCheck = new BootstrapChecks.SystemCallFilterCheck() {
+
             @Override
             boolean isSystemCallFilterInstalled() {
                 return isSystemCallFilterInstalled.get();
             }
+
         };
 
         final NodeValidationException e = expectThrows(
@@ -436,22 +438,10 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             () -> BootstrapChecks.check(context, true, Collections.singletonList(systemCallFilterEnabledCheck)));
         assertThat(
             e.getMessage(),
-            containsString("system call filters failed to install; " +
-                "check the logs and fix your configuration or disable system call filters at your own risk"));
+            containsString("system call filters failed to install; check the logs and fix your configuration"));
 
         isSystemCallFilterInstalled.set(true);
         BootstrapChecks.check(context, true, Collections.singletonList(systemCallFilterEnabledCheck));
-        BootstrapContext context_1 = createTestContext(Settings.builder().put("bootstrap.system_call_filter", false).build(), null);
-        final BootstrapChecks.SystemCallFilterCheck systemCallFilterNotEnabledCheck = new BootstrapChecks.SystemCallFilterCheck() {
-            @Override
-            boolean isSystemCallFilterInstalled() {
-                return isSystemCallFilterInstalled.get();
-            }
-        };
-        isSystemCallFilterInstalled.set(false);
-        BootstrapChecks.check(context_1, true, Collections.singletonList(systemCallFilterNotEnabledCheck));
-        isSystemCallFilterInstalled.set(true);
-        BootstrapChecks.check(context_1, true, Collections.singletonList(systemCallFilterNotEnabledCheck));
     }
 
     public void testMightForkCheck() throws NodeValidationException {
@@ -486,6 +476,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
         final AtomicReference<String> onError = new AtomicReference<>();
         final BootstrapChecks.MightForkCheck check = new BootstrapChecks.OnErrorCheck() {
+
             @Override
             boolean isSystemCallFilterInstalled() {
                 return isSystemCallFilterInstalled.get();
@@ -495,6 +486,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             String onError() {
                 return onError.get();
             }
+
         };
 
         final String command = randomAlphaOfLength(16);
@@ -506,14 +498,15 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             e -> assertThat(
                 e.getMessage(),
                 containsString(
-                    "OnError [" + command + "] requires forking but is prevented by system call filters " +
-                        "([bootstrap.system_call_filter=true]); upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
+                    "OnError [" + command + "] requires forking but is prevented by system call filters;" +
+                        " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
     }
 
     public void testOnOutOfMemoryErrorCheck() throws NodeValidationException {
         final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
         final AtomicReference<String> onOutOfMemoryError = new AtomicReference<>();
         final BootstrapChecks.MightForkCheck check = new BootstrapChecks.OnOutOfMemoryErrorCheck() {
+
             @Override
             boolean isSystemCallFilterInstalled() {
                 return isSystemCallFilterInstalled.get();
@@ -523,6 +516,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             String onOutOfMemoryError() {
                 return onOutOfMemoryError.get();
             }
+
         };
 
         final String command = randomAlphaOfLength(16);
@@ -535,7 +529,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                 e.getMessage(),
                 containsString(
                     "OnOutOfMemoryError [" + command + "]"
-                        + " requires forking but is prevented by system call filters ([bootstrap.system_call_filter=true]);"
+                        + " requires forking but is prevented by system call filters;"
                         + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
     }
 

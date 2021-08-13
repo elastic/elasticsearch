@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -96,6 +86,24 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             assertEquals(1, bulkResponse.getBatches());
             assertEquals(0, bulkResponse.getBulkFailures().size());
             assertEquals(0, bulkResponse.getSearchFailures().size());
+        }
+        {
+            // set require_alias to true but the destination index is not an alias
+            ReindexRequest reindexRequest = new ReindexRequest();
+            reindexRequest.setSourceIndices(sourceIndex);
+            reindexRequest.setDestIndex(destinationIndex);
+            reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1"));
+            reindexRequest.setRefresh(true);
+            reindexRequest.setRequireAlias(true);
+
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+                execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
+            });
+
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [" +
+                destinationIndex + "] and [require_alias] request flag is [true] and [" +
+                destinationIndex + "] is not an alias]", exception.getMessage());
         }
     }
 
@@ -255,6 +263,8 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             float requestsPerSecond = 1000f;
             ListTasksResponse response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
                 highLevelClient()::deleteByQueryRethrottle, highLevelClient()::deleteByQueryRethrottleAsync);
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getNodeFailures(), empty());
             assertThat(response.getTasks(), hasSize(1));
             assertEquals(taskIdToRethrottle, response.getTasks().get(0).getTaskId());
             assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));

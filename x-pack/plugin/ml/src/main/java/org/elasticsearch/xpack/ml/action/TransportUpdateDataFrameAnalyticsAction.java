@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -82,7 +83,7 @@ public class TransportUpdateDataFrameAnalyticsAction
         // Obviously if we're updating a job it's impossible that the config index has no mappings at
         // all, but if we rewrite the job config we may add new fields that require the latest mappings
         ElasticsearchMappings.addDocMappingIfMissing(
-            MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state,
+            MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state, request.masterNodeTimeout(),
             ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure));
     }
 

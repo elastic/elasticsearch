@@ -5,6 +5,10 @@
       "description":"Returns information about the indices and shards that a search request would be executed against."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

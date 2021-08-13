@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -21,21 +22,20 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -45,26 +45,6 @@ import java.util.stream.Collectors;
 public class SetSingleNodeAllocateStep extends AsyncActionStep {
     private static final Logger logger = LogManager.getLogger(SetSingleNodeAllocateStep.class);
     public static final String NAME = "set-single-node-allocation";
-
-    private static final Set<Setting<?>> ALL_CLUSTER_SETTINGS;
-
-    static {
-        Set<Setting<?>> allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING);
-        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING);
-        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING);
-        ALL_CLUSTER_SETTINGS = allSettings;
-    }
-
-    // These allocation deciders were chosen because these are the conditions that can prevent
-    // allocation long-term, and that we can inspect in advance. Most other allocation deciders
-    // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
-    // well when reallocating potentially many shards at once (e.g. DiskThresholdDecider)
-    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(List.of(
-        new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-        new DataTierAllocationDecider(new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS)),
-        new NodeVersionAllocationDecider()
-    ));
 
     public SetSingleNodeAllocateStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
@@ -76,9 +56,21 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState clusterState, ClusterStateObserver observer, Listener listener) {
+    public void performAction(IndexMetadata indexMetadata, ClusterState clusterState,
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
+        // These allocation deciders were chosen because these are the conditions that can prevent
+        // allocation long-term, and that we can inspect in advance. Most other allocation deciders
+        // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
+        // well when reallocating potentially many shards at once (e.g. DiskThresholdDecider)
+        AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(
+            new FilterAllocationDecider(clusterState.getMetadata().settings(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            new DataTierAllocationDecider(),
+            new NodeVersionAllocationDecider(),
+            new NodeShutdownAllocationDecider()
+        ));
         final RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, routingNodes, clusterState, null,
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, null,
                 null, System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();
         String indexName = indexMetadata.getIndex().getName();
@@ -91,7 +83,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             for (RoutingNode node : routingNodes) {
                 boolean canAllocateOneCopyOfEachShard = routingsByShardId.values().stream() // For each shard
                     .allMatch(shardRoutings -> shardRoutings.stream() // Can we allocate at least one shard copy to this node?
-                        .map(shardRouting -> ALLOCATION_DECIDERS.canAllocate(shardRouting, node, allocation).type())
+                        .map(shardRouting -> allocationDeciders.canAllocate(shardRouting, node, allocation).type())
                         .anyMatch(Decision.Type.YES::equals));
                 if (canAllocateOneCopyOfEachShard) {
                     validNodeIds.add(node.node().getId());
@@ -105,7 +97,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                 Settings settings = Settings.builder()
                         .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get()).build();
                 UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName)
-                        .masterNodeTimeout(getMasterTimeout(clusterState))
+                        .masterNodeTimeout(TimeValue.MAX_VALUE)
                         .settings(settings);
                 getClient().admin().indices().updateSettings(updateSettingsRequest,
                         ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));

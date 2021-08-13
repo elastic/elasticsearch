@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -26,7 +15,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,7 +33,7 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
     AbstractRareTermsAggregator(
         String name,
         AggregatorFactories factories,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
         long maxDocCount,
@@ -56,8 +45,7 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
         this.maxDocCount = maxDocCount;
         this.precision = precision;
         this.format = format;
-        // We seed the rng with the ShardID so results are deterministic and don't change randomly
-        this.filterSeed = context.indexShard().shardId().hashCode();
+        this.filterSeed = context.shardRandomSeed();
         String scoringAgg = subAggsNeedScore();
         String nestedAgg = descendsFromNestedAggregator(parent);
         if (scoringAgg != null && nestedAgg != null) {

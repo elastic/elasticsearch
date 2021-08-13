@@ -1,24 +1,14 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'Ingest processor that uses Apache Tika to extract contents'
@@ -26,10 +16,10 @@ esplugin {
 }
 
 versions << [
-  'tika'  : '1.24',
-  'pdfbox': '2.0.19',
+  'tika'  : '1.27',
+  'pdfbox': '2.0.24',
   'poi'   : '4.1.2',
-  'mime4j': '0.8.3'
+  'mime4j': '0.8.5'
 ]
 
 dependencies {
@@ -70,7 +60,7 @@ dependencies {
   api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
   // EPUB books
-  api 'org.apache.commons:commons-lang3:3.9'
+  api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
   // Microsoft Word files with visio diagrams
   api 'org.apache.commons:commons-math3:3.6.1'
   // POIs dependency
@@ -79,7 +69,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'ingest', 'index', 'get'
+    include '_common', 'cluster', 'nodes', 'ingest', 'index', 'get'
   }
 }
 
@@ -87,23 +77,25 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.doc'
   exclude '**/*.docx'
   exclude '**/*.pdf'
   exclude '**/*.epub'
   exclude '**/*.vsdx'
+  exclude '**/text-cjk-*.txt'
 }
 
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
 }
 
 if (BuildParams.inFipsJvm) {
   // FIPS JVM includes many classes from bouncycastle which count as jar hell for the third party audit,
   // rather than provide a long list of exclusions, disable the check on FIPS.
-  jarHell.enabled = false
-  test.enabled = false
-  yamlRestTest.enabled = false;
-  testingConventions.enabled = false;
+  tasks.named("jarHell").configure { enabled = false }
+  tasks.named("test").configure { enabled = false }
+  tasks.named("yamlRestTest").configure { enabled = false };
+  tasks.named("yamlRestCompatTest").configure { enabled = false };
+  tasks.named("testingConventions").configure { enabled = false };
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup;
 
@@ -24,9 +25,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordField;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -1154,13 +1156,16 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     private Document stringValueDoc(String stringValue) {
         Document doc = new Document();
-        doc.add(new SortedSetDocValuesField("stringField", new BytesRef(stringValue)));
+        BytesRef bytes = new BytesRef(stringValue);
+        doc.add(new SortedSetDocValuesField("stringField", bytes));
+        doc.add(new KeywordField("stringField", bytes, KeywordFieldMapper.Defaults.FIELD_TYPE));
         return doc;
     }
 
     private Document stringValueRollupDoc(String stringValue, long docCount) {
         Document doc = new Document();
         doc.add(new SortedSetDocValuesField("stringfield.terms." + RollupField.VALUE, new BytesRef(stringValue)));
+        doc.add(new Field("stringfield.terms." + RollupField.VALUE, new BytesRef(stringValue), KeywordFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new SortedNumericDocValuesField("stringfield.terms." + RollupField.COUNT_FIELD, docCount));
         return doc;
     }
@@ -1211,6 +1216,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         try {
             aggregator.preCollection();
             indexSearcher.search(query, aggregator);
+            aggregator.postCollection();
             return aggregator.buildTopLevel();
         } finally {
             indexReader.close();

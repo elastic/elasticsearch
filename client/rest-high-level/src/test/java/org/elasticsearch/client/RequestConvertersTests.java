@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -40,7 +29,9 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -58,13 +49,14 @@ import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -93,6 +85,7 @@ import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -448,6 +441,10 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("slices", "1");
         }
+        if (randomBoolean()) {
+            reindexRequest.setRequireAlias(true);
+            expectedParams.put("require_alias", "true");
+        }
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
@@ -668,6 +665,11 @@ public class RequestConvertersTests extends ESTestCase {
             }
         }
 
+        if (randomBoolean()) {
+            indexRequest.setRequireAlias(true);
+            expectedParams.put("require_alias", "true");
+        }
+
         XContentType xContentType = randomFrom(XContentType.values());
         int nbFields = randomIntBetween(0, 10);
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
@@ -755,6 +757,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             randomizeFetchSourceContextParams(updateRequest::fetchSource, expectedParams);
+        }
+
+        if (randomBoolean()) {
+            updateRequest.setRequireAlias(true);
+            expectedParams.put("require_alias", "true");
         }
 
         Request request = RequestConverters.update(updateRequest);
@@ -1024,7 +1031,12 @@ public class RequestConvertersTests extends ESTestCase {
         String[] indices = randomIndicesNames(0, 5);
         Map<String, String> expectedParams = new HashMap<>();
         SearchRequest searchRequest = createTestSearchRequest(indices, expectedParams);
-
+        if (searchRequest.source() != null && randomBoolean()) {
+            PointInTimeBuilder pit = new PointInTimeBuilder(randomAlphaOfLength(100));
+            if (randomBoolean()) {
+                pit.setKeepAlive(TimeValue.timeValueMinutes(between(1, 10)));
+            }
+        }
         Request request = RequestConverters.search(searchRequest, searchEndpoint);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
@@ -1224,7 +1236,7 @@ public class RequestConvertersTests extends ESTestCase {
         };
         MultiSearchRequest.readMultiLineFormat(new BytesArray(EntityUtils.toByteArray(request.getEntity())),
                 REQUEST_BODY_CONTENT_TYPE.xContent(), consumer, null, multiSearchRequest.indicesOptions(), null, null, null,
-                xContentRegistry(), true);
+                xContentRegistry(), true, RestApiVersion.current());
         assertEquals(requests, multiSearchRequest.requests());
     }
 
@@ -1285,9 +1297,9 @@ public class RequestConvertersTests extends ESTestCase {
         }
         endpoint.add("_search/template");
 
-        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
-        assertEquals(expectedParams, request.getParameters());
+        assertThat(request.getParameters(), equalTo(expectedParams));
         assertToXContentBody(searchTemplateRequest, request.getEntity());
     }
 
@@ -1406,6 +1418,55 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(explainRequest, request.getEntity());
     }
 
+    public void testPointInTime() throws Exception {
+        // Open point in time
+        {
+            Map<String, String> expectedParams = new HashMap<>();
+            String[] indices = randomIndicesNames(1, 5);
+            OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indices);
+            String keepAlive = randomFrom("1ms", "2m", "1d");
+            openRequest.keepAlive(TimeValue.parseTimeValue(keepAlive, "keep_alive"));
+            expectedParams.put("keep_alive", keepAlive);
+            if (randomBoolean()) {
+                String routing = randomAlphaOfLengthBetween(1, 10);
+                openRequest.routing(routing);
+                expectedParams.put("routing", routing);
+            }
+            if (randomBoolean()) {
+                String preference = randomAlphaOfLengthBetween(1, 10);
+                openRequest.preference(preference);
+                expectedParams.put("preference", preference);
+            }
+            openRequest.indicesOptions(setRandomIndicesOptions(openRequest.indicesOptions(), expectedParams));
+            final Request request = RequestConverters.openPointInTime(openRequest);
+            assertThat(request.getParameters(), equalTo(expectedParams));
+            assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+            final String expectedEndpoint = "/" + String.join(",", indices) + "/_pit";
+            assertThat(request.getEndpoint(), equalTo(expectedEndpoint));
+        }
+        // Search with point in time
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder());
+            String pitID = randomAlphaOfLength(10);
+            final PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(pitID);
+            if (randomBoolean()) {
+                pointInTimeBuilder.setKeepAlive(randomFrom(TimeValue.timeValueSeconds(1), TimeValue.timeValueMillis(10)));
+            }
+            searchRequest.source().pointInTimeBuilder(pointInTimeBuilder);
+            final Request request = RequestConverters.search(searchRequest, "/_search");
+            assertToXContentBody(searchRequest.source(), request.getEntity());
+        }
+        // close PIT
+        {
+            String id = randomAlphaOfLengthBetween(3, 10);
+            Request request = RequestConverters.closePointInTime(new ClosePointInTimeRequest(id));
+            assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+            assertThat(request.getEndpoint(), equalTo("/_pit"));
+            assertThat(EntityUtils.toString(request.getEntity()), equalTo("{\"id\":" + "\"" + id + "\"}"));
+        }
+    }
+
     public void testTermVectors() throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
@@ -1509,7 +1570,7 @@ public class RequestConvertersTests extends ESTestCase {
         // Verify that the resulting REST request looks as expected.
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String joinedIndices = String.join(",", indices);
-        if (!joinedIndices.isEmpty()) {
+        if (joinedIndices.isEmpty() == false) {
             endpoint.add(joinedIndices);
         }
         endpoint.add("_field_caps");
@@ -1550,7 +1611,7 @@ public class RequestConvertersTests extends ESTestCase {
         // Verify that the resulting REST request looks as expected.
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String joinedIndices = String.join(",", indices);
-        if (!joinedIndices.isEmpty()) {
+        if (joinedIndices.isEmpty() == false) {
             endpoint.add(joinedIndices);
         }
         endpoint.add("_field_caps");
@@ -1821,9 +1882,11 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testEnforceSameContentType() {
-        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE, XContentType.VND_JSON, XContentType.VND_SMILE);
         IndexRequest indexRequest = new IndexRequest().source(singletonMap("field", "value"), xContentType);
-        assertEquals(xContentType, enforceSameContentType(indexRequest, null));
+        // indexRequest content type is made canonical because IndexRequest's content-type is
+        // from XContentBuilder.getXContentType (hardcoded in JsonXContentGEnerator)
+        assertEquals(xContentType.canonical(), enforceSameContentType(indexRequest, null));
         assertEquals(xContentType, enforceSameContentType(indexRequest, xContentType));
 
         XContentType bulkContentType = randomBoolean() ? xContentType : null;
@@ -1840,7 +1903,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals("Unsupported content-type found for request with content-type [YAML], only JSON and SMILE are supported",
                 exception.getMessage());
 
-        XContentType requestContentType = xContentType == XContentType.JSON ? XContentType.SMILE : XContentType.JSON;
+        XContentType requestContentType = xContentType.canonical() == XContentType.JSON ? XContentType.SMILE : XContentType.JSON;
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));
@@ -1909,9 +1972,12 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
         }
         if (randomBoolean()) {
-            searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+            boolean ccsMinimizeRoundtrips = randomBoolean();
+            searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
+            if (ccsMinimizeRoundtrips == false) {
+                expectedParams.put("ccs_minimize_roundtrips", "false");
+            }
         }
-        expectedParams.put("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
         if (randomBoolean()) {
             searchRequest.setMaxConcurrentShardRequests(randomIntBetween(1, Integer.MAX_VALUE));
         }

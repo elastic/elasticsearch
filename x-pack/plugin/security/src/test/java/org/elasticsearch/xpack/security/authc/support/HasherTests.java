@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class HasherTests extends ESTestCase {
@@ -26,6 +29,21 @@ public class HasherTests extends ESTestCase {
         testHasherSelfGenerated(Hasher.BCRYPT12);
         testHasherSelfGenerated(Hasher.BCRYPT13);
         testHasherSelfGenerated(Hasher.BCRYPT14);
+    }
+
+    public void testBcryptFromExternalSources() throws Exception {
+        check("$2b$12$0313KXrdhWp6HLREsKxW/OWJQCxy2uYprv44b8MBk6dOj3PY6WSFG", "my-password", true);
+        check("$2b$12$0313KXrdhWp6HLREsKxW/OWJQCxy2uYprv44b8MBk6dOj3PY6WSFG", "not-the-password", false);
+
+        check("$2b$12$4bf6s1NIUhyA5FtLn1UrpuZTByjNCC7f0r5OFJP9ra8U2LtcpcK7C", "changeme", true);
+        check("$2b$12$4bf6s1NIUhyA5FtLn1UrpuZTByjNCC7f0r5OFJP9ra8U2LtcpcK7C", "changed-it", false);
+
+        check("$2b$09$OLrfKSXQJxohtFnkU.VZCO1gKywaTSFi4KPHqhuyY3qetAbI8v6/S", "NjJmOWRmMjJmODEyZmQ1NjFhNWVmZmIwOWMwNjk4MmMK", true);
+        check("$2b$09$OLrfKSXQJxohtFnkU.VZCO1gKywaTSFi4KPHqhuyY3qetAbI8v6/S", "nJjMowrMmJjModeYzMq1nJfHnwvMzMiWowmWnJK4mMmk", false);
+
+        check("$2b$14$azbTD0EotrQtoSsxFpbx/.HG8hCAojDFmN4hsD8khuevk/9j0yPlK", "python 3.9.6; bcrypt 3.2.0", true);
+        check("$2a$06$aQVRp5ajsIn3fzx2MnXKy.KlhxFLHaCOh8jSElqCtmYFbRkmTy..C", "https://bcrypt-generator.com/", true);
+        check("$2y$10$flKBxak./o.7Hql0il/98ejdZyob67TmPhHbRy3qOnMtCBosAVSRy", "php", true);
     }
 
     public void testPBKDF2FamilySelfGenerated() throws Exception {
@@ -173,9 +191,34 @@ public class HasherTests extends ESTestCase {
         assertThat(Hasher.resolveFromHash("notavalidhashformat".toCharArray()), sameInstance(Hasher.NOOP));
     }
 
+    public void testPbkdf2WithShortPasswordThrowsInFips() {
+        assumeTrue("This should run only in FIPS mode", inFipsJvm());
+        SecureString passwd = new SecureString(randomAlphaOfLength(between(6, 13)).toCharArray());
+        Hasher pbkdfHasher = randomFrom(Hasher.PBKDF2, Hasher.PBKDF2_50000, Hasher.PBKDF2_1000000);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> pbkdfHasher.hash(passwd));
+        assertThat(e.getMessage(), containsString("Error using PBKDF2 implementation from the selected Security Provider"));
+    }
+
     private static void testHasherSelfGenerated(Hasher hasher) {
-        SecureString passwd = new SecureString(randomAlphaOfLength(between(6, 15)).toCharArray());
+        // In FIPS 140 mode, passwords for PBKDF2 need to be at least 14 chars
+        SecureString passwd = new SecureString(randomAlphaOfLength(between(14, 18)).toCharArray());
         char[] hash = hasher.hash(passwd);
         assertTrue(hasher.verify(passwd, hash));
+
+        SecureString incorrectPasswd = randomValueOtherThan(
+            passwd,
+            () -> new SecureString(randomAlphaOfLength(between(14, 18)).toCharArray())
+        );
+        assertFalse(hasher.verify(incorrectPasswd, hash));
+    }
+
+    private void check(String hash, String password, boolean shouldMatch) {
+        char[] hashChars = hash.toCharArray();
+        Hasher hasher = Hasher.resolveFromHash(hashChars);
+        assertThat(
+            "Verify " + password + " against " + hash + " using " + hasher.name(),
+            hasher.verify(new SecureString(password.toCharArray()), hashChars),
+            equalTo(shouldMatch)
+        );
     }
 }

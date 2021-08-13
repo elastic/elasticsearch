@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
@@ -22,8 +11,9 @@ package org.elasticsearch.rest;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -50,6 +40,13 @@ import java.util.stream.Collectors;
  * {@link ActionPlugin#getRestHeaders()}.
  */
 public abstract class BaseRestHandler implements RestHandler {
+
+    /**
+     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
+     * Note: This parameter is only available through compatible rest api for {@link RestApiVersion#V_7}.
+     */
+    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
+    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
@@ -81,14 +78,16 @@ public abstract class BaseRestHandler implements RestHandler {
 
         // validate unconsumed params, but we must exclude params used to format the response
         // use a sorted set so the unconsumed parameters appear in a reliable sorted order
-        final SortedSet<String> unconsumedParams =
-            request.unconsumedParams().stream().filter(p -> !responseParams().contains(p)).collect(Collectors.toCollection(TreeSet::new));
+        final SortedSet<String> unconsumedParams = request.unconsumedParams()
+            .stream()
+            .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
+            .collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
-        if (!unconsumedParams.isEmpty()) {
+        if (unconsumedParams.isEmpty() == false) {
             final Set<String> candidateParams = new HashSet<>();
             candidateParams.addAll(request.consumedParams());
-            candidateParams.addAll(responseParams());
+            candidateParams.addAll(responseParams(request.getRestApiVersion()));
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
@@ -183,6 +182,18 @@ public abstract class BaseRestHandler implements RestHandler {
         return Collections.emptySet();
     }
 
+    /**
+     * Parameters used for controlling the response and thus might not be consumed during
+     * preparation of the request execution. The value depends on the RestApiVersion provided
+     * by a user on a request.
+     * Used in RestHandlers with Compatible Rest Api
+     * @param restApiVersion - a version provided by a user on a request
+     * @return a set of parameters used to control the response, depending on a restApiVersion
+     */
+    protected Set<String> responseParams(RestApiVersion restApiVersion) {
+        return responseParams();
+    }
+
     public static class Wrapper extends BaseRestHandler {
 
         protected final BaseRestHandler delegate;
@@ -202,16 +213,6 @@ public abstract class BaseRestHandler implements RestHandler {
         }
 
         @Override
-        public List<DeprecatedRoute> deprecatedRoutes() {
-            return delegate.deprecatedRoutes();
-        }
-
-        @Override
-        public List<ReplacedRoute> replacedRoutes() {
-            return delegate.replacedRoutes();
-        }
-
-        @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
             return delegate.prepareRequest(request, client);
         }
@@ -219,6 +220,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         protected Set<String> responseParams() {
             return delegate.responseParams();
+        }
+
+        @Override
+        protected Set<String> responseParams(RestApiVersion restApiVersion) {
+            return delegate.responseParams(restApiVersion);
         }
 
         @Override

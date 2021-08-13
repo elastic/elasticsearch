@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.broadcast;
@@ -35,7 +24,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
@@ -83,7 +72,7 @@ public abstract class TransportBroadcastAction<
         new AsyncBroadcastAction(task, request, listener).start();
     }
 
-    protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
+    protected abstract Response newResponse(Request request, AtomicReferenceArray<?> shardsResponses, ClusterState clusterState);
 
     protected abstract ShardRequest newShardRequest(int numShards, ShardRouting shard, Request request);
 
@@ -103,15 +92,16 @@ public abstract class TransportBroadcastAction<
 
     protected class AsyncBroadcastAction {
 
-        private final Task task;
-        private final Request request;
-        private final ActionListener<Response> listener;
-        private final ClusterState clusterState;
-        private final DiscoveryNodes nodes;
-        private final GroupShardsIterator<ShardIterator> shardsIts;
-        private final int expectedOps;
-        private final AtomicInteger counterOps = new AtomicInteger();
-        private final AtomicReferenceArray shardsResponses;
+        final Task task;
+        final Request request;
+        final ActionListener<Response> listener;
+        final ClusterState clusterState;
+        final DiscoveryNodes nodes;
+        final GroupShardsIterator<ShardIterator> shardsIts;
+        final int expectedOps;
+        final AtomicInteger counterOps = new AtomicInteger();
+        // ShardResponse or Exception
+        protected final AtomicReferenceArray<Object> shardsResponses;
 
         protected AsyncBroadcastAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
@@ -143,7 +133,7 @@ public abstract class TransportBroadcastAction<
             if (shardsIts.size() == 0) {
                 // no shards
                 try {
-                    listener.onResponse(newResponse(request, new AtomicReferenceArray(0), clusterState));
+                    listener.onResponse(newResponse(request, new AtomicReferenceArray<ShardResponse>(0), clusterState));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }
@@ -200,7 +190,6 @@ public abstract class TransportBroadcastAction<
             }
         }
 
-        @SuppressWarnings({"unchecked"})
         protected void onOperation(ShardRouting shard, int shardIndex, ShardResponse response) {
             logger.trace("received response for {}", shard);
             shardsResponses.set(shardIndex, response);
@@ -217,7 +206,7 @@ public abstract class TransportBroadcastAction<
             if (nextShard != null) {
                 if (e != null) {
                     if (logger.isTraceEnabled()) {
-                        if (!TransportActions.isShardNotAvailableException(e)) {
+                        if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.trace(new ParameterizedMessage(
                                 "{}: failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
                         }
@@ -227,7 +216,7 @@ public abstract class TransportBroadcastAction<
             } else {
                 if (logger.isDebugEnabled()) {
                     if (e != null) {
-                        if (!TransportActions.isShardNotAvailableException(e)) {
+                        if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.debug(new ParameterizedMessage(
                                 "{}: failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
                         }
@@ -237,6 +226,10 @@ public abstract class TransportBroadcastAction<
                     finishHim();
                 }
             }
+        }
+
+        protected AtomicReferenceArray<Object> shardsResponses() {
+            return shardsResponses;
         }
 
         protected void finishHim() {
@@ -253,7 +246,7 @@ public abstract class TransportBroadcastAction<
                 return;
             }
 
-            if (!(e instanceof BroadcastShardOperationFailedException)) {
+            if ((e instanceof BroadcastShardOperationFailedException) == false) {
                 e = new BroadcastShardOperationFailedException(shardIt.shardId(), e);
             }
 
@@ -263,7 +256,7 @@ public abstract class TransportBroadcastAction<
                 shardsResponses.set(shardIndex, e);
             }
 
-            if (!(response instanceof Throwable)) {
+            if ((response instanceof Throwable) == false) {
                 // we should never really get here...
                 return;
             }

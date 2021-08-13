@@ -3,8 +3,6 @@
 [[eql-ex-threat-detection]]
 == Example: Detect threats with EQL
 
-beta::[]
-
 This example tutorial shows how you can use EQL to detect security threats and
 other suspicious behavior. In the scenario, you're tasked with detecting
 https://attack.mitre.org/techniques/T1218/010/[regsvr32 misuse] in Windows event
@@ -38,13 +36,35 @@ events imitating a Squiblydoo attack. The data has been mapped to
 
 To get started:
 
+. Create an <<index-templates,index template>> with
+<<create-index-template,data stream enabled>>:
++
+////
+[source,console]
+----
+DELETE /_data_stream/*
+DELETE /_index_template/*
+----
+// TEARDOWN
+////
++
+[source,console]
+----
+PUT /_index_template/my-data-stream-template
+{
+  "index_patterns": [ "my-data-stream*" ],
+  "data_stream": { },
+  "priority": 500
+}
+----
+
 . Download https://raw.githubusercontent.com/elastic/elasticsearch/{branch}/docs/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json[`normalized-T1117-AtomicRed-regsvr32.json`].
 
-. Use the <<docs-bulk,bulk API>> to index the data:
+. Use the <<docs-bulk,bulk API>> to index the data to a matching stream:
 +
 [source,sh]
 ----
-curl -H "Content-Type: application/json" -XPOST "localhost:9200/my-index-000001/_bulk?pretty&refresh" --data-binary "@normalized-T1117-AtomicRed-regsvr32.json"
+curl -H "Content-Type: application/json" -XPOST "localhost:9200/my-data-stream/_bulk?pretty&refresh" --data-binary "@normalized-T1117-AtomicRed-regsvr32.json"
 ----
 // NOTCONSOLE
 
@@ -52,7 +72,7 @@ curl -H "Content-Type: application/json" -XPOST "localhost:9200/my-index-000001/
 +
 [source,console]
 ----
-GET /_cat/indices/my-index-000001?v&h=health,status,index,docs.count
+GET /_cat/indices/my-data-stream?v=true&h=health,status,index,docs.count
 ----
 // TEST[setup:atomic_red_regsvr32]
 +
@@ -60,10 +80,10 @@ The response should show a `docs.count` of `150`.
 +
 [source,txt]
 ----
-health status index            docs.count
-yellow open   my-index-000001         150
+health status index                                 docs.count
+yellow open   .ds-my-data-stream-2099.12.07-000001         150
 ----
-// TESTRESPONSE[non_json]
+// TESTRESPONSE[s/.ds-my-data-stream-2099.12.07-000001/.+/ non_json]
 
 [discrete]
 [[eql-ex-get-a-count-of-regsvr32-events]]
@@ -73,7 +93,7 @@ First, get a count of events associated with a `regsvr32.exe` process:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search?filter_path=-hits.events   <1>
+GET /my-data-stream/_eql/search?filter_path=-hits.events    <1>
 {
   "query": """
     any where process.name == "regsvr32.exe"                <2>
@@ -118,7 +138,7 @@ utility. Narrow your results to processes where the command line was used:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     process where process.name == "regsvr32.exe" and process.command_line.keyword != null
@@ -135,10 +155,7 @@ This fits the behavior of a Squiblydoo attack.
 [source,console-result]
 ----
 {
-  "is_partial": false,
-  "is_running": false,
-  "took": 21,
-  "timed_out": false,
+  ...
   "hits": {
     "total": {
       "value": 1,
@@ -146,7 +163,7 @@ This fits the behavior of a Squiblydoo attack.
     },
     "events": [
       {
-        "_index": "my-index-000001",
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
         "_id": "gl5MJXMBMk1dGnErnBW8",
         "_source": {
           "process": {
@@ -179,7 +196,8 @@ This fits the behavior of a Squiblydoo attack.
   }
 }
 ----
-// TESTRESPONSE[s/"took": 21/"took": $body.took/]
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 // TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body.hits.events.0._id/]
 
 [discrete]
@@ -190,7 +208,7 @@ Check if `regsvr32.exe` later loads the `scrobj.dll` library:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     library where process.name == "regsvr32.exe" and dll.name == "scrobj.dll"
@@ -204,10 +222,7 @@ The query matches an event, confirming `scrobj.dll` was loaded.
 [source,console-result]
 ----
 {
-  "is_partial": false,
-  "is_running": false,
-  "took": 5,
-  "timed_out": false,
+  ...
   "hits": {
     "total": {
       "value": 1,
@@ -215,7 +230,7 @@ The query matches an event, confirming `scrobj.dll` was loaded.
     },
     "events": [
       {
-        "_index": "my-index-000001",
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
         "_id": "ol5MJXMBMk1dGnErnBW8",
         "_source": {
           "process": {
@@ -238,7 +253,8 @@ The query matches an event, confirming `scrobj.dll` was loaded.
   }
 }
 ----
-// TESTRESPONSE[s/"took": 5/"took": $body.took/]
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 // TESTRESPONSE[s/"_id": "ol5MJXMBMk1dGnErnBW8"/"_id": $body.hits.events.0._id/]
 
 [discrete]
@@ -260,7 +276,7 @@ detect similar threats.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence by process.pid
@@ -277,10 +293,7 @@ The query matches a sequence, indicating the attack likely succeeded.
 [source,console-result]
 ----
 {
-  "is_partial": false,
-  "is_running": false,
-  "took": 25,
-  "timed_out": false,
+  ...
   "hits": {
     "total": {
       "value": 1,
@@ -293,7 +306,7 @@ The query matches a sequence, indicating the attack likely succeeded.
         ],
         "events": [
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "gl5MJXMBMk1dGnErnBW8",
             "_source": {
               "process": {
@@ -323,7 +336,7 @@ The query matches a sequence, indicating the attack likely succeeded.
             }
           },
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "ol5MJXMBMk1dGnErnBW8",
             "_source": {
               "process": {
@@ -343,7 +356,7 @@ The query matches a sequence, indicating the attack likely succeeded.
             }
           },
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "EF5MJXMBMk1dGnErnBa9",
             "_source": {
               "process": {
@@ -381,7 +394,8 @@ The query matches a sequence, indicating the attack likely succeeded.
   }
 }
 ----
-// TESTRESPONSE[s/"took": 25/"took": $body.took/]
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.sequences.0.events.0._index/]
 // TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.0._id/]
 // TESTRESPONSE[s/"_id": "ol5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.1._id/]
 // TESTRESPONSE[s/"_id": "EF5MJXMBMk1dGnErnBa9"/"_id": $body.hits.sequences.0.events.2._id/]

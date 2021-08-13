@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.PriorityQueue;
 import java.util.Set;
 
 public class InternalComposite
@@ -160,7 +149,12 @@ public class InternalComposite
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size());
+        PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size()) {
+            @Override
+            protected boolean lessThan(BucketIterator a, BucketIterator b) {
+                return a.compareTo(b) < 0;
+            }
+        };
         boolean earlyTerminated = false;
         for (InternalAggregation agg : aggregations) {
             InternalComposite sortedAgg = (InternalComposite) agg;
@@ -174,7 +168,7 @@ public class InternalComposite
         List<InternalBucket> buckets = new ArrayList<>();
         List<InternalBucket> result = new ArrayList<>();
         while (pq.size() > 0) {
-            BucketIterator bucketIt = pq.poll();
+            BucketIterator bucketIt = pq.top();
             if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
                 InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
                 buckets.clear();
@@ -186,7 +180,9 @@ public class InternalComposite
             lastBucket = bucketIt.current;
             buckets.add(bucketIt.current);
             if (bucketIt.next() != null) {
-                pq.add(bucketIt);
+                pq.updateTop();
+            } else {
+                pq.pop();
             }
         }
         if (buckets.size() > 0) {
@@ -394,42 +390,66 @@ public class InternalComposite
      * Format <code>obj</code> using the provided {@link DocValueFormat}.
      * If the format is equals to {@link DocValueFormat#RAW}, the object is returned as is
      * for numbers and a string for {@link BytesRef}s.
+     *
+     * This method will then attempt to parse the formatted value using the specified format,
+     * and throw an IllegalArgumentException if parsing fails.  This in turn prevents us from
+     * returning an after_key which we can't subsequently parse into the original value.
      */
     static Object formatObject(Object obj, DocValueFormat format) {
         if (obj == null) {
             return null;
         }
+        Object formatted = obj;
+        Object parsed;
         if (obj.getClass() == BytesRef.class) {
             BytesRef value = (BytesRef) obj;
             if (format == DocValueFormat.RAW) {
-                return value.utf8ToString();
+                formatted = value.utf8ToString();
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseBytesRef(formatted.toString());
+            if (parsed.equals(obj) == false) {
+                throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                    + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
             }
         } else if (obj.getClass() == Long.class) {
             long value = (long) obj;
             if (format == DocValueFormat.RAW) {
-                return value;
+                formatted = value;
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseLong(formatted.toString(), false, () -> {
+                throw new UnsupportedOperationException("Using now() is not supported in after keys");
+            });
+            if (parsed.equals(((Number) obj).longValue()) == false) {
+                throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                    + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
             }
         } else if (obj.getClass() == Double.class) {
             double value = (double) obj;
             if (format == DocValueFormat.RAW) {
-                return value;
+                formatted = value;
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseDouble(formatted.toString(), false,
+                () -> {throw new UnsupportedOperationException("Using now() is not supported in after keys");});
+            if (parsed.equals(((Number) obj).doubleValue()) == false) {
+                throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                    + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
             }
         }
-        return obj;
+        return formatted;
     }
 
     static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
-        final Comparable[] values;
+        final Comparable<?>[] values;
         final List<DocValueFormat> formats;
 
-        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable[] values) {
+        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable<?>[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
             this.formats = formats;
@@ -481,6 +501,7 @@ public class InternalComposite
         }
 
         @Override
+        @SuppressWarnings({"rawtypes", "unchecked"})
         public int compareTo(ArrayMap that) {
             if (that == this) {
                 return 0;
@@ -491,7 +512,7 @@ public class InternalComposite
             while (idx < max) {
                 int compare = compareNullables(keys.get(idx), that.keys.get(idx));
                 if (compare == 0) {
-                    compare = compareNullables(values[idx], that.values[idx]);
+                    compare = compareNullables((Comparable) values[idx], (Comparable) that.values[idx]);
                 }
                 if (compare != 0) {
                     return compare;
@@ -508,7 +529,7 @@ public class InternalComposite
         }
     }
 
-    private static int compareNullables(Comparable a, Comparable b) {
+    private static <T extends Comparable<T>> int compareNullables(T a, T b) {
         if (a == b) {
             return 0;
         }

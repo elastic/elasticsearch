@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.allocation;
@@ -32,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -42,8 +32,10 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope= ESIntegTestCase.Scope.TEST, numDataNodes =0, minNumDataNodes = 2)
 public class AwarenessAllocationIT extends ESIntegTestCase {
@@ -317,5 +309,26 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));
         assertThat(counts.get(noZoneNode), equalTo(2));
+    }
+
+    public void testForceAwarenessSettingValidation() {
+        final String prefix = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey();
+
+        final IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, () ->
+                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
+                        Settings.builder().put(prefix + "nonsense", "foo")).get());
+        assertThat(illegalArgumentException.getMessage(), containsString("[cluster.routing.allocation.awareness.force.]"));
+        assertThat(illegalArgumentException.getCause(), instanceOf(SettingsException.class));
+        assertThat(illegalArgumentException.getCause().getMessage(), containsString("nonsense"));
+
+        assertThat(expectThrows(IllegalArgumentException.class, () ->
+                        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
+                                Settings.builder().put(prefix + "attr.not_values", "foo")).get()).getMessage(),
+                containsString("[cluster.routing.allocation.awareness.force.attr.not_values]"));
+
+        assertThat(expectThrows(IllegalArgumentException.class, () ->
+                        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
+                                Settings.builder().put(prefix + "attr.values.junk", "foo")).get()).getMessage(),
+                containsString("[cluster.routing.allocation.awareness.force.attr.values.junk]"));
     }
 }

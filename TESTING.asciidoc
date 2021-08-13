@@ -92,7 +92,7 @@ password: `elastic-password`.
 
 === Test case filtering.
 
-You can run a single test, provided that you specify the Gradle project.  See the documentation on
+You can run a single test, provided that you specify the Gradle project. See the documentation on
 https://docs.gradle.org/current/userguide/userguide_single.html#simple_name_pattern[simple name pattern filtering].
 
 Run a single test case in the `server` project:
@@ -248,6 +248,13 @@ Pass arbitrary jvm arguments.
 ./gradlew test -Dtests.jvm.argline="-Djava.security.debug=access,failure"
 ------------------------------
 
+Pass build arguments.
+
+------------------------------
+# Run tests against a release build. License key must be provided, but usually can be anything.
+./gradlew test -Dbuild.snapshot=false -Dlicense.key="x-pack/license-tools/src/test/resources/public.key"
+------------------------------
+
 == Running verification tasks
 
 To run all verification tasks, including static checks, unit tests, and integration tests:
@@ -286,7 +293,7 @@ YAML based REST tests should be preferred since these are shared between all
 the elasticsearch official clients. The YAML based tests describe the
 operations to be executed and the obtained results that need to be tested.
 
-The YAML tests support various operators defined in the link:/rest-api-spec/src/main/resources/rest-api-spec/test/README.asciidoc[rest-api-spec] and adhere to the link:/rest-api-spec/README.markdown[Elasticsearch REST API JSON specification]
+The YAML tests support various operators defined in the link:/rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test/README.asciidoc[rest-api-spec] and adhere to the link:/rest-api-spec/README.markdown[Elasticsearch REST API JSON specification]
 In order to run the YAML tests, the relevant API specification needs
 to be on the test classpath. Any gradle project that has support for REST
 tests will get the primary API on it's class path. However, to better support
@@ -378,13 +385,13 @@ vagrant plugin install vagrant-cachier
 . You can run all of the OS packaging tests with `./gradlew packagingTest`.
 This task includes our legacy `bats` tests. To run only the OS tests that are
 written in Java, run `.gradlew distroTest`, will cause Gradle to build the tar,
-zip, and deb packages and all the plugins.  It will then run the tests on every
+zip, and deb packages and all the plugins. It will then run the tests on every
 available system. This will take a very long time.
 +
 Fortunately, the various systems under test have their own Gradle tasks under
 `qa/os`. To find the systems tested, do a listing of the `qa/os` directory.
 To find out what packaging combinations can be tested on a system, run
-the `tasks` task.  For example:
+the `tasks` task. For example:
 +
 ----------------------------------
 ./gradlew :qa:os:ubuntu-1804:tasks
@@ -511,7 +518,7 @@ For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
 
 Tests are ran for versions that are not yet released but with which the current version will be compatible with.
 These are automatically checked out and built from source.
-See link:./buildSrc/src/main/java/org/elasticsearch/gradle/VersionCollection.java[VersionCollection]
+See link:./build-tools-internal/src/main/java/org/elasticsearch/gradle/BwcVersions.java[BwcVersions]
 and link:./distribution/bwc/build.gradle[distribution/bwc/build.gradle]
 for more information.
 
@@ -548,6 +555,81 @@ For some BWC testing scenarios, you want to use the local clone of the
 repository without fetching latest. For these use cases, you can set the system
 property `tests.bwc.git_fetch_latest` to `false` and the BWC builds will skip
 fetching the latest from the remote.
+
+== Testing in FIPS 140-2 mode
+
+We have a CI matrix job that periodically runs all our tests with the JVM configured
+to be FIPS 140-2 compliant with the use of the BouncyCastle FIPS approved Security Provider.
+FIPS 140-2 imposes certain requirements that affect how our tests should be set up or what
+can be tested. This section summarizes what one needs to take into consideration so that
+tests won't fail when run in fips mode.
+
+=== Muting tests in FIPS 140-2 mode
+
+If the following limitations cannot be observed, or there is a need to actually test some use
+case that is not available/allowed in fips mode, the test can be muted. For unit tests or Java
+rest tests one can use
+
+------------------------------------------------
+assumeFalse("Justification why this cannot be run in FIPS mode", inFipsJvm());
+------------------------------------------------
+
+For specific YAML rest tests one can use
+
+------------------------------------------------
+- skip:
+    features: fips_140
+    reason: "Justification why this cannot be run in FIPS mode"
+------------------------------------------------
+
+For disabling entire types of tests for subprojects, one can use for example:
+
+------------------------------------------------
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("javaRestTest").configure{enabled = false }
+}
+------------------------------------------------
+
+in `build.gradle`.
+
+=== Limitations
+
+The following should be taken into consideration when writing new tests or adjusting existing ones:
+
+==== TLS
+
+`JKS` and `PKCS#12` keystores cannot be used in FIPS mode. If the test depends on being able to use
+a keystore, it can be muted when needed ( see `ESTestCase#inFipsJvm` ). Alternatively, one can use
+PEM encoded files for keys and certificates for the tests or for setting up TLS in a test cluster.
+Also, when in FIPS 140 mode, hostname verification for TLS cannot be turned off so if you are using
+`*.verification_mode: none` , you'd need to mute the test in fips mode.
+
+When using TLS, ensure that private keys used are longer than 2048 bits, or mute the test in fips mode.
+
+==== Password hashing algorithm
+
+Test clusters are configured with `xpack.security.fips_mode.enabled` set to true. This means that
+FIPS 140-2 related bootstrap checks are enabled and the test cluster will fail to form if the
+password hashing algorithm is set to something else than a PBKDF2 based one. You can delegate the choice
+of algorithm to i.e. `SecurityIntegTestCase#getFastStoredHashAlgoForTests` if you don't mind the
+actual algorithm used, or depend on default values for the test cluster nodes.
+
+==== Password length
+
+While using `pbkdf2` as the password hashing algorithm, FIPS 140-2 imposes a requirement that
+passwords are longer than 14 characters. You can either ensure that all test user passwords in
+your test are longer than 14 characters and use i.e. `SecurityIntegTestCase#getFastStoredHashAlgoForTests`
+to randomly select a hashing algorithm, or use `pbkdf2_stretch` that doesn't have the same
+limitation.
+
+==== Keystore Password
+
+In FIPS 140-2 mode, the elasticsearch keystore needs to be password protected with a password
+of appropriate length. This is handled automatically in `fips.gradle` and the keystore is unlocked
+on startup by the test clusters tooling in order to have secure settings available. However, you
+might need to take into consideration that the keystore is password-protected with `keystore-password`
+if you need to interact with it in a test.
 
 == How to write good tests?
 

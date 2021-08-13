@@ -1,0 +1,609 @@
+[[security-basic-setup-https]]
+=== Set up basic security for the Elastic Stack plus secured HTTPS traffic
+++++
+<titleabbrev>Set up basic security plus HTTPS</titleabbrev>
+++++
+
+In a production environment, some {es} features such as tokens and
+API keys will be disabled unless you enable TLS on the HTTP layer. This
+additional layer of security ensures that all communications to and from your
+cluster are secured.
+
+When you run the `elasticsearch-certutil` tool in `http` mode, the tool asks
+several questions about how you want to generate certificates. While there are
+numerous options, the following choices result in certificates that should
+work for most environments.
+
+[[signing-certificates]]
+.Signing certificates
+****
+The first question that the `elasticsearch-certutil` tool prompts you with is
+whether you want to generate a Certificate Signing Request (CSR). Answer
+`n` if you want to sign your own certificates, or `y` if you want to sign
+certificates with a central CA.
+
+[discrete]
+===== Sign your own certificates
+
+If you want to use the CA that you created when
+<<generate-certificates,Generating the certificate authority>> answer `n` when
+asked if you want to generate a CSR. You then specify the location of your CA,
+which the tool uses to sign and generate a `.p12` certificate. The steps in
+this procedure follow this workflow.
+
+[discrete]
+===== Sign certificates with a central CA
+
+If you work in an environment with a central security team, they can likely
+generate a certificate for you. Infrastructure within your organization
+might already be configured to trust an existing CA, so it may be easier
+for clients to connect to {es} if you use a CSR and send that
+request to the team that controls your CA. To use a central CA, answer `y` to
+the first question.
+****
+
+[[basic-setup-https-prerequisites]]
+==== Prerequisites
+
+Complete all steps in <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[[encrypt-http-communication]]
+==== Encrypt HTTP client communications for {es}
+
+. On *every* node in your cluster, stop {es} and {kib} if they are running.
+
+. On any single node, from the directory where you installed {es}, run the {es}
+   HTTP certificate tool to generate a Certificate Signing Request (CSR).
++
+[source,shell]
+----
+./bin/elasticsearch-certutil http
+----
++
+This command generates a `.zip` file that contains certificates and keys
+to use with {es} and {kib}. Each folder contains a `README.txt`
+explaining how to use these files.
+
+   a. When asked if you want to generate a CSR, enter `n`.
+
+   b. When asked if you want to use an existing CA, enter `y`.
+
+   c. Enter the path to your CA. This is the absolute path to
+   the `elastic-stack-ca.p12` file that you generated for your cluster.
+
+   d. Enter the password for your CA.
+
+   e. Enter an expiration value for your certificate. You can enter the
+   validity period in years, months, or days. For example, enter `90D` for 90
+   days.
+
+   f. When asked if you want to generate one certificate per node, enter `y`.
++
+Each certificate will have its own private key, and will be issued for a
+specific hostname or IP address.
+
+   g. When prompted, enter the name of the first node in your cluster. Use the same node name that you used when <<generate-certificates,generating node certificates>>.
+
+   h. Enter all hostnames used to connect to your first node. These hostnames
+   will be added as DNS names in the Subject Alternative Name (SAN) field in your certificate.
++
+List every hostname and variant used to connect to your cluster over HTTPS.
+
+   i. Enter the IP addresses that clients can use to connect to your node.
+
+   j. Repeat these steps for each additional node in your cluster.
+
+. After generating a certificate for each of your nodes, enter a password for
+   your private key when prompted.
+
+. Unzip the generated `elasticsearch-ssl-http.zip` file. This compressed file
+   contains one directory for both {es} and {kib}.
++
+--
+[source,txt]
+----
+/elasticsearch
+|_ README.txt
+|_ http.p12
+|_ sample-elasticsearch.yml
+----
+
+[source,txt]
+----
+/kibana
+|_ README.txt
+|_ elasticsearch-ca.pem
+|_ sample-kibana.yml
+----
+--
+
+. On *every* node in your cluster, complete the following steps:
+
+  .. Copy the relevant `http.p12` certificate to the `$ES_PATH_CONF` directory.
+
+  .. Edit the `elasticsearch.yml` file to enable HTTPS security and specify the
+  location of the `http.p12` security certificate.
++
+[source,yaml]
+----
+xpack.security.http.ssl.enabled: true
+xpack.security.http.ssl.keystore.path: http.p12
+----
+
+  .. Add the password for your private key to the secure settings in {es}.
++
+[source,shell]
+----
+./bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
+----
+
+  .. Start {es}.
+
+**Next**: <<encrypt-kibana-http,Encrypt HTTP client communications for {kib}>>
+
+[[encrypt-kibana-http]]
+==== Encrypt HTTP client communications for {kib}
+
+Browsers send traffic to {kib} and {kib} sends traffic to {es}.
+These communication channels are configured separately to use TLS. You encrypt
+traffic between your browser and {kib}, and then encrypt traffic between
+{kib} and {es}.
+
+[[encrypt-kibana-elasticsearch]]
+===== Encrypt traffic between {kib} and {es}
+
+When you ran the `elasticsearch-certutil` tool with the `http` option, it
+created a `/kibana` directory containing an `elasticsearch-ca.pem` file. You
+use this file to configure {kib} to trust the {es} CA for the HTTP
+layer.
+
+. Copy the `elasticsearch-ca.pem` file to the {kib} configuration directory,
+as defined by the `$KBN_PATH_CONF` path.
+
+. Open `kibana.yml` and add the following line to specify the location of the
+security certificate for the HTTP layer.
++
+[source,yaml]
+----
+elasticsearch.ssl.certificateAuthorities: $KBN_PATH_CONF/elasticsearch-ca.pem
+----
+
+. Add the following line to specify the HTTPS URL for your {es}
+cluster.
++
+[source,yaml]
+----
+elasticsearch.hosts: https://<your_elasticsearch_host>:9200
+----
+
+. Restart {kib}.
+
+.Connect to a secure monitoring cluster
+****
+If the Elastic monitoring features are enabled and you configured a separate
+{es} monitoring cluster, you can also configure {kib} to connect to
+the monitoring cluster via HTTPS. The steps are the same, but each setting is
+prefixed by `monitoring`. For example, `monitoring.ui.elasticsearch.hosts` and
+`monitoring.ui.elasticsearch.ssl.truststore.path`.
+
+NOTE: You must create a separate `elasticsearch-ca.pem` security file for the
+monitoring cluster.
+****
+
+**Next**: <<encrypt-kibana-browser,Encrypt traffic between your browser and {kib}>>
+
+[[encrypt-kibana-browser]]
+===== Encrypt traffic between your browser and {kib}
+
+You create a server certificate and private key for {kib}. {kib} uses this
+server certificate and corresponding private key when receiving connections
+from web browsers.
+
+When you obtain a server certificate, you must set its subject alternative
+name (SAN) correctly to ensure that browsers will trust it. You can set one or
+more SANs to the {kib} server’s fully-qualified domain name (FQDN), hostname,
+or IP address. When choosing the SAN, pick whichever attribute you'll use to
+connect to {kib} in your browser, which is likely the FQDN.
+
+The following instructions create a Certificate Signing Request (CSR) for {kib}.
+A CSR contains information that a CA uses to generate and sign a security
+certificate. The certificate can be trusted (signed by a public, trusted CA)
+or untrusted (signed by an internal CA). A self-signed or internally-signed
+certificate is acceptable for development environments and building a proof of
+concept, but should not be used in a production environment.
+
+WARNING: Before going to production, use a trusted CA such as https://letsencrypt.org/[Let's
+Encrypt] or your organization's internal CA to sign the certificate. Using a
+signed certificate establishes browser trust for connections to {kib} for
+internal access or on the public internet.
+
+. Generate a server certificate and private key for {kib}.
++
+[source,shell]
+----
+./bin/elasticsearch-certutil csr -name kibana-server -dns example.com,www.example.com
+----
++
+The CSR has a common name (CN) of `kibana-server`, a SAN of `example.com`,
+and another SAN of `www.example.com`.
++
+This command generates a `csr-bundle.zip` file by default with the following
+contents:
++
+[source,txt]
+----
+/kibana-server
+|_ kibana-server.csr
+|_ kibana-server.key
+----
+
+. Unzip the `csr-bundle.zip` file to obtain the `kibana-server.csr` unsigned
+security certificate and the `kibana-server.key` unencrypted private key.
+
+. Send the `kibana-server.csr` certificate signing request to your internal
+CA or trusted CA for signing to obtain a signed certificate. The signed file
+can be in different formats, such as a `.crt` file like `kibana-server.crt`.
+
+. Open `kibana.yml` and add the following lines to configure {kib} to access
+the server certificate and unencrypted private key.
++
+[source,yaml]
+----
+server.ssl.certificate: $KBN_PATH_CONF/kibana-server.crt
+server.ssl.key: $KBN_PATH_CONF/kibana-server.key
+----
++
+NOTE: `$KBN_PATH_CONF` contains the path for the {kib} configuration files. If
+you installed {kib} using archive distributions (`zip` or `tar.gz`), the
+path defaults to `$KBN_HOME/config`. If you used package distributions
+(Debian or RPM), the path defaults to `/etc/kibana`.
+
+. Add the following line to `kibana.yml` to enable TLS for inbound
+connections.
++
+[source,yaml]
+----
+server.ssl.enabled: true
+----
+
+. Start {kib}.
+
+NOTE: After making these changes, you must always access {kib} via HTTPS. For
+example, `https://<your_kibana_host>.com`.
+
+**Next**: <<configure-beats-security,Configure {beats} security>>
+
+[[configure-beats-security]]
+==== Configure {beats} security
+
+The {beats} are open source data shippers that you install as agents on your
+servers to send operational data to {es}. Each Beat is a separately
+installable product. The following steps cover configuring security for
+{metricbeat}. Follow these steps for each https://www.elastic.co/guide/en/elastic-stack-get-started/7.9/get-started-elastic-stack.html#install-beats[additonal Beat] you want to configure security for.
+
+===== Prerequisites
+
+https://www.elastic.co/guide/en/beats/metricbeat/7.9/metricbeat-installation-configuration.html[Install {metricbeat}] using your preferred method.
+
+NOTE: You cannot connect to the Elastic Stack or set up assets for {metricbeat}
+before completing the following steps.
+
+===== Create roles for {metricbeat}
+Typically, you need to create the following separate roles:
+
+- **setup** role for setting up index templates and other dependencies
+- **monitoring** role for sending monitoring information
+- **writer** role for publishing events collected by Metricbeat
+- **reader** role for Kibana users who need to view and create visualizations that access Metricbeat data
+
+NOTE: These instructions assume that you are using the default name for
+{metricbeat} indices. If the indicated index names are not listed, or you are
+using a custom name, enter it manually when defining roles and modify the
+privileges to match your index naming pattern.
+
+To create users and roles from Stack Management in {kib}, select **Roles**
+or **Users** from the side navigation.
+
+**Next**: <<beats-setup-role,Create a setup role>>
+
+[discrete]
+[[beats-setup-role]]
+====== Create a setup role and user
+
+Administrators who set up {metricbeat} typically need to load mappings,
+dashboards, and other objects used to index data into {es} and visualize it in
+{kib}.
+
+WARNING: Setting up {metricbeat} is an admin-level task that requires extra
+privileges. As a best practice, grant the setup role to administrators only,
+and use a more restrictive role for event publishing.
+
+1. Create the setup role:
+
+   a. Enter **metricbeat_setup** as the role name.
+
+   b. Choose the **monitor** and **manage_ilm** cluster privileges.
+
+   c. On the **metricbeat-\*** indices, choose the **manage** and **write**
+   privileges.
++
+If the **metricbeat-\*** indices aren't listed, enter that pattern into the
+list of indices.
+
+2. Create the setup user:
+
+   a. Enter **metricbeat_setup** as the user name.
+
+   b. Enter the username, password, and other user details.
+
+   c. Assign the following roles to the **metricbeat_setup** user:
++
+[cols="1,1"]
+|===
+| Role               | Purpose
+
+| `metricbeat_setup` | Set up {metricbeat}.
+| `kibana_admin`     | Load dependencies, such as example dashboards, if available, into {kib}
+| `ingest_admin`     | Set up index templates and, if available, ingest pipelines
+|===
+
+**Next**: <<beats-monitoring-role,Create a monitoring role>>
+
+[discrete]
+[[beats-monitoring-role]]
+====== Create a monitoring role and user
+
+To send monitoring data securely, create a monitoring user and grant it the
+necessary privileges.
+
+You can use the built-in `beats_system` user, if it’s available in your
+environment. Because the built-in users are not available in Elastic Cloud,
+these instructions create a user that is explicitly used for monitoring
+{metricbeat}.
+
+1. Create the monitoring role:
+
+   a. Enter **metricbeat_monitoring** as the role name.
+
+   b. Choose the **monitor** cluster privilege.
+
+   c. On the **.monitoring-beats-\*** indices, choose the **create_index** and
+   **create_doc** privileges.
+
+2. Create the monitoring user:
+
+   a. Enter **metricbeat_monitoring** as the user name.
+
+   b. Enter the username, password, and other user details.
+
+   c. Assign the following roles to the **metricbeat_monitoring** user:
++
+[cols="1,1"]
+|===
+| Role                    | Purpose
+
+| `metricbeat_monitoring` | Monitor {metricbeat}.
+| `kibana_admin`          | Use {kib}
+| `monitoring_user`       | Use Stack Monitoring in {kib} to monitor {metricbeat}
+|===
+
+**Next**: <<beats-writer-role,Create a writer role>>
+
+[discrete]
+[[beats-writer-role]]
+====== Create a writer role and user
+
+Users who publish events to {es} need to create and write to {metricbeat} indices. To minimize the privileges required by the writer role, use the setup role to pre-load dependencies. This section assumes that you’ve
+<<beats-setup-role,created the setup role>>.
+
+1. Create the writer role:
+
+   a. Enter **metricbeat_writer** as the role name.
+
+   b. Choose the **monitor** and **read_ilm** cluster privileges.
+
+   c. On the **metricbeat-\*** indices, choose the **create_doc**, **create_index**, and **view_index_metadata** privileges.
+
+2. Create the writer user:
+
+   a. Enter **metricbeat_writer** as the user name.
+
+   b. Enter the username, password, and other user details.
+
+   c. Assign the following roles to the **metricbeat_writer** user:
++
+[cols="1,1"]
+|===
+| Role                          | Purpose
+
+| `metricbeat_writer`           | Monitor {metricbeat}
+| `remote_monitoring_collector` | Collect monitoring metrics from {metricbeat}
+| `remote_monitoring_agent`     | Send monitoring data to the monitoring cluster
+|===
+
+**Next**: <<beats-reader-role,Create a reader role>>
+
+[discrete]
+[[beats-reader-role]]
+====== Create a reader role and user
+
+{kib} users typically need to view dashboards and visualizations that contain
+{metricbeat} data. These users might also need to create and edit dashboards
+and visualizations. Create the reader role to assign proper privileges to these
+users.
+
+1. Create the reader role:
+
+   a. Enter **metricbeat_reader** as the role name.
+
+   b. On the **metricbeat-\*** indices, choose the **read** privilege.
+
+   c. Under **Kibana**, click **Add Kibana privilege**.
+
+   - Under **Spaces**, choose **Default**.
+
+   - Choose **Read** or **All** for Discover, Visualize, Dashboard, and Metrics.
+
+2. Create the reader user:
+
+   a. Enter **metricbeat_reader** as the user name.
+
+   b. Enter the username, password, and other user details.
+
+   c. Assign the following roles to the **metricbeat_reader** user:
++
+[cols="1,1"]
+|===
+| Role                          | Purpose
+
+| `metricbeat_reader` | Read {metricbeat} data.
+| `monitoring_user`   | Allow users to monitor the health of {metricbeat}
+itself. Only assign this role to users who manage {metricbeat}
+| `beats_admin`       | Create and manage configurations in {beats} central
+management. Only assign this role to users who need to use {beats} central
+management.
+|===
+
+**Next**: <<configure-metricbeat-tls,Configure {metricbeat} to use TLS>>
+
+[discrete]
+[[configure-metricbeat-tls]]
+===== Configure {metricbeat} to use TLS
+
+Before starting {metricbeat}, you configure the connections to {es} and
+{kib}. You can configure authentication to send data to your secured cluster
+using basic authentication, API key authentication, or Public Key
+Infrastructure (PKI) certificates.
+
+The following instructions use the credentials for the `metricbeat_writer`
+and `metricbeat_setup` users that you created. If you need a greater level of
+security, we recommend using PKI certificates.
+
+After configuring connections to {es} and {kib}, you'll enable the
+`elasticsearch-xpack` module and configure that module to use HTTPS.
+
+WARNING: In production environments, we strongly recommend using a separate
+cluster (referred to as the monitoring cluster) to store your data. Using a
+separate monitoring cluster prevents production cluster outages from impacting
+your ability to access your monitoring data. It also prevents monitoring
+activities from impacting the performance of your production cluster.
+
+. On the node where you
+<<encrypt-http-communication,generated certificates for the HTTP layer>>,
+navigate to the `/kibana` directory.
+
+. Copy the `elasticsearch-ca.pem` certificate to the directory where you
+installed {metricbeat}.
+
+. Open the `metricbeat.yml` configuration file and configure the connection
+to {es}.
++
+Under `output.elasticsearch`, specify the following fields:
++
+[source,yaml]
+----
+output.elasticsearch:
+ hosts: ["<your_elasticsearch_host>:9200"]
+ protocol: "https"
+ username: "metricbeat_writer"
+ password: "<password>"
+ ssl:
+   certificate_authorities: ["elasticsearch-ca.pem"]
+   verification_mode: "certificate"
+----
+
+   `hosts`:: Specifies the host where your {es} cluster is running.
+
+   `protocol`:: Indicates the protocol to use when connecting to {es}.
+   This value must be `https`.
+
+   `username`:: Name of the user with privileges required to publish events to
+   {es}. The `metricbeat_writer` user that you created has these
+   privileges.
+
+   `password`:: Password for the indicated `username`.
+
+   `certificate_authorities`:: Indicates the path to the local `.pem` file that
+   contains your CA's certificate. 
+
+. Configure the connection to {kib}.
++
+Under `setup.kibana`, specify the following fields:
++
+[source,yaml]
+----
+setup.kibana
+ host: "https://<your_elasticsearch_host>:5601"
+ ssl.enabled: true
+ username: "metricbeat_setup"
+ password: "p@ssw0rd"
+----
+
+   `hosts`:: The URLs of the {es} instances to use for all your
+   queries. Ensure that you include `https` in the URL.
+
+   `username`:: Name of the user with privileges required to set up dashboards in {kib}. The `metricbeat_setup` user that you created has these privileges.
+
+   `password`:: Password for the indicated `username`.
+
+. Enable the `elasticsearch-xpack` module.
++
+[source,shell]
+----
+./metricbeat modules enable elasticsearch-xpack
+----
+
+. Modify the `elasticsearch-xpack` module to use HTTPS. This module collects
+metrics about {es}.
++
+Open `/modules.d/elasticsearch-xpack.yml` and specify the following fields:
++
+[source,yaml]
+----
+- module: elasticsearch
+ xpack.enabled: true
+ period: 10s
+ hosts: ["https://<your_elasticsearch_host>:9200"]
+ username: "remote_monitoring_user"
+ password: "<password>"
+ ssl:     <1>
+   enabled: true
+   certificate_authorities: ["elasticsearch-ca.pem"]
+   verification_mode: "certificate"
+----
+<1> Configuring SSL is required when monitoring a node with encrypted traffic.
+See {metricbeat-ref}/configuration-ssl.html[Configure SSL for {metricbeat}].
+
+   `hosts`:: Specifies the host where your {es} cluster is running.
+   Ensure that you include `https` in the URL.
+
+   `username`:: Name of the user with privileges to collect metric data. The
+   built-in `monitoring_user` user has these privileges. Alternatively,
+   you can create a user and assign it the `monitoring_user` role.
+
+   `password`:: Password for the indicated `username`.
+
+   `certificate_authorities`:: Indicates the path to the local `.pem` file that
+   contains your CA's certificate. 
+
+. If you want to use the predefined assets for parsing, indexing, and
+   visualizing your data, run the following command to load these assets:
++
+[source,shell]
+----
+./metricbeat setup -e
+----
+
+. Start {es}, and then start Metricbeat.
++
+[source,shell]
+----
+./metricbeat -e
+----
++
+`-e` is optional and sends output to standard error instead of the configured
+log output.
+
+. Log in to Kibana, open the main menu, and click **Stack Monitoring**.
++
+You’ll see cluster alerts that require your attention and a summary of the available monitoring metrics for {es}. Click any of the header links on the available cards to view additional information.

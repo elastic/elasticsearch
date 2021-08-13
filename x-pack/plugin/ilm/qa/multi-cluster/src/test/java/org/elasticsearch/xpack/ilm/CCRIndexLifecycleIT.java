@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
@@ -16,7 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -39,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -187,15 +189,15 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         if ("leader".equals(targetCluster)) {
             // Create a policy on the leader
             putILMPolicy(policyName, null, 1, null);
-            Request templateRequest = new Request("PUT", "_template/my_template");
+            Request templateRequest = new Request("PUT", "/_index_template/my_template");
             Settings indexSettings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName)
                 .put("index.lifecycle.rollover_alias", alias)
                 .build();
-            templateRequest.setJsonEntity("{\"index_patterns\":  [\"mymetrics-*\"], \"settings\":  " +
-                Strings.toString(indexSettings) + "}");
+            templateRequest.setJsonEntity("{\"index_patterns\":  [\"mymetrics-*\"], \"template\":{\"settings\":  " +
+                Strings.toString(indexSettings) + "}}");
             assertOK(client().performRequest(templateRequest));
         } else if ("follow".equals(targetCluster)) {
             // Policy with the same name must exist in follower cluster too:
@@ -273,7 +275,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 });
 
                 // Clean up
-                leaderClient.performRequest(new Request("DELETE", "/_template/my_template"));
+                leaderClient.performRequest(new Request("DELETE", "/_index_template/my_template"));
             }
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
@@ -282,9 +284,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     public void testAliasReplicatedOnShrink() throws Exception {
         final String indexName = "shrink-alias-test";
-        final String shrunkenIndexName = "shrink-" + indexName;
         final String policyName = "shrink-test-policy";
-
         final int numberOfAliases = randomIntBetween(0, 4);
 
         if ("leader".equals(targetCluster)) {
@@ -331,6 +331,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // Wait for the setting to get replicated
             assertBusy(() -> assertThat(getIndexSetting(client(), indexName, "index.lifecycle.indexing_complete"), equalTo("true")));
 
+            assertBusy(() -> assertThat(getShrinkIndexName(client(), indexName) , notNullValue()), 30, TimeUnit.SECONDS);
+            String shrunkenIndexName = getShrinkIndexName(client(), indexName);
+
             // Wait for the index to continue with its lifecycle and be shrunk
             assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)));
 
@@ -349,7 +352,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     public void testUnfollowInjectedBeforeShrink() throws Exception {
         final String indexName = "shrink-test";
-        final String shrunkenIndexName = "shrink-" + indexName;
         final String policyName = "shrink-test-policy";
 
         if ("leader".equals(targetCluster)) {
@@ -386,6 +388,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // moves through the unfollow and shrink actions so fast that the
             // index often disappears between assertBusy checks
 
+            assertBusy(() -> assertThat(getShrinkIndexName(client(), indexName) , notNullValue()), 1, TimeUnit.MINUTES);
+            String shrunkenIndexName = getShrinkIndexName(client(), indexName);
+
             // Wait for the index to continue with its lifecycle and be shrunk
             assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)));
 
@@ -396,8 +401,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     public void testCannotShrinkLeaderIndex() throws Exception {
         String indexName = "shrink-leader-test";
-        String shrunkenIndexName = "shrink-" + indexName;
-
         String policyName = "shrink-leader-test-policy";
         if ("leader".equals(targetCluster)) {
             // Set up the policy and index, but don't attach the policy yet,
@@ -454,6 +457,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     .build()
                 );
 
+                assertBusy(() -> assertThat(getShrinkIndexName(leaderClient, indexName) , notNullValue()), 30, TimeUnit.SECONDS);
+                String shrunkenIndexName = getShrinkIndexName(leaderClient, indexName);
                 assertBusy(() -> {
                     // The shrunken index should now be created on the leader...
                     Response shrunkenIndexExistsResponse = leaderClient.performRequest(new Request("HEAD", "/" + shrunkenIndexName));
@@ -467,7 +472,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
         }
-
     }
 
     public void testILMUnfollowFailsToRemoveRetentionLeases() throws Exception {
@@ -796,9 +800,52 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
 
-        Map<String, Object> repoResponse = ((List<Map<String, Object>>) responseMap.get("responses")).get(0);
-        Map<String, Object> snapResponse = ((List<Map<String, Object>>) repoResponse.get("snapshots")).get(0);
+        Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String getShrinkIndexName(RestClient client, String originalIndex) throws InterruptedException, IOException {
+        String[] shrunkenIndexName = new String[1];
+        waitUntil(() -> {
+            try {
+                Request explainRequest = new Request("GET", SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex
+                    + "/_ilm/explain");
+                explainRequest.addParameter("only_errors", Boolean.toString(false));
+                explainRequest.addParameter("only_managed", Boolean.toString(false));
+                Response response = client.performRequest(explainRequest);
+                Map<String, Object> responseMap;
+                try (InputStream is = response.getEntity().getContent()) {
+                    responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+
+                Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
+                Map<String, Object> explainIndexResponse = indexResponse.get(originalIndex);
+                if(explainIndexResponse == null) {
+                    // maybe we swapped the alias from the original index to the shrunken one already
+                    for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
+                        // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
+                        String indexName = indexToExplainMap.getKey();
+                        if (indexName.startsWith(SHRUNKEN_INDEX_PREFIX) && indexName.contains(originalIndex)) {
+                            explainIndexResponse = indexToExplainMap.getValue();
+                            break;
+                        }
+                    }
+                }
+
+                LOGGER.info("--> index {}, explain {}", originalIndex, explainIndexResponse);
+                if (explainIndexResponse == null) {
+                    return false;
+                }
+                shrunkenIndexName[0] = (String) explainIndexResponse.get("shrink_index_name");
+                return shrunkenIndexName[0] != null;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+        assert shrunkenIndexName[0] != null : "lifecycle execution state must contain the target shrink index name for index ["
+            + originalIndex + "]";
+        return shrunkenIndexName[0];
     }
 }

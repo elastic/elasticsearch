@@ -1,6 +1,7 @@
 {
   "model_id" : "lang_ident_model_1",
   "created_by" : "_xpack",
+  "model_type" : "lang_ident",
   "version" : "7.6.0",
   "description" : "Model used for identifying language from arbitrary input text.",
   "create_time" : 1575548914594,
@@ -14,6 +15,7 @@
       "text"
     ]
   },
+  "inference_config" : {"classification" : {}},
   "estimated_heap_memory_usage_bytes" : 1053992,
   "estimated_operations" : 39629,
   "license_level" : "basic"

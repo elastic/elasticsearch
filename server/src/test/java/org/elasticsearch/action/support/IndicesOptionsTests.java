@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support;
@@ -41,6 +30,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -192,39 +182,39 @@ public class IndicesOptionsTests extends ESTestCase {
             boolean ignoreThrottled = opts.ignoreThrottled();
             while (mutated == false) {
                 if (randomBoolean()) {
-                    ignoreUnavailable = !ignoreUnavailable;
+                    ignoreUnavailable = ignoreUnavailable == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    allowNoIndices = !allowNoIndices;
+                    allowNoIndices = allowNoIndices == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    expandOpen = !expandOpen;
+                    expandOpen = expandOpen == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    expandClosed = !expandClosed;
+                    expandClosed = expandClosed == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    expandHidden = !expandHidden;
+                    expandHidden = expandHidden == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    allowAliasesToMulti = !allowAliasesToMulti;
+                    allowAliasesToMulti = allowAliasesToMulti == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    forbidClosed = !forbidClosed;
+                    forbidClosed = forbidClosed == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    ignoreAliases = !ignoreAliases;
+                    ignoreAliases = ignoreAliases == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    ignoreThrottled = !ignoreThrottled;
+                    ignoreThrottled = ignoreThrottled == false;
                     mutated = true;
                 }
             }
@@ -375,6 +365,50 @@ public class IndicesOptionsTests extends ESTestCase {
         assertFalse(fromXContentOptions.expandWildcardsClosed());
         assertFalse(fromXContentOptions.expandWildcardsHidden());
         assertFalse(fromXContentOptions.expandWildcardsOpen());
+    }
+
+    public void testFromXContentWithDefaults() throws Exception {
+        XContentType type = randomFrom(XContentType.values());
+        final IndicesOptions defaults = IndicesOptions.LENIENT_EXPAND_OPEN;
+        final boolean includeExpandWildcards = randomBoolean();
+        final EnumSet<WildcardStates> expectedWildcardStates = includeExpandWildcards ?
+            WildcardStates.parseParameter(randomFrom("all", "none", List.of("open", "closed"), List.of("open", "hidden"),
+                List.of("closed"), List.of("closed", "hidden")), null) :
+            defaults.getExpandWildcards();
+        final boolean includeIgnoreUnavailable = randomBoolean();
+        final boolean ignoreUnavailable = includeIgnoreUnavailable ? randomBoolean() : defaults.ignoreUnavailable();
+        final boolean includeAllowNoIndices = randomBoolean();
+        final boolean allowNoIndices = includeAllowNoIndices ? randomBoolean() : defaults.allowNoIndices();
+
+        BytesReference xContentBytes;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
+            builder.startObject();
+            if (includeExpandWildcards) {
+                builder.startArray("expand_wildcards");
+                for (WildcardStates state : expectedWildcardStates) {
+                    builder.value(state.toString().toLowerCase(Locale.ROOT));
+                }
+                builder.endArray();
+            }
+
+            if (includeIgnoreUnavailable) {
+                builder.field("ignore_unavailable", ignoreUnavailable);
+            }
+            if (includeAllowNoIndices) {
+                builder.field("allow_no_indices", allowNoIndices);
+            }
+            builder.endObject();
+            xContentBytes = BytesReference.bytes(builder);
+        }
+
+        IndicesOptions fromXContentOptions;
+        try (XContentParser parser = type.xContent().createParser(
+            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+            fromXContentOptions = IndicesOptions.fromXContent(parser, defaults);
+        }
+        assertEquals(ignoreUnavailable, fromXContentOptions.ignoreUnavailable());
+        assertEquals(allowNoIndices, fromXContentOptions.allowNoIndices());
+        assertEquals(expectedWildcardStates, fromXContentOptions.getExpandWildcards());
     }
 
     private BytesReference toXContentBytes(IndicesOptions indicesOptions, XContentType type) throws IOException {

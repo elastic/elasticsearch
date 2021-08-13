@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch;
@@ -25,8 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -36,7 +24,7 @@ import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -62,7 +50,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 
@@ -111,7 +98,7 @@ public class FetchPhase {
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext);
-        NestedDocuments nestedDocuments = context.getNestedDocuments();
+        NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         int currentReaderIndex = -1;
         LeafReaderContext currentReaderContext = null;
@@ -148,7 +135,6 @@ public class FetchPhase {
                 HitContext hit = prepareHitContext(
                     context,
                     leafNestedDocuments,
-                    nestedDocuments::hasNonNestedParent,
                     fieldsVisitor,
                     docId,
                     storedToRequestedFields,
@@ -206,7 +192,7 @@ public class FetchPhase {
 
         if (storedFieldsContext == null) {
             // no fields specified, default to return source if no explicit indication
-            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
+            if (context.hasScriptFields() == false && context.hasFetchSourceContext() == false) {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
             boolean loadSource = sourceRequired(context);
@@ -222,21 +208,14 @@ public class FetchPhase {
                     context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
                     continue;
                 }
-                QueryShardContext queryShardContext = context.getQueryShardContext();
-                Collection<String> fieldNames = queryShardContext.simpleMatchToIndexNames(fieldNameOrPattern);
+                SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
+                Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(fieldNameOrPattern);
                 for (String fieldName : fieldNames) {
-                    MappedFieldType fieldType = queryShardContext.getFieldType(fieldName);
-                    if (fieldType == null) {
-                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                        if (queryShardContext.getObjectMapper(fieldName) != null) {
-                            throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
-                        }
-                    } else {
-                        String storedField = fieldType.name();
-                        Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(
-                            storedField, key -> new HashSet<>());
-                        requestedFields.add(fieldName);
-                    }
+                    MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
+                    String storedField = fieldType.name();
+                    Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(
+                        storedField, key -> new HashSet<>());
+                    requestedFields.add(fieldName);
                 }
             }
             boolean loadSource = sourceRequired(context);
@@ -255,7 +234,6 @@ public class FetchPhase {
 
     private HitContext prepareHitContext(SearchContext context,
                                          LeafNestedDocuments nestedDocuments,
-                                         Predicate<String> hasNonNestedParent,
                                          FieldsVisitor fieldsVisitor,
                                          int docId,
                                          Map<String, Set<String>> storedToRequestedFields,
@@ -265,7 +243,7 @@ public class FetchPhase {
             return prepareNonNestedHitContext(
                 context, fieldsVisitor, docId, storedToRequestedFields, subReaderContext, storedFieldReader);
         } else {
-            return prepareNestedHitContext(context, docId, nestedDocuments, hasNonNestedParent, storedToRequestedFields,
+            return prepareNestedHitContext(context, docId, nestedDocuments, storedToRequestedFields,
                 subReaderContext, storedFieldReader);
         }
     }
@@ -289,7 +267,7 @@ public class FetchPhase {
             return new HitContext(hit, subReaderContext, subDocId);
         } else {
             SearchHit hit;
-            loadStoredFields(context.getQueryShardContext()::getFieldType, fieldReader, fieldsVisitor, subDocId);
+            loadStoredFields(context.getSearchExecutionContext()::getFieldType, fieldReader, fieldsVisitor, subDocId);
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
@@ -305,7 +283,7 @@ public class FetchPhase {
                 // Also make it available to scripts by storing it on the shared SearchLookup instance.
                 hitContext.sourceLookup().setSource(fieldsVisitor.source());
 
-                SourceLookup scriptSourceLookup = context.getQueryShardContext().lookup().source();
+                SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
                 scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
                 scriptSourceLookup.setSource(fieldsVisitor.source());
             }
@@ -325,7 +303,6 @@ public class FetchPhase {
     private HitContext prepareNestedHitContext(SearchContext context,
                                                int topDocId,
                                                LeafNestedDocuments nestedInfo,
-                                               Predicate<String> hasNonNestedParent,
                                                Map<String, Set<String>> storedToRequestedFields,
                                                LeafReaderContext subReaderContext,
                                                CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader)
@@ -339,34 +316,37 @@ public class FetchPhase {
         Map<String, Object> rootSourceAsMap = null;
         XContentType rootSourceContentType = null;
 
-        QueryShardContext queryShardContext = context.getQueryShardContext();
+        SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         if (context instanceof InnerHitsContext.InnerHitSubContext) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = (InnerHitsContext.InnerHitSubContext) context;
             rootId = innerHitsContext.getRootId();
 
             if (needSource) {
                 SourceLookup rootLookup = innerHitsContext.getRootLookup();
-                rootSourceAsMap = rootLookup.loadSourceIfNeeded();
+                rootSourceAsMap = rootLookup.source();
                 rootSourceContentType = rootLookup.sourceContentType();
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(queryShardContext::getFieldType, storedFieldReader, rootFieldsVisitor, nestedInfo.rootDoc());
+            loadStoredFields(searchExecutionContext::getFieldType, storedFieldReader, rootFieldsVisitor, nestedInfo.rootDoc());
             rootId = rootFieldsVisitor.id();
 
             if (needSource) {
-                BytesReference rootSource = rootFieldsVisitor.source();
-                Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootSource, false);
-                rootSourceAsMap = tuple.v2();
-                rootSourceContentType = tuple.v1();
+                if (rootFieldsVisitor.source() != null) {
+                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootFieldsVisitor.source(), false);
+                    rootSourceAsMap = tuple.v2();
+                    rootSourceContentType = tuple.v1();
+                } else {
+                    rootSourceAsMap = Collections.emptyMap();
+                }
             }
         }
 
         Map<String, DocumentField> docFields = emptyMap();
         Map<String, DocumentField> metaFields = emptyMap();
-        if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
+        if (context.hasStoredFields() && context.storedFieldsContext().fieldNames().isEmpty() == false) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
-            loadStoredFields(queryShardContext::getFieldType, storedFieldReader, nestedFieldsVisitor, nestedInfo.doc());
+            loadStoredFields(searchExecutionContext::getFieldType, storedFieldReader, nestedFieldsVisitor, nestedInfo.doc());
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
                 docFields = new HashMap<>();
                 metaFields = new HashMap<>();
@@ -379,7 +359,7 @@ public class FetchPhase {
         SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity, docFields, metaFields);
         HitContext hitContext = new HitContext(hit, subReaderContext, nestedInfo.doc());
 
-        if (rootSourceAsMap != null) {
+        if (rootSourceAsMap != null && rootSourceAsMap.isEmpty() == false) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
             // structure with the nested json array object being the actual content. The latter is important, so that
             // features like source filtering and highlighting work consistent regardless of whether the field points
@@ -389,26 +369,9 @@ public class FetchPhase {
             for (SearchHit.NestedIdentity nested = nestedIdentity; nested != null; nested = nested.getChild()) {
                 String nestedPath = nested.getField().string();
                 current.put(nestedPath, new HashMap<>());
-                Object extractedValue = XContentMapValues.extractValue(nestedPath, rootSourceAsMap);
-                List<?> nestedParsedSource;
-                if (extractedValue instanceof List) {
-                    // nested field has an array value in the _source
-                    nestedParsedSource = (List<?>) extractedValue;
-                } else if (extractedValue instanceof Map) {
-                    // nested field has an object value in the _source. This just means the nested field has just one inner object,
-                    // which is valid, but uncommon.
-                    nestedParsedSource = Collections.singletonList(extractedValue);
-                } else {
-                    throw new IllegalStateException("extracted source isn't an object or an array");
-                }
-                if ((nestedParsedSource.get(0) instanceof Map) == false && hasNonNestedParent.test(nestedPath)) {
-                    // When one of the parent objects are not nested then XContentMapValues.extractValue(...) extracts the values
-                    // from two or more layers resulting in a list of list being returned. This is because nestedPath
-                    // encapsulates two or more object layers in the _source.
-                    //
-                    // This is why only the first element of nestedParsedSource needs to be checked.
-                    throw new IllegalArgumentException("Cannot execute inner hits. One or more parent object fields of nested field [" +
-                        nestedPath + "] are not nested. All parent fields need to be nested fields too");
+                List<Map<?, ?>> nestedParsedSource = XContentMapValues.extractNestedSources(nestedPath, rootSourceAsMap);
+                if (nestedParsedSource == null) {
+                    throw new IllegalStateException("Couldn't find nested source for path " + nestedPath);
                 }
                 rootSourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
                 if (nested.getChild() == null) {
@@ -442,14 +405,14 @@ public class FetchPhase {
             List<Object> storedValues = entry.getValue();
             if (storedToRequestedFields.containsKey(storedField)) {
                 for (String requestedField : storedToRequestedFields.get(storedField)) {
-                    if (context.getQueryShardContext().isMetadataField(requestedField)) {
+                    if (context.getSearchExecutionContext().isMetadataField(requestedField)) {
                         metaFields.put(requestedField, new DocumentField(requestedField, storedValues));
                     } else {
                         docFields.put(requestedField, new DocumentField(requestedField, storedValues));
                     }
                 }
             } else {
-                if (context.getQueryShardContext().isMetadataField(storedField)) {
+                if (context.getSearchExecutionContext().isMetadataField(storedField)) {
                     metaFields.put(storedField, new DocumentField(storedField, storedValues));
                 } else {
                     docFields.put(storedField, new DocumentField(storedField, storedValues));

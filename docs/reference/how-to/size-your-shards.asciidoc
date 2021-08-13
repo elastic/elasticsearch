@@ -1,8 +1,5 @@
 [[size-your-shards]]
-== How to size your shards
-++++
-<titleabbrev>Size your shards</titleabbrev>
-++++
+== Size your shards
 
 To protect against hardware failure and increase capacity, {es} stores copies of
 an index’s data across multiple shards on multiple nodes. The number and size of
@@ -59,7 +56,7 @@ set of large shards uses fewer resources than many small shards.
 
 Segments play a big role in a shard's resource usage. Most shards contain
 several segments, which store its index data. {es} keeps segment metadata in
-<<heap-size,heap memory>> so it can be quickly retrieved for searches. As a
+JVM heap memory so it can be quickly retrieved for searches. As a
 shard grows, its segments are <<index-modules-merge,merged>> into fewer, larger
 segments. This decreases the number of segments, which means less metadata is
 kept in heap memory.
@@ -100,15 +97,11 @@ deleted indices directly from the file system and free up resources.
 time-based backing indices. You can use <<index-lifecycle-management,{ilm}
 ({ilm-init})>> to automatically manage these backing indices.
 
-[role="screenshot"]
-image:images/ilm/index-lifecycle-policies.png[]
-
 One advantage of this setup is
 <<getting-started-index-lifecycle-management,automatic rollover>>, which creates
-a new write index when the current one meets a defined `max_age`, `max_docs`, or
-`max_size` threshold. You can use these thresholds to create indices based on
-your retention intervals. When an index is no longer needed, you can use
-{ilm-init} to automatically delete it and free up resources.
+a new write index when the current one meets a defined `max_primary_shard_size`,
+`max_age`, `max_docs`, or `max_size` threshold. When an index is no longer
+needed, you can use {ilm-init} to automatically delete it and free up resources.
 
 {ilm-init} also makes it easy to change your sharding strategy over time:
 
@@ -131,32 +124,64 @@ Every new backing index is an opportunity to further tune your strategy.
 [[shard-size-recommendation]]
 ==== Aim for shard sizes between 10GB and 50GB
 
-Shards larger than 50GB may make a cluster less likely to recover from failure.
-When a node fails, {es} rebalances the node's shards across the data tier's
-remaining nodes. Shards larger than 50GB can be harder to move across a network
-and may tax node resources.
+Large shards may make a cluster less likely to recover from failure. When a node
+fails, {es} rebalances the node's shards across the data tier's remaining nodes.
+Large shards can be harder to move across a network and may tax node resources.
+
+While not a hard limit, shards between 10GB and 50GB tend to work well. You may
+be able to use larger shards depending on your network and use case.
+
+If you use {ilm-init}, set the <<ilm-rollover,rollover action>>'s
+`max_primary_shard_size` threshold to `50gb` to avoid shards larger than 50GB.
+
+To see the current size of your shards, use the <<cat-shards,cat shards API>>.
+
+[source,console]
+----
+GET _cat/shards?v=true&h=index,prirep,shard,store&s=prirep,store&bytes=gb
+----
+// TEST[setup:my_index]
+
+The `pri.store.size` value shows the combined size of all primary shards for
+the index.
+
+[source,txt]
+----
+index                                 prirep shard store
+.ds-my-data-stream-2099.05.06-000001  p      0      50gb
+...
+----
+// TESTRESPONSE[non_json]
+// TESTRESPONSE[s/\.ds-my-data-stream-2099\.05\.06-000001/my-index-000001/]
+// TESTRESPONSE[s/50gb/.*/]
 
 [discrete]
 [[shard-count-recommendation]]
 ==== Aim for 20 shards or fewer per GB of heap memory
 
 The number of shards a node can hold is proportional to the node's
-<<heap-size,heap memory>>. For example, a node with 30GB of heap memory should
+heap memory. For example, a node with 30GB of heap memory should
 have at most 600 shards. The further below this limit you can keep your nodes,
 the better. If you find your nodes exceeding more than 20 shards per GB,
-consider adding another node. You can use the <<cat-shards,cat shards API>> to
-check the number of shards per node.
+consider adding another node.
+
+To check the current size of each node's heap, use the <<cat-nodes,cat nodes
+API>>.
 
 [source,console]
 ----
-GET _cat/shards
+GET _cat/nodes?v=true&h=heap.current
 ----
 // TEST[setup:my_index]
 
-To use compressed pointers and save memory, we
-recommend each node have a maximum heap size of 32GB or 50% of the node's
-available memory, whichever is lower. See <<heap-size>>.
+You can use the <<cat-shards,cat shards API>> to check the number of shards per
+node.
 
+[source,console]
+----
+GET _cat/shards?v=true
+----
+// TEST[setup:my_index]
 
 [discrete]
 [[avoid-node-hotspots]]
@@ -174,7 +199,7 @@ configure `index.routing.allocation.total_shards_per_node` using the
 
 [source,console]
 --------------------------------------------------
-PUT /my-index-000001/_settings
+PUT my-index-000001/_settings
 {
   "index" : {
     "routing.allocation.total_shards_per_node" : 5
@@ -192,19 +217,16 @@ If your cluster is experiencing stability issues due to oversharded indices,
 you can use one or more of the following methods to fix them.
 
 [discrete]
-[[reindex-indices-from-shorter-periods-into-longer-periods]]
-==== Create time-based indices that cover longer periods
+[[create-indices-that-cover-longer-time-periods]]
+==== Create indices that cover longer time periods
 
-For time series data, you can create indices that cover longer time intervals.
-For example, instead of daily indices, you can create indices on a monthly or
-yearly basis.
+If you use {ilm-init} and your retention policy allows it, avoid using a
+`max_age` threshold for the rollover action. Instead, use
+`max_primary_shard_size` to avoid creating empty indices or many small shards.
 
-If you're using {ilm-init}, you can do this by increasing the `max_age`
-threshold for the <<ilm-rollover,rollover action>>.
-
-If your retention policy allows it, you can also create larger indices by
-omitting a `max_age` threshold and using `max_docs` and/or `max_size`
-thresholds instead.
+If your retention policy requires a `max_age` threshold, increase it to create
+indices that cover longer time intervals. For example, instead of creating daily
+indices, you can create indices on a weekly or monthly basis.
 
 [discrete]
 [[delete-empty-indices]]
@@ -218,7 +240,7 @@ You can find these empty indices using the <<cat-count,cat count API>>.
 
 [source,console]
 ----
-GET /_cat/count/my-index-000001?v
+GET _cat/count/my-index-000001?v=true
 ----
 // TEST[setup:my_index]
 
@@ -228,7 +250,7 @@ unneeded indices.
 
 [source,console]
 ----
-DELETE /my-index-*
+DELETE my-index-*
 ----
 // TEST[setup:my_index]
 
@@ -243,7 +265,7 @@ are resource-intensive. If possible, run the force merge during off-peak hours.
 
 [source,console]
 ----
-POST /my-index-000001/_forcemerge
+POST my-index-000001/_forcemerge
 ----
 // TEST[setup:my_index]
 
@@ -256,7 +278,7 @@ If you no longer write to an index, you can use the
 
 [source,console]
 ----
-POST /my-index-000001/_shrink/my-shrunken-index-000001
+POST my-index-000001/_shrink/my-shrunken-index-000001
 ----
 // TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards":2,"blocks.write":true}}\n/]
 
@@ -276,7 +298,7 @@ shared index pattern, such as `my-index-2099.10.11`, into a monthly
 
 [source,console]
 ----
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "my-index-2099.10.*"

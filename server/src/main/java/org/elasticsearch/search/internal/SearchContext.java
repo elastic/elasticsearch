@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.internal;
 
@@ -24,16 +13,14 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
@@ -210,8 +197,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract IndexShard indexShard();
 
-    public abstract BigArrays bigArrays();
-
     public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract TimeValue timeout();
@@ -314,8 +299,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract QuerySearchResult queryResult();
 
-    public abstract NestedDocuments getNestedDocuments();
-
     public abstract FetchPhase fetchPhase();
 
     public abstract FetchSearchResult fetchResult();
@@ -329,7 +312,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Adds a releasable that will be freed when this context is closed.
      */
-    public void addReleasable(Releasable releasable) {
+    public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.
         releasables.add(releasable);
     }
 
@@ -350,7 +333,7 @@ public abstract class SearchContext implements Releasable {
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();
 
-    public abstract QueryShardContext getQueryShardContext();
+    public abstract SearchExecutionContext getSearchExecutionContext();
 
     @Override
     public String toString() {

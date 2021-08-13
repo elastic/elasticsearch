@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.settings;
 
@@ -23,13 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -323,7 +312,12 @@ public class SettingTests extends ESTestCase {
                 Property.Filtered));
         assertThat(e2, hasToString(containsString("failed to parse value for setting [foo], must be <= [3h]")));
 
-        final Setting minSetting = Setting.timeSetting("foo", TimeValue.timeValueHours(3), TimeValue.timeValueHours(2), Property.Filtered);
+        final Setting<TimeValue> minSetting = Setting.timeSetting(
+            "foo",
+            TimeValue.timeValueHours(3),
+            TimeValue.timeValueHours(2),
+            Property.Filtered
+        );
         final Settings minSettings = Settings.builder()
             .put("foo", "not a time value")
             .build();
@@ -331,7 +325,7 @@ public class SettingTests extends ESTestCase {
         assertThat(e3, hasToString(containsString("failed to parse value for setting [foo] as a time value")));
         assertNull(e3.getCause());
 
-        final Setting maxSetting = Setting.timeSetting("foo", TimeValue.timeValueHours(3), TimeValue.timeValueHours(2),
+        final Setting<TimeValue> maxSetting = Setting.timeSetting("foo", TimeValue.timeValueHours(3), TimeValue.timeValueHours(2),
             TimeValue.timeValueHours(4), Property.Filtered);
         final Settings maxSettings = Settings.builder()
             .put("foo", "not a time value")
@@ -342,7 +336,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testFilteredBooleanSetting() {
-        Setting setting = Setting.boolSetting("foo", false, Property.Filtered);
+        Setting<Boolean> setting = Setting.boolSetting("foo", false, Property.Filtered);
         final Settings settings = Settings.builder()
             .put("foo", "not a boolean value")
             .build();
@@ -350,6 +344,19 @@ public class SettingTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
         assertThat(e, hasToString(containsString("Failed to parse value for setting [foo]")));
         assertNull(e.getCause());
+    }
+
+    private enum TestEnum {
+        ON,
+        OFF
+    }
+
+    public void testThrowsIllegalArgumentExceptionOnInvalidEnumSetting() {
+        Setting<TestEnum> setting = Setting.enumSetting(TestEnum.class, "foo", TestEnum.ON, Property.Filtered);
+        final Settings settings = Settings.builder().put("foo", "bar").build();
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
+        assertThat(e, hasToString(containsString("No enum constant org.elasticsearch.common.settings.SettingTests.TestEnum.BAR")));
     }
 
     public void testUpdateNotDynamic() {
@@ -620,7 +627,7 @@ public class SettingTests extends ESTestCase {
                 .build();
         deprecatedListSetting.get(settings);
         nonDeprecatedListSetting.get(settings);
-        assertSettingDeprecationsAndWarnings(new Setting[]{deprecatedListSetting});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedListSetting });
     }
 
     public void testListSettings() {
@@ -937,8 +944,14 @@ public class SettingTests extends ESTestCase {
 
     public void testRejectConflictingDynamicAndFinalProperties() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Setting.simpleString("foo.bar", Property.Final, Property.Dynamic));
+            () -> Setting.simpleString("foo.bar", Property.Final, randomFrom(Property.Dynamic, Property.OperatorDynamic)));
         assertThat(ex.getMessage(), containsString("final setting [foo.bar] cannot be dynamic"));
+    }
+
+    public void testRejectConflictingDynamicAndOperatorDynamicProperties() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.Dynamic, Property.OperatorDynamic));
+        assertThat(ex.getMessage(), containsString("setting [foo.bar] cannot be both dynamic and operator dynamic"));
     }
 
     public void testRejectNonIndexScopedNotCopyableOnResizeSetting() {
@@ -1237,5 +1250,12 @@ public class SettingTests extends ESTestCase {
             Loggers.removeAppender(logger, mockLogAppender);
             mockLogAppender.stop();
         }
+    }
+
+    public void testDynamicTest() {
+        final Property property = randomFrom(Property.Dynamic, Property.OperatorDynamic);
+        final Setting<String> setting = Setting.simpleString("foo.bar", property);
+        assertTrue(setting.isDynamic());
+        assertEquals(setting.isOperatorOnly(), property == Property.OperatorDynamic);
     }
 }

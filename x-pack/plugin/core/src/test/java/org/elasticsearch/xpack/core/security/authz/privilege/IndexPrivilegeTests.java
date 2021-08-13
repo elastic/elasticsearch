@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
@@ -15,7 +16,9 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -57,6 +60,11 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(findPrivilegesThatGrant(IndicesStatsAction.NAME), equalTo(List.of("monitor", "manage", "all")));
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
         assertThat(findPrivilegesThatGrant(ShrinkAction.NAME), equalTo(List.of("manage", "all")));
+    }
+
+    public void testPrivilegesForRollupFieldCapsAction() {
+        final Collection<String> privileges = findPrivilegesThatGrant(GetRollupIndexCapsAction.NAME);
+        assertThat(Set.copyOf(privileges), equalTo(Set.of("read", "view_index_metadata", "manage", "all")));
     }
 
 }

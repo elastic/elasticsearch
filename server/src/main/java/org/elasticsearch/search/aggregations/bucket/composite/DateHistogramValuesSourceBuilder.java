@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,8 +45,10 @@ import java.util.function.LongConsumer;
  * A {@link CompositeValuesSourceBuilder} that builds a {@link RoundingValuesSource} from a {@link Script} or
  * a field name using the provided interval.
  */
-public class DateHistogramValuesSourceBuilder
-    extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> implements DateIntervalConsumer {
+public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder>
+    implements
+        DateIntervalConsumer<DateHistogramValuesSourceBuilder> {
+
     @FunctionalInterface
     public interface DateHistogramCompositeSupplier {
         CompositeValuesSourceConfig apply(
@@ -154,46 +145,6 @@ public class DateHistogramValuesSourceBuilder
     }
 
     /**
-     * Returns the interval in milliseconds that is set on this source
-     **/
-    @Deprecated
-    public long interval() {
-        return dateHistogramInterval.interval();
-    }
-
-    /**
-     * Sets the interval on this source.
-     * If both {@link #interval()} and {@link #dateHistogramInterval()} are set,
-     * then the {@link #dateHistogramInterval()} wins.
-     *
-     * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
-     * @since 7.2.0
-     **/
-    @Deprecated
-    public DateHistogramValuesSourceBuilder interval(long interval) {
-        dateHistogramInterval.interval(interval);
-        return this;
-    }
-
-    /**
-     * Returns the date interval that is set on this source
-     **/
-    @Deprecated
-    public DateHistogramInterval dateHistogramInterval() {
-        return dateHistogramInterval.dateHistogramInterval();
-    }
-
-    /**
-     * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
-     * @since 7.2.0
-     */
-    @Deprecated
-    public DateHistogramValuesSourceBuilder dateHistogramInterval(DateHistogramInterval interval) {
-        dateHistogramInterval.dateHistogramInterval(interval);
-        return this;
-    }
-
-    /**
      * Sets the interval of the DateHistogram using calendar units (`1d`, `1w`, `1M`, etc).  These units
      * are calendar-aware, meaning they respect leap additions, variable days per month, etc.
      *
@@ -223,7 +174,10 @@ public class DateHistogramValuesSourceBuilder
      *  {@code null} then it means that the interval is expressed as a fixed
      *  {@link TimeValue} and may be accessed via {@link #getIntervalAsFixed()} ()}. */
     public DateHistogramInterval getIntervalAsCalendar() {
-        return dateHistogramInterval.getAsCalendarInterval();
+        if (dateHistogramInterval.getIntervalType().equals(DateIntervalWrapper.IntervalTypeEnum.CALENDAR)) {
+            return dateHistogramInterval.getAsCalendarInterval();
+        }
+        return null;
     }
 
     /**
@@ -231,7 +185,10 @@ public class DateHistogramValuesSourceBuilder
      * the interval cannot be parsed as a fixed time.
      */
     public DateHistogramInterval getIntervalAsFixed() {
-        return dateHistogramInterval.getAsFixedInterval();
+        if (dateHistogramInterval.getIntervalType().equals(DateIntervalWrapper.IntervalTypeEnum.FIXED)) {
+            return dateHistogramInterval.getAsFixedInterval();
+        }
+        return null;
     }
 
     /**

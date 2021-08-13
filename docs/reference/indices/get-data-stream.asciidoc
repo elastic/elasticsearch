@@ -6,7 +6,7 @@
 ++++
 
 Retrieves information about one or more <<data-streams,data streams>>.
-See <<get-info-about-a-data-stream>>.
+See <<get-info-about-data-stream>>.
 
 ////
 [source,console]
@@ -18,7 +18,7 @@ PUT /_ilm/policy/my-lifecycle-policy
       "hot": {
         "actions": {
           "rollover": {
-            "max_size": "25GB"
+            "max_primary_shard_size": "25GB"
           }
         }
       },
@@ -50,7 +50,7 @@ PUT /_data_stream/my-data-stream
 
 POST /my-data-stream/_rollover
 
-PUT /_data_stream/my-data-stream_two
+PUT /_data_stream/my-data-stream-two
 ----
 // TESTSETUP
 ////
@@ -75,6 +75,13 @@ GET /_data_stream/my-data-stream
 
 `GET /_data_stream/<data-stream>`
 
+[[get-data-stream-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the data stream.
+
 [[get-data-stream-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -83,6 +90,14 @@ GET /_data_stream/my-data-stream
 Comma-separated list of data stream names used to limit the request. Wildcard
 (`*`) expressions are supported. If omitted, all data streams will be
 returned.
+
+[role="child_attributes"]
+[[get-data-stream-api-query-parms]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
++
+Defaults to `open`.
 
 [role="child_attributes"]
 [[get-data-stream-api-response-body]]
@@ -142,7 +157,7 @@ acts as a cumulative count of the stream's rollovers, starting at `1`.
 `_meta`::
 (object)
 Custom metadata for the stream, copied from the `_meta` object of the
-stream's matching <<create-a-data-stream-template,index template>>. If empty,
+stream's matching <<create-index-template,index template>>. If empty,
 the response omits this property.
 
 `status`::
@@ -171,7 +186,7 @@ One or more primary shards are unassigned, so some data is unavailable.
 Name of the index template used to create the data stream's backing indices.
 +
 The template's index pattern must match the name of this data stream. See
-<<create-a-data-stream-template>>.
+<<create-index-template,create an index template>>.
 
 `ilm_policy`::
 (string)
@@ -184,6 +199,14 @@ included in the response.
 NOTE: A data stream's backing indices may be assigned different lifecycle
 policies. To retrieve the lifecycle policy for individual backing indices,
 use the <<indices-get-settings,get index settings API>>.
+
+`hidden`::
+(Boolean) If `true`, the data stream is <<hidden,hidden>>.
+
+`system`::
+(Boolean)
+If `true`, the data stream is created and managed by an Elastic stack component
+and cannot be modified through normal user interaction.
 ====
 
 [[get-data-stream-api-example]]
@@ -207,11 +230,11 @@ The API returns the following response:
       },
       "indices": [
         {
-          "index_name": ".ds-my-data-stream-000001",
+          "index_name": ".ds-my-data-stream-2099.03.07-000001",
           "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"
         },
         {
-          "index_name": ".ds-my-data-stream-000002",
+          "index_name": ".ds-my-data-stream-2099.03.08-000002",
           "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"
         }
       ],
@@ -222,16 +245,17 @@ The API returns the following response:
       "status": "GREEN",
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
-      "hidden": false
+      "hidden": false,
+      "system": false
     },
     {
-      "name": "my-data-stream_two",
+      "name": "my-data-stream-two",
       "timestamp_field": {
         "name": "@timestamp"
       },
       "indices": [
         {
-          "index_name": ".ds-my-data-stream_two-000001",
+          "index_name": ".ds-my-data-stream-two-2099.03.08-000001",
           "index_uuid": "3liBu2SYS5axasRt6fUIpA"
         }
       ],
@@ -242,12 +266,16 @@ The API returns the following response:
       "status": "YELLOW",
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
-      "hidden": false
+      "hidden": false,
+      "system": false
     }
   ]
 }
 ----
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.07-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
 // TESTRESPONSE[s/"index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.08-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-two-2099.03.08-000001"/"index_name": $body.data_streams.1.indices.0.index_name/]
 // TESTRESPONSE[s/"index_uuid": "3liBu2SYS5axasRt6fUIpA"/"index_uuid": $body.data_streams.1.indices.0.index_uuid/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]

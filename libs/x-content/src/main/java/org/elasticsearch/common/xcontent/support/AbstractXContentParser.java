@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -48,7 +38,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     public static final boolean DEFAULT_NUMBER_COERCE_POLICY = true;
 
     private static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
-        if (!coerce) {
+        if (coerce == false) {
             //Need to throw type IllegalArgumentException as current catch logic in
             //NumberFieldMapper.parseCreateField relies on this for "malformed" value detection
             throw new IllegalArgumentException(clazz.getSimpleName() + " value passed as String");
@@ -57,10 +47,17 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private final NamedXContentRegistry xContentRegistry;
     private final DeprecationHandler deprecationHandler;
+    private final RestApiVersion restApiVersion;
 
-    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler) {
+    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+                                  RestApiVersion restApiVersion) {
         this.xContentRegistry = xContentRegistry;
         this.deprecationHandler = deprecationHandler;
+        this.restApiVersion = restApiVersion;
+    }
+
+    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler) {
+        this(xContentRegistry, deprecationHandler, RestApiVersion.current());
     }
 
     // The 3rd party parsers we rely on are known to silently truncate fractions: see
@@ -68,7 +65,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     // If this behaviour is flagged as undesirable and any truncation occurs
     // then this method is called to trigger the"malformed" handling logic
     void ensureNumberConversion(boolean coerce, long result, Class<? extends Number> clazz) throws IOException {
-        if (!coerce) {
+        if (coerce == false) {
             double fullVal = doDoubleValue();
             if (result != fullVal) {
                 // Need to throw type IllegalArgumentException as current catch
@@ -416,6 +413,11 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public abstract boolean isClosed();
+
+    @Override
+    public RestApiVersion getRestApiVersion() {
+        return restApiVersion;
+    }
 
     @Override
     public DeprecationHandler getDeprecationHandler() {

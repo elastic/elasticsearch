@@ -18,16 +18,12 @@ Updates certain properties of a {transform}.
 [[update-transform-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-built-in roles and privileges:
+Requires the following privileges:
 
-* `transform_admin`
-
-* `manage_transform` (the built-in `transform_admin` role has this privilege)
-* source index: `read`, `view_index_metadata`
-* destination index: `read`, `create_index`, `index`
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`
+* destination index: `read`, `index`.
 
 
 [[update-transform-desc]]
@@ -40,8 +36,8 @@ When the {transform} is updated, a series of validations occur to ensure its
 success. You can use the `defer_validation` parameter to skip these checks.
 
 All updated properties except description do not take effect until after the
-{transform} starts the next checkpoint. This is so there is consistency with the
-pivoted data in each checkpoint.
+{transform} starts the next checkpoint. This is so there is data consistency in
+each checkpoint.
 
 [IMPORTANT]
 ====
@@ -102,6 +98,32 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 
+//Begin retention policy
+`retention_policy`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention]
++
+.Properties of `retention_policy`
+[%collapsible%open]
+====
+`time`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
+`field`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
+
+`max_age`:::
+(Required, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
+=====
+====
+//End retention policy
+
 //Begin settings
 `settings`::
 (Optional, object)
@@ -110,6 +132,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
 .Properties of `settings`
 [%collapsible%open]
 ====
+`dates_as_epoch_millis`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
 `docs_per_second`:::
 (Optional, float)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
@@ -131,7 +156,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 `index`:::
 (Required, string or array)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
-    
+
 `query`:::
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
@@ -142,6 +167,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transform
 `sync`::
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
++
+--
+NOTE: You can update these properties only if it is a continuous {transform}. You
+cannot change a batch {transform} into a continuous {transform} or vice versa.
+Instead, clone the {transform} in {kib} and add or remove the `sync` property.
+
+--
 +
 .Properties of `sync`
 [%collapsible%open]
@@ -166,7 +198,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
 --
 TIP: In general, it’s a good idea to use a field that contains the
-<<accessing-ingest-metadata,ingest timestamp>>. If you use a different field,
+<<access-ingest-metadata,ingest timestamp>>. If you use a different field,
 you might need to set the `delay` such that it accounts for data transmission
 delays.
 

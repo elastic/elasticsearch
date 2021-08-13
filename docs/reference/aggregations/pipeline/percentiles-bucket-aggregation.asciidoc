@@ -130,5 +130,5 @@ interpolate between data points.
 
 The percentiles are calculated exactly and is not an approximation (unlike the Percentiles Metric). This means
 the implementation maintains an in-memory, sorted list of your data to compute the percentiles, before discarding the
-data.  You may run into memory pressure issues if you attempt to calculate percentiles over many millions of
+data. You may run into memory pressure issues if you attempt to calculate percentiles over many millions of
 data-points in a single `percentiles_bucket`.

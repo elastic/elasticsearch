@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.cluster;
@@ -30,7 +19,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -41,14 +29,14 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -66,6 +54,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
@@ -87,7 +76,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -105,7 +93,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final ThreadPool threadPool;
     private final PeerRecoveryTargetService recoveryTargetService;
     private final ShardStateAction shardStateAction;
-    private final NodeMappingRefreshAction nodeMappingRefreshAction;
 
     private static final ActionListener<Void> SHARD_STATE_ACTION_LISTENER = ActionListener.wrap(() -> {});
 
@@ -117,7 +104,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private final FailedShardHandler failedShardHandler = new FailedShardHandler();
 
-    private final boolean sendRefreshMapping;
     private final List<IndexEventListener> buildInIndexListener;
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final RetentionLeaseSyncer retentionLeaseSyncer;
@@ -131,7 +117,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ThreadPool threadPool,
             final PeerRecoveryTargetService recoveryTargetService,
             final ShardStateAction shardStateAction,
-            final NodeMappingRefreshAction nodeMappingRefreshAction,
             final RepositoriesService repositoriesService,
             final SearchService searchService,
             final PeerRecoverySourceService peerRecoverySourceService,
@@ -146,7 +131,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool,
                 recoveryTargetService,
                 shardStateAction,
-                nodeMappingRefreshAction,
                 repositoriesService,
                 searchService,
                 peerRecoverySourceService,
@@ -164,7 +148,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ThreadPool threadPool,
             final PeerRecoveryTargetService recoveryTargetService,
             final ShardStateAction shardStateAction,
-            final NodeMappingRefreshAction nodeMappingRefreshAction,
             final RepositoriesService repositoriesService,
             final SearchService searchService,
             final PeerRecoverySourceService peerRecoverySourceService,
@@ -179,25 +162,23 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.threadPool = threadPool;
         this.recoveryTargetService = recoveryTargetService;
         this.shardStateAction = shardStateAction;
-        this.nodeMappingRefreshAction = nodeMappingRefreshAction;
         this.repositoriesService = repositoriesService;
         this.primaryReplicaSyncer = primaryReplicaSyncer;
         this.retentionLeaseSyncer = retentionLeaseSyncer;
-        this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
         this.client = client;
     }
 
     @Override
     protected void doStart() {
         // Doesn't make sense to manage shards on non-master and non-data nodes
-        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.canContainData(settings) || DiscoveryNode.isMasterNode(settings)) {
             clusterService.addHighPriorityApplier(this);
         }
     }
 
     @Override
     protected void doStop() {
-        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.canContainData(settings) || DiscoveryNode.isMasterNode(settings)) {
             clusterService.removeApplier(this);
         }
     }
@@ -208,7 +189,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     @Override
     public synchronized void applyClusterState(final ClusterChangedEvent event) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             return;
         }
 
@@ -345,14 +326,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
                     @Override
                     protected void doRun() throws Exception {
+                        final TimeValue timeout = TimeValue.timeValueMinutes(30);
                         try {
                             // we are waiting until we can lock the index / all shards on the node and then we ack the delete of the store
                             // to the master. If we can't acquire the locks here immediately there might be a shard of this index still
                             // holding on to the lock due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the
                             // lock is released so it's guaranteed to be deleted by the time we get the lock
-                            indicesService.processPendingDeletes(index, indexSettings, new TimeValue(30, TimeUnit.MINUTES));
+                            indicesService.processPendingDeletes(index, indexSettings, timeout);
                         } catch (ShardLockObtainFailedException exc) {
-                            logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);
+                            logger.warn("[{}] failed to lock all shards for index - timed out after [{}]]", index, timeout);
                         } catch (InterruptedException e) {
                             logger.warn("[{}] failed to lock all shards for index - interrupted", index);
                         }
@@ -498,12 +480,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             AllocatedIndex<? extends Shard> indexService = null;
             try {
                 indexService = indicesService.createIndex(indexMetadata, buildInIndexListener, true);
-                if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
-                    nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
-                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(indexMetadata.getIndex().getName(),
-                            indexMetadata.getIndexUUID(), state.nodes().getLocalNodeId())
-                    );
-                }
+                indexService.updateMapping(null, indexMetadata);
             } catch (Exception e) {
                 final String failShardReason;
                 if (indexService == null) {
@@ -520,7 +497,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private void updateIndices(ClusterChangedEvent event) {
-        if (!event.metadataChanged()) {
+        if (event.metadataChanged() == false) {
             return;
         }
         final ClusterState state = event.state();
@@ -541,12 +518,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     }
 
                     reason = "mapping update failed";
-                    if (indexService.updateMapping(currentIndexMetadata, newIndexMetadata) && sendRefreshMapping) {
-                        nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
-                            new NodeMappingRefreshAction.NodeMappingRefreshRequest(newIndexMetadata.getIndex().getName(),
-                                newIndexMetadata.getIndexUUID(), state.nodes().getLocalNodeId())
-                        );
-                    }
+                    indexService.updateMapping(currentIndexMetadata, newIndexMetadata);
                 } catch (Exception e) {
                     indicesService.removeIndex(indexService.index(), FAILURE, "removing index (" + reason + ")");
 
@@ -649,9 +621,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     shardRouting.shardId(), state, nodes.getMasterNode());
             }
             if (nodes.getMasterNode() != null) {
-                shardStateAction.shardStarted(shardRouting, primaryTerm, "master " + nodes.getMasterNode() +
-                        " marked shard as initializing, but shard state is [" + state + "], mark shard as started",
-                    SHARD_STATE_ACTION_LISTENER, clusterState);
+                shardStateAction.shardStarted(
+                        shardRouting,
+                        primaryTerm,
+                        "master " + nodes.getMasterNode() + " marked shard as initializing, but shard state is [" + state +
+                                "], mark shard as started",
+                        shard.getTimestampRange(),
+                        SHARD_STATE_ACTION_LISTENER,
+                        clusterState);
             }
         }
     }
@@ -663,7 +640,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private static DiscoveryNode findSourceNodeForPeerRecovery(Logger logger, RoutingTable routingTable, DiscoveryNodes nodes,
                                                                ShardRouting shardRouting) {
         DiscoveryNode sourceNode = null;
-        if (!shardRouting.primary()) {
+        if (shardRouting.primary() == false) {
             ShardRouting primary = routingTable.shardRoutingTable(shardRouting.shardId()).primaryShard();
             // only recover from started primary, if we can't find one, we will do it next round
             if (primary.active()) {
@@ -705,8 +682,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryDone(final RecoveryState state) {
-            shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + state.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
+        public void onRecoveryDone(final RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+            shardStateAction.shardStarted(
+                    shardRouting,
+                    primaryTerm,
+                    "after " + state.getRecoverySource(),
+                    timestampMillisFieldRange,
+                    SHARD_STATE_ACTION_LISTENER);
         }
 
         @Override
@@ -799,6 +781,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         RecoveryState recoveryState();
 
         /**
+         * @return the range of the {@code @timestamp} field for this shard, or {@link ShardLongFieldRange#EMPTY} if this field is not
+         * found, or {@link ShardLongFieldRange#UNKNOWN} if its range is not fixed.
+         */
+        @Nullable
+        ShardLongFieldRange getTimestampRange();
+
+        /**
          * Updates the shard state based on an incoming cluster state:
          * - Updates and persists the new routing value.
          * - Updates the primary term if this shard is a primary.
@@ -838,9 +827,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         void updateMetadata(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata);
 
         /**
-         * Checks if index requires refresh from master.
+         * Updates the mappings by applying the incoming ones
          */
-        boolean updateMapping(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata) throws IOException;
+        void updateMapping(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata) throws IOException;
 
         /**
          * Returns shard with given id.
@@ -946,6 +935,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
              * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
              */
             NO_LONGER_ASSIGNED,
+
             /**
              * The index is deleted. Persistent parts of the index  like the shards files, state and transaction logs are removed once
              * all resources are released.
@@ -970,6 +960,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
              * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
              */
             REOPENED,
+
+            /**
+             * The index is closed as part of the node shutdown process. The index should be removed and all associated resources released.
+             * Persistent parts of the index like the shards files, state and transaction logs should be kept around in the case the node
+             * restarts.
+             */
+            SHUTDOWN,
         }
     }
 }

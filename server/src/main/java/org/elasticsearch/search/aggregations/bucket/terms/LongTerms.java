@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -114,7 +103,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     public LongTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount,
             Map<String, Object> metadata, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
-            List<Bucket> buckets, long docCountError) {
+            List<Bucket> buckets, Long docCountError) {
         super(name, reduceOrder, order, requiredSize, minDocCount, metadata, format, shardSize, showTermDocCountError,
                 otherDocCount, buckets, docCountError);
     }
@@ -150,11 +139,6 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
-    protected Bucket[] createBucketsArray(int size) {
-        return new Bucket[size];
-    }
-
-    @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         boolean unsignedLongFormat = false;
         boolean rawFormat = false;
@@ -186,7 +170,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
-    Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, LongTerms.Bucket prototype) {
+    protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, LongTerms.Bucket prototype) {
         return new Bucket(prototype.term, docCount, aggs, prototype.showDocCountError, docCountError, format);
     }
 

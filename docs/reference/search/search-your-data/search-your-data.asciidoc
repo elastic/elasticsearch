@@ -22,7 +22,7 @@ a specific number of results.
 
 [discrete]
 [[run-an-es-search]]
-== Run a search
+=== Run a search
 
 You can use the <<search-search,search API>> to search and
 <<search-aggregations,aggregate>> data stored in {es} data streams or indices.
@@ -100,6 +100,72 @@ The API response returns the top 10 documents matching the query in the
 // TESTRESPONSE[s/"_id": "kxWFcnMByiguvud1Z8vC"/"_id": "$body.hits.hits.0._id"/]
 
 [discrete]
+[[run-search-runtime-fields]]
+=== Define fields that exist only in a query
+Instead of indexing your data and then searching it, you can define
+<<runtime-search-request,runtime fields>> that only exist as part of your
+search query. You specify a `runtime_mappings` section in your search request
+to define the runtime field, which can optionally include a Painless script.
+
+For example, the following query defines a runtime field called `day_of_week`.
+The included script calculates the day of the week based on the value of the
+`@timestamp` field, and uses `emit` to return the calculated value.
+
+The query also includes a <<search-aggregations-bucket-terms-aggregation,terms aggregation>> that operates on `day_of_week`.
+
+[source,console]
+----
+GET /my-index-000001/_search
+{
+  "runtime_mappings": {
+    "day_of_week": {
+      "type": "keyword",
+      "script": {
+        "source":
+        """emit(doc['@timestamp'].value.dayOfWeekEnum
+        .getDisplayName(TextStyle.FULL, Locale.ROOT))"""
+      }
+    }
+  },
+  "aggs": {
+    "day_of_week": {
+      "terms": {
+        "field": "day_of_week"
+      }
+    }
+  }
+}
+----
+// TEST[setup:my_index]
+
+The response includes an aggregation based on the `day_of_week` runtime field.
+Under `buckets` is a `key` with a value of `Sunday`. The query dynamically
+calculated this value based on the script defined in the `day_of_week` runtime
+field without ever indexing the field.
+
+[source,console-result]
+----
+{
+  ...
+  ***
+  "aggregations" : {
+    "day_of_week" : {
+      "doc_count_error_upper_bound" : 0,
+      "sum_other_doc_count" : 0,
+      "buckets" : [
+        {
+          "key" : "Sunday",
+          "doc_count" : 5
+        }
+      ]
+    }
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/\*\*\*/"hits" : $body.hits,/]
+
+[discrete]
 [[common-search-options]]
 === Common search options
 
@@ -154,7 +220,7 @@ _synchronous_ by default. The search request waits for complete results before
 returning a response.
 
 However, complete results can take longer for searches across
-<<frozen-indices,frozen indices>> or <<modules-cross-cluster-search,multiple
+<<freeze-index-api,frozen indices>> or <<modules-cross-cluster-search,multiple
 clusters>>.
 
 To avoid long waits, you can run an _asynchronous_, or _async_, search
@@ -166,12 +232,15 @@ results for a long-running search now and get complete results later.
 === Search timeout
 
 By default, search requests don't time out. The request waits for complete
-results before returning a response.
+results from each shard before returning a response.
 
 While <<async-search-intro,async search>> is designed for long-running
 searches, you can also use the `timeout` parameter to specify a duration you'd
-like to wait for a search to complete. If no response is received before this
-period ends, the request fails and returns an error.
+like to wait on each shard to complete. Each shard collects hits within the
+specified time period. If collection isn't finished when the period ends, {es}
+uses only the hits accumulated up to that point. The overall latency of a search
+request depends on the number of shards needed for the search and the number of
+concurrent shard requests.
 
 [source,console]
 ----
@@ -215,7 +284,7 @@ should be tracked.
 Given that it is often enough to have a lower bound of the number of hits,
 such as "there are at least 10000 hits", the default is set to `10,000`.
 This means that requests will count the total hit accurately up to `10,000` hits.
-It's is a good trade off to speed up searches if you don't need the accurate number
+It is a good trade off to speed up searches if you don't need the accurate number
 of hits after a certain threshold.
 
 When set to `true` the search response will always track the number of hits that
@@ -455,4 +524,5 @@ include::retrieve-selected-fields.asciidoc[]
 include::search-across-clusters.asciidoc[]
 include::search-multiple-indices.asciidoc[]
 include::search-shard-routing.asciidoc[]
+include::search-template.asciidoc[]
 include::sort-search-results.asciidoc[]

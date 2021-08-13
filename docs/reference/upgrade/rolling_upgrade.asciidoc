@@ -103,7 +103,7 @@ a node.
 . If you use {es} {security-features} to define realms, verify that your realm
 settings are up-to-date. The format of realm settings changed in version 7.0, in
 particular, the placement of the realm type changed. See
-<<realm-settings,Realm settings>>. 
+<<realm-settings,Realm settings>>.
 
 . *Start the upgraded node.*
 +
@@ -122,8 +122,9 @@ GET _cat/nodes
 +
 --
 
-Once the node has joined the cluster, remove the `cluster.routing.allocation.enable`
-setting to enable shard allocation and start using the node:
+For data nodes, once the node has joined the cluster, remove the
+`cluster.routing.allocation.enable` setting to enable shard allocation and start
+using the node:
 
 [source,console]
 --------------------------------------------------
@@ -145,7 +146,7 @@ You can check progress by submitting a <<cat-health,`_cat/health`>> request:
 
 [source,console]
 --------------------------------------------------
-GET _cat/health?v
+GET _cat/health?v=true
 --------------------------------------------------
 
 Wait for the `status` column to switch to `green`. Once the node is `green`, all
@@ -170,7 +171,7 @@ status will change to `green`.
 ====================================================
 
 Shards that were not <<indices-flush,flushed>> might take longer to
-recover.  You can monitor the recovery status of individual shards by
+recover. You can monitor the recovery status of individual shards by
 submitting a <<cat-recovery,`_cat/recovery`>> request:
 
 [source,console]
@@ -186,20 +187,20 @@ recovery completes.
 +
 --
 
-When  the node has recovered and the cluster is stable, repeat these steps
+When the node has recovered and the cluster is stable, repeat these steps
 for each node that needs to be updated. You can monitor the health of the cluster
 with a <<cat-health,`_cat/health`>> request:
 
 [source,console]
 --------------------------------------------------
-GET /_cat/health?v
+GET /_cat/health?v=true
 --------------------------------------------------
 
 And check which nodes have been upgraded with a <<cat-nodes,`_cat/nodes`>> request:
 
 [source,console]
 --------------------------------------------------
-GET /_cat/nodes?h=ip,name,version&v
+GET /_cat/nodes?h=ip,name,version&v=true
 --------------------------------------------------
 
 --
@@ -219,7 +220,7 @@ any new functionality is disabled or operates in a backward compatible mode
 until all nodes in the cluster are upgraded. New functionality becomes
 operational once the upgrade is complete and all nodes are running the new
 version. Once that has happened, there's no way to return to operating in a
-backward compatible mode. Nodes running the previous major version will not be
+backward compatible mode. Nodes running the previous version will not be
 allowed to join the fully-updated cluster.
 
 In the unlikely case of a network malfunction during the upgrade process that

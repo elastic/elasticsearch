@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.join.aggregations;
 
@@ -28,8 +17,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -40,8 +29,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -63,7 +52,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
 
     public ParentJoinAggregator(String name,
                                     AggregatorFactories factories,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     Query inFilter,
                                     Query outFilter,
@@ -113,7 +102,12 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
-    protected void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {
+    public void postCollection() throws IOException {
+        // Delaying until beforeBuildingBuckets
+    }
+
+    @Override
+    protected void prepareSubAggs(long[] ordsToCollect) throws IOException {
         IndexReader indexReader = searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
             Scorer childDocsScorer = outFilter.scorer(ctx);
@@ -153,15 +147,16 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                  * faster to replay all the matching ordinals and filter them down
                  * to just those listed in ordsToCollect, but we don't have a data
                  * structure that maps a primitive long to a list of primitive
-                 * longs. 
+                 * longs.
                  */
-                for (long o: bucketOrdsToCollect) {
-                    if (collectionStrategy.exists(o, globalOrdinal)) {
-                        collectBucket(sub, docId, o);
+                for (long owningBucketOrd: ordsToCollect) {
+                    if (collectionStrategy.exists(owningBucketOrd, globalOrdinal)) {
+                        collectBucket(sub, docId, owningBucketOrd);
                     }
                 }
             }
         }
+        super.postCollection(); // Run post collection after collecting the sub-aggs
     }
 
     @Override

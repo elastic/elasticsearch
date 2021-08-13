@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -38,7 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -82,6 +71,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> stopping the node with the primary");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName()));
         ensureStableCluster(1);
+        refreshClusterInfo();
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
@@ -159,6 +149,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> stopping the node with the replica");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode().getName()));
         ensureStableCluster(2);
+        refreshClusterInfo();
         assertBusy(() ->
             // wait till we have passed any pending shard data fetching
             assertEquals(AllocationDecision.ALLOCATION_DELAYED, client().admin().cluster().prepareAllocationExplain()

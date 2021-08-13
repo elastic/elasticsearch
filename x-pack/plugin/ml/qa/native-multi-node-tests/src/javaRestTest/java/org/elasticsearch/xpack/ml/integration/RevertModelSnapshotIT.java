@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation.Event;
@@ -50,6 +52,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ml.annotations.AnnotationTests.randomAnnotation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -174,12 +177,25 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         // ... and check there are 5 annotations in total now
         assertThatNumberOfAnnotationsIsEqualTo(5);
 
+        GetJobsStatsAction.Response.JobStats statsBeforeRevert = getJobStats(jobId).get(0);
+        Instant timeBeforeRevert = Instant.now();
+
         assertThat(
             revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults).status(),
             equalTo(RestStatus.OK));
 
+        GetJobsStatsAction.Response.JobStats statsAfterRevert = getJobStats(job.getId()).get(0);
+
         // Check model_size_stats has been reverted
-        assertThat(getJobStats(job.getId()).get(0).getModelSizeStats().getModelBytes(), equalTo(modelSizeStats1.getModelBytes()));
+        assertThat(statsAfterRevert.getModelSizeStats().getModelBytes(), equalTo(modelSizeStats1.getModelBytes()));
+
+        if (deleteInterveningResults) {
+            // Check data counts have been reverted
+            assertThat(statsAfterRevert.getDataCounts().getLatestRecordTimeStamp(), equalTo(revertSnapshot.getLatestRecordTimeStamp()));
+            assertThat(statsAfterRevert.getDataCounts().getLogTime(), greaterThanOrEqualTo(timeBeforeRevert));
+        } else {
+            assertThat(statsAfterRevert.getDataCounts(), equalTo(statsBeforeRevert.getDataCounts()));
+        }
 
         // Check quantiles have been reverted
         assertThat(getQuantiles(job.getId()).getTimestamp(), equalTo(revertSnapshot.getLatestResultTimeStamp()));
@@ -209,7 +225,6 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         job.setDataDescription(dataDescription);
-        registerJob(job);
         putJob(job);
         return job;
     }

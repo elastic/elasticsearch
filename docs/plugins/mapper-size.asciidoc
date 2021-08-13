@@ -26,7 +26,7 @@ PUT my-index-000001
 --------------------------
 
 The value of the `_size` field is accessible in queries, aggregations, scripts,
-and when sorting:
+and when sorting. It can be retrieved using the {ref}/search-fields.html#search-fields-param[fields parameter]:
 
 [source,console]
 --------------------------
@@ -65,16 +65,12 @@ GET my-index-000001/_search
       }
     }
   ],
+  "fields": ["_size"],                <4>
   "script_fields": {
     "size": {
-      "script": "doc['_size']"        <4>
+      "script": "doc['_size']"        <5>
     }
-  },
-  "docvalue_fields": [
-    {
-      "field": "_size"                <5>
-    }
-  ]
+  }
 }
 --------------------------
 // TEST[continued]
@@ -82,12 +78,8 @@ GET my-index-000001/_search
 <1> Querying on the `_size` field
 <2> Aggregating on the `_size` field
 <3> Sorting on the `_size` field
-<4> Uses a
+<4> Use the `fields` parameter to return the `_size` in the search response.
+<5> Uses a
 {ref}/search-fields.html#script-fields[script field]
 to return the `_size` field in the search response.
-<5> Uses a
-{ref}/search-fields.html#docvalue-fields[doc value
-field] to return the `_size` field in the search response. Doc value fields are
-useful if
-{ref}/modules-scripting-security.html#allowed-script-types-setting[inline
-scripts are disabled].
+

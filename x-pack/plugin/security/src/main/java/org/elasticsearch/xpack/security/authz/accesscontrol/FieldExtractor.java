@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
@@ -28,7 +29,7 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import java.util.HashSet;
 import java.util.Set;
 
-/** 
+/**
  * Extracts fields from a query, or throws UnsupportedOperationException.
  * <p>
  * Lucene queries have {@link Weight#extractTerms}, but this is really geared at things
@@ -38,7 +39,7 @@ import java.util.Set;
 class FieldExtractor {
 
     /**
-     * Populates {@code fields} with the set of fields used by the query, or throws 
+     * Populates {@code fields} with the set of fields used by the query, or throws
      * UnsupportedOperationException if it doesn't know how to do this.
      */
     static void extractFields(Query query, Set<String> fields) throws UnsupportedOperationException {
@@ -56,7 +57,7 @@ class FieldExtractor {
                 extractFields(clause, fields);
             }
         } else if (query instanceof SpanTermQuery) {
-            // we just do SpanTerm, other spans are trickier, they could contain 
+            // we just do SpanTerm, other spans are trickier, they could contain
             // the evil FieldMaskingSpanQuery: so SpanQuery.getField cannot be trusted.
             fields.add(((SpanTermQuery)query).getField());
         } else if (query instanceof TermQuery) {

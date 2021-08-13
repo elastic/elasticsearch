@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -58,6 +47,8 @@ public class JobUpdate implements ToXContentObject {
                 AnalysisConfig.PER_PARTITION_CATEGORIZATION);
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
+        PARSER.declareString((builder, val) -> builder.setModelPruneWindow(
+            TimeValue.parseTimeValue(val, AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName())), AnalysisConfig.MODEL_PRUNE_WINDOW);
     }
 
     private final String jobId;
@@ -75,15 +66,16 @@ public class JobUpdate implements ToXContentObject {
     private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
     private final Map<String, Object> customSettings;
     private final Boolean allowLazyOpen;
+    private final TimeValue modelPruneWindow;
 
     private JobUpdate(String jobId, @Nullable List<String> groups, @Nullable String description,
                       @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
                       @Nullable AnalysisLimits analysisLimits, @Nullable TimeValue backgroundPersistInterval,
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
-                      @Nullable Long modelSnapshotRetentionDays, @Nullable Long dailyModelSnapshotRetentionAfterDays,
-                      @Nullable List<String> categorizationFilters,
+                      @Nullable Long modelSnapshotRetentionDays,
+                      @Nullable Long dailyModelSnapshotRetentionAfterDays, @Nullable List<String> categorizationFilters,
                       @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
-                      @Nullable Map<String, Object> customSettings, @Nullable Boolean allowLazyOpen) {
+                      @Nullable Map<String, Object> customSettings, @Nullable Boolean allowLazyOpen, @Nullable TimeValue modelPruneWindow) {
         this.jobId = jobId;
         this.groups = groups;
         this.description = description;
@@ -99,6 +91,7 @@ public class JobUpdate implements ToXContentObject {
         this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
         this.customSettings = customSettings;
         this.allowLazyOpen = allowLazyOpen;
+        this.modelPruneWindow = modelPruneWindow;
     }
 
     public String getJobId() {
@@ -157,6 +150,10 @@ public class JobUpdate implements ToXContentObject {
         return allowLazyOpen;
     }
 
+    public TimeValue getModelPruneWindow() {
+        return modelPruneWindow;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -203,6 +200,9 @@ public class JobUpdate implements ToXContentObject {
         if (allowLazyOpen != null) {
             builder.field(Job.ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
         }
+        if (modelPruneWindow != null) {
+            builder.field(AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName(), modelPruneWindow);
+        }
         builder.endObject();
         return builder;
     }
@@ -233,14 +233,16 @@ public class JobUpdate implements ToXContentObject {
             && Objects.equals(this.categorizationFilters, that.categorizationFilters)
             && Objects.equals(this.perPartitionCategorizationConfig, that.perPartitionCategorizationConfig)
             && Objects.equals(this.customSettings, that.customSettings)
-            && Objects.equals(this.allowLazyOpen, that.allowLazyOpen);
+            && Objects.equals(this.allowLazyOpen, that.allowLazyOpen)
+            && Objects.equals(this.modelPruneWindow, that.modelPruneWindow);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
             backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-            categorizationFilters, perPartitionCategorizationConfig, customSettings, allowLazyOpen);
+            categorizationFilters, perPartitionCategorizationConfig, customSettings, allowLazyOpen,
+            modelPruneWindow);
     }
 
     public static class DetectorUpdate implements ToXContentObject {
@@ -339,6 +341,7 @@ public class JobUpdate implements ToXContentObject {
         private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
         private Map<String, Object> customSettings;
         private Boolean allowLazyOpen;
+        private TimeValue modelPruneWindow;
 
         /**
          * New {@link JobUpdate.Builder} object for the existing job
@@ -512,10 +515,16 @@ public class JobUpdate implements ToXContentObject {
             return this;
         }
 
+        public Builder setModelPruneWindow(TimeValue modelPruneWindow) {
+            this.modelPruneWindow = modelPruneWindow;
+            return this;
+        }
+
         public JobUpdate build() {
             return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
-                renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays,
-                categorizationFilters, perPartitionCategorizationConfig, customSettings, allowLazyOpen);
+                renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays,
+                dailyModelSnapshotRetentionAfterDays, categorizationFilters, perPartitionCategorizationConfig, customSettings,
+                allowLazyOpen, modelPruneWindow);
         }
     }
 }

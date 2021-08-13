@@ -1,13 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -17,10 +21,9 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
@@ -32,6 +35,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.monitoring.MonitoringTestUtils.randomMonitoringNode;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,33 +53,16 @@ import static org.mockito.Mockito.when;
 
 public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
-    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
-        // this controls the blockage
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(false);
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        final IndexRecoveryCollector collector = new IndexRecoveryCollector(clusterService, licenseState, client);
-
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-        if (isElectedMaster) {
-            verify(licenseState).checkFeature(Feature.MONITORING);
-        }
-    }
-
     public void testShouldCollectReturnsFalseIfNotMaster() {
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final IndexRecoveryCollector collector = new IndexRecoveryCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final IndexRecoveryCollector collector = new IndexRecoveryCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(true), is(true));
-        verify(licenseState).checkFeature(Feature.MONITORING);
     }
 
     public void testDoCollect() throws Exception {
@@ -127,7 +114,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
         final RecoveryRequestBuilder recoveryRequestBuilder =
                 spy(new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE));
-        doReturn(recoveryResponse).when(recoveryRequestBuilder).get(eq(timeout));
+        doReturn(recoveryResponse).when(recoveryRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(indicesAdminClient.prepareRecoveries()).thenReturn(recoveryRequestBuilder);
@@ -158,6 +145,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             verify(clusterState).metadata();
             verify(metadata).clusterUUID();
         }
+        verify(recoveryRequestBuilder).setTimeout(eq(timeout));
 
         if (nbRecoveries == 0) {
             assertEquals(0, results.size());
@@ -182,4 +170,47 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             assertThat(recoveries.shardRecoveryStates().size(), equalTo(nbRecoveries));
         }
     }
+
+    public void testDoCollectThrowsTimeoutException() throws Exception {
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        withCollectionTimeout(IndexRecoveryCollector.INDEX_RECOVERY_TIMEOUT, timeout);
+
+        whenLocalNodeElectedMaster(true);
+
+        final String clusterName = randomAlphaOfLength(10);
+        whenClusterStateWithName(clusterName);
+
+        final String clusterUUID = UUID.randomUUID().toString();
+        whenClusterStateWithUUID(clusterUUID);
+
+        final DiscoveryNode localNode = localNode(randomAlphaOfLength(5));
+        when(clusterService.localNode()).thenReturn(localNode);
+
+        final MonitoringDoc.Node node = randomMonitoringNode(random());
+
+        final RecoveryResponse recoveryResponse =
+                new RecoveryResponse(randomInt(), randomInt(), randomInt(), emptyMap(), List.of(new DefaultShardOperationFailedException(
+                        "test", 0, new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout")))));
+
+        final RecoveryRequestBuilder recoveryRequestBuilder =
+                spy(new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE));
+        doReturn(recoveryResponse).when(recoveryRequestBuilder).get();
+
+        final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        when(indicesAdminClient.prepareRecoveries()).thenReturn(recoveryRequestBuilder);
+
+        final AdminClient adminClient = mock(AdminClient.class);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+
+        final Client client = mock(Client.class);
+        when(client.admin()).thenReturn(adminClient);
+
+        final IndexRecoveryCollector collector = new IndexRecoveryCollector(clusterService, licenseState, client);
+        assertEquals(timeout, collector.getCollectionTimeout());
+
+        final long interval = randomNonNegativeLong();
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+    }
+
 }

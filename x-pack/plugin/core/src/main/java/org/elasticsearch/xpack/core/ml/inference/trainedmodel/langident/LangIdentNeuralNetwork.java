@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;

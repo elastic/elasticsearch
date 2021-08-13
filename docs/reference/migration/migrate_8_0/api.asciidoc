@@ -1,13 +1,11 @@
 [discrete]
 [[breaking_80_api_changes]]
-=== REST API changes
+==== REST API changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
 .The cat node API's `local` query parameter has been removed.
 [%collapsible]
 ====
@@ -69,3 +67,15 @@ Discontinue use of the `local` query parameter.
 {ref}/indices-get-field-mapping.html[get field mapping API] requests that
 include this parameter will return an error.
 ====
+
+.Post data to jobs API is deprecated.
+[%collapsible]
+====
+*Details* +
+The {ml} {ref}/ml-post-data.html[post data to jobs API] is deprecated starting in 7.11.0
+and will be removed in a future major version.
+
+*Impact* +
+Use {ref}/ml-apis.html#ml-api-datafeed-endpoint[{dfeeds}] instead.
+====
+// end::notable-breaking-changes[]

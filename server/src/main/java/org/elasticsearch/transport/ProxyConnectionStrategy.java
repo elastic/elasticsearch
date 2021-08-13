@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -123,19 +112,18 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
         this.address = address;
         this.clusterNameValidator = (newConnection, actualProfile, listener) ->
-            transportService.handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true,
-                ActionListener.map(listener, resp -> {
-                    ClusterName remote = resp.getClusterName();
-                    if (remoteClusterName.compareAndSet(null, remote)) {
-                        return null;
-                    } else {
-                        if (remoteClusterName.get().equals(remote) == false) {
-                            DiscoveryNode node = newConnection.getNode();
-                            throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
-                        }
-                        return null;
+            transportService.handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true, listener.map(resp -> {
+                ClusterName remote = resp.getClusterName();
+                if (remoteClusterName.compareAndSet(null, remote)) {
+                    return null;
+                } else {
+                    if (remoteClusterName.get().equals(remote) == false) {
+                        DiscoveryNode node = newConnection.getNode();
+                        throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
                     }
-                }));
+                    return null;
+                }
+            }));
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
@@ -218,22 +206,14 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 } else {
                     attributes = Collections.singletonMap("server_name", configuredServerName);
                 }
-                DiscoveryNode node = new DiscoveryNode(id, resolved, attributes, DiscoveryNodeRole.BUILT_IN_ROLES,
+                DiscoveryNode node = new DiscoveryNode(id, resolved, attributes, DiscoveryNodeRole.roles(),
                     Version.CURRENT.minimumCompatibilityVersion());
 
-                connectionManager.connectToNode(node, null, clusterNameValidator, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void v) {
-                        compositeListener.onResponse(v);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.debug(new ParameterizedMessage("failed to open remote connection [remote cluster: {}, address: {}]",
+                connectionManager.connectToNode(node, null, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {
+                    logger.debug(new ParameterizedMessage("failed to open remote connection [remote cluster: {}, address: {}]",
                             clusterAlias, resolved), e);
-                        compositeListener.onFailure(e);
-                    }
-                });
+                    l.onFailure(e);
+                }));
             }
         } else {
             int openConnections = connectionManager.size();

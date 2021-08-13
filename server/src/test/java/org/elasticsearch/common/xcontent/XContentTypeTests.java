@@ -1,27 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -99,21 +91,21 @@ public class XContentTypeTests extends ESTestCase {
     public void testVersionedMediaType() {
         String version = String.valueOf(randomNonNegativeByte());
         assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version),
-            equalTo(XContentType.JSON));
+            equalTo(XContentType.VND_JSON));
         assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+cbor;compatible-with=" + version),
-            equalTo(XContentType.CBOR));
+            equalTo(XContentType.VND_CBOR));
         assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+smile;compatible-with=" + version),
-            equalTo(XContentType.SMILE));
+            equalTo(XContentType.VND_SMILE));
         assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+yaml;compatible-with=" + version),
-            equalTo(XContentType.YAML));
+            equalTo(XContentType.VND_YAML));
         assertThat(XContentType.fromMediaType("application/json"),
             equalTo(XContentType.JSON));
         assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version),
-            equalTo(XContentType.JSON));
+            equalTo(XContentType.VND_JSON));
 
 
         assertThat(XContentType.fromMediaType("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version),
-            equalTo(XContentType.JSON));
+            equalTo(XContentType.VND_JSON));
         assertThat(XContentType.fromMediaType("APPLICATION/JSON"),
             equalTo(XContentType.JSON));
     }
@@ -153,5 +145,19 @@ public class XContentTypeTests extends ESTestCase {
         // TODO do not allow parsing unrecognized parameter value https://github.com/elastic/elasticsearch/issues/63080
         // assertThat(XContentType.parseVersion("application/json;compatible-with=123"),
         //   is(nullValue()));
+    }
+
+    public void testParsedMediaTypeImmutability() {
+        ParsedMediaType xContentTypeJson = XContentType.JSON.toParsedMediaType();
+        assertThat(xContentTypeJson.getParameters(), is(anEmptyMap()));
+
+        ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(XContentType.JSON, Map.of("charset", "utf-8"));
+        assertThat(xContentTypeJson.getParameters(), is(anEmptyMap()));
+        assertThat(parsedMediaType.getParameters(), equalTo(Map.of("charset","utf-8")));
+
+        Map<String, String> parameters = new HashMap<>(Map.of("charset", "utf-8"));
+        parsedMediaType = ParsedMediaType.parseMediaType(XContentType.JSON, parameters);
+        parameters.clear();
+        assertThat(parsedMediaType.getParameters(), equalTo(Map.of("charset","utf-8")));
     }
 }

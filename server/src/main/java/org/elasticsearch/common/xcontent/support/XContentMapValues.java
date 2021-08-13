@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.support;
@@ -24,20 +13,31 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 public class XContentMapValues {
+    /**
+     * Maximum number of states allowed in the two automata that we use to
+     * perform the map filtering. This about a megabyte or so worth of
+     * automata. That's about eight thousand long-ish source paths. That's
+     * <strong>heavy</strong> but it shouldn't knock over the node or
+     * anything.
+     * <p>
+     * For what it is worth, 50,000 states is way, way, way too many to
+     * visualize.
+     */
+    private static final int MAX_DETERMINIZED_STATES = 50_000;
 
     /**
      * Extracts raw values (string, int, and so on) based on the path provided returning all of them
@@ -54,35 +54,38 @@ public class XContentMapValues {
     }
 
     @SuppressWarnings({"unchecked"})
-    private static void extractRawValues(List values, Map<String, Object> part, String[] pathElements, int index) {
+    private static void extractRawValues(List<Object> values, Map<String, Object> part, String[] pathElements, int index) {
         if (index == pathElements.length) {
             return;
         }
 
         String key = pathElements[index];
-        Object currentValue = part.get(key);
+        Object currentValue;
         int nextIndex = index + 1;
-        while (currentValue == null && nextIndex != pathElements.length) {
-            key += "." + pathElements[nextIndex];
+
+        while (true) {
             currentValue = part.get(key);
+            if (currentValue != null) {
+                if (currentValue instanceof Map) {
+                    extractRawValues(values, (Map<String, Object>) currentValue, pathElements, nextIndex);
+                } else if (currentValue instanceof List) {
+                    extractRawValues(values, (List<Object>) currentValue, pathElements, nextIndex);
+                } else {
+                    if (nextIndex == pathElements.length) {
+                        values.add(currentValue);
+                    }
+                }
+            }
+            if (nextIndex == pathElements.length) {
+                return;
+            }
+            key += "." + pathElements[nextIndex];
             nextIndex++;
-        }
-
-        if (currentValue == null) {
-            return;
-        }
-
-        if (currentValue instanceof Map) {
-            extractRawValues(values, (Map<String, Object>) currentValue, pathElements, nextIndex);
-        } else if (currentValue instanceof List) {
-            extractRawValues(values, (List) currentValue, pathElements, nextIndex);
-        } else {
-            values.add(currentValue);
         }
     }
 
     @SuppressWarnings({"unchecked"})
-    private static void extractRawValues(List values, List<Object> part, String[] pathElements, int index) {
+    private static void extractRawValues(List<Object> values, List<Object> part, String[] pathElements, int index) {
         for (Object value : part) {
             if (value == null) {
                 continue;
@@ -90,7 +93,7 @@ public class XContentMapValues {
             if (value instanceof Map) {
                 extractRawValues(values, (Map<String, Object>) value, pathElements, index);
             } else if (value instanceof List) {
-                extractRawValues(values, (List) value, pathElements, index);
+                extractRawValues(values, (List<Object>) value, pathElements, index);
             } else {
                 if (index == pathElements.length) {
                     values.add(value);
@@ -118,6 +121,52 @@ public class XContentMapValues {
             return null;
         }
         return XContentMapValues.extractValue(pathElements, 0, map, null);
+    }
+
+    /**
+     * For the provided nested path, return its source maps from the parent xContent map.
+     *
+     * @param nestedPath the nested field value's path in the map.
+     * @param map        the parent source map
+     *
+     * @return a list of source maps or {@code null} if the path does not exist.
+     */
+    public static List<Map<?, ?>> extractNestedSources(String nestedPath, Map<?, ?> map) {
+        Object extractedValue = XContentMapValues.extractValue(nestedPath, map);
+        List<?> nestedParsedSource = null;
+        if (extractedValue != null) {
+            if (extractedValue instanceof List) {
+                // nested field has an array value in the _source
+                nestedParsedSource = (List<?>) extractedValue;
+            } else if (extractedValue instanceof Map) {
+                // nested field has an object value in the _source. This just means the nested field has just one inner object,
+                // which is valid, but uncommon.
+                return Collections.singletonList((Map<?, ?>)extractedValue);
+            } else {
+                throw new IllegalStateException("Cannot extract nested source from path [" + nestedPath +
+                    "]: got [" + extractedValue + "]");
+            }
+        }
+        if (nestedParsedSource == null) {
+            return null;
+        }
+        // In some circumstances, we can end up with arrays of arrays of nested objects.  A nested
+        // source should always be a Map, so we iterate down through the arrays to pull out the
+        // leaf maps
+        List<Map<?, ?>> flattenedSource = new ArrayList<>();
+        extractObjects(nestedParsedSource, flattenedSource);
+        return flattenedSource;
+    }
+
+    private static void extractObjects(List<?> source, List<Map<?, ?>> extracted) {
+        for (Object object : source) {
+            if (object instanceof Map) {
+                extracted.add((Map<?, ?>) object);
+            }
+            else if (object instanceof List) {
+                extractObjects((List<?>) object, extracted);
+            }
+        }
     }
 
     /**
@@ -163,19 +212,32 @@ public class XContentMapValues {
         if (currentValue instanceof Map) {
             Map<?, ?> map = (Map<?, ?>) currentValue;
             String key = pathElements[index];
-            Object mapValue = map.get(key);
             int nextIndex = index + 1;
-            while (mapValue == null && nextIndex != pathElements.length) {
+            List<Object> extractedValues = new ArrayList<>();
+            while (true) {
+                if (map.containsKey(key)) {
+                    Object mapValue = map.get(key);
+                    if (mapValue == null) {
+                        extractedValues.add(nullValue);
+                    } else {
+                        Object val = extractValue(pathElements, nextIndex, mapValue, nullValue);
+                        if (val != null) {
+                            extractedValues.add(val);
+                        }
+                    }
+                }
+                if (nextIndex == pathElements.length) {
+                    if (extractedValues.size() == 0) {
+                        return null;
+                    } else if (extractedValues.size() == 1) {
+                        return extractedValues.get(0);
+                    } else {
+                        return extractedValues;
+                    }
+                }
                 key += "." + pathElements[nextIndex];
-                mapValue = map.get(key);
                 nextIndex++;
             }
-
-            if (map.containsKey(key) == false) {
-                return null;
-            }
-
-            return extractValue(pathElements, nextIndex, mapValue, nullValue);
         }
         return null;
     }
@@ -212,7 +274,7 @@ public class XContentMapValues {
         } else {
             Automaton includeA = Regex.simpleMatchToAutomaton(includes);
             includeA = makeMatchDotsInFieldNames(includeA);
-            include = new CharacterRunAutomaton(includeA);
+            include = new CharacterRunAutomaton(includeA, MAX_DETERMINIZED_STATES);
         }
 
         Automaton excludeA;
@@ -222,7 +284,7 @@ public class XContentMapValues {
             excludeA = Regex.simpleMatchToAutomaton(excludes);
             excludeA = makeMatchDotsInFieldNames(excludeA);
         }
-        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA);
+        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA, MAX_DETERMINIZED_STATES);
 
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches
@@ -237,9 +299,15 @@ public class XContentMapValues {
      *  For instance, if the original simple regex is `foo`, this will translate
      *  it into `foo` OR `foo.*`. */
     private static Automaton makeMatchDotsInFieldNames(Automaton automaton) {
-        return Operations.union(
-                automaton,
-                Operations.concatenate(Arrays.asList(automaton, Automata.makeChar('.'), Automata.makeAnyString())));
+        /*
+         * We presume `automaton` is quite large compared to the mechanisms
+         * to match the trailing `.*` bits so we duplicate it only once.
+         */
+        Automaton tail = Operations.union(
+            Automata.makeEmptyString(),
+            Operations.concatenate(Automata.makeChar('.'), Automata.makeAnyString())
+        );
+        return Operations.concatenate(automaton, tail);
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {
@@ -294,6 +362,7 @@ public class XContentMapValues {
                     excludeState = excludeAutomaton.step(excludeState, '.');
                 }
 
+                @SuppressWarnings("unchecked")
                 Map<String, Object> valueAsMap = (Map<String, Object>) value;
                 Map<String, Object> filteredValue = filter(valueAsMap,
                         subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
@@ -336,7 +405,8 @@ public class XContentMapValues {
                 if (excludeState != -1) {
                     excludeState = excludeAutomaton.step(excludeState, '.');
                 }
-                Map<String, Object> filteredValue = filter((Map<String, ?>)value,
+                @SuppressWarnings("unchecked")
+                Map<String, Object> filteredValue = filter((Map<String, ?>) value,
                         includeAutomaton, includeState, excludeAutomaton, excludeState, matchAllAutomaton);
                 if (filteredValue.isEmpty() == false) {
                     filtered.add(filteredValue);
@@ -503,6 +573,7 @@ public class XContentMapValues {
         return TimeValue.parseTimeValue(node.toString(), null, XContentMapValues.class.getSimpleName() + ".nodeTimeValue");
     }
 
+    @SuppressWarnings("unchecked")
     public static Map<String, Object> nodeMapValue(Object node, String desc) {
         if (node instanceof Map) {
             return (Map<String, Object>) node;
@@ -519,7 +590,7 @@ public class XContentMapValues {
      */
     public static String[] nodeStringArrayValue(Object node) {
         if (isArray(node)) {
-            List list = (List) node;
+            List<?> list = (List<?>) node;
             String[] arr = new String[list.size()];
             for (int i = 0; i < arr.length; i++) {
                 arr[i] = nodeStringValue(list.get(i), null);

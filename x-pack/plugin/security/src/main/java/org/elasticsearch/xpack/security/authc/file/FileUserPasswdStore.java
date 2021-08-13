@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.file;
 
@@ -10,12 +11,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.support.FileReloadListener;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class FileUserPasswdStore {
         users = parseFileLenient(file, logger, settings);
         listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));
         FileWatcher watcher = new FileWatcher(file.getParent());
-        watcher.addListener(new FileListener());
+        watcher.addListener(new FileReloadListener(file, this::tryReload));
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
         } catch (IOException e) {
@@ -178,28 +179,13 @@ public class FileUserPasswdStore {
         listeners.forEach(Runnable::run);
     }
 
-    private class FileListener implements FileChangesListener {
-        @Override
-        public void onFileCreated(Path file) {
-            onFileChanged(file);
-        }
+    private void tryReload() {
+        final Map<String, char[]> previousUsers = users;
+        users = parseFileLenient(file, logger, settings);
 
-        @Override
-        public void onFileDeleted(Path file) {
-            onFileChanged(file);
-        }
-
-        @Override
-        public void onFileChanged(Path file) {
-            if (file.equals(FileUserPasswdStore.this.file)) {
-                final Map<String, char[]> previousUsers = users;
-                users = parseFileLenient(file, logger, settings);
-
-                if (Maps.deepEquals(previousUsers, users) == false) {
-                    logger.info("users file [{}] changed. updating users... )", file.toAbsolutePath());
-                    notifyRefresh();
-                }
-            }
+        if (Maps.deepEquals(previousUsers, users) == false) {
+            logger.info("users file [{}] changed. updating users...", file.toAbsolutePath());
+            notifyRefresh();
         }
     }
 }

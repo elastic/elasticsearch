@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -221,8 +210,10 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     static final List<String> PLUGIN_TEST_PERMISSIONS = List.of(
+        // TODO: move this back to module test permissions, see https://github.com/elastic/elasticsearch/issues/69464
+        "java.io.FilePermission /foo/bar read",
+
         "java.lang.reflect.ReflectPermission suppressAccessChecks",
-        "java.lang.RuntimePermission createClassLoader",
         "java.lang.RuntimePermission getClassLoader",
         "java.lang.RuntimePermission setContextClassLoader",
         "java.lang.RuntimePermission setFactory",
@@ -247,6 +238,21 @@ public class PolicyUtilTests extends ESTestCase {
         "java.util.PropertyPermission someProperty read",
         "java.util.PropertyPermission * write",
         "java.util.PropertyPermission foo.bar write",
+        "javax.management.MBeanPermission * addNotificationListener",
+        "javax.management.MBeanPermission * getAttribute",
+        "javax.management.MBeanPermission * getDomains",
+        "javax.management.MBeanPermission * getMBeanInfo",
+        "javax.management.MBeanPermission * getObjectInstance",
+        "javax.management.MBeanPermission * instantiate",
+        "javax.management.MBeanPermission * invoke",
+        "javax.management.MBeanPermission * isInstanceOf",
+        "javax.management.MBeanPermission * queryMBeans",
+        "javax.management.MBeanPermission * queryNames",
+        "javax.management.MBeanPermission * registerMBean",
+        "javax.management.MBeanPermission * removeNotificationListener",
+        "javax.management.MBeanPermission * setAttribute",
+        "javax.management.MBeanPermission * unregisterMBean",
+        "javax.management.MBeanServerPermission *",
         "javax.security.auth.AuthPermission doAs",
         "javax.security.auth.AuthPermission doAsPrivileged",
         "javax.security.auth.AuthPermission getSubject",
@@ -281,8 +287,8 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     static final List<String> MODULE_TEST_PERMISSIONS = List.of(
-        "java.io.FilePermission /foo/bar read",
         "java.io.FilePermission /foo/bar write",
+        "java.lang.RuntimePermission createClassLoader",
         "java.lang.RuntimePermission getFileStoreAttributes",
         "java.lang.RuntimePermission accessUserInformation"
     );
@@ -322,6 +328,8 @@ public class PolicyUtilTests extends ESTestCase {
         "java.lang.RuntimePermission setDefaultUncaughtExceptionHandler",
         "java.lang.RuntimePermission preferences",
         "java.lang.RuntimePermission usePolicy",
+        // blanket runtime permission not allowed
+        "java.lang.RuntimePermission *",
         "java.net.NetPermission setDefaultAuthenticator",
         "java.net.NetPermission specifyStreamHandler",
         "java.net.NetPermission setProxySelector",
@@ -356,8 +364,9 @@ public class PolicyUtilTests extends ESTestCase {
         "java.sql.SQLPermission setSyncFactory",
         "java.sql.SQLPermission deregisterDriver",
         "java.util.logging.LoggingPermission control",
-        "javax.management.MBeanPermission * *",
-        "javax.management.MBeanServerPermission *",
+        "javax.management.MBeanPermission * getClassLoader",
+        "javax.management.MBeanPermission * getClassLoaderFor",
+        "javax.management.MBeanPermission * getClassLoaderRepository",
         "javax.management.MBeanTrustPermission *",
         "javax.management.remote.SubjectDelegationPermission *",
         "javax.net.ssl.SSLPermission setHostnameVerifier",

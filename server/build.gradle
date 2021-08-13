@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 apply plugin: 'elasticsearch.build'
@@ -24,7 +13,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 publishing {
   publications {
-    nebula {
+    elastic {
       artifactId 'elasticsearch'
     }
   }
@@ -61,6 +50,9 @@ dependencies {
   api project(":libs:elasticsearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
 
+  // LZ4
+  api 'org.lz4:lz4-java:1.8.0'
+
   // time handling, remove with java 8 time
   api "joda-time:joda-time:${versions.joda}"
 
@@ -80,7 +72,6 @@ dependencies {
   // repackaged jna with native bits linked against all elastic supported platforms
   api "org.elasticsearch:jna:${versions.jna}"
 
-
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
 
@@ -92,10 +83,6 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'server'
   }
 
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 }
 
 // Until this project is always being formatted with spotless, we need to
@@ -278,6 +265,11 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2LatLng'
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
+
+    ignoreViolations(
+      // from java-lz4
+      'net.jpountz.util.UnsafeUtils'
+    )
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -296,4 +288,56 @@ tasks.named("licenseHeaders").configure {
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
+}
+
+tasks.named('splitPackagesAudit').configure {
+    // Lucene packages should be owned by Lucene!
+  ignoreClasses 'org.apache.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter',
+    'org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute',
+    'org.apache.lucene.analysis.miscellaneous.DisableGraphAttributeImpl',
+    'org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter',
+    'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttribute',
+    'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttributeImpl',
+    'org.apache.lucene.document.BinaryRange',
+    'org.apache.lucene.queryparser.classic.XQueryParser',
+    'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
+    'org.apache.lucene.queries.BlendedTermQuery',
+    'org.apache.lucene.queries.MinDocQuery',
+    'org.apache.lucene.queries.SearchAfterSortedDocQuery',
+    'org.apache.lucene.queries.SpanMatchNoDocsQuery',
+    'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
+    'org.apache.lucene.search.grouping.CollapsingDocValuesSource',
+    'org.apache.lucene.search.grouping.CollapsingTopDocsCollector',
+    'org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner',
+    'org.apache.lucene.search.uhighlight.CustomFieldHighlighter',
+    'org.apache.lucene.search.uhighlight.CustomPassageFormatter',
+    'org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter',
+    'org.apache.lucene.search.uhighlight.Snippet',
+    'org.apache.lucene.util.CombinedBitSet',
+    'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
+
+    // These are tricky because Lucene itself splits the index package,
+    // but this should be fixed in Lucene 9
+    'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper',
+    'org.apache.lucene.index.OneMergeHelper',
+    'org.apache.lucene.index.ShuffleForcedMergePolicy',
+
+    // Joda should own its own packages! This should be a simple move.
+    'org.joda.time.format.StrictISODateTimeFormat',
+
+    // xcontent should not have common, all it's common packages should be renamed to xcontent
+    'org.elasticsearch.common.xcontent.*',
+    'org.elasticsearch.common.xcontent.support.XContentMapValues',
+
+    // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
+    'org.elasticsearch.cli.CommandLoggingConfigurator',
+    'org.elasticsearch.cli.EnvironmentAwareCommand',
+    'org.elasticsearch.cli.KeyStoreAwareCommand',
+    'org.elasticsearch.cli.LoggingAwareCommand',
+    'org.elasticsearch.cli.LoggingAwareMultiCommand',
+
+    // these should be temporary, query needs package private access to TermScorer though
+   'org.apache.lucene.search.XCombinedFieldQuery',
+   'org.apache.lucene.search.XMultiNormsLeafSimScorer'
+
 }

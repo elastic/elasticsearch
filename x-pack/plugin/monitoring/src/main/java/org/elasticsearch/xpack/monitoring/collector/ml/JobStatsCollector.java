@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
@@ -11,7 +12,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
+import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
 
 /**
  * Collector for Machine Learning Job Stats.
@@ -62,7 +64,7 @@ public class JobStatsCollector extends Collector {
         return isElectedMaster
                 && super.shouldCollect(isElectedMaster)
                 && XPackSettings.MACHINE_LEARNING_ENABLED.get(settings)
-                && licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING);
+                && licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
     }
 
     @Override
@@ -71,9 +73,10 @@ public class JobStatsCollector extends Collector {
                                             final ClusterState clusterState) throws Exception {
         // fetch details about all jobs
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(MONITORING_ORIGIN)) {
-            final GetJobsStatsAction.Response jobs =
-                    client.execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(Metadata.ALL))
-                            .actionGet(getCollectionTimeout());
+            final GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(Metadata.ALL).setTimeout(getCollectionTimeout());
+            final GetJobsStatsAction.Response jobs = client.execute(GetJobsStatsAction.INSTANCE, request).actionGet();
+
+            ensureNoTimeouts(getCollectionTimeout(), jobs);
 
             final long timestamp = timestamp();
             final String clusterUuid = clusterUuid(clusterState);

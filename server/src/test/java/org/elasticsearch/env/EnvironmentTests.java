@@ -1,24 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.env;
 
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -39,17 +28,6 @@ import static org.hamcrest.Matchers.hasSize;
  * Simple unit-tests for Environment.java
  */
 public class EnvironmentTests extends ESTestCase {
-    public Environment newEnvironment() {
-        return newEnvironment(Settings.EMPTY);
-    }
-
-    public Environment newEnvironment(Settings settings) {
-        Settings build = Settings.builder()
-                .put(settings)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
-        return new Environment(build, null);
-    }
 
     public void testRepositoryResolution() throws IOException {
         Environment environment = newEnvironment();
@@ -83,7 +61,7 @@ public class EnvironmentTests extends ESTestCase {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.dataFiles(), equalTo(new Path[]{pathHome.resolve("data")}));
+        assertThat(environment.dataFile(), equalTo(pathHome.resolve("data")));
     }
 
     public void testPathDataNotSetInEnvironmentIfNotSet() {
@@ -161,9 +139,8 @@ public class EnvironmentTests extends ESTestCase {
 
         final Path home = PathUtils.get(homePath);
 
-        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(environment.settings());
-        assertThat(dataPaths, hasSize(1));
-        assertPath(dataPaths.get(0), home.resolve("data"));
+        final String dataPath = Environment.PATH_DATA_SETTING.get(environment.settings());
+        assertPath(dataPath, home.resolve("data"));
 
         final String logPath = Environment.PATH_LOGS_SETTING.get(environment.settings());
         assertPath(logPath, home.resolve("logs"));
@@ -179,6 +156,41 @@ public class EnvironmentTests extends ESTestCase {
         assertPath(pidFile, home.resolve("pidfile"));
     }
 
+    public void testSingleDataPathListCheck() {
+        Path homeDir = createTempDir();
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), homeDir).build();
+            Environment env = new Environment(settings, null, createTempDir());
+            assertThat(env.dataFile(), equalTo(homeDir.resolve("data")));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString()).build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+                new Environment(settings, null, createTempDir()));
+            assertThat(e.getMessage(), startsWith("[path.data] is a list"));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+                new Environment(settings, null, createTempDir()));
+            assertThat(e.getMessage(), startsWith("[path.data] is a list"));
+        }
+        {
+            // also check as if the data was munged into a string already in settings
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
+                .put(Environment.PATH_DATA_SETTING.getKey(), "[" + createTempDir().toString() + "]").build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+                new Environment(settings, null, createTempDir()));
+            assertThat(e.getMessage(), startsWith("[path.data] is a list"));
+        }
+    }
+
     private void assertPath(final String actual, final Path expected) {
         assertIsAbsolute(actual);
         assertIsNormalized(actual);
@@ -192,5 +204,4 @@ public class EnvironmentTests extends ESTestCase {
     private void assertIsNormalized(final String path) {
         assertThat("path [" + path + "] is not normalized", PathUtils.get(path), equalTo(PathUtils.get(path).normalize()));
     }
-
 }

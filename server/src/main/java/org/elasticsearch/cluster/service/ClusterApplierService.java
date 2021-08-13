@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.service;
@@ -33,15 +22,15 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
@@ -138,7 +127,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             nodeName + "/" + CLUSTER_UPDATE_THREAD_NAME,
             daemonThreadFactory(nodeName, CLUSTER_UPDATE_THREAD_NAME),
             threadPool.getThreadContext(),
-            threadPool.scheduler());
+            threadPool.scheduler(),
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
     }
 
     class UpdateTask extends SourcePrioritizedRunnable implements Function<ClusterState, ClusterState> {
@@ -326,7 +316,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private void submitStateUpdateTask(final String source, final ClusterStateTaskConfig config,
                                        final Function<ClusterState, ClusterState> executor,
                                        final ClusterApplyListener listener) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             return;
         }
         final ThreadContext threadContext = threadPool.getThreadContext();
@@ -345,7 +335,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         } catch (EsRejectedExecutionException e) {
             // ignore cases where we are shutting down..., there is really nothing interesting
             // to be done here...
-            if (!lifecycle.stoppedOrClosed()) {
+            if (lifecycle.stoppedOrClosed() == false) {
                 throw e;
             }
         }
@@ -377,7 +367,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     private void runTask(UpdateTask task) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             logger.debug("processing [{}]: ignoring, cluster applier service not started", task.source);
             return;
         }

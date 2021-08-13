@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.versionfield;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -48,6 +50,11 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         // no configurable parameters
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     public void testDefaults() throws Exception {
@@ -126,5 +133,31 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
                 + "Preview of field's value: '{array_name=[inner_field_first, inner_field_second]}'",
             ex.getMessage()
         );
+    }
+
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        return randomVersionNumber() + (randomBoolean() ? "" : randomPrerelease());
+    }
+
+    private String randomVersionNumber() {
+        int numbers = between(1, 3);
+        String v = Integer.toString(between(0, 100));
+        for (int i = 1; i < numbers; i++) {
+            v += "." + between(0, 100);
+        }
+        return v;
+    }
+
+    private String randomPrerelease() {
+        if (rarely()) {
+            return randomFrom("alpha", "beta", "prerelease", "whatever");
+        }
+        return randomFrom("alpha", "beta", "") + randomVersionNumber();
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

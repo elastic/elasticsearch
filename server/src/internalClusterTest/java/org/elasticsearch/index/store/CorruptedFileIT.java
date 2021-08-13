@@ -162,7 +162,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ShardRouting corruptedShardRouting = corruptRandomPrimaryFile();
         logger.info("--> {} corrupted", corruptedShardRouting);
         enableAllocation("test");
-         /*
+        /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
         Settings build = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "2").build();

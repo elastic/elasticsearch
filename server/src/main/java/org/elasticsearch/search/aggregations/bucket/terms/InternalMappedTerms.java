@@ -53,12 +53,13 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     protected InternalMappedTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo fix after backport
-            docCountError = in.readOptionalLong();
-        } else {
-            docCountError = in.readZLong();
-            if (docCountError == 0) {
+            if (in.readBoolean()) {
+                docCountError = in.readZLong();
+            } else {
                 docCountError = null;
             }
+        } else {
+            docCountError = in.readZLong();
         }
         format = in.readNamedWriteable(DocValueFormat.class);
         shardSize = readSize(in);
@@ -70,7 +71,12 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     @Override
     protected final void writeTermTypeInfoTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // todo fix after backport
-            out.writeOptionalLong(docCountError);
+            if (docCountError != null) {
+                out.writeBoolean(true);
+                out.writeZLong(docCountError);
+            } else {
+                out.writeBoolean(false);
+            }
         } else {
             out.writeZLong(docCountError == null ? 0 : docCountError);
         }

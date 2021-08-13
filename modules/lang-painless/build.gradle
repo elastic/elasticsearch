@@ -23,6 +23,11 @@ testClusters.all {
   systemProperty 'es.transport.cname_in_publish_address', 'true'
 }
 
+configurations {
+  spi
+  compileOnlyApi.extendsFrom(spi)
+}
+
 dependencies {
   api 'org.antlr:antlr4-runtime:4.5.3'
   api 'org.ow2.asm:asm-util:7.2'
@@ -30,7 +35,7 @@ dependencies {
   api 'org.ow2.asm:asm-commons:7.2'
   api 'org.ow2.asm:asm-analysis:7.2'
   api 'org.ow2.asm:asm:7.2'
-  api project('spi')
+  spi project('spi')
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -58,7 +63,7 @@ tasks.named("yamlRestCompatTest").configure {
  * Painless plugin */
 tasks.register("apiJavadoc", Javadoc) {
   source = sourceSets.main.allJava
-  classpath = sourceSets.main.runtimeClasspath
+  classpath = sourceSets.main.compileClasspath + sourceSets.main.output
   include '**/org/elasticsearch/painless/api/'
   destinationDir = new File(docsDir, 'apiJavadoc')
 }
@@ -71,6 +76,16 @@ tasks.register("apiJavadocJar", Jar) {
 tasks.named("assemble").configure {
   dependsOn "apiJavadocJar"
 }
+tasks.named("check").configure {
+  dependsOn "apiJavadocJar"
+}
+
+tasks.named("bundlePlugin").configure {
+  it.into("spi") {
+    from(configurations.spi)
+  }
+}
+
 /**********************************************
  *           Context API Generation           *
  **********************************************/
@@ -129,8 +144,8 @@ tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
       mainClass = 'org.elasticsearch.painless.ContextApiSpecGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextApiSpecCluster.singleNode().getAllHttpSocketURI().get(0)}"
-      systemProperty "jdksrc", System.getProperty("jdksrc")
-      systemProperty "packageSources", System.getProperty("packageSources")
+      systemProperty "jdksrc", providers.systemProperty("jdksrc").forUseAtConfigurationTime().getOrNull()
+      systemProperty "packageSources", providers.systemProperty("packageSources").forUseAtConfigurationTime().getOrNull()
     }.assertNormalExitValue()
   }
 }

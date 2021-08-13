@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -22,8 +23,8 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     private final BertRequestBuilder bertRequestBuilder;
 
-    FillMaskProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config);
+    FillMaskProcessor(BertTokenizer tokenizer, FillMaskConfig config) {
+        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config.getTokenizationParams().maxSequenceLength());
     }
 
     @Override

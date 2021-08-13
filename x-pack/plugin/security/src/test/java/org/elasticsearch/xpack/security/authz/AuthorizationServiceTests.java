@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -84,6 +87,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -101,6 +105,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -174,10 +179,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -238,7 +245,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         auditTrail = mock(AuditTrail.class);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
         threadContext = new ThreadContext(settings);
@@ -1091,7 +1097,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, null, Collections.emptySet(),
-            new XPackLicenseState(settings, () -> 0), TestIndexNameExpressionResolver.newInstance(), operatorPrivilegesService);
+            new XPackLicenseState(() -> 0), TestIndexNameExpressionResolver.newInstance(), operatorPrivilegesService);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
@@ -1119,7 +1125,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new AnonymousUser(settings));
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings), null,
-            Collections.emptySet(), new XPackLicenseState(settings, () -> 0), TestIndexNameExpressionResolver.newInstance(),
+            Collections.emptySet(), new XPackLicenseState(() -> 0), TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
@@ -1857,7 +1863,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         };
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)).thenReturn(true);
         authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
             auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool,
@@ -1936,6 +1941,45 @@ public class AuthorizationServiceTests extends ESTestCase {
             "cluster:admin/whatever", "user1");
         // The operator related exception is verified in the authorize(...) call
         verifyZeroInteractions(auditTrail);
+    }
+
+    public void testAuthorizedIndiciesTimeChecker() throws Exception {
+        final Authentication authentication = createAuthentication(new User("slow-user", "slow-role"));
+        final long now = System.nanoTime();
+        final AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(
+            authentication,
+            new SearchRequest(),
+            SearchAction.NAME
+        );
+        final AuthorizationService.LoadAuthorizedIndiciesTimeChecker checker = new AuthorizationService.LoadAuthorizedIndiciesTimeChecker(
+            now - TimeUnit.MILLISECONDS.toNanos(210),
+            requestInfo
+        );
+        final Logger serviceLogger = LogManager.getLogger(AuthorizationService.class);
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(serviceLogger, mockAppender);
+
+            mockAppender.addExpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "WARN-Slow Index Resolution",
+                    serviceLogger.getName(),
+                    Level.WARN,
+                    Pattern.quote("Resolving [0] indices for action [" + SearchAction.NAME + "] and user [slow-user] took [")
+                        + "\\d{3}"
+                        + Pattern.quote(
+                            "ms] which is greater than the threshold of 200ms;" +
+                                " The index privileges for this user may be too complex for this cluster."
+                        )
+                )
+            );
+            checker.done(List.of());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(serviceLogger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {

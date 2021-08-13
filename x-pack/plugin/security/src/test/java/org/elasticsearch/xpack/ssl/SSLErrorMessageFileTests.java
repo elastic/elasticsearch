@@ -119,6 +119,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     public void testMessageForPemKeyOutsideConfigDir() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/76166", Constants.WINDOWS);
         checkBlockedKeyManagerResource("PEM private key", "key", withCertificate("cert1a.crt"));
     }
 

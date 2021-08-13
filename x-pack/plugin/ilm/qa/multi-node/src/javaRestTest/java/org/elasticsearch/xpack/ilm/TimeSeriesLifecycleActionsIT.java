@@ -168,7 +168,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         String allocateNodeName = "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3";
-        AllocateAction allocateAction = new AllocateAction(null, singletonMap("_name", allocateNodeName), null, null);
+        AllocateAction allocateAction = new AllocateAction(null, null, singletonMap("_name", allocateNodeName), null, null);
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
         updatePolicy(client(), index, policy);
@@ -183,7 +183,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         int finalNumReplicas = (numReplicas + 1) % 2;
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas));
-        AllocateAction allocateAction = new AllocateAction(finalNumReplicas, null, null, null);
+        AllocateAction allocateAction = new AllocateAction(finalNumReplicas, null, null, null, null);
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
         updatePolicy(client(), index, policy);

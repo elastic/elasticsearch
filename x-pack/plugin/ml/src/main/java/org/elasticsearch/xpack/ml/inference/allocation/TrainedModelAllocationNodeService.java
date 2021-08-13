@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
@@ -49,6 +50,8 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_T
 
 public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
+    private static final String NODE_NO_LONGER_REFERENCED = "node no longer referenced in model routing table";
+    private static final String ALLOCATION_NO_LONGER_EXISTS = "model allocation no longer exists";
     private static final TimeValue MODEL_LOADING_CHECK_INTERVAL = TimeValue.timeValueSeconds(1);
     private static final Logger logger = LogManager.getLogger(TrainedModelAllocationNodeService.class);
     private final TrainedModelAllocationService trainedModelAllocationService;
@@ -116,19 +119,16 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         });
     }
 
-    void stopDeployment(TrainedModelDeploymentTask task) {
+    void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<Void> listener) {
         if (stopped) {
             return;
         }
-        deploymentManager.stopDeployment(task);
-        taskManager.unregister(task);
-        modelIdToTask.remove(task.getModelId());
-    }
-
-    void stopDeploymentAsync(TrainedModelDeploymentTask task, ActionListener<Void> listener) {
+        task.stopWithoutNotification(reason);
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                stopDeployment(task);
+                deploymentManager.stopDeployment(task);
+                taskManager.unregister(task);
+                modelIdToTask.remove(task.getModelId());
                 listener.onResponse(null);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -158,13 +158,17 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         logger.trace("attempting to load all currently queued models");
         // NOTE: As soon as this method exits, the timer for the scheduler starts ticking
         while ((loadingTask = loadingModels.poll()) != null) {
+            final String modelId = loadingTask.getModelId();
             if (loadingTask.isStopped()) {
+                if (logger.isTraceEnabled()) {
+                    String reason = loadingTask.stoppedReason().orElse("_unknown_");
+                    logger.trace("[{}] attempted to load stopped task with reason [{}]", modelId, reason);
+                }
                 continue;
             }
             if (stopped) {
                 return;
             }
-            final String modelId = loadingTask.getModelId();
             logger.trace(() -> new ParameterizedMessage("[{}] attempting to load model", modelId));
             final PlainActionFuture<TrainedModelDeploymentTask> listener = new PlainActionFuture<>();
             deploymentManager.startDeployment(loadingTask, listener);
@@ -180,26 +184,26 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         }
     }
 
-    public void stopDeploymentAndNotify(TrainedModelDeploymentTask task) {
+    public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason) {
         ActionListener<Void> notifyDeploymentOfStopped = ActionListener.wrap(
             stopped -> updateStoredState(
                 task.getModelId(),
-                new RoutingStateAndReason(RoutingState.STOPPED, ""),
+                new RoutingStateAndReason(RoutingState.STOPPED, reason),
                 ActionListener.wrap(s -> {}, failure -> {})
             ),
             failed -> { // if we failed to stop the process, something strange is going on, but we should still notify of stop
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to stop due to error", task.getModelId()), failed);
                 updateStoredState(
                     task.getModelId(),
-                    new RoutingStateAndReason(RoutingState.STOPPED, ""),
+                    new RoutingStateAndReason(RoutingState.STOPPED, reason),
                     ActionListener.wrap(s -> {}, failure -> {})
                 );
             }
         );
         updateStoredState(
             task.getModelId(),
-            new RoutingStateAndReason(RoutingState.STOPPING, "task locally canceled"),
-            ActionListener.wrap(success -> stopDeploymentAsync(task, notifyDeploymentOfStopped), e -> {
+            new RoutingStateAndReason(RoutingState.STOPPING, reason),
+            ActionListener.wrap(success -> stopDeploymentAsync(task, "task locally canceled", notifyDeploymentOfStopped), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(
                         () -> new ParameterizedMessage(
@@ -216,7 +220,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                         e
                     );
                 }
-                stopDeploymentAsync(task, notifyDeploymentOfStopped);
+                stopDeploymentAsync(task,  reason, notifyDeploymentOfStopped);
             })
         );
     }
@@ -248,6 +252,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.metadataChanged()) {
+            final boolean isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
             TrainedModelAllocationMetadata modelAllocationMetadata = TrainedModelAllocationMetadata.fromState(event.state());
             final String currentNode = event.state().nodes().getLocalNodeId();
             for (TrainedModelAllocation trainedModelAllocation : modelAllocationMetadata.modelAllocations().values()) {
@@ -257,15 +262,26 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                     // periodic retries should be handled in a separate thread think
                     && routingStateAndReason.getState().equals(RoutingState.STARTING)
                     // This means we don't already have a task and should attempt creating one and starting the model loading
-                    && modelIdToTask.containsKey(trainedModelAllocation.getTaskParams().getModelId()) == false) {
+                    && modelIdToTask.containsKey(trainedModelAllocation.getTaskParams().getModelId()) == false
+                    // If we are in reset mode, don't start loading a new model on this node.
+                    && isResetMode == false) {
                     prepareModelToLoad(trainedModelAllocation.getTaskParams());
                 }
                 // This mode is not routed to the current node at all
                 if (routingStateAndReason == null) {
                     TrainedModelDeploymentTask task = modelIdToTask.remove(trainedModelAllocation.getTaskParams().getModelId());
                     if (task != null) {
-                        task.stopWithoutNotification("node no longer referenced in model routing table");
-                        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> stopDeployment(task));
+                        stopDeploymentAsync(
+                            task,
+                            NODE_NO_LONGER_REFERENCED,
+                            ActionListener.wrap(
+                                r -> logger.trace(() -> new ParameterizedMessage("[{}] stopped deployment", task.getModelId())),
+                                e -> logger.warn(
+                                    () -> new ParameterizedMessage("[{}] failed to fully stop deployment", task.getModelId()),
+                                    e
+                                )
+                            )
+                        );
                     }
                 }
             }
@@ -275,8 +291,14 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
             }
             // should all be stopped in the same executor thread?
             for (TrainedModelDeploymentTask t : toCancel) {
-                t.stopWithoutNotification("model allocation no longer exists");
-                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> stopDeployment(t));
+                stopDeploymentAsync(
+                    t,
+                    ALLOCATION_NO_LONGER_EXISTS,
+                    ActionListener.wrap(
+                        r -> logger.trace(() -> new ParameterizedMessage("[{}] stopped deployment", t.getModelId())),
+                        e -> logger.warn(() -> new ParameterizedMessage("[{}] failed to fully stop deployment", t.getModelId()), e)
+                    )
+                );
             }
         }
     }
@@ -308,7 +330,11 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         );
         if (task.isStopped()) {
             logger.debug(
-                () -> new ParameterizedMessage("[{}] model loaded successfully, but stopped before routing table was updated", modelId)
+                () -> new ParameterizedMessage(
+                    "[{}] model loaded successfully, but stopped before routing table was updated; reason [{}]",
+                    modelId,
+                    task.stoppedReason().orElse("_unknown_")
+                )
             );
             return;
         }
@@ -369,7 +395,11 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     private void handleLoadFailure(TrainedModelDeploymentTask task, Exception ex) {
         logger.error(() -> new ParameterizedMessage("[{}] model failed to load", task.getModelId()), ex);
         if (task.isStopped()) {
-            logger.debug(() -> new ParameterizedMessage("[{}] model failed to load, but is now stopped", task.getModelId()));
+            logger.debug(() -> new ParameterizedMessage(
+                "[{}] model failed to load, but is now stopped; reason [{}]",
+                task.getModelId(),
+                task.stoppedReason().orElse("_unknown_")
+            ));
         }
         // TODO: Do we want to remove from the modelIdToTask map? This would cause it to be reloaded by state updates on INITIALIZING
         modelIdToTask.remove(task.getModelId());

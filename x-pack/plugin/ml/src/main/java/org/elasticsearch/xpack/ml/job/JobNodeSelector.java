@@ -23,11 +23,11 @@ import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -156,7 +156,7 @@ public class JobNodeSelector {
             logger.debug(reason);
             return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
-        List<String> reasons = new LinkedList<>();
+        Map<String, String> reasons = new TreeMap<>();
         long maxAvailableMemory = Long.MIN_VALUE;
         DiscoveryNode minLoadedNodeByMemory = null;
         long requiredMemoryForJob = estimatedMemoryFootprint;
@@ -166,7 +166,7 @@ public class JobNodeSelector {
             String reason = nodeFilter.apply(node);
             if (reason != null) {
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(), reason);
                 continue;
             }
             NodeLoad currentLoad = nodeLoadDetector.detectNodeLoad(
@@ -180,7 +180,7 @@ public class JobNodeSelector {
             if (currentLoad.getError() != null) {
                 reason = createReason(jobId, nodeNameAndMlAttributes(node), currentLoad.getError());
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(), reason);
                 continue;
             }
             // Assuming the node is eligible at all, check loading
@@ -194,7 +194,7 @@ public class JobNodeSelector {
                     currentLoad.getNumAllocatingJobs(),
                     maxConcurrentJobAllocations);
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(), reason);
                 continue;
             }
 
@@ -206,7 +206,7 @@ public class JobNodeSelector {
                     MAX_OPEN_JOBS_PER_NODE.getKey(),
                     maxNumberOfOpenJobs);
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(), reason);
                 continue;
             }
 
@@ -215,7 +215,7 @@ public class JobNodeSelector {
                     nodeNameAndMlAttributes(node),
                     "This node is not providing accurate information to determine is load by memory.");
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(),reason);
                 continue;
             }
 
@@ -224,7 +224,7 @@ public class JobNodeSelector {
                     nodeNameAndMlAttributes(node),
                     "This node is indicating that it has no native memory for machine learning.");
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(),reason);
                 continue;
             }
 
@@ -247,7 +247,7 @@ public class JobNodeSelector {
                     requiredMemoryForJob,
                     ByteSizeValue.ofBytes(requiredMemoryForJob).toString());
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(),reason);
                 continue;
             }
 
@@ -260,7 +260,7 @@ public class JobNodeSelector {
         return createAssignment(
             estimatedMemoryFootprint,
             minLoadedNodeByMemory,
-            reasons,
+            reasons.values(),
             maxNodeSize > 0L ?
                 NativeMemoryCalculator.allowedBytesForMl(maxNodeSize, maxMachineMemoryPercent, useAutoMemoryPercentage) :
                 Long.MAX_VALUE);
@@ -268,7 +268,7 @@ public class JobNodeSelector {
 
     PersistentTasksCustomMetadata.Assignment createAssignment(long estimatedMemoryUsage,
                                                               DiscoveryNode minLoadedNode,
-                                                              List<String> reasons,
+                                                              Collection<String> reasons,
                                                               long biggestPossibleJob) {
         if (minLoadedNode == null) {
             String explanation = String.join("|", reasons);

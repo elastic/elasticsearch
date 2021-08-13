@@ -41,6 +41,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -62,7 +63,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
@@ -343,10 +343,15 @@ public class NodeTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private static ContextParser<Object, Integer> mockContextParser() {
+        return Mockito.mock(ContextParser.class);
+    }
+
     static NamedXContentRegistry.Entry compatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported())), mock(ContextParser.class));
+        new ParseField("name").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported())), mockContextParser());
     static NamedXContentRegistry.Entry currentVersionEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name2").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported())), mock(ContextParser.class));
+        new ParseField("name2").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported())), mockContextParser());
 
     public static class TestRestCompatibility1 extends Plugin {
         @Override

@@ -32,6 +32,11 @@ see <<shard-allocation-filtering>>.
 (Optional, integer)
 Number of replicas to assign to the index.
 
+`total_shards_per_node`::
+(Optional, integer)
+The maximum number of shards for the index on a single {es} node. A value of `-1` is
+interpreted as unlimited. See <<allocation-total-shards, total shards>>.
+
 `include`::
 (Optional, object)
 Assigns an index to nodes that have at least _one_ of the specified custom attributes.
@@ -48,7 +53,8 @@ Assigns an index to nodes that have _all_ of the specified custom attributes.
 ==== Example
 
 The allocate action in the following policy changes the index's number of replicas to `2`.
-The index allocation rules are not changed.
+No more than 200 shards for the index will be placed on any single node. Otherwise the index
+allocation rules are not changed.
 
 [source,console]
 --------------------------------------------------
@@ -59,7 +65,8 @@ PUT _ilm/policy/my_policy
       "warm": {
         "actions": {
           "allocate" : {
-            "number_of_replicas" : 2
+            "number_of_replicas" : 2,
+            "total_shards_per_node" : 200
           }
         }
       }

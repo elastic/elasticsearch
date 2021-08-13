@@ -41,14 +41,14 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedFunction;
 import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedSupplier;
-import static org.elasticsearch.xpack.security.enrollment.CreateEnrollmentToken.getFilteredAddresses;
+import static org.elasticsearch.xpack.security.enrollment.EnrollmentTokenGenerator.getFilteredAddresses;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CreateEnrollmentTokenTests extends ESTestCase {
+public class EnrollmentTokenGeneratorTests extends ESTestCase {
     private Environment environment;
 
     @BeforeClass
@@ -82,9 +82,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
     public void testCreateSuccess() throws Exception {
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         when(client.getDefaultURL()).thenReturn("http://localhost:9200");
-        final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
-        final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
-        final URL getHttpInfoURL = createEnrollmentToken.getHttpInfoUrl();
+        final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment, client);
+        final URL createAPIKeyURL = enrollmentTokenGenerator.createAPIKeyUrl();
+        final URL getHttpInfoURL = enrollmentTokenGenerator.getHttpInfoUrl();
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(client.execute(anyString(), any(URL.class), anyString(), any(SecureString.class), anyCheckedSupplier(),
@@ -129,7 +129,8 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             anyCheckedSupplier(), anyCheckedFunction()))
             .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getHttpInfoResponseBody));
 
-        final String tokenNode = createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic"));
+        final String tokenNode = enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray()))
+            .getEncoded();
 
         Map<String, String> infoNode = getDecoded(tokenNode);
         assertEquals("8.0.0", infoNode.get("ver"));
@@ -137,7 +138,8 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         assertEquals("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", infoNode.get("fgr"));
         assertEquals("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg", infoNode.get("key"));
 
-        final String tokenKibana = createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic"));
+        final String tokenKibana = enrollmentTokenGenerator.createKibanaEnrollmentToken("elastic",
+            new SecureString("elastic".toCharArray())).getEncoded();
 
         Map<String, String> infoKibana = getDecoded(tokenKibana);
         assertEquals("8.0.0", infoKibana.get("ver"));
@@ -149,24 +151,24 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
     public void testFailedCreateApiKey() throws Exception {
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         when(client.getDefaultURL()).thenReturn("http://localhost:9200");
-        final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
-        final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
+        final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment, client);
+        final URL createAPIKeyURL = enrollmentTokenGenerator.createAPIKeyUrl();
 
         final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<>());
         when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
             anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling POST "));
     }
 
     public void testFailedRetrieveHttpInfo() throws Exception {
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         when(client.getDefaultURL()).thenReturn("http://localhost:9200");
-        final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
-        final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
-        final URL getHttpInfoURL = createEnrollmentToken.getHttpInfoUrl();
+        final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment, client);
+        final URL createAPIKeyURL = enrollmentTokenGenerator.createAPIKeyUrl();
+        final URL getHttpInfoURL = enrollmentTokenGenerator.getHttpInfoUrl();
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
@@ -191,7 +193,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling GET "));
     }
 
@@ -216,9 +218,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         environment = new Environment(settings, tempDir);
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         when(client.getDefaultURL()).thenReturn("http://localhost:9200");
-        final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
-        final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
-        final URL getHttpInfoURL = createEnrollmentToken.getHttpInfoUrl();
+        final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment, client);
+        final URL createAPIKeyURL = enrollmentTokenGenerator.createAPIKeyUrl();
+        final URL getHttpInfoURL = enrollmentTokenGenerator.getHttpInfoUrl();
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
@@ -243,7 +245,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.equalTo("Unable to create an enrollment token. Elasticsearch node HTTP layer " +
             "SSL configuration Keystore doesn't contain any PrivateKey entries where the associated certificate is a CA certificate"));
     }
@@ -269,9 +271,9 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         environment = new Environment(settings, tempDir);
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         when(client.getDefaultURL()).thenReturn("http://localhost:9200");
-        final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
-        final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
-        final URL getHttpInfoURL = createEnrollmentToken.getHttpInfoUrl();
+        final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment, client);
+        final URL createAPIKeyURL = enrollmentTokenGenerator.createAPIKeyUrl();
+        final URL getHttpInfoURL = enrollmentTokenGenerator.getHttpInfoUrl();
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
@@ -296,7 +298,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             anyCheckedFunction())).thenReturn(httpResponseNotOK);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.equalTo("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL " +
             "configuration Keystore contains multiple PrivateKey entries where the associated certificate is a CA certificate"));
     }
@@ -311,10 +313,10 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         final Environment environment_no_keystore = new Environment(settings, tempDir);
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         when(client.getDefaultURL()).thenReturn("http://localhost:9200");
-        final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment_no_keystore, client);
+        final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment_no_keystore, client);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.containsString("Elasticsearch node HTTP layer SSL configuration is not configured " +
             "with a keystore"));
     }
@@ -339,10 +341,10 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         final Environment environment_not_enabled = new Environment(settings, tempDir);
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
         when(client.getDefaultURL()).thenReturn("http://localhost:9200");
-        final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment_not_enabled, client);
+        final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment_not_enabled, client);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
+            enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(ex.getMessage(), Matchers.equalTo("[xpack.security.enrollment.enabled] must be set to `true` to " +
             "create an enrollment token"));
     }

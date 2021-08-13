@@ -1,0 +1,2 @@
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'

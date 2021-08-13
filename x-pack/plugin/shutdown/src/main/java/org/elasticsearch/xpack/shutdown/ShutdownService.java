@@ -24,6 +24,11 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * A class that handles ongoing reactive logic related to Node Shutdown.
+ *
+ * Currently, this consists of keeping track of whether we've seen nodes which are marked for shutdown.
+ */
 public class ShutdownService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ShutdownService.class);
 

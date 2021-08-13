@@ -49,6 +49,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
     private URL checkClusterHealthUrl;
     private URL setElasticUserPasswordUrl;
     private Path confDir;
+    private Path tempDir;
     private Settings settings;
 
     @Override
@@ -61,8 +62,8 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
                 return password.toCharArray();
             }
             @Override
-            protected Settings readSecureSettings(Environment env, SecureString password) {
-                return settings;
+            protected Environment readSecureSettings(Environment env, SecureString password) {
+                return new Environment(settings, tempDir);
             }
             @Override
             protected Environment createEnv(Map<String, String> settings) {
@@ -103,7 +104,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
             .thenReturn(kibanaToken);
         when(enrollmentTokenGenerator.createNodeEnrollmentToken(anyString(), any(SecureString.class)))
             .thenReturn(nodeToken);
-        Path tempDir = createTempDir();
+        tempDir = createTempDir();
         confDir = tempDir.resolve("config");
         final Path httpCaPath = tempDir.resolve("httpCa.p12");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);

@@ -82,9 +82,10 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         int failedAllocations = randomIntBetween(1, 100);
         Set<String> failedNodes = IntStream.range(0, between(0, failedAllocations))
             .mapToObj(n -> "failed-node-" + n).collect(Collectors.toSet());
-        String lastAssignedNodeId = randomBoolean() ? randomAlphaOfLength(10) : null;
-        UnassignedInfo meta = reason == UnassignedInfo.Reason.ALLOCATION_FAILED
-            ? new UnassignedInfo(
+
+        UnassignedInfo meta;
+        if (reason == UnassignedInfo.Reason.ALLOCATION_FAILED) {
+            meta = new UnassignedInfo(
                 reason,
                 randomBoolean() ? randomAlphaOfLength(4) : null,
                 null,
@@ -94,8 +95,28 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 false,
                 AllocationStatus.NO_ATTEMPT,
                 failedNodes,
-                lastAssignedNodeId)
-            : new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
+                null);
+        } else if (reason == UnassignedInfo.Reason.NODE_LEFT || reason == UnassignedInfo.Reason.NODE_RESTARTING) {
+            String lastAssignedNodeId = randomAlphaOfLength(10);
+            if (reason == UnassignedInfo.Reason.NODE_LEFT && randomBoolean()) {
+                // If the reason is `NODE_LEFT`, sometimes we'll have an empty lastAllocatedNodeId due to BWC
+                lastAssignedNodeId = null;
+            }
+            meta = new UnassignedInfo(
+                reason,
+                randomBoolean() ? randomAlphaOfLength(4) : null,
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet(),
+                lastAssignedNodeId
+            );
+        } else {
+            meta = new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
+        }
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
         out.close();

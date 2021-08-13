@@ -234,7 +234,7 @@ on startup.
 
 [discrete]
 [[ssl-misc-changes]]
-==== Other SSL/TLS changes 
+===== Other SSL/TLS changes 
 
 .PKCS#11 keystores and trustores cannot be configured in `elasticsearch.yml`
 [%collapsible]
@@ -308,3 +308,33 @@ Assign users with the `kibana_user` role to the `kibana_admin` role.
 Discontinue use of the `kibana_user` role.
 ====
 // end::notable-breaking-changes[]
+
+// These are non-notable changes
+
+[discrete]
+// This change is not notable because it should not have any impact on upgrades
+// However we document it here out of an abundance of caution
+[[fips-default-hash-changed]]
+===== Changes to FIPS 140 mode
+.When FIPS mode is enabled the default password hash is now PBKDF2_STRETCH
+[%collapsible]
+====
+*Details* +
+If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>), 
+the value of `xpack.security.authc.password_hashing.algorithm` now defaults to
+`pbkdf2_stretch`.
+
+In earlier versions this setting would always default to `bcrypt` and a runtime
+check would prevent a node from starting unless the value was explicitly set to
+a "pbkdf2" variant.
+
+There is no change for clusters that do not enable FIPS 140 mode.
+
+*Impact* +
+This change should not have any impact on upgraded nodes.
+Any node with an explicitly configured value for the password hashing algorithm
+will continue to use that configured value.
+Any node that did not have an explicitly configured password hashing algorithm in
+{es} 6.x or {es} 7.x would have failed to start.
+====
+

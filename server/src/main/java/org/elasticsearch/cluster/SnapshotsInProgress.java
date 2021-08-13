@@ -547,7 +547,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.partial = partial;
             this.indices = Map.copyOf(indices);
             this.dataStreams = List.copyOf(dataStreams);
-            this.featureStates = Collections.unmodifiableList(featureStates);
+            this.featureStates = List.copyOf(featureStates);
             this.startTime = startTime;
             this.shards = shards;
             this.repositoryStateId = repositoryStateId;

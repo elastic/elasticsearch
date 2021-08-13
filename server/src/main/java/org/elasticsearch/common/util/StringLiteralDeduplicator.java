@@ -18,18 +18,14 @@ import java.util.Map;
  * JVM's string pool so that interning them does not grow the pool. Calling it with strings not in the interned string pool is not
  * advisable as its performance may deteriorate to slower than outright calls to {@link String#intern()}.
  */
-public final class StringLiteralDeduplicator {
+public enum StringLiteralDeduplicator {
+    INSTANCE;
 
     private static final Logger logger = LogManager.getLogger(StringLiteralDeduplicator.class);
 
     private static final int MAX_SIZE = 1000;
 
-    public static final StringLiteralDeduplicator INSTANCE = new StringLiteralDeduplicator();
-
     private final Map<String, String> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-
-    private StringLiteralDeduplicator() {
-    }
 
     public String deduplicate(String string) {
         final String res = map.get(string);

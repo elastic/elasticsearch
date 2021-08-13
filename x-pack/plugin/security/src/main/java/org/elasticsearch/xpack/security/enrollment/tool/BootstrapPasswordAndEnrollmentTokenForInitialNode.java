@@ -86,7 +86,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         final SecureString bootstrapPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(secureSettings);
         try {
             String output;
-            client.checkClusterHealthWithRetriesWaitingForCluster(ElasticUser.NAME, bootstrapPassword, 5);
+            client.checkClusterHealthWithRetriesWaitingForCluster(ElasticUser.NAME, bootstrapPassword, 15);
             final EnrollmentToken kibanaToken = enrollmentTokenGenerator.createKibanaEnrollmentToken(ElasticUser.NAME, bootstrapPassword);
             output = "Kibana enrollment token: " + kibanaToken.getEncoded() + System.lineSeparator();
             output += "CA fingerprint: " + kibanaToken.getFingerprint() + System.lineSeparator();

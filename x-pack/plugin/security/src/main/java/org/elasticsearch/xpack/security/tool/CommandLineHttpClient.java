@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.tool;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -123,7 +121,7 @@ public class CommandLineHttpClient {
         }
         // this throws IOException if there is a network problem
         final int responseCode = conn.getResponseCode();
-        HttpResponseBuilder responseBuilder = null;
+        HttpResponseBuilder responseBuilder;
         try (InputStream inputStream = conn.getInputStream()) {
             responseBuilder = responseHandler.apply(inputStream);
         } catch (IOException e) {
@@ -197,12 +195,13 @@ public class CommandLineHttpClient {
     }
 
     /**
-     * If cluster is not up yet (connection refused or cluster still Red), we will retry @retries number of times
+     * If cluster is not up yet (connection refused or master is unavailable), we will retry @retries number of times
+     * If status is 'Red', we will wait for 'Yellow' for 30s (default timeout)
      */
     public void checkClusterHealthWithRetriesWaitingForCluster(String username, SecureString password, int retries)
         throws Exception {
-        final URL clusterHealthUrl = createURL(new URL(getDefaultURL()), "_cluster/health", "?pretty");
-        HttpResponse response = null;
+        final URL clusterHealthUrl = createURL(new URL(getDefaultURL()), "_cluster/health", "?wait_for_status=yellow&pretty");
+        HttpResponse response;
         try {
             response = execute("GET", clusterHealthUrl, username, password, () -> null, CommandLineHttpClient::responseBuilder);
         } catch (Exception e) {
@@ -210,15 +209,26 @@ public class CommandLineHttpClient {
                 Thread.sleep(1000);
                 retries -= 1;
                 checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
+                return;
             } else {
                 throw new IllegalStateException("Failed to determine the health of the cluster. ", e);
             }
         }
         final int responseStatus = response.getHttpStatus();
         if (responseStatus != HttpURLConnection.HTTP_OK) {
-            throw new ElasticsearchStatusException(
-                "Failed to determine the health of the cluster. Unexpected http status [" + responseStatus + "]",
-                RestStatus.fromCode(responseStatus));
+            if (responseStatus != HttpURLConnection.HTTP_UNAVAILABLE) {
+                if (retries > 0) {
+                    Thread.sleep(1000);
+                    retries -= 1;
+                    checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
+                    return;
+                } else {
+                    throw new IllegalStateException("Failed to determine the health of the cluster. Unexpected http status ["
+                        + responseStatus + "]");
+                }
+            }
+            throw new IllegalStateException("Failed to determine the health of the cluster. Unexpected http status ["
+                + responseStatus + "]");
         } else {
             final String clusterStatus = Objects.toString(response.getResponseBody().get("status"), "");
             if (clusterStatus.isEmpty()) {
@@ -226,14 +236,8 @@ public class CommandLineHttpClient {
                     "Failed to determine the health of the cluster. Cluster health API did not return a status value."
                 );
             } else if ("red".equalsIgnoreCase(clusterStatus)) {
-                if (retries > 0) {
-                    Thread.sleep(1000);
-                    retries -= 1;
-                    checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
-                } else {
-                    throw new IllegalStateException(
-                        "Failed to determine the health of the cluster. Cluster health is currently RED.");
-                }
+                throw new IllegalStateException(
+                    "Failed to determine the health of the cluster. Cluster health is currently RED.");
             }
             // else it is yellow or green so we can continue
         }

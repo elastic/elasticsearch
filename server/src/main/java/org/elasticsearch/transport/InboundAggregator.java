@@ -119,7 +119,7 @@ public class InboundAggregator implements Releasable {
                 success = true;
                 return new InboundMessage(aggregated.getHeader(), aggregationException);
             } else {
-                assert uncompressedOrSchemeDefinited(aggregated.getHeader());
+                assert uncompressedOrSchemeDefined(aggregated.getHeader());
                 success = true;
                 return aggregated;
             }
@@ -196,8 +196,8 @@ public class InboundAggregator implements Releasable {
         }
     }
 
-    private static boolean uncompressedOrSchemeDefinited(Header header) {
-        return header.isCompressed() == false || header.getCompressionScheme() != null;
+    private static boolean uncompressedOrSchemeDefined(Header header) {
+        return header.isCompressed() == (header.getCompressionScheme() != null);
     }
 
     private void checkBreaker(final Header header, final int contentLength, final BreakerControl breakerControl) {

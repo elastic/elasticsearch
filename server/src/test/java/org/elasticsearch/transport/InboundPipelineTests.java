@@ -57,6 +57,8 @@ public class InboundPipelineTests extends ESTestCase {
                 final Compression.Scheme compressionScheme = header.getCompressionScheme();
                 if (header.isCompressed()) {
                     assertNotNull(compressionScheme);
+                } else {
+                    assertNull(compressionScheme);
                 }
                 if (m.isShortCircuit()) {
                     actualData = new MessageData(version, requestId, isRequest, compressionScheme, header.getActionName(), null);

@@ -430,7 +430,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
 
         // Generate a random time value - but don't use nanos as extremely small values of nanos can break assertion calculations
         final TimeValue shutdownDelay = TimeValue.parseTimeValue(
-            randomTimeValue(2, 1000, "d", "h", "ms", "s", "m", "micros"),
+            randomTimeValue(100, 1000, "d", "h", "ms", "s", "m", "micros"),
             this.getTestName()
         );
         SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()

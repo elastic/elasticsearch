@@ -14,3 +14,7 @@ dependencies {
   compileOnly project(":x-pack:plugin:core")
   implementation project(path: xpackModule('monitoring'))
 }
+
+tasks.named("test").configure {
+  systemProperty 'tests.security.manager', 'false'
+}

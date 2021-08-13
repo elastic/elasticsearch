@@ -595,4 +595,26 @@ class NodeDeprecationChecks {
             DeprecationIssue.Level.CRITICAL
         );
     }
+
+    static DeprecationIssue checkNoPermitHandshakeFromIncompatibleBuilds(final Settings settings,
+                                                                         final PluginsAndModules pluginsAndModules,
+                                                                         final ClusterState clusterState,
+                                                                         final XPackLicenseState licenseState) {
+        final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
+        if (System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY) != null) {
+            final String message = String.format(
+                Locale.ROOT,
+                "system property [%s] must not be set",
+                PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
+            );
+            final String details = String.format(
+                Locale.ROOT,
+                "remove the system property [%s]",
+                PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
+            );
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_transport_changes";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+        }
+        return null;
+    }
 }

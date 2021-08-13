@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Set;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -864,6 +865,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issues, empty());
     }
 
+    @SuppressForbidden(reason = "sets and unsets es.unsafely_permit_handshake_from_incompatible_builds")
     public void testCheckNoPermitHandshakeFromIncompatibleBuilds() {
         final DeprecationIssue expectedNullIssue =
             NodeDeprecationChecks.checkNoPermitHandshakeFromIncompatibleBuilds(Settings.EMPTY,

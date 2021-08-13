@@ -20,5 +20,3 @@ public interface FieldValues<T> {
     long getLongValue();
     double getDoubleValue();
 }
-
-// TODO DelegatingFieldValues

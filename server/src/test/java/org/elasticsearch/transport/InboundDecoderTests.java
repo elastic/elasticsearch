@@ -132,7 +132,11 @@ public class InboundDecoderTests extends ESTestCase {
         final BytesReference bytes2 = totalBytes.slice(bytesConsumed, totalBytes.length() - bytesConsumed);
         final ReleasableBytesReference releasable2 = ReleasableBytesReference.wrap(bytes2);
         int bytesConsumed2 = decoder.decode(releasable2, fragments::add);
-        assertEquals(2, fragments.size());
+        if (compressionScheme == null) {
+            assertEquals(2, fragments.size());
+        } else {
+            assertEquals(3, fragments.size());
+        }
         assertEquals(InboundDecoder.END_CONTENT, fragments.get(fragments.size() - 1));
         assertEquals(totalBytes.length() - bytesConsumed, bytesConsumed2);
     }
@@ -195,7 +199,7 @@ public class InboundDecoderTests extends ESTestCase {
         final BytesReference totalBytes = message.serialize(new BytesStreamOutput());
         final BytesStreamOutput out = new BytesStreamOutput();
         transportMessage.writeTo(out);
-        final BytesReference uncompressedBytes =out.bytes();
+        final BytesReference uncompressedBytes = out.bytes();
         int totalHeaderSize = TcpHeader.headerSize(Version.CURRENT) + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
 
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
@@ -226,9 +230,11 @@ public class InboundDecoderTests extends ESTestCase {
         int bytesConsumed2 = decoder.decode(releasable2, fragments::add);
         assertEquals(totalBytes.length() - totalHeaderSize, bytesConsumed2);
 
-        final Object content = fragments.get(0);
-        final Object endMarker = fragments.get(1);
+        final Object compressionScheme = fragments.get(0);
+        final Object content = fragments.get(1);
+        final Object endMarker = fragments.get(2);
 
+        assertEquals(scheme, compressionScheme);
         assertEquals(uncompressedBytes, content);
         // Ref count is not incremented since the bytes are immediately consumed on decompression
         assertEquals(1, releasable2.refCount());

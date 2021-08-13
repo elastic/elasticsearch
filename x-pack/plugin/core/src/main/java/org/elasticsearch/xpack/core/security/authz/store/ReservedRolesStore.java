@@ -115,16 +115,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
                     null))
-                .put("kibana_dashboard_only_user", new RoleDescriptor(
-                        "kibana_dashboard_only_user",
-                        null,
-                        null,
-                        new RoleDescriptor.ApplicationResourcePrivileges[] {
-                            RoleDescriptor.ApplicationResourcePrivileges.builder()
-                            .application("kibana-.kibana").resources("*").privileges("read").build() },
-                        null, null,
-                        MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
-                        null))
                 .put(KibanaSystemUser.ROLE_NAME, kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME))
                 .put("logstash_system", new RoleDescriptor("logstash_system", new String[] { "monitor", MonitoringBulkAction.NAME},
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))

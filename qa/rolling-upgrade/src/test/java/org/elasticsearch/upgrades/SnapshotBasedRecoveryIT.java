@@ -113,7 +113,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
     private void indexDocs(String indexName, int numDocs) throws IOException {
         final StringBuilder bulkBody = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
-            bulkBody.append("{\"index\":{\"_id\":\"").append(i).append("\"}}\n");
+            bulkBody.append("{\"index\":{\"_id\":\"").append(i).append("\", \"_type\": \"_doc\"}}\n");
             bulkBody.append("{\"field\":").append(i).append(",\"text\":\"Some text ").append(i).append("\"}\n");
         }
 

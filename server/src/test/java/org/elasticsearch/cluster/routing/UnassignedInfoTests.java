@@ -27,6 +27,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.IndexId;
@@ -568,5 +569,40 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             AllocationStatus readStatus = AllocationStatus.readFrom(in);
             assertThat(readStatus, equalTo(allocationStatus));
         }
+    }
+
+    public static UnassignedInfo randomUnassignedInfo(String message) {
+        return randomUnassignedInfo(message, null);
+    }
+
+    /**
+     * Randomly generates an UnassignedInfo.
+     * @param message The message to be used.
+     * @param delayed Used for the `delayed` flag if provided.
+     * @return A randomly-generated UnassignedInfo with the given message and delayed value (if any)
+     */
+    public static UnassignedInfo randomUnassignedInfo(String message, @Nullable Boolean delayed) {
+        UnassignedInfo.Reason reason = randomFrom(UnassignedInfo.Reason.values());
+        String lastAllocatedNodeId = null;
+        boolean delayedFlag = delayed == null ? false : delayed;
+        if (reason == UnassignedInfo.Reason.NODE_LEFT || reason == UnassignedInfo.Reason.NODE_RESTARTING) {
+            if (randomBoolean() && delayed == null) {
+                delayedFlag = true;
+            }
+            lastAllocatedNodeId = randomAlphaOfLength(10);
+        }
+        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
+        return new UnassignedInfo(
+            reason,
+            message,
+            null,
+            failedAllocations,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            delayedFlag,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            lastAllocatedNodeId
+        );
     }
 }

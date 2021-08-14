@@ -2577,13 +2577,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         final CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest2, RequestOptions.DEFAULT);
 
         {
-            // tag:query-api-key-default-request
+            // tag::query-api-key-default-request
             QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
-            // end:query-api-key-default-request
+            // end::query-api-key-default-request
 
-            // tag:query-api-key-execute
+            // tag::query-api-key-execute
             QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
-            // end:query-api-key-execute
+            // end::query-api-key-execute
 
             assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
             assertThat(queryApiKeyResponse.getCount(), equalTo(2));

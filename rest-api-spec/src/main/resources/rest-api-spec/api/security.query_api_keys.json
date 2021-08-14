@@ -1,5 +1,5 @@
 {
-  "security.query_api_key":{
+  "security.query_api_keys":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-query-api-key.html",
       "description":"Retrieves information for API keys using a subset of query DSL"

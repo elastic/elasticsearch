@@ -134,7 +134,7 @@ teardown:
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
-      security.query_api_key:
+      security.query_api_keys:
         body: {}
   - match: { total: 3 }
   - match: { count: 3 }
@@ -143,7 +143,7 @@ teardown:
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
-      security.query_api_key:
+      security.query_api_keys:
         body: >
           {
             "query": { "match_all": {} }
@@ -155,7 +155,7 @@ teardown:
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_2
-      security.query_api_key:
+      security.query_api_keys:
         body: >
           {
             "query": { "wildcard": {"name": "user*"} }
@@ -167,7 +167,7 @@ teardown:
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
-      security.query_api_key:
+      security.query_api_keys:
         body: >
           {
             "query": { "wildcard": {"name": "user*"} },
@@ -182,7 +182,7 @@ teardown:
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
-      security.query_api_key:
+      security.query_api_keys:
         body: >
           {
             "query": { "wildcard": {"name": "*key"} },
@@ -198,7 +198,7 @@ teardown:
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
-      security.query_api_key:
+      security.query_api_keys:
         body: >
           {
             "query": { "wildcard": {"name": "*key"} },
@@ -215,7 +215,7 @@ teardown:
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
-      security.query_api_key:
+      security.query_api_keys:
         body: >
           {
             "query": { "wildcard": {"name": "*key"} },

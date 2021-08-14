@@ -265,7 +265,7 @@ the dateline. If the difference between a polygon's minimum longitude and the
 maximum longitude is less than 180°, its orientation is not considered and has
 no effect.
 
-You can set a `geo_shape` field's default orientation using the
+You can set a default orientation for a `geo_shape` field using the
 <<geo-shape-mapping-options,`orientation` mapping parameter>>. You can override
 this default for specific polygons using the document-level `orientation`
 parameter.

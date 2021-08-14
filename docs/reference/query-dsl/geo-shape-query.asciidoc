@@ -289,5 +289,4 @@ PUT /test/_doc/1
 --------------------------------------------------
 
 * The `geo_shape` query assumes `geo_shape` fields use a default `orientation`
-of `RIGHT` (counterclockwise). For information about how {es} uses orientation,
-see <<polygon-orientation>>.
+of `RIGHT` (counterclockwise). See <<polygon-orientation>>.

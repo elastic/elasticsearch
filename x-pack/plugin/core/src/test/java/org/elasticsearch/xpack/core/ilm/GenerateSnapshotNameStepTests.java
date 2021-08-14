@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 
@@ -86,7 +87,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         assertThat(generateSnapshotName("name"), startsWith("name-"));
         assertThat(generateSnapshotName("name").length(), greaterThan("name-".length()));
 
-        GenerateSnapshotNameStep.ResolverContext resolverContext = new GenerateSnapshotNameStep.ResolverContext(time);
+        IndexNameExpressionResolver.ResolverContext resolverContext = new IndexNameExpressionResolver.ResolverContext(time);
         assertThat(generateSnapshotName("<name-{now}>", resolverContext), startsWith("name-2019.03.15-"));
         assertThat(generateSnapshotName("<name-{now}>", resolverContext).length(), greaterThan("name-2019.03.15-".length()));
 

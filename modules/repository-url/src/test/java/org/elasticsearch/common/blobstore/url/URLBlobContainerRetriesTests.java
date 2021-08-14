@@ -24,7 +24,6 @@ import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
@@ -43,14 +42,14 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
     }
 
     @AfterClass
-    public static void tearDownHttpClient() throws IOException {
+    public static void tearDownHttpClient() {
         factory.close();
         factory = null;
     }
 
     @Override
-    protected String downloadStorageEndpoint(String blob) {
-        return "/" + blob;
+    protected String downloadStorageEndpoint(BlobContainer container, String blob) {
+        return "/" + container.path().buildAsString() + blob;
     }
 
     @Override

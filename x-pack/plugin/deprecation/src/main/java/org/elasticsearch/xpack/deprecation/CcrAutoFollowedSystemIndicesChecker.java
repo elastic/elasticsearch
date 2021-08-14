@@ -42,7 +42,7 @@ public class CcrAutoFollowedSystemIndicesChecker implements DeprecationChecker {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.14.html#breaking_714_ccr_changes",
             "Auto followed index [" + localIndexName
                 + "] follows a remote system index and this behaviour will change in the next major version.",
-            null
+            false, null
         );
     }
 

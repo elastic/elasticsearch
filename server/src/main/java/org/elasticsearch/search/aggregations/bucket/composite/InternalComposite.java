@@ -461,10 +461,10 @@ public class InternalComposite
 
     static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
-        final Comparable[] values;
+        final Comparable<?>[] values;
         final List<DocValueFormat> formats;
 
-        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable[] values) {
+        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable<?>[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
             this.formats = formats;
@@ -516,6 +516,7 @@ public class InternalComposite
         }
 
         @Override
+        @SuppressWarnings({"rawtypes", "unchecked"})
         public int compareTo(ArrayMap that) {
             if (that == this) {
                 return 0;
@@ -526,7 +527,7 @@ public class InternalComposite
             while (idx < max) {
                 int compare = compareNullables(keys.get(idx), that.keys.get(idx));
                 if (compare == 0) {
-                    compare = compareNullables(values[idx], that.values[idx]);
+                    compare = compareNullables((Comparable) values[idx], (Comparable) that.values[idx]);
                 }
                 if (compare != 0) {
                     return compare;
@@ -543,7 +544,7 @@ public class InternalComposite
         }
     }
 
-    private static int compareNullables(Comparable a, Comparable b) {
+    private static <T extends Comparable<T>> int compareNullables(T a, T b) {
         if (a == b) {
             return 0;
         }

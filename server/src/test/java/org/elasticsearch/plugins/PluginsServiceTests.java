@@ -12,13 +12,13 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -30,6 +30,7 @@ import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -43,6 +44,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -71,10 +74,38 @@ public class PluginsServiceTests extends ESTestCase {
 
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
-    static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
+    static PluginsService newPluginsService(Settings settings) {
         return new PluginsService(
             settings, null, null,
-            TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins)
+            TestEnvironment.newEnvironment(settings).pluginsFile(), emptyList()
+        );
+    }
+
+    static PluginsService newPluginsService(Settings settings, Class<? extends Plugin> classpathPlugin) {
+        return new PluginsService(
+            settings, null, null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(), singletonList(classpathPlugin)
+        );
+    }
+
+    static PluginsService newPluginsService(Settings settings, List<Class<? extends Plugin>> classpathPlugins) {
+        return new PluginsService(
+            settings, null, null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(), classpathPlugins
+        );
+    }
+
+    static PluginsService newPluginsService(
+        Settings settings,
+        Class<? extends Plugin> classpathPlugin1,
+        Class<? extends Plugin> classpathPlugin2
+    ) {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(classpathPlugin1);
+        plugins.add(classpathPlugin2);
+        return new PluginsService(
+            settings, null, null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(), plugins
         );
     }
 
@@ -136,7 +167,6 @@ public class PluginsServiceTests extends ESTestCase {
                         .build();
         final Path hidden = home.resolve("plugins").resolve(".hidden");
         Files.createDirectories(hidden);
-        @SuppressWarnings("unchecked")
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> newPluginsService(settings));
@@ -156,7 +186,7 @@ public class PluginsServiceTests extends ESTestCase {
         final Path desktopServicesStore = plugins.resolve(".DS_Store");
         Files.createFile(desktopServicesStore);
         if (Constants.MAC_OS_X) {
-            @SuppressWarnings("unchecked") final PluginsService pluginsService = newPluginsService(settings);
+            final PluginsService pluginsService = newPluginsService(settings);
             assertNotNull(pluginsService);
         } else {
             final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
@@ -298,7 +328,7 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesCycleSelfReference() throws Exception {
         Path pluginDir = createTempDir();
         PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("foo"), false, PluginType.ISOLATED, "", false);
+            "MyPlugin", singletonList("foo"), false, PluginType.ISOLATED, "", false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.sortBundles(Collections.singleton(bundle))
@@ -313,10 +343,10 @@ public class PluginsServiceTests extends ESTestCase {
             "MyPlugin", Arrays.asList("bar", "other"), false, PluginType.ISOLATED, "", false);
         bundles.add(new PluginsService.Bundle(info, pluginDir));
         PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("baz"), false, PluginType.ISOLATED, "", false);
+            "MyPlugin", singletonList("baz"), false, PluginType.ISOLATED, "", false);
         bundles.add(new PluginsService.Bundle(info2, pluginDir));
         PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("foo"), false, PluginType.ISOLATED, "", false);
+            "MyPlugin", singletonList("foo"), false, PluginType.ISOLATED, "", false);
         bundles.add(new PluginsService.Bundle(info3, pluginDir));
         PluginInfo info4 = new PluginInfo("other", "desc", "1.0", Version.CURRENT, "1.8",
             "MyPlugin", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
@@ -357,7 +387,7 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesMissingDep() throws Exception {
         Path pluginDir = createTempDir();
         PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dne"), false, PluginType.ISOLATED, "", false);
+            "MyPlugin", singletonList("dne"), false, PluginType.ISOLATED, "", false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             PluginsService.sortBundles(Collections.singleton(bundle))
@@ -373,15 +403,15 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
         PluginInfo info2 = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("common"), false, PluginType.ISOLATED, "", false);
+            "MyPlugin", singletonList("common"), false, PluginType.ISOLATED, "", false);
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
         PluginInfo info3 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("common"), false, PluginType.ISOLATED, "", false);
+            "MyPlugin", singletonList("common"), false, PluginType.ISOLATED, "", false);
         PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
         bundles.add(bundle3);
         PluginInfo info4 = new PluginInfo("common", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("grandparent"), false, PluginType.ISOLATED, "", false);
+            "MyPlugin", singletonList("grandparent"), false, PluginType.ISOLATED, "", false);
         PluginsService.Bundle bundle4 = new PluginsService.Bundle(info4, pluginDir);
         bundles.add(bundle4);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -396,7 +426,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
         PluginInfo info2 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+            "MyPlugin", singletonList("dep"), false, PluginType.ISOLATED, "", false);
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -409,9 +439,9 @@ public class PluginsServiceTests extends ESTestCase {
 
     public static class DummyClass3 {}
 
-    void makeJar(Path jarFile, Class... classes) throws Exception {
+    void makeJar(Path jarFile, Class<?>... classes) throws Exception {
         try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(jarFile))) {
-            for (Class clazz : classes) {
+            for (Class<?> clazz : classes) {
                 String relativePath = clazz.getCanonicalName().replaceAll("\\.", "/") + ".class";
                 if (relativePath.contains(PluginsServiceTests.class.getSimpleName())) {
                     // static inner class of this test
@@ -455,7 +485,7 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(dupJar.toUri().toURL()));
         PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+            "MyPlugin", singletonList("dep"), false, PluginType.ISOLATED, "", false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
@@ -500,6 +530,26 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("Level"));
     }
 
+    public void testJarHellWhenExtendedPluginJarNotFound() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("dummy.jar");
+
+        Path otherDir = createTempDir();
+        Path extendedPlugin = otherDir.resolve("extendedDep-not-present.jar");
+
+        PluginInfo info = new PluginInfo("dummy", "desc", "1.0", Version.CURRENT, "1.8",
+            "Dummy", Arrays.asList("extendedPlugin"), false, PluginType.ISOLATED, "", false);
+
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        transitiveUrls.put("extendedPlugin", Collections.singleton(extendedPlugin.toUri().toURL()));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls));
+
+        assertEquals("failed to load plugin dummy while checking for jar hell", e.getMessage());
+    }
+
     public void testJarHellDuplicateClassWithDep() throws Exception {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
@@ -510,7 +560,7 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
         PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+            "MyPlugin", singletonList("dep"), false, PluginType.ISOLATED, "", false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
@@ -562,6 +612,50 @@ public class PluginsServiceTests extends ESTestCase {
         Set<URL> deps = transitiveDeps.get("myplugin");
         assertNotNull(deps);
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
+    }
+
+    public void testJarHellSpiAddedToTransitiveDeps() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass2.class);
+        Path spiDir = pluginDir.resolve("spi");
+        Files.createDirectories(spiDir);
+        Path spiJar = spiDir.resolve("spi.jar");
+        makeJar(spiJar, DummyClass3.class);
+        Path depDir = createTempDir();
+        Path depJar = depDir.resolve("dep.jar");
+        makeJar(depJar, DummyClass1.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        Set<URL> transitive = transitiveDeps.get("myplugin");
+        assertThat(transitive, containsInAnyOrder(spiJar.toUri().toURL(), depJar.toUri().toURL()));
+    }
+
+    public void testJarHellSpiConflict() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass2.class);
+        Path spiDir = pluginDir.resolve("spi");
+        Files.createDirectories(spiDir);
+        Path spiJar = spiDir.resolve("spi.jar");
+        makeJar(spiJar, DummyClass1.class);
+        Path depDir = createTempDir();
+        Path depJar = depDir.resolve("dep.jar");
+        makeJar(depJar, DummyClass1.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
+        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
+        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
+        assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
     }
 
     public void testNonExtensibleDep() throws Exception {
@@ -711,7 +805,7 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testExtensiblePlugin() {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
-        PluginsService.loadExtensions(Collections.singletonList(
+        PluginsService.loadExtensions(singletonList(
             Tuple.tuple(
                 new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false, PluginType.ISOLATED, "", false),
                 extensiblePlugin
@@ -726,7 +820,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(Arrays.asList(
             Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false,
                 PluginType.ISOLATED, "", false), extensiblePlugin),
-            Tuple.tuple(new PluginInfo("test", null, null, null, null, null, Collections.singletonList("extensible"), false,
+            Tuple.tuple(new PluginInfo("test", null, null, null, null, null, singletonList("extensible"), false,
                 PluginType.ISOLATED, "", false), testPlugin)
         ));
 

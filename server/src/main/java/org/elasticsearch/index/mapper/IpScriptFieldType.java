@@ -22,6 +22,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -37,18 +38,29 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<IpFieldScript.Factory>(name, IpFieldScript.CONTEXT, IpFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<IpFieldScript.Factory>(name, IpFieldScript.CONTEXT) {
             @Override
             AbstractScriptFieldType<?> createFieldType(String name,
                                                        IpFieldScript.Factory factory,
                                                        Script script,
                                                        Map<String, String> meta) {
                 return new IpScriptFieldType(name, factory, getScript(), meta());
+            }
+
+            @Override
+            IpFieldScript.Factory getParseFromSourceFactory() {
+                return IpFieldScript.PARSE_FROM_SOURCE;
+            }
+
+            @Override
+            IpFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+                return IpFieldScript.leafAdapter(parentScriptFactory);
             }
         });
 

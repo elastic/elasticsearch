@@ -19,7 +19,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -615,7 +614,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         final String datafeedId = jobId + "-datafeed";
         startRealtime(jobId);
 
-        ConcurrentMapLong<AssertionError> exceptions = ConcurrentCollections.newConcurrentMapLong();
+        Map<Long, AssertionError> exceptions = ConcurrentCollections.newConcurrentMap();
 
         // It's practically impossible to assert that a stop request has waited
         // for a concurrently executing request to finish before returning.

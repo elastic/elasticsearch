@@ -434,6 +434,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
     private final DocValueFormat format;
     protected final Range[] ranges;
     private final boolean keyed;
+    @SuppressWarnings("rawtypes")
     private final InternalRange.Factory rangeFactory;
     private final double averageDocsPerRange;
 
@@ -442,6 +443,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         AggregatorFactories factories,
         ValuesSource valuesSource,
         DocValueFormat format,
+        @SuppressWarnings("rawtypes")
         InternalRange.Factory rangeFactory,
         Range[] ranges,
         double averageDocsPerRange,
@@ -474,6 +476,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         return buildAggregationsForFixedBucketCount(owningBucketOrds, ranges.length,
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
@@ -483,6 +486,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
@@ -507,6 +511,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
 
         private final R[] ranges;
         private final boolean keyed;
+        @SuppressWarnings("rawtypes")
         private final InternalRange.Factory factory;
         private final DocValueFormat format;
 
@@ -518,6 +523,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             DocValueFormat format,
             AggregationContext context,
             Aggregator parent,
+            @SuppressWarnings("rawtypes")
             InternalRange.Factory factory,
             Map<String, Object> metadata
         ) throws IOException {
@@ -529,6 +535,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public InternalAggregation buildEmptyAggregation() {
             InternalAggregations subAggs = buildEmptySubAggregations();
             List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
@@ -599,6 +606,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             AggregatorFactories factories,
             Numeric valuesSource,
             DocValueFormat format,
+            @SuppressWarnings("rawtypes")
             Factory rangeFactory,
             Range[] ranges,
             double averageDocsPerRange,
@@ -776,7 +784,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                         r.getFrom(),
                         r.getTo(),
                         b.getDocCount(),
-                        (InternalAggregations) b.getAggregations(),
+                        b.getAggregations(),
                         keyed,
                         format
                     )

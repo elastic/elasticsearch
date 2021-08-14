@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -129,8 +130,8 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), ctx) {
+                    public ScoreScript newInstance(DocReader docReader) {
+                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) getDoc().get("test");
@@ -138,7 +139,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                             }
                         };
                     }
-                }, 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
     }

@@ -137,6 +137,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                           boolean failIfAlreadyExists,
                           boolean atomic,
                           CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        final String absoluteBlobKey = buildKey(blobName);
         try (AmazonS3Reference clientReference = blobStore.clientReference();
              ChunkedBlobOutputStream<PartETag> out = new ChunkedBlobOutputStream<PartETag>(
                      blobStore.bigArrays(), blobStore.bufferSizeInBytes()) {
@@ -155,14 +156,14 @@ class S3BlobContainer extends AbstractBlobContainer {
                      if (flushedBytes == 0L) {
                          assert lastPart == false : "use single part upload if there's only a single part";
                          uploadId.set(SocketAccess.doPrivileged(() ->
-                                 clientReference.client().initiateMultipartUpload(initiateMultiPartUpload(blobName)).getUploadId()));
+                                 clientReference.client().initiateMultipartUpload(initiateMultiPartUpload(absoluteBlobKey)).getUploadId()));
                          if (Strings.isEmpty(uploadId.get())) {
-                             throw new IOException("Failed to initialize multipart upload " + blobName);
+                             throw new IOException("Failed to initialize multipart upload " + absoluteBlobKey);
                          }
                      }
                      assert lastPart == false || successful : "must only write last part if successful";
                      final UploadPartRequest uploadRequest = createPartUploadRequest(
-                             buffer.bytes().streamInput(), uploadId.get(), parts.size() + 1, blobName, buffer.size(), lastPart);
+                             buffer.bytes().streamInput(), uploadId.get(), parts.size() + 1, absoluteBlobKey, buffer.size(), lastPart);
                      final UploadPartResult uploadResponse =
                              SocketAccess.doPrivileged(() -> clientReference.client().uploadPart(uploadRequest));
                      finishPart(uploadResponse.getPartETag());
@@ -175,7 +176,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                      } else {
                          flushBuffer(true);
                          final CompleteMultipartUploadRequest complRequest =
-                                 new CompleteMultipartUploadRequest(blobStore.bucket(), blobName, uploadId.get(), parts);
+                                 new CompleteMultipartUploadRequest(blobStore.bucket(), absoluteBlobKey, uploadId.get(), parts);
                          complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
                          SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
                      }
@@ -184,7 +185,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                  @Override
                  protected void onFailure() {
                      if (Strings.hasText(uploadId.get())) {
-                         abortMultiPartUpload(uploadId.get(), blobName);
+                         abortMultiPartUpload(uploadId.get(), absoluteBlobKey);
                      }
                  }
              }) {

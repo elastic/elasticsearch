@@ -18,14 +18,15 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -34,13 +35,11 @@ import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.spatial.VectorTileExtension;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -95,13 +94,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Version version;
-        private final VectorTileExtension vectorTileExtension;
+        private final GeoFormatterFactory<Geometry> geoFormatterFactory;
 
         public Builder(String name, Version version, boolean ignoreMalformedByDefault, boolean coerceByDefault,
-                       VectorTileExtension vectorTileExtension) {
+                       GeoFormatterFactory<Geometry> geoFormatterFactory) {
             super(name);
             this.version = version;
-            this.vectorTileExtension = vectorTileExtension;
+            this.geoFormatterFactory = geoFormatterFactory;
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
             this.hasDocValues
@@ -133,7 +132,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 hasDocValues.get(),
                 orientation.get().value(),
                 parser,
-                vectorTileExtension,
+                geoFormatterFactory,
                 meta.get());
             return new GeoShapeWithDocValuesFieldMapper(name, ft,
                 multiFieldsBuilder.build(this, contentPath), copyTo.build(),
@@ -144,13 +143,12 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType<Geometry> implements GeoShapeQueryable {
 
-        private final VectorTileExtension vectorTileExtension;
-
+        private final GeoFormatterFactory<Geometry> geoFormatterFactory;
         public GeoShapeWithDocValuesFieldType(String name, boolean indexed, boolean hasDocValues,
                                               Orientation orientation, GeoShapeParser parser,
-                                              VectorTileExtension vectorTileExtension, Map<String, String> meta) {
+                                              GeoFormatterFactory<Geometry> geoFormatterFactory, Map<String, String> meta) {
             super(name, indexed, false, hasDocValues, parser, orientation, meta);
-            this.vectorTileExtension = vectorTileExtension;
+            this.geoFormatterFactory = geoFormatterFactory;
         }
 
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
@@ -184,22 +182,16 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         @Override
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
-            return GeoFormatterFactory.getFormatter(format, Function.identity(),
-                (z, x, y, extent) -> {
-                    if (vectorTileExtension == null) {
-                        throw new IllegalArgumentException("vector tile format is not supported");
-                    }
-                    return vectorTileExtension.getVectorTileEngine().getFormatter(z, x, y, extent);
-                });
+            return geoFormatterFactory.getFormatter(format, Function.identity());
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
 
-        private final VectorTileExtension vectorTileExtension;
+        private final GeoFormatterFactory<Geometry> geoFormatterFactory;
 
-        public TypeParser(VectorTileExtension vectorTileExtension) {
-            this.vectorTileExtension = vectorTileExtension;
+        public TypeParser(GeoFormatterFactory<Geometry> geoFormatterFactory) {
+            this.geoFormatterFactory = geoFormatterFactory;
         }
 
         @Override
@@ -221,7 +213,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                     parserContext.indexVersionCreated(),
                     ignoreMalformedByDefault,
                     coerceByDefault,
-                    vectorTileExtension);
+                    geoFormatterFactory);
             }
             builder.parse(name, parserContext, node);
             return builder;
@@ -276,7 +268,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             builder.version,
             builder.ignoreMalformed.getDefaultValue().value(),
             builder.coerce.getDefaultValue().value(),
-            builder.vectorTileExtension
+            builder.geoFormatterFactory
         ).init(this);
     }
 

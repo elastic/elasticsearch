@@ -741,7 +741,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        private void validate() {
+        void validate() {
             if (validator != null) {
                 validator.accept(getValue());
             }

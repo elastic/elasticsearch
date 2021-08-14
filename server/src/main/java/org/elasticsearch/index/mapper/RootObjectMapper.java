@@ -213,7 +213,12 @@ public class RootObjectMapper extends ObjectMapper {
                 return true;
             } else if (fieldName.equals("runtime")) {
                 if (fieldNode instanceof Map) {
-                    builder.setRuntime(RuntimeField.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, true));
+                    Map<String, RuntimeField> fields = RuntimeField.parseRuntimeFields(
+                        (Map<String, Object>) fieldNode,
+                        parserContext,
+                        true
+                    );
+                    builder.setRuntime(fields);
                     return true;
                 } else {
                     throw new ElasticsearchParseException("runtime must be a map type");

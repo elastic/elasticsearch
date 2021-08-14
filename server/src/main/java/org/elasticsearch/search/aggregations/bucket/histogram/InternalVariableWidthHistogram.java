@@ -336,7 +336,7 @@ public class InternalVariableWidthHistogram
         for (InternalAggregation aggregation : aggregations) {
             InternalVariableWidthHistogram histogram = (InternalVariableWidthHistogram) aggregation;
             if (histogram.buckets.isEmpty() == false) {
-                pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));
+                pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
             }
         }
 

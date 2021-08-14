@@ -418,7 +418,14 @@ public class KeystoreManagementTests extends PackagingTestCase {
     private void createKeystore(String password) throws Exception {
         Path keystore = installation.config("elasticsearch.keystore");
         final Installation.Executables bin = installation.executables();
-        bin.keystoreTool.run("create");
+        if (distribution().isDocker() && distribution().packaging != Distribution.Packaging.DOCKER_IRON_BANK) {
+            // The Docker image in 7.x runs as `root` (apart from Iron Bank), but ensures that it creates files as `elasticsearch`, so
+            // we emulate this behaviour here. in `8.0`, the image runs as `elasticsearch` and this special
+            // case goes away.
+            sh.run("bash -c 'exec chroot --userspec=1000:0 / " + bin.keystoreTool.path + " create'");
+        } else {
+            bin.keystoreTool.run("create");
+        }
 
         // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
         // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
@@ -487,7 +494,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             case DOCKER:
             case DOCKER_UBI:
             case DOCKER_IRON_BANK:
-                assertPermissionsAndOwnership(keystore, p660);
+                assertPermissionsAndOwnership(keystore, "elasticsearch", "root", p660);
                 break;
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");

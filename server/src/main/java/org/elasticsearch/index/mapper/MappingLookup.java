@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,6 +54,7 @@ public final class MappingLookup {
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
     private final Mapping mapping;
+    private final Set<String> shadowedFields;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
@@ -158,9 +160,14 @@ public final class MappingLookup {
                 throw new MapperParsingException("Alias [" + aliasMapper.name() + "] is defined both as an alias and a concrete field");
             }
         }
+        
+        this.shadowedFields = new HashSet<>();
+        for (RuntimeField runtimeField : mapping.getRoot().runtimeFields()) {
+            runtimeField.asMappedFieldTypes().forEach(mft -> shadowedFields.add(mft.name()));
+        }
 
         this.fieldTypeLookup = new FieldTypeLookup(mapping.type(), mappers, aliasMappers, mapping.getRoot().runtimeFields());
-        this.indexTimeLookup = new FieldTypeLookup(mapping.type(), mappers, aliasMappers, emptyList());
+        this.indexTimeLookup = new FieldTypeLookup(mapping.type(), mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -199,6 +206,13 @@ public final class MappingLookup {
      */
     public Iterable<Mapper> fieldMappers() {
         return fieldMappers.values();
+    }
+
+    /**
+     * @return {@code true} if the given field is shadowed by a runtime field
+     */
+    public boolean isShadowed(String field) {
+        return shadowedFields.contains(field);
     }
 
     void checkLimits(IndexSettings settings) {
@@ -340,6 +354,16 @@ public final class MappingLookup {
     public boolean isSourceEnabled() {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
         return sfm != null && sfm.enabled();
+    }
+
+    /**
+     * Returns if this mapping contains a data-stream's timestamp meta-field and this field is enabled.
+     * Only indices that are a part of a data-stream have this meta-field enabled.
+     * @return {@code true} if contains an enabled data-stream's timestamp meta-field, {@code false} otherwise.
+     */
+    public boolean isDataStreamTimestampFieldEnabled() {
+        DataStreamTimestampFieldMapper dtfm = mapping.getMetadataMapperByClass(DataStreamTimestampFieldMapper.class);
+        return dtfm != null && dtfm.isEnabled();
     }
 
     /**

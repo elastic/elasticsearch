@@ -393,6 +393,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return this;
     }
 
+    @SuppressWarnings("rawtypes")
     private abstract static class Values extends AbstractCollection implements Writeable {
 
         private static Values readFrom(StreamInput in) throws IOException {
@@ -480,6 +481,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * When users send a query contain a lot of terms, A {@link BytesReference} can help
      * gc and reduce the cost of {@link #doWriteTo}, which can be slow for lots of terms.
      */
+    @SuppressWarnings("rawtypes")
     private static class BinaryValues extends Values {
 
         private final BytesReference valueRef;
@@ -580,6 +582,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      *
      * TODO: remove in 9.0.0
      */
+    @SuppressWarnings("rawtypes")
     private static class ListValues extends Values {
 
         private final List<?> values;

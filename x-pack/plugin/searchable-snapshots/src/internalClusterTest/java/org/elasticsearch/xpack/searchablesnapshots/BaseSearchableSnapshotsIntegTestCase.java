@@ -144,7 +144,9 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     @Override
     protected void createRepository(String repoName, String type, Settings.Builder settings, boolean verify) {
         // add use for peer recovery setting randomly to verify that these features work together.
-        Settings.Builder newSettings = randomBoolean() ? settings : Settings.builder().put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true).put(settings.build());
+        Settings.Builder newSettings = randomBoolean()
+            ? settings
+            : Settings.builder().put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true).put(settings.build());
         super.createRepository(repoName, type, newSettings, verify);
     }
 

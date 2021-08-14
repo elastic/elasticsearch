@@ -135,7 +135,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
-        Compression.Scheme compressionScheme = TransportSettings.TRANSPORT_COMPRESSION_SCHEME.get(settings);
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
         final Settings defaultFeatures = TransportSettings.DEFAULT_FEATURES_SETTING.get(settings);
         String[] features;
@@ -152,11 +151,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        this.outboundHandler = new OutboundHandler(nodeName, version, features, statsTracker, threadPool, bigArrays, compressionScheme);
+        this.outboundHandler = new OutboundHandler(nodeName, version, features, statsTracker, threadPool, bigArrays);
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
-                TransportRequestOptions.EMPTY, v, false, true));
+                TransportRequestOptions.EMPTY, v, null, true));
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, handshaker, keepAlive,
             requestHandlers, responseHandlers);
@@ -200,6 +199,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final DiscoveryNode node;
         private final Version version;
         private final Compression.Enabled compress;
+        private final Compression.Scheme compressionScheme;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
         NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
@@ -214,6 +214,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
             version = handshakeVersion;
             compress = connectionProfile.getCompressionEnabled();
+            compressionScheme = connectionProfile.getCompressionScheme();
         }
 
         @Override
@@ -261,11 +262,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // We compress if total transport compression is enabled or if indexing_data transport compression
             // is enabled and the request is a RawIndexingDataTransportRequest which indicates it should be
             // compressed.
-            boolean shouldCompress = compress == Compression.Enabled.TRUE ||
+            final boolean shouldCompress = compress == Compression.Enabled.TRUE ||
                 (compress == Compression.Enabled.INDEXING_DATA
                     && request instanceof RawIndexingDataTransportRequest
                     && ((RawIndexingDataTransportRequest) request).isRawIndexingData());
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), shouldCompress, false);
+            final Compression.Scheme schemeToUse = shouldCompress ? compressionScheme : null;
+            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), schemeToUse, false);
         }
 
         @Override

@@ -338,6 +338,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         if (rarely()) {
             settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
         }
+        if (randomBoolean()) {
+            settings.put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), randomBoolean());
+        }
         return settings;
     }
 

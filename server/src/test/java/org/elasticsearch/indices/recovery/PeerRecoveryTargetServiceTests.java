@@ -8,8 +8,12 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -23,8 +27,12 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -32,27 +40,42 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesService;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
+    private static final ByteSizeValue SNAPSHOT_FILE_PART_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
 
     public void testWriteFileChunksConcurrently() throws Exception {
         IndexShard sourceShard = newStartedShard(true);
@@ -70,7 +93,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         final DiscoveryNode pNode = getFakeDiscoNode(sourceShard.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(targetShard.routingEntry().currentNodeId());
         targetShard.markAsRecovering("test-peer-recovery", new RecoveryState(targetShard.routingEntry(), rNode, pNode));
-        final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null);
+        final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null, null);
         final PlainActionFuture<Void> receiveFileInfoFuture = new PlainActionFuture<>();
         recoveryTarget.receiveFileInfo(
             mdFiles.stream().map(StoreFileMetadata::name).collect(Collectors.toList()),
@@ -270,7 +293,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         shard.prepareForIndexRecovery();
         long startingSeqNo = shard.recoverLocallyUpToGlobalCheckpoint();
         shard.store().markStoreCorrupted(new IOException("simulated"));
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null, null);
         StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(logger, rNode, recoveryTarget, startingSeqNo);
         assertThat(request.startingSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(request.metadataSnapshot().size(), equalTo(0));
@@ -297,12 +320,294 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null, null);
         StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
             logger, rNode, recoveryTarget, randomNonNegativeLong());
         assertThat(request.startingSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(request.metadataSnapshot(), sameInstance(Store.MetadataSnapshot.EMPTY));
         recoveryTarget.decRef();
         closeShards(shard);
+    }
+
+    public void testSnapshotFileWrite() throws Exception {
+        DiscoveryNode pNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        DiscoveryNode rNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+
+        IndexShard shard = newShard(false);
+        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
+        shard.prepareForIndexRecovery();
+
+        RecoveryState.Index recoveryStateIndex = shard.recoveryState().getIndex();
+
+        Directory directory = shard.store().directory();
+
+        String fileName = randomAlphaOfLength(10);
+        Tuple<StoreFileMetadata, byte[]> storeFileMetadataAndData = createStoreFileMetadataWithRandomContent(fileName);
+        StoreFileMetadata storeFileMetadata = storeFileMetadataAndData.v1();
+        byte[] fileData = storeFileMetadataAndData.v2();
+
+        String repositoryName = "repo";
+        IndexId indexId = new IndexId("index", "uuid");
+        ShardId shardId = shard.shardId();
+        BlobStoreIndexShardSnapshot.FileInfo fileInfo =
+            new BlobStoreIndexShardSnapshot.FileInfo("name", storeFileMetadata, SNAPSHOT_FILE_PART_SIZE);
+
+        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(mock(RepositoriesService.class)) {
+            @Override
+            public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
+                                                             IndexId requestedIndexId,
+                                                             ShardId requestedShardId,
+                                                             BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
+                                                             Consumer<Long> rateLimiterListener) {
+                assertThat(requestedRepositoryName, equalTo(repositoryName));
+                assertThat(requestedIndexId, equalTo(indexId));
+                assertThat(requestedShardId, equalTo(shardId));
+
+                assertThat(snapshotFileInfo.name(), equalTo(fileInfo.name()));
+                assertThat(snapshotFileInfo.metadata().isSame(storeFileMetadata), equalTo(true));
+
+                return new ByteArrayInputStream(fileData);
+            }
+
+            @Override
+            public int getReadSnapshotFileBufferSizeForRepo(String repository) {
+                return (int) new ByteSizeValue(128, ByteSizeUnit.KB).getBytes();
+            }
+        };
+
+        recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
+        recoveryStateIndex.setFileDetailsComplete();
+
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, null);
+
+        PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
+        recoveryTarget.restoreFileFromSnapshot(repositoryName, indexId, fileInfo, writeSnapshotFileFuture);
+        writeSnapshotFileFuture.get();
+
+        Optional<String> tmpFileName = Arrays.stream(directory.listAll())
+            .filter(directoryFile -> directoryFile.endsWith(fileName))
+            .findFirst();
+
+        assertThat(tmpFileName.isPresent(), is(equalTo(true)));
+        try (IndexInput indexInput = directory.openInput(tmpFileName.get(), IOContext.READONCE)) {
+            byte[] writtenData = new byte[(int) storeFileMetadata.length()];
+            indexInput.readBytes(writtenData, 0, (int) storeFileMetadata.length());
+            assertThat(writtenData, is(equalTo(fileData)));
+        }
+
+        RecoveryState.FileDetail fileDetails = recoveryStateIndex.getFileDetails(storeFileMetadata.name());
+        assertThat(fileDetails.recovered(), equalTo(storeFileMetadata.length()));
+
+        recoveryTarget.decRef();
+        closeShards(shard);
+    }
+
+    enum DownloadFileErrorType {
+        CORRUPTED_FILE,
+        TRUNCATED_FILE,
+        LARGER_THAN_EXPECTED_FILE,
+        FETCH_ERROR
+    }
+
+    public void testSnapshotFileIsDeletedAfterFailure() throws Exception {
+        DiscoveryNode pNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        DiscoveryNode rNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+
+        IndexShard shard = newShard(false);
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
+        shard.prepareForIndexRecovery();
+
+        RecoveryState.Index recoveryStateIndex = shard.recoveryState().getIndex();
+
+        Directory directory = shard.store().directory();
+        String[] filesBeforeRestoringSnapshotFile = directory.listAll();
+
+        String fileName = randomAlphaOfLength(10);
+        Tuple<StoreFileMetadata, byte[]> storeFileMetadataAndData = createStoreFileMetadataWithRandomContent(fileName);
+        StoreFileMetadata storeFileMetadata = storeFileMetadataAndData.v1();
+        byte[] fileData = storeFileMetadataAndData.v2();
+        final DownloadFileErrorType downloadFileErrorType = randomFrom(DownloadFileErrorType.values());
+
+        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(mock(RepositoriesService.class)) {
+            @Override
+            public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
+                                                             IndexId requestedIndexId,
+                                                             ShardId requestedShardId,
+                                                             BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
+                                                             Consumer<Long> rateLimiterListener) {
+                switch (downloadFileErrorType) {
+                    case CORRUPTED_FILE:
+                        byte[] fileDataCopy = new byte[fileData.length];
+                        System.arraycopy(fileData, 0, fileDataCopy, 0, fileData.length);
+                        // Corrupt the file
+                        for (int i = 0; i < randomIntBetween(1, fileDataCopy.length); i++) {
+                            fileDataCopy[i] ^= 0xFF;
+                        }
+                        return new ByteArrayInputStream(fileDataCopy);
+                    case TRUNCATED_FILE:
+                        final int truncatedFileLength = fileData.length / 2;
+                        byte[] truncatedCopy = new byte[truncatedFileLength];
+                        System.arraycopy(fileData, 0, truncatedCopy, 0, truncatedFileLength);
+                        return new ByteArrayInputStream(truncatedCopy);
+                    case LARGER_THAN_EXPECTED_FILE:
+                        byte[] largerData = new byte[fileData.length + randomIntBetween(1, 250)];
+                        System.arraycopy(fileData, 0, largerData, 0, fileData.length);
+                        for (int i = fileData.length; i < largerData.length; i++) {
+                            largerData[i] = randomByte();
+                        }
+                        return new ByteArrayInputStream(largerData);
+                    case FETCH_ERROR:
+                        throw new RuntimeException("Unexpected error");
+                    default:
+                        throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
+                }
+            }
+
+            @Override
+            public int getReadSnapshotFileBufferSizeForRepo(String repository) {
+                return (int) new ByteSizeValue(128, ByteSizeUnit.KB).getBytes();
+            }
+        };
+
+        recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
+        recoveryStateIndex.setFileDetailsComplete();
+
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, null);
+
+        String repositoryName = "repo";
+        IndexId indexId = new IndexId("index", "uuid");
+        BlobStoreIndexShardSnapshot.FileInfo fileInfo =
+            new BlobStoreIndexShardSnapshot.FileInfo("name", storeFileMetadata, SNAPSHOT_FILE_PART_SIZE);
+
+        PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
+        recoveryTarget.restoreFileFromSnapshot(repositoryName, indexId, fileInfo, writeSnapshotFileFuture);
+        ExecutionException executionException = expectThrows(ExecutionException.class, writeSnapshotFileFuture::get);
+
+        Throwable downloadFileError = executionException.getCause();
+        switch (downloadFileErrorType) {
+            case CORRUPTED_FILE:
+            case LARGER_THAN_EXPECTED_FILE:
+                // Files larger than expected are caught by VerifyingIndexInput too
+                assertThat(downloadFileError, is(instanceOf(CorruptIndexException.class)));
+                break;
+            case TRUNCATED_FILE:
+                assertThat(downloadFileError, is(instanceOf(EOFException.class)));
+                break;
+            case FETCH_ERROR:
+                assertThat(downloadFileError, is(instanceOf(RuntimeException.class)));
+                break;
+            default:
+                throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
+        }
+
+        assertThat(filesBeforeRestoringSnapshotFile, equalTo(directory.listAll()));
+
+        RecoveryState.FileDetail fileDetails = recoveryStateIndex.getFileDetails(storeFileMetadata.name());
+        assertThat(fileDetails.recovered(), equalTo(0L));
+
+        // Subsequent writes on the same file can proceed without issues
+        PlainActionFuture<Void> writeChunkFuture = PlainActionFuture.newFuture();
+        ReleasableBytesReference bytesRef = ReleasableBytesReference.wrap(new BytesArray(fileData));
+        recoveryTarget.writeFileChunk(storeFileMetadata, 0, bytesRef, true, 0, writeChunkFuture);
+        writeChunkFuture.get();
+
+        recoveryTarget.decRef();
+        closeShards(shard);
+    }
+
+    public void testSnapshotFileAreDeletedAfterCancel() throws Exception {
+        DiscoveryNode pNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        DiscoveryNode rNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+
+        IndexShard shard = newShard(false);
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
+        shard.prepareForIndexRecovery();
+
+        RecoveryState.Index recoveryStateIndex = shard.recoveryState().getIndex();
+
+        Directory directory = shard.store().directory();
+        String[] filesBeforeRestoringSnapshotFile = directory.listAll();
+
+        String fileName = randomAlphaOfLength(10);
+        Tuple<StoreFileMetadata, byte[]> storeFileMetadataAndData = createStoreFileMetadataWithRandomContent(fileName);
+        StoreFileMetadata storeFileMetadata = storeFileMetadataAndData.v1();
+        byte[] fileData = storeFileMetadataAndData.v2();
+
+        SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(mock(RepositoriesService.class)) {
+            @Override
+            public InputStream getInputStreamForSnapshotFile(String requestedRepositoryName,
+                                                             IndexId requestedIndexId,
+                                                             ShardId requestedShardId,
+                                                             BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo,
+                                                             Consumer<Long> rateLimiterListener) {
+                return new ByteArrayInputStream(fileData);
+            }
+
+            @Override
+            public int getReadSnapshotFileBufferSizeForRepo(String repository) {
+                return (int) new ByteSizeValue(128, ByteSizeUnit.KB).getBytes();
+            }
+        };
+
+        recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
+        recoveryStateIndex.setFileDetailsComplete();
+
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, snapshotFilesProvider, null);
+
+        String repository = "repo";
+        IndexId indexId = new IndexId("index", "uuid");
+        BlobStoreIndexShardSnapshot.FileInfo fileInfo =
+            new BlobStoreIndexShardSnapshot.FileInfo("name", storeFileMetadata, new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
+
+        recoveryTarget.incRef();
+
+        PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
+        recoveryTarget.restoreFileFromSnapshot(repository, indexId, fileInfo, writeSnapshotFileFuture);
+        writeSnapshotFileFuture.get();
+
+        RecoveryState.FileDetail fileDetails = recoveryStateIndex.getFileDetails(storeFileMetadata.name());
+        assertThat(fileDetails.recovered(), equalTo(storeFileMetadata.length()));
+
+        final String[] filesBeforeCancellingRecovery = directory.listAll();
+
+        recoveryTarget.cancel("This is a test");
+
+        final String[] filesAfterCancellingRecoveryWithOneOutstandingReference = directory.listAll();
+
+        // Since there's still one outstanding reference the snapshot file is kept around
+        assertThat(filesBeforeCancellingRecovery, equalTo(filesAfterCancellingRecoveryWithOneOutstandingReference));
+
+        recoveryTarget.decRef();
+
+        // Once the reference is released, the tmp file should be deleted
+        assertThat(filesBeforeRestoringSnapshotFile, equalTo(directory.listAll()));
+
+        closeShards(shard);
+    }
+
+    private Tuple<StoreFileMetadata, byte[]> createStoreFileMetadataWithRandomContent(String fileName) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("test", "file", out, 1024)) {
+            byte[] buffer = randomByteArrayOfLength(1024);
+            indexOutput.writeBytes(buffer, buffer.length);
+            CodecUtil.writeFooter(indexOutput);
+        }
+
+        byte[] luceneEncodedFileBytes = out.toByteArray();
+        long checksum = CodecUtil.retrieveChecksum(new ByteArrayIndexInput("test", luceneEncodedFileBytes));
+
+        String encodedChecksum = Store.digestToString(checksum);
+        String writtenBy = org.apache.lucene.util.Version.LATEST.toString();
+        return Tuple.tuple(
+            new StoreFileMetadata(fileName, luceneEncodedFileBytes.length, encodedChecksum, writtenBy),
+            luceneEncodedFileBytes
+        );
     }
 }

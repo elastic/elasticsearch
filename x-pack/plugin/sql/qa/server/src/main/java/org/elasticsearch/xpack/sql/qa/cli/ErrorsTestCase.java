@@ -93,7 +93,7 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
         index("test", body -> body.field("foo", 1));
         assertThat(
             command("SELECT SCORE().bar FROM test"),
-            startsWith(START + "Bad request [[3;33;22mline 1:15: extraneous input '.' expecting {<EOF>, ',',")
+            startsWith(START + "Bad request [[3;33;22mline 1:15: mismatched input '.' expecting {<EOF>, ")
         );
     }
 

@@ -11,9 +11,9 @@ esplugin {
 }
 
 ext {
+  antlrVersion = "4.9.2"
   // SQL dependency versions
   jlineVersion = "3.14.1"
-  antlrVersion = "4.5.3"
 
   // SQL test dependency versions
   csvjdbcVersion = "1.0.34"
@@ -30,12 +30,9 @@ archivesBaseName = 'x-pack-sql'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  compileOnly(project(':modules:lang-painless')) {
-    exclude group: "org.ow2.asm"
-  }
+  compileOnly(project(':modules:lang-painless:spi'))
   api project('sql-action')
   api project(':modules:aggs-matrix-stats')
-  api "org.antlr:antlr4-runtime:${antlrVersion}"
   compileOnly project(path: xpackModule('ql'))
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))

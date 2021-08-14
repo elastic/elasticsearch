@@ -19,14 +19,12 @@ import java.util.Objects;
 public class IndexLocation implements TrainedModelLocation {
 
     public static final String INDEX = "index";
-    private static final ParseField MODEL_ID = new ParseField("model_id");
     private static final ParseField NAME = new ParseField("name");
 
     private static final ConstructingObjectParser<IndexLocation, Void> PARSER =
-        new ConstructingObjectParser<>(INDEX, true, a -> new IndexLocation((String) a[0], (String) a[1]));
+        new ConstructingObjectParser<>(INDEX, true, a -> new IndexLocation((String) a[0]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), MODEL_ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
     }
 
@@ -34,16 +32,10 @@ public class IndexLocation implements TrainedModelLocation {
         return PARSER.parse(parser, null);
     }
 
-    private final String modelId;
     private final String index;
 
-    public IndexLocation(String modelId, String index) {
-        this.modelId = Objects.requireNonNull(modelId);
+    public IndexLocation(String index) {
         this.index = Objects.requireNonNull(index);
-    }
-
-    public String getModelId() {
-        return modelId;
     }
 
     public String getIndex() {
@@ -59,7 +51,6 @@ public class IndexLocation implements TrainedModelLocation {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME.getPreferredName(), index);
-        builder.field(MODEL_ID.getPreferredName(), modelId);
         builder.endObject();
         return builder;
     }
@@ -73,12 +64,11 @@ public class IndexLocation implements TrainedModelLocation {
             return false;
         }
         IndexLocation that = (IndexLocation) o;
-        return Objects.equals(modelId, that.modelId)
-            && Objects.equals(index, that.index);
+        return Objects.equals(index, that.index);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, index);
+        return Objects.hash(index);
     }
 }

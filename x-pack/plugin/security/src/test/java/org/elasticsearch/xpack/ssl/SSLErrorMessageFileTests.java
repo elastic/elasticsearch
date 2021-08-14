@@ -119,7 +119,6 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     public void testMessageForPemKeyOutsideConfigDir() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/76166", Constants.WINDOWS);
         checkBlockedKeyManagerResource("PEM private key", "key", withCertificate("cert1a.crt"));
     }
 
@@ -353,7 +352,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     private String blockedFile() throws IOException {
-        return PathUtils.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toString();
+        return PathUtils.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toAbsolutePath().toString();
     }
 
     /**

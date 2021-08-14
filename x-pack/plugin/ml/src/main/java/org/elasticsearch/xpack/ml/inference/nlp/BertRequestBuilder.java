@@ -28,9 +28,9 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
     private BertTokenizer.TokenizationResult tokenization;
     private final int maxSequenceLength;
 
-    public BertRequestBuilder(BertTokenizer tokenizer, NlpTaskConfig config) {
+    public BertRequestBuilder(BertTokenizer tokenizer, int maxSequenceLength) {
         this.tokenizer = tokenizer;
-        this.maxSequenceLength = config.getMaxSequenceLength();
+        this.maxSequenceLength = maxSequenceLength;
     }
 
     public BertTokenizer.TokenizationResult getTokenization() {

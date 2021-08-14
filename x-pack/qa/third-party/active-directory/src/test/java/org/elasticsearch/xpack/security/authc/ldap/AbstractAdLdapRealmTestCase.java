@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -379,7 +379,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         protected Settings buildSettings(List<String> certificateAuthorities, int order) {
             Settings.Builder builder = Settings.builder()
                 .put("xpack.security.authc.realms." + type + ".external.order", order)
-                .put("xpack.security.authc.realms." + type + ".external.ssl.verification_mode", VerificationMode.CERTIFICATE)
+                .put("xpack.security.authc.realms." + type + ".external.ssl.verification_mode", SslVerificationMode.CERTIFICATE)
                 .put("xpack.security.authc.realms." + type + ".external.unmapped_groups_as_roles", mapGroupsAsRoles)
                 .put(this.settings)
                 .putList("xpack.security.authc.realms." + type + ".external.ssl.certificate_authorities", certificateAuthorities);

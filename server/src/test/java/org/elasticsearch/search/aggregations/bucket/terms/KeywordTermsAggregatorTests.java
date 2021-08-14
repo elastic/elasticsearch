@@ -88,7 +88,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
 
     private void testSearchCase(Query query, List<String> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
-                                Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
+                                Consumer<InternalMappedTerms<?, ?>> verify, ValueType valueType) throws IOException {
         MappedFieldType keywordFieldType
             = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD, randomBoolean(), true, Collections.emptyMap());
         try (Directory directory = newDirectory()) {
@@ -116,7 +116,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                 }
 
 
-                InternalMappedTerms rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType);
+                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType);
                 verify.accept(rareTerms);
             }
         }

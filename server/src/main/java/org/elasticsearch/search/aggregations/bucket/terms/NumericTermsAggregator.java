@@ -372,7 +372,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
-                0L
+                null
             );
         }
 
@@ -454,7 +454,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
-                0L
+                null
             );
         }
 

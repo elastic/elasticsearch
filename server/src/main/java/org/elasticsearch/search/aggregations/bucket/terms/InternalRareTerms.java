@@ -183,9 +183,9 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     }
 
     protected static XContentBuilder doXContentCommon(XContentBuilder builder, Params params,
-                                                      List<? extends Bucket> buckets) throws IOException {
+                                                      List<? extends Bucket<?>> buckets) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
-        for (Bucket bucket : buckets) {
+        for (Bucket<?> bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         builder.endArray();

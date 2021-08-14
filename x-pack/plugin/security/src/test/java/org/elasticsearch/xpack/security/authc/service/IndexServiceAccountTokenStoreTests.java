@@ -386,7 +386,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
 
     private BulkResponse createSingleBulkResponse() {
         return new BulkResponse(new BulkItemResponse[] {
-            new BulkItemResponse(randomInt(), OpType.CREATE, new IndexResponse(
+           BulkItemResponse.success(randomInt(), OpType.CREATE, new IndexResponse(
                 mock(ShardId.class), randomAlphaOfLengthBetween(3, 8), randomLong(), randomLong(), randomLong(), true
             ))
         }, randomLong());

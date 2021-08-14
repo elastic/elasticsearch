@@ -1,13 +1,13 @@
 [[query-dsl-geo-shape-query]]
-=== Geo-shape query
+=== Geoshape query
 ++++
-<titleabbrev>Geo-shape</titleabbrev>
+<titleabbrev>Geoshape</titleabbrev>
 ++++
 
 Filter documents indexed using the `geo_shape` or `geo_point` type.
 
-Requires the <<geo-shape,`geo_shape` Mapping>> or the
-<<geo-point,`geo_point` Mapping>>.
+Requires the <<geo-shape,`geo_shape` mapping>> or the
+<<geo-point,`geo_point` mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
 `geo_shape` mapping to find documents that have a shape that intersects

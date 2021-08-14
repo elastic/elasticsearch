@@ -99,7 +99,7 @@ public class ModelLoadingService implements ClusterStateListener {
 
     // The feature requesting the model
     public enum Consumer {
-        PIPELINE, SEARCH
+        PIPELINE, SEARCH, INTERNAL
     }
 
     private static class ModelAndConsumer {
@@ -173,6 +173,16 @@ public class ModelLoadingService implements ClusterStateListener {
      */
     public void getModelForPipeline(String modelId, ActionListener<LocalModel> modelActionListener) {
         getModel(modelId, Consumer.PIPELINE, modelActionListener);
+    }
+
+    /**
+     * Load the model for internal use. Note, this decompresses the model if the stored estimate doesn't trip circuit breakers.
+     * Consequently, it assumes the model was created by an ML process
+     * @param modelId  the model to get
+     * @param modelActionListener the listener to alert when the model has been retrieved
+     */
+    public void getModelForInternalInference(String modelId, ActionListener<LocalModel> modelActionListener) {
+        getModel(modelId, Consumer.INTERNAL, modelActionListener);
     }
 
     /**
@@ -272,7 +282,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 return true;
             }
 
-            if (Consumer.PIPELINE == consumer && referencedModels.contains(modelId) == false) {
+            if (Consumer.SEARCH != consumer && referencedModels.contains(modelId) == false) {
                 // The model is requested by a pipeline but not referenced by any ingest pipelines.
                 // This means it is a simulate call and the model should not be cached
                 logger.trace(() -> new ParameterizedMessage(
@@ -280,7 +290,7 @@ public class ModelLoadingService implements ClusterStateListener {
                     modelId,
                     modelIdOrAlias
                 ));
-                loadWithoutCaching(modelId, modelActionListener);
+                loadWithoutCaching(modelId, consumer, modelActionListener);
             } else {
                 logger.trace(() -> new ParameterizedMessage(
                     "[{}] (model_alias [{}]) attempting to load and cache",
@@ -298,7 +308,7 @@ public class ModelLoadingService implements ClusterStateListener {
         provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
             trainedModelConfig -> {
                 trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
-                provider.getTrainedModelForInference(modelId, ActionListener.wrap(
+                provider.getTrainedModelForInference(modelId, consumer == Consumer.INTERNAL, ActionListener.wrap(
                     inferenceDefinition -> {
                         try {
                             // Since we have used the previously stored estimate to help guard against OOM we need
@@ -327,14 +337,14 @@ public class ModelLoadingService implements ClusterStateListener {
         ));
     }
 
-    private void loadWithoutCaching(String modelId, ActionListener<LocalModel> modelActionListener) {
+    private void loadWithoutCaching(String modelId, Consumer consumer, ActionListener<LocalModel> modelActionListener) {
         // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
         // by a simulated pipeline
         provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
             trainedModelConfig -> {
                 // Verify we can pull the model into memory without causing OOM
                 trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
-                provider.getTrainedModelForInference(modelId, ActionListener.wrap(
+                provider.getTrainedModelForInference(modelId, consumer == Consumer.INTERNAL, ActionListener.wrap(
                     inferenceDefinition -> {
                         InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
                             inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :

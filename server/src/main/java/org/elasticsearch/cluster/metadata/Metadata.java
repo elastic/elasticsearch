@@ -17,6 +17,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.AliasesRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -75,6 +77,10 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
+/**
+ * {@link Metadata} is the part of the {@link ClusterState} which persists across restarts. This persistence is XContent-based, so a
+ * round-trip through XContent must be faithful in {@link XContentContext#GATEWAY} context.
+ */
 public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ToXContentFragment {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
@@ -117,6 +123,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      */
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
+    /**
+     * Custom metadata that persists (via XContent) across restarts. The deserialization method for each implementation must be registered
+     * with the {@link NamedXContentRegistry}.
+     */
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
 
         EnumSet<XContentContext> context();

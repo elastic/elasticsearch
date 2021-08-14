@@ -56,7 +56,7 @@ The user expects this search to match the sentence indexed earlier,
 However, the query string does not contain the exact words used in the
 document's original text:
 
-* `quick` vs `QUICK`
+* `Quick` vs `QUICK`
 * `fox` vs `foxes`
 
 To account for this, the query string is analyzed using the same analyzer. This

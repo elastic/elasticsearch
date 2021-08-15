@@ -278,13 +278,10 @@ public class RecoveryTargetTests extends ESTestCase {
 
             if (fileDetail.length() <= bytesToRecover && randomBoolean()) {
                 index.addRecoveredFromSnapshotBytesToFile(fileDetail.name(), fileDetail.length());
-                index.setFullyRecoveredFromSnapshot(fileDetail.name());
                 fileDetail.addRecoveredFromSnapshotBytes(fileDetail.length());
-                fileDetail.setFullyRecoveredFromSnapshot();
 
                 assertThat(fileDetail.recovered(), is(equalTo(fileDetail.length())));
                 assertThat(fileDetail.recoveredFromSnapshot(), is(equalTo(fileDetail.length())));
-                assertThat(fileDetail.recoveredFromSource(), is(equalTo(0L)));
                 assertThat(fileDetail.fullyRecovered(), is(equalTo(true)));
 
                 bytesToRecover -= fileDetail.length();
@@ -293,7 +290,9 @@ public class RecoveryTargetTests extends ESTestCase {
             } else {
                 long bytesRecoveredFromSnapshot = randomLongBetween(0, fileDetail.length());
                 index.addRecoveredFromSnapshotBytesToFile(fileDetail.name(), bytesRecoveredFromSnapshot);
+                index.resetRecoveredBytesOfFile(fileDetail.name());
                 fileDetail.addRecoveredFromSnapshotBytes(bytesRecoveredFromSnapshot);
+                fileDetail.resetRecoveredBytes();
             }
         }
 

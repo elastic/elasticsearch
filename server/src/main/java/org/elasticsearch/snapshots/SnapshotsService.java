@@ -1247,6 +1247,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(Exception e) {
                 logger.warn(() -> new ParameterizedMessage("failed to create snapshot [{}]", snapshot.snapshot().getSnapshotId()), e);
+                endingSnapshots.add(snapshot.snapshot());
                 removeFailedSnapshotFromClusterState(
                     snapshot.snapshot(),
                     e,
@@ -1830,6 +1831,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void endSnapshot(SnapshotsInProgress.Entry entry, Metadata metadata, @Nullable RepositoryData repositoryData) {
         final Snapshot snapshot = entry.snapshot();
+        final boolean newFinalization = endingSnapshots.add(snapshot);
         if (entry.repositoryStateId() == RepositoryData.UNKNOWN_REPO_GEN) {
             logger.debug("[{}] was aborted before starting", snapshot);
             removeFailedSnapshotFromClusterState(
@@ -1845,7 +1847,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             removeFailedSnapshotFromClusterState(entry.snapshot(), new SnapshotException(entry.snapshot(), entry.failure()), null, null);
             return;
         }
-        final boolean newFinalization = endingSnapshots.add(snapshot);
         final String repoName = snapshot.getRepository();
         if (tryEnterRepoLoop(repoName)) {
             if (repositoryData == null) {

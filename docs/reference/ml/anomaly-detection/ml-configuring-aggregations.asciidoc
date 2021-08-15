@@ -425,10 +425,11 @@ When using a `composite` aggregation:
 // NOTCONSOLE
 
 The top level aggregation must be exclusively one of the following:
+
 *  A {ref}/search-aggregations-bucket.html[bucket aggregation] containing a single
 sub-aggregation that is a `date_histogram`
 *  A top level aggregation that is a `date_histogram`
-*  A top level aggregation is a `composite` aggregation.
+*  A top level aggregation is a `composite` aggregation
 
 There must be exactly one `date_histogram`, `composite` aggregation. For more information, see
 {ref}/search-aggregations-bucket-datehistogram-aggregation.html[Date histogram aggregation] and

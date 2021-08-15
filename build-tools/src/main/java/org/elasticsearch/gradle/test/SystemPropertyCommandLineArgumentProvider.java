@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.gradle.internal.test;
+package org.elasticsearch.gradle.test;
 
 import org.gradle.api.tasks.Input;
 import org.gradle.process.CommandLineArgumentProvider;

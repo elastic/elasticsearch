@@ -1,0 +1,14 @@
+---
+"Perform a dfs_query_then_fetch search on a keyword field":
+  - do:
+      search:
+        search_type: dfs_query_then_fetch
+        index: keyword_index
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              field:
+                query: value
+
+  - match: { hits.total: 3 }

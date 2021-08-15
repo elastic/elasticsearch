@@ -47,7 +47,6 @@ public class ClientTransformIndexerTests extends ESTestCase {
             mock(TransformAuditor.class),
             mock(TransformIndexerStats.class),
             mock(TransformConfig.class),
-            Collections.emptyMap(),
             null,
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 0L, Collections.emptyMap(), Instant.now().toEpochMilli()),
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),

@@ -4,14 +4,14 @@
 [discrete]
 === Disable the features you do not need
 
-By default Elasticsearch indexes and adds doc values to most fields so that they
-can be searched and aggregated out of the box. For instance if you have a numeric
+By default, {es} indexes and adds doc values to most fields so that they
+can be searched and aggregated out of the box. For instance, if you have a numeric
 field called `foo` that you need to run histograms on but that you never need to
 filter on, you can safely disable indexing on this field in your
 <<mappings,mappings>>:
 
 [source,console]
---------------------------------------------------
+----
 PUT index
 {
   "mappings": {
@@ -23,68 +23,13 @@ PUT index
     }
   }
 }
---------------------------------------------------
+----
 
-<<text,`text`>> fields store normalization factors in the index in order to be
-able to score documents. If you only need matching capabilities on a `text`
-field but do not care about the produced scores, you can configure Elasticsearch
-to not write norms to the index:
-
-[source,console]
---------------------------------------------------
-PUT index
-{
-  "mappings": {
-    "properties": {
-      "foo": {
-        "type": "text",
-        "norms": false
-      }
-    }
-  }
-}
---------------------------------------------------
-
-<<text,`text`>> fields also store frequencies and positions in the index by
-default. Frequencies are used to compute scores and positions are used to run
-phrase queries. If you do not need to run phrase queries, you can tell
-Elasticsearch to not index positions:
-
-[source,console]
---------------------------------------------------
-PUT index
-{
-  "mappings": {
-    "properties": {
-      "foo": {
-        "type": "text",
-        "index_options": "freqs"
-      }
-    }
-  }
-}
---------------------------------------------------
-
-Furthermore if you do not care about scoring either, you can configure
-Elasticsearch to just index matching documents for every term. You will
-still be able to search on this field, but phrase queries will raise errors
-and scoring will assume that terms appear only once in every document.
-
-[source,console]
---------------------------------------------------
-PUT index
-{
-  "mappings": {
-    "properties": {
-      "foo": {
-        "type": "text",
-        "norms": false,
-        "index_options": "freqs"
-      }
-    }
-  }
-}
---------------------------------------------------
+<<text,`text`>> fields store normalization factors in the index to facilitate
+document scoring. If you only need matching capabilities on a `text`
+field but do not care about the produced scores, you can use the
+<<match-only-text-field-type,`match_only_text`>> type instead. This field type
+saves significant space by dropping scoring and positional information.
 
 [discrete]
 [[default-dynamic-string-mapping]]

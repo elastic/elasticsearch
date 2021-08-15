@@ -37,12 +37,13 @@ import java.util.function.Consumer;
 
 public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<AnalyticsResult> {
 
-    private static final Logger LOGGER = LogManager.getLogger(NativeAnalyticsProcessFactory.class);
+    private static final Logger logger = LogManager.getLogger(NativeAnalyticsProcessFactory.class);
 
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
 
     private final Environment env;
     private final NativeController nativeController;
+    private final String nodeName;
     private final NamedXContentRegistry namedXContentRegistry;
     private final ResultsPersisterService resultsPersisterService;
     private final DataFrameAnalyticsAuditor auditor;
@@ -57,6 +58,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
                                          DataFrameAnalyticsAuditor auditor) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
+        this.nodeName = clusterService.getNodeName();
         this.namedXContentRegistry = Objects.requireNonNull(namedXContentRegistry);
         this.auditor = auditor;
         this.resultsPersisterService = resultsPersisterService;
@@ -96,11 +98,11 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
             return analyticsProcess;
         } catch (IOException | EsRejectedExecutionException e) {
             String msg = "Failed to connect to data frame analytics process for job " + jobId;
-            LOGGER.error(msg);
+            logger.error(msg);
             try {
                 IOUtils.close(analyticsProcess);
             } catch (IOException ioe) {
-                LOGGER.error("Can't close data frame analytics process", ioe);
+                logger.error("Can't close data frame analytics process", ioe);
             }
             throw ExceptionsHelper.serverError(msg, e);
         }
@@ -124,11 +126,11 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
             analyticsBuilder.build();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.warn("[{}] Interrupted while launching data frame analytics process", jobId);
+            logger.warn("[{}] Interrupted while launching data frame analytics process", jobId);
         } catch (IOException e) {
             String msg = "[" + jobId + "] Failed to launch data frame analytics process";
-            LOGGER.error(msg);
-            throw ExceptionsHelper.serverError(msg, e);
+            logger.error(msg);
+            throw ExceptionsHelper.serverError(msg + " on [" + nodeName + "]", e);
         }
     }
 }

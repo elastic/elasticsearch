@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -80,6 +81,12 @@ public class TransformTaskTests extends ESTestCase {
             transformsConfigManager,
             auditor
         );
+        TransformServices transformServices = new TransformServices(
+            transformsConfigManager,
+            transformsCheckpointService,
+            auditor,
+            mock(SchedulerEngine.class)
+        );
 
         TransformState transformState = new TransformState(
             TransformTaskState.FAILED,
@@ -115,8 +122,7 @@ public class TransformTaskTests extends ESTestCase {
             .setTransformConfig(transformConfig)
             .setAuditor(auditor)
             .setTransformsConfigManager(transformsConfigManager)
-            .setTransformsCheckpointService(transformsCheckpointService)
-            .setFieldMappings(Collections.emptyMap());
+            .setTransformsCheckpointService(transformsCheckpointService);
 
         transformTask.initializeIndexer(indexerBuilder);
         TransformState state = transformTask.getState();

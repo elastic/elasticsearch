@@ -75,8 +75,8 @@
 ---
 "Create data stream aliases using wildcard expression":
   - skip:
-      version: " - 7.99.99"
-      reason: "bugfix has not yet backported to the 7.x branch"
+      version: " - 7.14.0"
+      reason: "bugfix fixed from 7.14.1 and later"
       features: allowed_warnings
 
   - do:

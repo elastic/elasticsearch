@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.security.cli;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import joptsimple.OptionSet;
+
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DLSequence;
@@ -23,12 +25,11 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -39,7 +40,6 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import javax.security.auth.x500.X500Principal;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -81,6 +81,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.security.auth.x500.X500Principal;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.FileMatchers.isDirectory;
@@ -116,10 +117,13 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
     }
 
-    public void testGenerateSingleCertificateSigningRequest() throws Exception {
+    @BeforeClass
+    public static void muteOnBrokenJdk() {
         assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
-                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
+            "1.8.0_292".equals(System.getProperty("java.version")));
+    }
 
+    public void testGenerateSingleCertificateSigningRequest() throws Exception {
         final Path outFile = testRoot.resolve("csr.zip").toAbsolutePath();
 
         final List<String> hostNames = randomHostNames();
@@ -220,8 +224,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGenerateSingleCertificateWithExistingCA() throws Exception {
-        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
-                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         final Path outFile = testRoot.resolve("certs.zip").toAbsolutePath();
 
         final List<String> hostNames = randomHostNames();
@@ -335,8 +337,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGenerateMultipleCertificateWithNewCA() throws Exception {
-        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
-                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         final Path outFile = testRoot.resolve("certs.zip").toAbsolutePath();
 
         final int numberCerts = randomIntBetween(3, 6);
@@ -478,8 +478,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testParsingValidityPeriod() throws Exception {
-        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
-                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         final HttpCertificateCommand command = new HttpCertificateCommand();
         final MockTerminal terminal = new MockTerminal();
 
@@ -533,8 +531,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testValidityPeriodToString() throws Exception {
-        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
-                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         assertThat(HttpCertificateCommand.toString(Period.ofYears(2)), is("2y"));
         assertThat(HttpCertificateCommand.toString(Period.ofMonths(5)), is("5m"));
         assertThat(HttpCertificateCommand.toString(Period.ofDays(60)), is("60d"));
@@ -548,8 +544,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGuessFileType() throws Exception {
-        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
-                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         MockTerminal terminal = new MockTerminal();
 
         final Path caCert = getDataPath("ca.crt");
@@ -577,8 +571,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testTextFileSubstitutions() throws Exception {
-        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
-                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         CheckedBiFunction<String, Map<String, String>, String, Exception> copy = (source, subs) -> {
             try (InputStream in = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
                  StringWriter out = new StringWriter();

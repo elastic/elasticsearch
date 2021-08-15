@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
@@ -196,8 +198,8 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT COUNT(10), COUNT(DISTINCT 20) WHERE 1 = 2" + randomOrderByAndLimit(2));
         assertEquals(LocalExec.class, p.getClass());
         LocalExec le = (LocalExec) p;
-        assertEquals(EmptyExecutable.class, le.executable().getClass());
-        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("COUNT(10){r}#"));
         assertThat(ee.output().get(1).toString(), startsWith("COUNT(DISTINCT 20){r}#"));
@@ -231,8 +233,8 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT MIN(10), MAX(123), SUM(20), AVG(30) WHERE 2 > 3" + randomOrderByAndLimit(4));
         assertEquals(LocalExec.class, p.getClass());
         LocalExec le = (LocalExec) p;
-        assertEquals(EmptyExecutable.class, le.executable().getClass());
-        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
         assertEquals(4, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("MIN(10){r}#"));
         assertThat(ee.output().get(1).toString(), startsWith("MAX(123){r}#"));
@@ -532,6 +534,25 @@ public class QueryFolderTests extends ESTestCase {
             assertEquals(pivotQueryContainer.aggs(), groupByQueryContainer.aggs());
             assertEquals(pivotPlan.toString(), groupByPlan.toString());
         }
+    }
+
+    public void testFoldShadowedOrderBy() {
+        PhysicalPlan p = plan(
+            "SELECT * FROM (SELECT * FROM test ORDER BY int ASC, keyword NULLS LAST) ORDER BY keyword NULLS FIRST, int DESC"
+        );
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+
+        Sort[] sort = ee.queryContainer().sort().values().toArray(new Sort[0]);
+        assertEquals(2, sort.length);
+
+        AttributeSort as1 = (AttributeSort) sort[0];
+        assertEquals("test.keyword", as1.attribute().qualifiedName());
+        assertEquals(Sort.Missing.FIRST, as1.missing());
+
+        AttributeSort as2 = (AttributeSort) sort[1];
+        assertEquals("test.int", as2.attribute().qualifiedName());
+        assertEquals(Sort.Direction.DESC, as2.direction());
     }
 
     private static String randomOrderByAndLimit(int noOfSelectArgs) {

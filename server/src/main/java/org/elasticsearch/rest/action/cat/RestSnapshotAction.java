@@ -52,7 +52,7 @@ public class RestSnapshotAction extends AbstractCatAction {
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest()
-                .repository(request.param("repository"))
+                .repositories(request.paramAsStringArray("repository", new String[]{"_all"}))
                 .snapshots(new String[]{GetSnapshotsRequest.ALL_SNAPSHOTS});
 
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));

@@ -50,6 +50,7 @@ If you are using {kibana-ref}/console-kibana.html[Kibana Console]
 (which is highly recommended), take advantage of the
 triple quotes `"""` when creating the query. This not only automatically escapes double
 quotes (`"`) inside the query string but also support multi-line as shown below:
+
 image:images/sql/rest/console-triple-quotes.png[]
 ====
 

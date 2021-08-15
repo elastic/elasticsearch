@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 class ClientTransformIndexerBuilder {
@@ -29,7 +28,6 @@ class ClientTransformIndexerBuilder {
     private TransformConfigManager transformsConfigManager;
     private TransformCheckpointService transformsCheckpointService;
     private TransformAuditor auditor;
-    private Map<String, String> fieldMappings;
     private TransformConfig transformConfig;
     private TransformIndexerStats initialStats;
     private IndexerState indexerState = IndexerState.STOPPED;
@@ -57,7 +55,6 @@ class ClientTransformIndexerBuilder {
             auditor,
             initialStats,
             transformConfig,
-            fieldMappings,
             progress,
             TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? TransformCheckpoint.EMPTY : lastCheckpoint,
             TransformCheckpoint.isNullOrEmpty(nextCheckpoint) ? TransformCheckpoint.EMPTY : nextCheckpoint,
@@ -89,11 +86,6 @@ class ClientTransformIndexerBuilder {
 
     ClientTransformIndexerBuilder setAuditor(TransformAuditor auditor) {
         this.auditor = auditor;
-        return this;
-    }
-
-    ClientTransformIndexerBuilder setFieldMappings(Map<String, String> fieldMappings) {
-        this.fieldMappings = fieldMappings;
         return this;
     }
 

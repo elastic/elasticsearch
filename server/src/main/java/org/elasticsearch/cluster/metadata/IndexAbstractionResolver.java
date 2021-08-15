@@ -103,7 +103,7 @@ public class IndexAbstractionResolver {
             } else if (dateMathName.equals(indexAbstraction)) {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
-                } else {
+                } else if (indicesOptions.ignoreUnavailable() == false || availableIndexAbstractions.contains(indexAbstraction)) {
                     finalIndices.add(indexAbstraction);
                 }
             }

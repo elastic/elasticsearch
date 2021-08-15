@@ -149,11 +149,6 @@ class IndicesAndAliasesResolver {
                 }
                 List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(split.getLocal(), indicesOptions, metadata,
                         authorizedIndices, replaceWildcards, indicesRequest.includeDataStreams());
-                if (indicesOptions.ignoreUnavailable()) {
-                    //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
-                    //remove all the ones that the current user is not authorized for and ignore them
-                    replaced = replaced.stream().filter(authorizedIndices::contains).collect(Collectors.toList());
-                }
                 resolvedIndicesBuilder.addLocal(replaced);
                 resolvedIndicesBuilder.addRemote(split.getRemote());
             }

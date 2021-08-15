@@ -772,6 +772,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         // Exception handler for IO exceptions with loading index and repo metadata
         final Consumer<Exception> onFailure = e -> {
+            endingSnapshots.add(targetSnapshot);
             initializingClones.remove(targetSnapshot);
             logger.info(() -> new ParameterizedMessage("Failed to start snapshot clone [{}]", cloneEntry), e);
             removeFailedSnapshotFromClusterState(targetSnapshot, e, null, null);
@@ -1245,6 +1246,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(Exception e) {
                 logger.warn(() -> new ParameterizedMessage("failed to create snapshot [{}]", snapshot.snapshot().getSnapshotId()), e);
+                endingSnapshots.add(snapshot.snapshot());
                 removeFailedSnapshotFromClusterState(
                     snapshot.snapshot(),
                     e,
@@ -1828,6 +1830,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void endSnapshot(SnapshotsInProgress.Entry entry, Metadata metadata, @Nullable RepositoryData repositoryData) {
         final Snapshot snapshot = entry.snapshot();
+        final boolean newFinalization = endingSnapshots.add(snapshot);
         if (entry.repositoryStateId() == RepositoryData.UNKNOWN_REPO_GEN) {
             logger.debug("[{}] was aborted before starting", snapshot);
             removeFailedSnapshotFromClusterState(
@@ -1843,7 +1846,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             removeFailedSnapshotFromClusterState(entry.snapshot(), new SnapshotException(entry.snapshot(), entry.failure()), null, null);
             return;
         }
-        final boolean newFinalization = endingSnapshots.add(snapshot);
         final String repoName = snapshot.getRepository();
         if (tryEnterRepoLoop(repoName)) {
             if (repositoryData == null) {
@@ -2417,6 +2419,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ClusterState updatedState = stateWithoutFailedSnapshot(currentState, snapshot);
+                assert updatedState == currentState || endingSnapshots.contains(snapshot)
+                    : "did not track [" + snapshot + "] in ending snapshots while removing it from the cluster state";
                 // now check if there are any delete operations that refer to the just failed snapshot and remove the snapshot from them
                 return updateWithSnapshots(
                     updatedState,

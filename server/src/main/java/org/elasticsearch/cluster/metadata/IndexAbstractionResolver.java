@@ -101,7 +101,9 @@ public class IndexAbstractionResolver {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
                 } else {
-                    finalIndices.add(indexAbstraction);
+                    if (indicesOptions.ignoreUnavailable() == false || availableIndexAbstractions.contains(indexAbstraction)) {
+                        finalIndices.add(indexAbstraction);
+                    }
                 }
             }
         }

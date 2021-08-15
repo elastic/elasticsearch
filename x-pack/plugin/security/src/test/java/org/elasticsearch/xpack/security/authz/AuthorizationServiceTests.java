@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -87,6 +90,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -103,6 +107,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
@@ -175,12 +180,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.Consumer;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
@@ -255,7 +263,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 listener.onResponse(Collections.emptyList());
                 return null;
             }
-        ).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
+        ).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), anyActionListener());
 
         doAnswer((i) -> {
             ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[2];
@@ -278,7 +286,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 );
             }
             return Void.TYPE;
-        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), any(ActionListener.class));
+        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
@@ -713,7 +721,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
             listener.onResponse(Role.EMPTY);
             return null;
-        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), any(ActionListener.class));
+        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
 
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
             () -> authorize(authentication, action, request));
@@ -742,7 +750,6 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testThatRoleWithNoIndicesIsDenied() throws IOException {
-        @SuppressWarnings("unchecked")
         Tuple<String, TransportRequest> tuple = randomFrom(
             new Tuple<>(SearchAction.NAME, new SearchRequest()),
             new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()));
@@ -1937,6 +1944,45 @@ public class AuthorizationServiceTests extends ESTestCase {
             "cluster:admin/whatever", "user1");
         // The operator related exception is verified in the authorize(...) call
         verifyZeroInteractions(auditTrail);
+    }
+
+    public void testAuthorizedIndiciesTimeChecker() throws Exception {
+        final Authentication authentication = createAuthentication(new User("slow-user", "slow-role"));
+        final long now = System.nanoTime();
+        final AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(
+            authentication,
+            new SearchRequest(),
+            SearchAction.NAME
+        );
+        final AuthorizationService.LoadAuthorizedIndiciesTimeChecker checker = new AuthorizationService.LoadAuthorizedIndiciesTimeChecker(
+            now - TimeUnit.MILLISECONDS.toNanos(210),
+            requestInfo
+        );
+        final Logger serviceLogger = LogManager.getLogger(AuthorizationService.class);
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(serviceLogger, mockAppender);
+
+            mockAppender.addExpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "WARN-Slow Index Resolution",
+                    serviceLogger.getName(),
+                    Level.WARN,
+                    Pattern.quote("Resolving [0] indices for action [" + SearchAction.NAME + "] and user [slow-user] took [")
+                        + "\\d{3}"
+                        + Pattern.quote(
+                            "ms] which is greater than the threshold of 200ms;" +
+                                " The index privileges for this user may be too complex for this cluster."
+                        )
+                )
+            );
+            checker.done(Collections.emptyList());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(serviceLogger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {

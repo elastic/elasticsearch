@@ -409,6 +409,7 @@ public class RestTable {
             this.ordering = ordering;
         }
 
+        @SuppressWarnings("unchecked")
         private int compareCell(Object o1, Object o2) {
             if (o1 == null && o2 == null) {
                 return 0;

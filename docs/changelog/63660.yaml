@@ -1,8 +1,0 @@
-pr: 63660
-issues:
-  - 63545
-area: Infra/REST API
-type: UNKNOWN
-summary: "Wraps values containing : in `runtime_fields` test in quotes"
-versions:
-  - v8.0.0

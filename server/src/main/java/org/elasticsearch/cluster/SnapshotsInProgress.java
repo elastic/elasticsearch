@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.InFlightShardSnapshotStates;
 import org.elasticsearch.snapshots.Snapshot;
@@ -356,7 +357,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final String nodeId;
 
         @Nullable
-        private final String generation;
+        private final ShardGeneration generation;
 
         @Nullable
         private final String reason;
@@ -364,15 +365,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Nullable // only present in state SUCCESS; may be null even in SUCCESS if this state came over the wire from an older node
         private final ShardSnapshotResult shardSnapshotResult;
 
-        public ShardSnapshotStatus(String nodeId, String generation) {
+        public ShardSnapshotStatus(String nodeId, ShardGeneration generation) {
             this(nodeId, ShardState.INIT, generation);
         }
 
-        public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, @Nullable String generation) {
+        public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, @Nullable ShardGeneration generation) {
             this(nodeId, assertNotSuccess(state), null, generation);
         }
 
-        public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, String reason, @Nullable String generation) {
+        public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, String reason, @Nullable ShardGeneration generation) {
             this(nodeId, assertNotSuccess(state), reason, generation, null);
         }
 
@@ -380,7 +381,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 @Nullable String nodeId,
                 ShardState state,
                 String reason,
-                @Nullable String generation,
+                @Nullable ShardGeneration generation,
                 @Nullable ShardSnapshotResult shardSnapshotResult) {
             this.nodeId = nodeId;
             this.state = state;
@@ -412,9 +413,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public static ShardSnapshotStatus readFrom(StreamInput in) throws IOException {
             String nodeId = in.readOptionalString();
             final ShardState state = ShardState.fromValue(in.readByte());
-            final String generation;
+            final ShardGeneration generation;
             if (SnapshotsService.useShardGenerations(in.getVersion())) {
-                generation = in.readOptionalString();
+                generation = in.readOptionalWriteable(ShardGeneration::new);
             } else {
                 generation = null;
             }
@@ -441,7 +442,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         @Nullable
-        public String generation() {
+        public ShardGeneration generation() {
             return this.generation;
         }
 
@@ -449,7 +450,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return reason;
         }
 
-        public ShardSnapshotStatus withUpdatedGeneration(String newGeneration) {
+        public ShardSnapshotStatus withUpdatedGeneration(ShardGeneration newGeneration) {
             assert state == ShardState.SUCCESS : "can't move generation in state " + state;
             return new ShardSnapshotStatus(nodeId, state, reason, newGeneration,
                     shardSnapshotResult == null ? null :
@@ -476,7 +477,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeOptionalString(nodeId);
             out.writeByte(state.value);
             if (SnapshotsService.useShardGenerations(out.getVersion())) {
-                out.writeOptionalString(generation);
+                out.writeOptionalWriteable(generation);
             }
             out.writeOptionalString(reason);
             if (out.getVersion().onOrAfter(SnapshotsService.INDEX_DETAILS_INTRODUCED)) {
@@ -567,7 +568,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.partial = partial;
             this.indices = org.elasticsearch.core.Map.copyOf(indices);
             this.dataStreams = org.elasticsearch.core.List.copyOf(dataStreams);
-            this.featureStates = Collections.unmodifiableList(featureStates);
+            this.featureStates = org.elasticsearch.core.List.copyOf(featureStates);
             this.startTime = startTime;
             this.shards = shards;
             this.repositoryStateId = repositoryStateId;
@@ -942,7 +943,22 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             builder.field("index", indexId);
             builder.field("shard", shardId);
             builder.field("state", status.state());
+            builder.field("generation", status.generation());
             builder.field("node", status.nodeId());
+
+            if (status.state() == ShardState.SUCCESS) {
+                final ShardSnapshotResult result = status.shardSnapshotResult();
+                builder.startObject("result");
+                builder.field("generation", result.getGeneration());
+                builder.humanReadableField("size_in_bytes", "size", result.getSize());
+                builder.field("segments", result.getSegmentCount());
+                builder.endObject();
+            }
+
+            if (status.reason() != null) {
+                builder.field("reason", status.reason());
+            }
+
             builder.endObject();
         }
 

@@ -108,6 +108,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
@@ -214,7 +215,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 new ShardId(INTERNAL_SECURITY_MAIN_INDEX_7, randomAlphaOfLength(22), randomIntBetween(0, 1)),
                 SINGLE_MAPPING_NAME, apiKeyId, randomLongBetween(1, 99), randomLongBetween(1, 99), randomIntBetween(1, 99), true);
             listener.onResponse(new BulkResponse(new BulkItemResponse[]{
-                new BulkItemResponse(randomInt(), DocWriteRequest.OpType.INDEX, indexResponse)
+                BulkItemResponse.success(randomInt(), DocWriteRequest.OpType.INDEX, indexResponse)
             }, randomLongBetween(0, 100)));
             return null;
         }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
@@ -534,6 +535,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getRoleDescriptors().get(0).getName(), is("superuser"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testGetRolesForApiKey() throws Exception {
         Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(12));
@@ -578,7 +580,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 listener.onResponse(Collections.emptyList());
                 return null;
             }
-        ).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
+        ).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), anyActionListener());
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
 
         PlainActionFuture<ApiKeyRoleDescriptors> roleFuture = new PlainActionFuture<>();
@@ -872,7 +874,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             hashCounter.incrementAndGet();
             hashWait.acquire();
             return invocationOnMock.callRealMethod();
-        }).when(service).verifyKeyAgainstHash(any(String.class), any(ApiKeyCredentials.class), any(ActionListener.class));
+        }).when(service).verifyKeyAgainstHash(any(String.class), any(ApiKeyCredentials.class), anyActionListener());
 
         final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         final PlainActionFuture<AuthenticationResult> future1 = new PlainActionFuture<>();
@@ -1053,7 +1055,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             mockKeyDocument(service, docId, apiKey, new User("hulk", "superuser"), false, Duration.ofSeconds(3600));
         PlainActionFuture<AuthenticationResult> future4 = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future4);
-        verify(client, times(4)).get(any(GetRequest.class), any(ActionListener.class));
+        verify(client, times(4)).get(any(GetRequest.class), anyActionListener());
         assertEquals(2, service.getRoleDescriptorsBytesCache().count());
         final AuthenticationResult authResult4 = future4.get();
         assertSame(AuthenticationResult.Status.SUCCESS, authResult4.getStatus());
@@ -1207,6 +1209,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         checkAuthApiKeyMetadata(metadata, authenticationResult3);
     }
 
+    @SuppressWarnings("unchecked")
     public void testApiKeyDocDeserialization() throws IOException {
         final String apiKeyDocumentSource =
             "{\"doc_type\":\"api_key\",\"creation_time\":1591919944598,\"expiration_time\":1591919944599,\"api_key_invalidated\":false," +
@@ -1454,7 +1457,6 @@ public class ApiKeyServiceTests extends ESTestCase {
         if (metadata == null || ((Map<String, Object>) metadata).isEmpty()) {
             assertThat(authResult1.getMetadata().containsKey(ApiKeyService.API_KEY_METADATA_KEY), is(false));
         } else {
-            //noinspection unchecked
             assertThat(
                 authResult1.getMetadata().get(API_KEY_METADATA_KEY),
                 equalTo(XContentTestUtils.convertToXContent((Map<String, Object>) metadata, XContentType.JSON)));

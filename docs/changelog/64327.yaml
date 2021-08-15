@@ -1,9 +1,0 @@
-pr: 64327
-issues:
-  - 63813
-  - 868
-area: Machine Learning
-type: bug
-summary: Handle null value of `FieldCapabilitiesResponse`
-versions:
-  - v8.0.0

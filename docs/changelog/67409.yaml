@@ -1,8 +1,0 @@
-pr: 67409
-issues:
-  - 65500
-area: Infra/Core
-type: bug
-summary: Precompute `ParsedMediaType` for `XContentType`
-versions:
-  - v8.0.0

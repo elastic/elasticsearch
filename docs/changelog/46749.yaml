@@ -1,8 +1,0 @@
-pr: 46749
-issues:
-  - 46748
-area: Transform
-type: UNKNOWN
-summary: Muting tests for PR https://github.com/elastic/elasticsearch/pull/46414
-versions:
-  - v8.0.0

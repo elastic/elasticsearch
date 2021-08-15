@@ -1,8 +1,0 @@
-pr: 68113
-issues:
-  - 51816
-area: Infra/REST API
-type: UNKNOWN
-summary: Make `XContentParser` aware of compatible API version
-versions:
-  - v8.0.0

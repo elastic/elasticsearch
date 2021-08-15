@@ -354,8 +354,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * Send a bulk request, handling retries.
      */
     void sendBulkRequest(BulkRequest request, Runnable onSuccess) {
+        final int requestSize = request.requests().size();
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}]: sending [{}] entry, [{}] bulk request", task.getId(), request.requests().size(),
+            logger.debug("[{}]: sending [{}] entry, [{}] bulk request", task.getId(), requestSize,
                     new ByteSizeValue(request.estimatedSizeInBytes()));
         }
         if (task.isCancelled()) {
@@ -366,6 +367,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         bulkRetry.withBackoff(bulkClient::bulk, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
+                logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
                 onBulkResponse(response, onSuccess);
             }
 

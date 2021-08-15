@@ -168,7 +168,7 @@ public class ShardStateAction {
         }
     }
 
-    private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class[]{
+    private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class<?>[]{
         NotMasterException.class,
         ConnectTransportException.class,
         FailedToCommitClusterStateException.class

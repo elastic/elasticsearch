@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,12 +19,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transport.Connection;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor.AsyncSender;
 import org.elasticsearch.transport.TransportRequest;
@@ -47,10 +51,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -138,7 +146,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertThat(sendingUser.get(), is(SystemUser.INSTANCE));
         verify(xPackLicenseState).isSecurityEnabled();
-        verify(securityContext).executeAsUser(any(User.class), any(Consumer.class), eq(Version.CURRENT));
+        verify(securityContext).executeAsUser(any(User.class), anyConsumer(), eq(Version.CURRENT));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -173,7 +181,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
         verify(xPackLicenseState).isSecurityEnabled();
-        verify(securityContext).executeAsUser(any(User.class), any(Consumer.class), eq(Version.CURRENT));
+        verify(securityContext).executeAsUser(any(User.class), anyConsumer(), eq(Version.CURRENT));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -207,7 +215,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(user, sendingUser.get());
         assertEquals(user, securityContext.getUser());
         verify(xPackLicenseState).isSecurityEnabled();
-        verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class), any(Version.class));
+        verify(securityContext, never()).executeAsUser(any(User.class), anyConsumer(), any(Version.class));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -244,7 +252,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
         assertEquals(user, securityContext.getUser());
         verify(xPackLicenseState).isSecurityEnabled();
-        verify(securityContext).executeAsUser(any(User.class), any(Consumer.class), eq(Version.CURRENT));
+        verify(securityContext).executeAsUser(any(User.class), anyConsumer(), eq(Version.CURRENT));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -274,7 +282,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals("there should always be a user when sending a message for action [indices:foo]", e.getMessage());
         assertNull(securityContext.getUser());
         verify(xPackLicenseState).isSecurityEnabled();
-        verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class), any(Version.class));
+        verify(securityContext, never()).executeAsUser(any(User.class), anyConsumer(), any(Version.class));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
@@ -424,9 +432,62 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals("value", threadContext.getHeader("key"));
     }
 
+    public void testProfileSecuredRequestHandlerDecrementsRefCountOnFailure() throws Exception {
+        final String profileName = "some-profile";
+        final DestructiveOperations destructiveOperations =
+                new DestructiveOperations(
+                        Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build(),
+                        clusterService.getClusterSettings()
+                );
+        final SecurityServerTransportInterceptor.ProfileSecuredRequestHandler<DeleteIndexRequest> requestHandler =
+                new SecurityServerTransportInterceptor.ProfileSecuredRequestHandler<>(
+                    logger,
+                    DeleteIndexAction.NAME,
+                    randomBoolean(),
+                    randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC,
+                    (request, channel, task) -> fail("should fail at destructive operations check to trigger listener failure"),
+                    Collections.singletonMap(
+                        profileName,
+                        new ServerTransportFilter.NodeProfile(
+                            null,
+                            null,
+                            threadContext,
+                            randomBoolean(),
+                            destructiveOperations,
+                            randomBoolean(),
+                            securityContext,
+                            xPackLicenseState
+                        )
+                    ),
+                    xPackLicenseState,
+                    threadPool
+                );
+        final TransportChannel channel = mock(TransportChannel.class);
+        when(channel.getProfileName()).thenReturn(profileName);
+        final AtomicBoolean exceptionSent = new AtomicBoolean(false);
+        doAnswer(invocationOnMock -> {
+            assertTrue(exceptionSent.compareAndSet(false, true));
+            return null;
+        }).when(channel).sendResponse(any(Exception.class));
+        final AtomicBoolean decRefCalled = new AtomicBoolean(false);
+        final DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest() {
+            @Override
+            public boolean decRef() {
+                assertTrue(decRefCalled.compareAndSet(false, true));
+                return super.decRef();
+            }
+        };
+        requestHandler.messageReceived(deleteIndexRequest, channel, mock(Task.class));
+        assertTrue(decRefCalled.get());
+        assertTrue(exceptionSent.get());
+    }
+
     private String[] randomRoles() {
         return generateRandomStringArray(3, 10, false, true);
     }
 
-
+    @SuppressWarnings("unchecked")
+    private static Consumer<ThreadContext.StoredContext> anyConsumer() {
+        return any(Consumer.class);
+    }
 }

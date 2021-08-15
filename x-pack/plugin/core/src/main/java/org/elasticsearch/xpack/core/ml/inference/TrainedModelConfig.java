@@ -257,6 +257,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return this;
     }
 
+    public TrainedModelConfig ensureParsedDefinitionUnsafe(NamedXContentRegistry xContentRegistry) throws IOException {
+        if (definition == null) {
+            return null;
+        }
+        definition.ensureParsedDefinitionUnsafe(xContentRegistry);
+        return this;
+    }
+
     @Nullable
     public TrainedModelDefinition getModelDefinition() {
         if (definition == null) {
@@ -770,6 +778,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 compressedString = InferenceToXContentCompressor.deflate(parsedDefinition);
             }
             return compressedString;
+        }
+
+        private void ensureParsedDefinitionUnsafe(NamedXContentRegistry xContentRegistry) throws IOException {
+            if (parsedDefinition == null) {
+                parsedDefinition = InferenceToXContentCompressor.inflateUnsafe(compressedString,
+                    parser -> TrainedModelDefinition.fromXContent(parser, true).build(),
+                    xContentRegistry);
+            }
         }
 
         @Override

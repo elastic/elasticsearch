@@ -1,9 +1,0 @@
-pr: 64650
-issues:
-  - 64406
-  - 51816
-area: Infra/REST API
-type: UNKNOWN
-summary: Do not allow spaces within `MediaType's` parameters
-versions:
-  - v8.0.0

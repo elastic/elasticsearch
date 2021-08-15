@@ -61,7 +61,7 @@ class BulkPrimaryExecutionContext {
     private int currentIndex = -1;
 
     private ItemProcessingState currentItemState;
-    private DocWriteRequest requestToExecute;
+    private DocWriteRequest<?> requestToExecute;
     private BulkItemResponse executionResult;
     private int retryCounter;
 
@@ -182,7 +182,7 @@ class BulkPrimaryExecutionContext {
      * sets the request that should actually be executed on the primary. This can be different then the request
      * received from the user (specifically, an update request is translated to an indexing or delete request).
      */
-    public void setRequestToExecute(DocWriteRequest writeRequest) {
+    public void setRequestToExecute(DocWriteRequest<?> writeRequest) {
         assert assertInvariants(ItemProcessingState.INITIAL);
         requestToExecute = writeRequest;
         currentItemState = ItemProcessingState.TRANSLATED;
@@ -190,6 +190,7 @@ class BulkPrimaryExecutionContext {
     }
 
     /** returns the request that should be executed on the shard. */
+    @SuppressWarnings("unchecked")
     public <T extends DocWriteRequest<T>> T getRequestToExecute() {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
         return (T) requestToExecute;
@@ -215,7 +216,7 @@ class BulkPrimaryExecutionContext {
     /** completes the operation without doing anything on the primary */
     public void markOperationAsNoOp(DocWriteResponse response) {
         assertInvariants(ItemProcessingState.INITIAL);
-        executionResult = new BulkItemResponse(getCurrentItem().id(), getCurrentItem().request().opType(), response);
+        executionResult = BulkItemResponse.success(getCurrentItem().id(), getCurrentItem().request().opType(), response);
         currentItemState = ItemProcessingState.EXECUTED;
         assertInvariants(ItemProcessingState.EXECUTED);
     }
@@ -224,8 +225,8 @@ class BulkPrimaryExecutionContext {
     public void failOnMappingUpdate(Exception cause) {
         assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
         currentItemState = ItemProcessingState.EXECUTED;
-        final DocWriteRequest docWriteRequest = getCurrentItem().request();
-        executionResult = new BulkItemResponse(getCurrentItem().id(), docWriteRequest.opType(),
+        final DocWriteRequest<?> docWriteRequest = getCurrentItem().request();
+        executionResult = BulkItemResponse.failure(getCurrentItem().id(), docWriteRequest.opType(),
             // Make sure to use getCurrentItem().index() here, if you use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
             new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause));
@@ -236,7 +237,7 @@ class BulkPrimaryExecutionContext {
     public void markOperationAsExecuted(Engine.Result result) {
         assertInvariants(ItemProcessingState.TRANSLATED);
         final BulkItemRequest current = getCurrentItem();
-        DocWriteRequest docWriteRequest = getRequestToExecute();
+        DocWriteRequest<?> docWriteRequest = getRequestToExecute();
         switch (result.getResultType()) {
             case SUCCESS:
                 final DocWriteResponse response;
@@ -252,13 +253,13 @@ class BulkPrimaryExecutionContext {
                 } else {
                     throw new AssertionError("unknown result type :" + result.getResultType());
                 }
-                executionResult = new BulkItemResponse(current.id(), current.request().opType(), response);
+                executionResult = BulkItemResponse.success(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
                 executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
                 break;
             case FAILURE:
-                executionResult = new BulkItemResponse(current.id(), docWriteRequest.opType(),
+                executionResult = BulkItemResponse.failure(current.id(), docWriteRequest.opType(),
                     // Make sure to use request.index() here, if you
                     // use docWriteRequest.index() it will use the
                     // concrete index instead of an alias if used!

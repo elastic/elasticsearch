@@ -41,11 +41,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
@@ -55,6 +53,9 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -90,7 +91,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -102,9 +102,11 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import javax.crypto.SecretKey;
 
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.CoreMatchers.is;
@@ -165,13 +167,15 @@ public class TokenServiceTests extends ESTestCase {
         when(client.prepareSearch(any(String.class)))
             .thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE));
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             responseActionListener.onResponse(new IndexResponse(new ShardId(".security", UUIDs.randomBase64UUID(), randomInt()), "_doc",
                 randomAlphaOfLength(4), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), true));
             return null;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
             BulkRequest request = (BulkRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> responseActionListener = (ActionListener<BulkResponse>) invocationOnMock.getArguments()[1];
             BulkItemResponse[] responses = new BulkItemResponse[request.requests().size()];
             final String indexUUID = randomAlphaOfLength(22);
@@ -182,11 +186,11 @@ public class TokenServiceTests extends ESTestCase {
                 final UpdateResponse response = new UpdateResponse(shardId, "_doc", result.getId(), result.getSeqNo(),
                     result.getPrimaryTerm(), result.getVersion() + 1, DocWriteResponse.Result.UPDATED);
                 response.setGetResult(result);
-                responses[i] = new BulkItemResponse(i, DocWriteRequest.OpType.UPDATE, response);
+                responses[i] = BulkItemResponse.success(i, DocWriteRequest.OpType.UPDATE, response);
             }
             responseActionListener.onResponse(new BulkResponse(responses, randomLongBetween(1, 500)));
             return null;
-        }).when(client).bulk(any(BulkRequest.class), any(ActionListener.class));
+        }).when(client).bulk(any(BulkRequest.class), anyActionListener());
 
         this.securityContext = new SecurityContext(settings, threadPool.getThreadContext());
         // setup lifecycle service
@@ -800,10 +804,11 @@ public class TokenServiceTests extends ESTestCase {
         storeTokenHeader(requestContext, accessToken);
 
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             listener.onFailure(new NoShardAvailableActionException(new ShardId(new Index("foo", "uuid"), 0), "shard oh shard"));
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
 
         final SecurityIndexManager tokensIndex;
         if (oldNode != null) {
@@ -929,6 +934,7 @@ public class TokenServiceTests extends ESTestCase {
                                           Client client) {
         doAnswer(invocationOnMock -> {
             GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
             Version tokenVersion = tokenService.getTokenVersionCompatibility();
@@ -954,7 +960,7 @@ public class TokenServiceTests extends ESTestCase {
             }
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
     protected static UserToken buildUserToken(TokenService tokenService, String userTokenId, Authentication authentication) {
@@ -976,6 +982,7 @@ public class TokenServiceTests extends ESTestCase {
     private void mockGetTokenFromId(UserToken userToken, boolean isExpired) {
         doAnswer(invocationOnMock -> {
             GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
             final String possiblyHashedUserTokenId;
@@ -1001,7 +1008,7 @@ public class TokenServiceTests extends ESTestCase {
             }
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
     private void mockFindTokenFromRefreshToken(String refreshToken, UserToken userToken, @Nullable RefreshTokenStatus refreshTokenStatus) {
@@ -1013,6 +1020,7 @@ public class TokenServiceTests extends ESTestCase {
         }
         doAnswer(invocationOnMock -> {
             final SearchRequest request = (SearchRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             final ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
             final SearchResponse response = mock(SearchResponse.class);
 
@@ -1043,6 +1051,7 @@ public class TokenServiceTests extends ESTestCase {
             BytesReference source = TokenService.createTokenDocument(userToken, storedRefreshToken, clientAuthentication, Instant.now());
             if (refreshTokenStatus != null) {
                 Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
+                @SuppressWarnings("unchecked")
                 Map<String, Object> refreshTokenSource = (Map<String, Object>) sourceAsMap.get("refresh_token");
                 refreshTokenSource.put("invalidated", refreshTokenStatus.isInvalidated());
                 refreshTokenSource.put("refreshed", refreshTokenStatus.isRefreshed());
@@ -1054,12 +1063,13 @@ public class TokenServiceTests extends ESTestCase {
             when(response.getHits()).thenReturn(hits);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).search(any(SearchRequest.class), any(ActionListener.class));
+        }).when(client).search(any(SearchRequest.class), anyActionListener());
     }
 
     private void mockGetTokenAsyncForDecryptedToken(String accessToken) {
         doAnswer(invocationOnMock -> {
             GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
             if (request.id().replace("token_", "").equals(TokenService.hashTokenString(accessToken))) {
@@ -1067,7 +1077,7 @@ public class TokenServiceTests extends ESTestCase {
             }
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), anyActionListener());
     }
 
     public static void assertAuthentication(Authentication result, Authentication expected) {

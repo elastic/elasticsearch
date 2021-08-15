@@ -1,8 +1,0 @@
-pr: 67158
-issues:
-  - 66419
-area: Distributed
-type: bug
-summary: Introduce ?wait_for_active_shards=index-setting
-versions:
-  - v8.0.0

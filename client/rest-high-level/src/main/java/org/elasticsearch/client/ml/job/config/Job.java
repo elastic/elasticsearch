@@ -127,8 +127,8 @@ public class Job implements ToXContentObject {
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long dailyModelSnapshotRetentionAfterDays, Long resultsRetentionDays,
-                Map<String, Object> customSettings, String modelSnapshotId, String resultsIndexName, Boolean deleting,
-                Boolean allowLazyOpen, Blocked blocked, DatafeedConfig datafeedConfig) {
+                Map<String, Object> customSettings, String modelSnapshotId, String resultsIndexName,
+                Boolean deleting, Boolean allowLazyOpen, Blocked blocked, DatafeedConfig datafeedConfig) {
 
         this.jobId = jobId;
         this.jobType = jobType;
@@ -411,7 +411,8 @@ public class Job implements ToXContentObject {
         return Objects.hash(jobId, jobType, groups, description, createTime, finishedTime,
             analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
             backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-            customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked, datafeedConfig);
+            customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen, blocked,
+            datafeedConfig);
     }
 
     @Override

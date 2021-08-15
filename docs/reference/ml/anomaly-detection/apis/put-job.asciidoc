@@ -181,6 +181,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=influencers]
 (<<time-units,time units>>)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latency]
 
+`model_prune_window`:::
+(Optional, <<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-prune-window]
+
 `multivariate_by_fields`:::
 (Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=multivariate-by-fields]

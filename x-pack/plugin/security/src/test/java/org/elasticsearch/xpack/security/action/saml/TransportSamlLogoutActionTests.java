@@ -103,6 +103,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     private TransportSamlLogoutAction action;
     private Client client;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setup() throws Exception {
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());

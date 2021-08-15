@@ -21,6 +21,7 @@ import java.util.Objects;
  */
 public class DeprecatedMessage extends ESLogMessage {
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
+    public static final String KEY_FIELD_NAME = "key";
 
     public DeprecatedMessage(DeprecationCategory category, String key, String xOpaqueId, String messagePattern, Object... args) {
         super(fieldMap(category, key, xOpaqueId), messagePattern, args);
@@ -35,7 +36,7 @@ public class DeprecatedMessage extends ESLogMessage {
         builder.put("category", category.name().toLowerCase(Locale.ROOT));
 
         if (Strings.isNullOrEmpty(key) == false) {
-            builder.put("key", key);
+            builder.put(KEY_FIELD_NAME, key);
         }
         if (Strings.isNullOrEmpty(xOpaqueId) == false) {
             builder.put(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);

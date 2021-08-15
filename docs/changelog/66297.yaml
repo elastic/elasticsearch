@@ -1,8 +1,0 @@
-pr: 66297
-issues:
-  - 65725
-area: Infra/Core
-type: bug
-summary: Add searchable snapshot cache folder to `NodeEnvironment`
-versions:
-  - v8.0.0

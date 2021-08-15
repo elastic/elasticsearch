@@ -52,7 +52,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     }
 
     static final String TYPE = "geotile_grid";
-    static final ValuesSourceRegistry.RegistryKey<GeoTileCompositeSuppier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey(
+    static final ValuesSourceRegistry.RegistryKey<GeoTileCompositeSuppier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         TYPE,
         GeoTileCompositeSuppier.class
     );

@@ -1,9 +1,0 @@
-pr: 41808
-issues:
-  - 41385
-  - 38646
-area: TLS
-type: enhancement
-summary: Update TLS ciphers and protocols for JDK 11
-versions:
-  - v8.0.0

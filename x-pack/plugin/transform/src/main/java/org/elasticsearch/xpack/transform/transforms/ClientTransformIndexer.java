@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
+import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.util.Collection;
@@ -84,7 +85,6 @@ class ClientTransformIndexer extends TransformIndexer {
         Client client,
         TransformIndexerStats initialStats,
         TransformConfig transformConfig,
-        Map<String, String> fieldMappings,
         TransformProgress transformProgress,
         TransformCheckpoint lastCheckpoint,
         TransformCheckpoint nextCheckpoint,
@@ -97,7 +97,6 @@ class ClientTransformIndexer extends TransformIndexer {
             transformServices,
             checkpointProvider,
             transformConfig,
-            fieldMappings,
             ExceptionsHelper.requireNonNull(initialState, "initialState"),
             initialPosition,
             initialStats == null ? new TransformIndexerStats() : initialStats,
@@ -144,71 +143,72 @@ class ClientTransformIndexer extends TransformIndexer {
             client,
             BulkAction.INSTANCE,
             request,
-            ActionListener.wrap(bulkResponse -> {
-                if (bulkResponse.hasFailures()) {
-                    int failureCount = 0;
-                    // dedup the failures by the type of the exception, as they most likely have the same cause
-                    Map<String, BulkItemResponse> deduplicatedFailures = new LinkedHashMap<>();
-
-                    for (BulkItemResponse item : bulkResponse.getItems()) {
-                        if (item.isFailed()) {
-                            deduplicatedFailures.putIfAbsent(item.getFailure().getCause().getClass().getSimpleName(), item);
-                            failureCount++;
-                        }
-                    }
-
-                    // note: bulk failures are audited/logged in {@link TransformIndexer#handleFailure(Exception)}
-
-                    // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
-                    // Determine whether the failure is irrecoverable (transform should go into failed state) or not (transform increments
-                    // the indexing failure counter
-                    // and possibly retries)
-                    Throwable irrecoverableException = ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(
-                        deduplicatedFailures.values()
-                    );
-                    if (irrecoverableException == null) {
-                        String failureMessage = getBulkIndexDetailedFailureMessage("Significant failures: ", deduplicatedFailures);
-                        logger.debug("[{}] Bulk index experienced [{}] failures. {}", getJobId(), failureCount, failureMessage);
-
-                        Exception firstException = deduplicatedFailures.values().iterator().next().getFailure().getCause();
-                        nextPhase.onFailure(
-                            new BulkIndexingException(
-                                "Bulk index experienced [{}] failures. {}",
-                                firstException,
-                                false,
-                                failureCount,
-                                failureMessage
-                            )
-                        );
-                    } else {
-                        deduplicatedFailures.remove(irrecoverableException.getClass().getSimpleName());
-                        String failureMessage = getBulkIndexDetailedFailureMessage("Other failures: ", deduplicatedFailures);
-                        irrecoverableException = decorateBulkIndexException(irrecoverableException);
-
-                        logger.debug(
-                            "[{}] Bulk index experienced [{}] failures and at least 1 irrecoverable [{}]. {}",
-                            getJobId(),
-                            failureCount,
-                            ExceptionRootCauseFinder.getDetailedMessage(irrecoverableException),
-                            failureMessage
-                        );
-
-                        nextPhase.onFailure(
-                            new BulkIndexingException(
-                                "Bulk index experienced [{}] failures and at least 1 irrecoverable [{}]. {}",
-                                irrecoverableException,
-                                true,
-                                failureCount,
-                                ExceptionRootCauseFinder.getDetailedMessage(irrecoverableException),
-                                failureMessage
-                            )
-                        );
-                    }
-                } else {
-                    nextPhase.onResponse(bulkResponse);
-                }
-            }, nextPhase::onFailure)
+            ActionListener.wrap(bulkResponse -> handleBulkResponse(bulkResponse, nextPhase), nextPhase::onFailure)
         );
+    }
+
+    protected void handleBulkResponse(BulkResponse bulkResponse, ActionListener<BulkResponse> nextPhase) {
+        if (bulkResponse.hasFailures() == false) {
+            // We don't know the of failures that have occurred (searching, processing, indexing, etc.),
+            // but if we search, process and bulk index then we have
+            // successfully processed an entire page of the transform and should reset the counter, even if we are in the middle
+            // of a checkpoint
+            context.resetReasonAndFailureCounter();
+            nextPhase.onResponse(bulkResponse);
+            return;
+        }
+        int failureCount = 0;
+        // dedup the failures by the type of the exception, as they most likely have the same cause
+        Map<String, BulkItemResponse> deduplicatedFailures = new LinkedHashMap<>();
+
+        for (BulkItemResponse item : bulkResponse.getItems()) {
+            if (item.isFailed()) {
+                deduplicatedFailures.putIfAbsent(item.getFailure().getCause().getClass().getSimpleName(), item);
+                failureCount++;
+            }
+        }
+
+        // note: bulk failures are audited/logged in {@link TransformIndexer#handleFailure(Exception)}
+
+        // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
+        // Determine whether the failure is irrecoverable (transform should go into failed state) or not (transform increments
+        // the indexing failure counter
+        // and possibly retries)
+        Throwable irrecoverableException = ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(
+            deduplicatedFailures.values()
+        );
+        if (irrecoverableException == null) {
+            String failureMessage = getBulkIndexDetailedFailureMessage("Significant failures: ", deduplicatedFailures);
+            logger.debug("[{}] Bulk index experienced [{}] failures. {}", getJobId(), failureCount, failureMessage);
+
+            Exception firstException = deduplicatedFailures.values().iterator().next().getFailure().getCause();
+            nextPhase.onFailure(
+                new BulkIndexingException("Bulk index experienced [{}] failures. {}", firstException, false, failureCount, failureMessage)
+            );
+        } else {
+            deduplicatedFailures.remove(irrecoverableException.getClass().getSimpleName());
+            String failureMessage = getBulkIndexDetailedFailureMessage("Other failures: ", deduplicatedFailures);
+            irrecoverableException = decorateBulkIndexException(irrecoverableException);
+
+            logger.debug(
+                "[{}] Bulk index experienced [{}] failures and at least 1 irrecoverable [{}]. {}",
+                getJobId(),
+                failureCount,
+                ExceptionRootCauseFinder.getDetailedMessage(irrecoverableException),
+                failureMessage
+            );
+
+            nextPhase.onFailure(
+                new BulkIndexingException(
+                    "Bulk index experienced [{}] failures and at least 1 irrecoverable [{}]. {}",
+                    irrecoverableException,
+                    true,
+                    failureCount,
+                    ExceptionRootCauseFinder.getDetailedMessage(irrecoverableException),
+                    failureMessage
+                )
+            );
+        }
     }
 
     @Override
@@ -246,6 +246,15 @@ class ClientTransformIndexer extends TransformIndexer {
             SearchAction.INSTANCE,
             request,
             responseListener
+        );
+    }
+
+    @Override
+    void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
+        SchemaUtil.getDestinationFieldMappings(
+            client,
+            getConfig().getDestination().getIndex(),
+            fieldMappingsListener
         );
     }
 
@@ -572,6 +581,7 @@ class ClientTransformIndexer extends TransformIndexer {
                         searchRequest,
                         listener
                     );
+                    return;
                 }
                 listener.onFailure(e);
             })

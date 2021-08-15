@@ -1,8 +1,0 @@
-pr: 59349
-issues:
-  - 44505
-area: Rollup
-type: enhancement
-summary: Adds support for `date_nanos` in Rollup Metric and `DateHistogram` Configs
-versions:
-  - v8.0.0

@@ -1,8 +1,0 @@
-pr: 51421
-issues:
-  - 49581
-area: EQL
-type: UNKNOWN
-summary: Merge EQL dev branch to master
-versions:
-  - v8.0.0

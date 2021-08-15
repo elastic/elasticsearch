@@ -1,8 +1,0 @@
-pr: 41492
-issues:
-  - 40052
-area: Infra/REST API
-type: bug
-summary: "Fix: added missing skip"
-versions:
-  - v8.0.0

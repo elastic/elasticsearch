@@ -43,7 +43,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -221,7 +220,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final AtomicLong idGenerator = new AtomicLong();
 
-    private final ConcurrentMapLong<ReaderContext> activeReaders = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
+    private final Map<Long, ReaderContext> activeReaders = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     private final MultiBucketConsumerService multiBucketConsumerService;
 
@@ -624,9 +623,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     protected void checkCancelled(SearchShardTask task) {
         // check cancellation as early as possible, as it avoids opening up a Lucene reader on FrozenEngine
-        if (task.isCancelled()) {
+        try {
+            task.ensureNotCancelled();
+        } catch (TaskCancelledException e) {
             logger.trace("task cancelled [id: {}, action: {}]", task.getId(), task.getAction());
-            throw new TaskCancelledException("cancelled");
+            throw e;
         }
     }
 
@@ -813,6 +814,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    @SuppressWarnings("unchecked")
     private DefaultSearchContext createSearchContext(ReaderContext reader, ShardSearchRequest request, TimeValue timeout)
         throws IOException {
         boolean success = false;
@@ -1299,6 +1301,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static boolean queryStillMatchesAfterRewrite(ShardSearchRequest request, QueryRewriteContext context) throws IOException {
         Rewriteable.rewrite(request.getRewriteable(), context, false);
         final boolean aliasFilterCanMatch = request.getAliasFilter()
@@ -1327,6 +1330,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return aggregations == null || aggregations.mustVisitAllDocs() == false;
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
         ActionListener<Rewriteable> actionListener = ActionListener.wrap(r -> {
             if (request.readerId() != null) {

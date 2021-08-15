@@ -231,7 +231,8 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         Translog("translog", 13),
         // 14 was previously used for Suggest
         RequestCache("request_cache", 15),
-        Recovery("recovery", 16);
+        Recovery("recovery", 16),
+        Shards("shards", 18);
 
         private final String restName;
         private final int index;

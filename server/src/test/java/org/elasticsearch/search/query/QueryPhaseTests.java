@@ -80,7 +80,9 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
@@ -977,8 +979,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"));
                 prefixQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
                 context.parsedQuery(new ParsedQuery(prefixQuery));
-                SearchShardTask task = mock(SearchShardTask.class);
-                when(task.isCancelled()).thenReturn(true);
+                SearchShardTask task = new SearchShardTask(randomLong(), "transport", "", "", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+                TaskCancelHelper.cancel(task, "simulated");
                 context.setTask(task);
                 expectThrows(TaskCancelledException.class, () -> new QueryPhase().preProcess(context));
             }

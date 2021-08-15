@@ -260,7 +260,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             eventsToDelete.add(Annotation.Event.DELAYED_DATA.toString());
             // Because the model that changed is no longer in use as it has been rolled back to a time before those changes occurred
             eventsToDelete.add(Annotation.Event.MODEL_CHANGE.toString());
-            dataDeleter.deleteAnnotationsFromTime(deleteAfter.getTime() + 1, eventsToDelete,
+            dataDeleter.deleteAnnotations(deleteAfter.getTime() + 1, null, eventsToDelete,
                     listener.delegateFailure((l, r) -> l.onResponse(response)));
         }, listener::onFailure);
     }

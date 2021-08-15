@@ -1,8 +1,0 @@
-pr: 54904
-issues:
-  - 54825
-area: Features/ILM+SLM
-type: UNKNOWN
-summary: Fix `IndexLifecycleExplainResponse` serialization version checks
-versions:
-  - v8.0.0

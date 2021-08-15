@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -91,6 +93,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public RecoveryStats recoveryStats;
 
+    @Nullable
+    public ShardCountStats shards;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -147,6 +152,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     break;
                 case Recovery:
                     recoveryStats = new RecoveryStats();
+                    break;
+                case Shards:
+                    shards = new ShardCountStats();
                     break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
@@ -207,6 +215,10 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Recovery:
                         recoveryStats = indexShard.recoveryStats();
                         break;
+                    case Shards:
+                        // Setting to 1 because the single IndexShard passed to this method implies 1 shard
+                        shards = new ShardCountStats(1);
+                        break;
                     default:
                         throw new IllegalStateException("Unknown Flag: " + flag);
                 }
@@ -233,6 +245,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+            shards = in.readOptionalWriteable(ShardCountStats::new);
+        }
     }
 
     @Override
@@ -253,6 +268,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(translog);
         out.writeOptionalWriteable(requestCache);
         out.writeOptionalWriteable(recoveryStats);
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+            out.writeOptionalWriteable(shards);
+        }
     }
 
     public void add(CommonStats stats) {
@@ -385,6 +403,14 @@ public class CommonStats implements Writeable, ToXContentFragment {
         } else {
             recoveryStats.add(stats.getRecoveryStats());
         }
+        if (stats.shards != null) {
+            if (shards == null) {
+                shards = stats.shards;
+            }
+            else {
+                shards = shards.add(stats.shards);
+            }
+        }
     }
 
     @Nullable
@@ -467,6 +493,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return recoveryStats;
     }
 
+    @Nullable
+    public ShardCountStats getShards() {
+        return shards;
+    }
+
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (memory, index writer, version map)
@@ -492,7 +523,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final Stream<ToXContent> stream = Arrays.stream(new ToXContent[] {
-            docs, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
+            docs, shards, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
             fieldData, completion, segments, translog, requestCache, recoveryStats})
             .filter(Objects::nonNull);
         for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {

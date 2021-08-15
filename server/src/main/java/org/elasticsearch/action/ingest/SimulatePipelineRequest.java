@@ -168,6 +168,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             if ((object instanceof Map) ==  false) {
                 throw new IllegalArgumentException("malformed [docs] section, should include an inner object");
             }
+            @SuppressWarnings("unchecked")
             Map<String, Object> dataMap = (Map<String, Object>) object;
             Map<String, Object> document = ConfigurationUtils.readMap(null, null,
                 dataMap, Fields.SOURCE);

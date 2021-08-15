@@ -1,9 +1,0 @@
-pr: 69606
-issues:
-  - 69037
-  - 43373
-area: Infra/REST API
-type: UNKNOWN
-summary: "[Rest Compatible Api] update and delete by query using size field"
-versions:
-  - v8.0.0

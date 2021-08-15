@@ -16,6 +16,7 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -56,7 +57,9 @@ import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING;
@@ -106,6 +109,18 @@ public abstract class LdapTestCase extends ESTestCase {
                 ldapServer.startListening();
                 return null;
             });
+            String listenerConfig = listeners.stream()
+                .map(
+                    l -> String.format(
+                        Locale.ROOT,
+                        "(%s @ %s:%d)",
+                        l.getListenerName(),
+                        NetworkAddress.format(resolveListenAddress(l.getListenAddress())),
+                        ldapServer.getListenPort(l.getListenerName())
+                    )
+                )
+                .collect(Collectors.joining(","));
+            logger.info("Started in-memory LDAP server [#{}] with listeners: [{}]", i, listenerConfig);
             ldapServers[i] = ldapServer;
         }
     }
@@ -117,6 +132,7 @@ public abstract class LdapTestCase extends ESTestCase {
     @After
     public void stopLdap() {
         for (int i = 0; i < numberOfLdapServers; i++) {
+            logger.info("Shutting down in-memory LDAP server [#{}]", i);
             ldapServers[i].shutDown(true);
         }
     }
@@ -124,14 +140,19 @@ public abstract class LdapTestCase extends ESTestCase {
     protected String[] ldapUrls() throws LDAPException {
         List<String> urls = new ArrayList<>(numberOfLdapServers);
         for (int i = 0; i < numberOfLdapServers; i++) {
-            InetAddress listenAddress = ldapServers[i].getListenAddress();
-            if (listenAddress == null) {
-                listenAddress = InetAddress.getLoopbackAddress();
-            }
+            InetAddress listenAddress = resolveListenAddress(ldapServers[i].getListenAddress());
             LDAPURL url = new LDAPURL("ldap", NetworkAddress.format(listenAddress), ldapServers[i].getListenPort(), null, null, null, null);
             urls.add(url.toString());
         }
         return urls.toArray(Strings.EMPTY_ARRAY);
+    }
+
+    private InetAddress resolveListenAddress(InetAddress configuredAddress) {
+        InetAddress listenAddress = configuredAddress;
+        if (listenAddress != null) {
+            return listenAddress;
+        }
+        return InetAddress.getLoopbackAddress();
     }
 
     public static Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, LdapSearchScope scope) {

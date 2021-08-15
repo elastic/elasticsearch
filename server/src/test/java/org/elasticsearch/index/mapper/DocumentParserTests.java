@@ -23,16 +23,20 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -1948,9 +1952,37 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(doc.rootDoc().getField("field.second"));
     }
 
+    public void testDynamicShadowingOfRuntimeSubfields() throws IOException {
+
+        // Create mappings with a runtime field called 'obj' that produces two subfields,
+        // 'obj.foo' and 'obj.bar'
+
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startObject("runtime");
+            b.startObject("obj").field("type", "test-composite").endObject();
+            b.endObject();
+        }));
+
+        // Incoming documents should not create mappings for 'obj.foo' fields, as they will
+        // be shadowed by the runtime fields; but other subfields are fine and should be
+        // indexed
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("obj");
+            b.field("foo", "ignored");
+            b.field("baz", "indexed");
+            b.field("bar", "ignored");
+            b.endObject();
+        }));
+
+        assertNull(doc.rootDoc().getField("obj.foo"));
+        assertNotNull(doc.rootDoc().getField("obj.baz"));
+        assertNull(doc.rootDoc().getField("obj.bar"));
+        assertNotNull(doc.dynamicMappingsUpdate());
+    }
+
     /**
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
-     * as well as a mock runtime field parser.
      */
     private static final class DocumentParserTestsPlugin extends Plugin implements MapperPlugin {
         /**
@@ -1984,6 +2016,32 @@ public class DocumentParserTests extends MapperServiceTestCase {
         @Override
         public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
             return Collections.singletonMap(MockMetadataMapper.CONTENT_TYPE, MockMetadataMapper.PARSER);
+        }
+
+        @Override
+        public Map<String, RuntimeField.Parser> getRuntimeFields() {
+            return Collections.singletonMap(
+                "test-composite",
+                new RuntimeField.Parser(n -> new RuntimeField.Builder(n) {
+                    @Override
+                    protected RuntimeField createRuntimeField(MappingParserContext parserContext)
+                    {
+                        return new TestRuntimeField(n, Arrays.asList(
+                            new KeywordFieldMapper.KeywordFieldType(n + ".foo"),
+                            new KeywordFieldMapper.KeywordFieldType(n + ".bar")
+                        ));
+                    }
+
+                    @Override
+                    protected RuntimeField createChildRuntimeField(
+                        MappingParserContext parserContext,
+                        String parentName,
+                        Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+                    ) {
+                        throw new UnsupportedOperationException();
+                    }
+                })
+            );
         }
     }
 }

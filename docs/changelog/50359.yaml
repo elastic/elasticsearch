@@ -1,8 +1,0 @@
-pr: 50359
-issues:
-  - 50248
-area: Task Management, Mapping
-type: bug
-summary: Fixes to task result index mapping
-versions:
-  - v8.0.0

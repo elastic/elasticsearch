@@ -67,7 +67,7 @@ public class PutMappingRequestBuilder
     /**
      * The mapping source definition.
      */
-    public PutMappingRequestBuilder setSource(Map mappingSource) {
+    public PutMappingRequestBuilder setSource(Map<String, ?> mappingSource) {
         request.source(mappingSource);
         return this;
     }

@@ -9,8 +9,12 @@ your application to {es} 7.14.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-// * <<breaking_714_blah_changes>>
-// * <<breaking_714_blah_changes>>
+* <<breaking_714_cluster_changes>>
+* <<breaking_714_ccr_changes>>
+* <<breaking_714_core_deprecations>>
+* <<breaking_714_search_deprecations>>
+* <<breaking_714_security_changes>>
+
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -71,6 +75,28 @@ using any deprecated functionality, enable <<deprecation-logging, deprecation
 logging>>.
 
 // tag::notable-breaking-changes[]
+
+[discrete]
+[[breaking_714_ccr_changes]]
+==== {ccr-cap} ({ccr-init}) deprecations
+
+[[system-indices-auto-follow-deprecation]]
+.Auto-follow remote system indices is deprecated.
+[%collapsible]
+====
+*Details* +
+Currently, remote system indices matching an
+{ref}/ccr-auto-follow.html[auto-follow pattern] are configured as a follower
+index automatically, this behavior is deprecated.
+
+*Impact* +
+In 8.0.0, remote system indices matching an
+{ref}/ccr-auto-follow.html[auto-follow pattern] won't be configured as a
+follower index automatically. In order to adapt to this new behaviour it is
+advised to exclude patterns matching system indices such as `.tasks` and
+`kibana-*`.
+====
+
 [discrete]
 [[breaking_714_core_deprecations]]
 ==== Core deprecations
@@ -144,24 +170,5 @@ This creates confusion since realm names are meant to be unique for a node.
 Configuring a realm name with a leading underscore is deprecated. In a future release of {es}
 it will result in an error on startup if any user configured realm has a name
 with a leading underscore.
-====
-
-[discrete]
-[[breaking_714_ccr_changes]]
-==== CCR deprecations
-
-[[system-indices-auto-follow-deprecation]]
-.Auto-follow remote system indices is deprecated.
-[%collapsible]
-====
-*Details* +
-Currently, remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
-are configured as a follower index automatically, this behavior is deprecated.
-
-*Impact* +
-In 8.0.0, remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
-won't be configured as a follower index automatically. In order to adapt to this new
-behaviour it is advised to exclude patterns matching system indices such as `.tasks` and
-`kibana-*`.
 ====
 // end::notable-breaking-changes[]

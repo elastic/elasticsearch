@@ -9,8 +9,14 @@ your application to {es} 7.10.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-// * <<breaking_710_blah_changes>>
-// * <<breaking_710_blah_changes>>
+* <<breaking_710_security_changes>>
+* <<breaking_710_java_changes>>
+* <<breaking_710_networking_changes>>
+* <<breaking_710_search_changes>>
+* <<breaking_710_indices_changes>>
+* <<breaking_710_ml_changes>>
+* <<breaking_710_mapping_changes>>
+* <<breaking_710_snapshot_restore_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

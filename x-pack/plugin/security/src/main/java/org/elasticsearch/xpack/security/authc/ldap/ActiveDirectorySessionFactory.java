@@ -15,6 +15,7 @@ import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.controls.AuthorizationIdentityRequestControl;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
@@ -25,8 +26,9 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -34,7 +36,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
-import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
@@ -146,7 +147,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         }
         try {
             final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            LdapUtils.maybeForkThenBind(connection, bindCredentials, threadPool, new AbstractRunnable() {
+            LdapUtils.maybeForkThenBind(connection, bindCredentials, true, threadPool, new AbstractRunnable() {
 
                 @Override
                 public void onFailure(Exception e) {
@@ -245,7 +246,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
             final SimpleBindRequest userBind = new SimpleBindRequest(bindUsername(username), passwordBytes,
                     new AuthorizationIdentityRequestControl());
-            LdapUtils.maybeForkThenBind(connection, userBind, threadPool, new ActionRunnable<LdapSession>(listener) {
+            LdapUtils.maybeForkThenBind(connection, userBind, false, threadPool, new ActionRunnable<LdapSession>(listener) {
                 @Override
                 protected void doRun() throws Exception {
                     final ActionRunnable<LdapSession> searchRunnable = new ActionRunnable<LdapSession>(listener) {
@@ -269,7 +270,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                         searchRunnable.run();
                     } else {
                         final SimpleBindRequest bind = new SimpleBindRequest(bindDN, CharArrays.toUtf8Bytes(bindPassword.getChars()));
-                        LdapUtils.maybeForkThenBind(connection, bind, threadPool, searchRunnable);
+                        LdapUtils.maybeForkThenBind(connection, bind, true, threadPool, searchRunnable);
                     }
                 }
             });
@@ -431,23 +432,29 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                                     finalLdapConnection.getConnectedAddress(),
                                     finalLdapConnection.getSSLSession() != null ? ldapsPort : ldapPort));
                     final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                    final SimpleBindRequest bind = bindDN.isEmpty()
+                    final boolean bindAsAuthenticatingUser = this.bindDN.isEmpty();
+                    final SimpleBindRequest bind = bindAsAuthenticatingUser
                             ? new SimpleBindRequest(username, passwordBytes)
                             : new SimpleBindRequest(bindDN, CharArrays.toUtf8Bytes(bindPassword.getChars()));
-                    LdapUtils.maybeForkThenBind(searchConnection, bind, threadPool, new ActionRunnable<String>(listener) {
+                    ActionRunnable<String> body = new ActionRunnable<String>(listener) {
                         @Override
                         protected void doRun() throws Exception {
-                            search(searchConnection, "CN=Configuration," + domainDN, LdapSearchScope.SUB_TREE.scope(), filter,
-                                    timeLimitSeconds, ignoreReferralErrors,
-                                    ActionListener.wrap(
-                                            results -> {
-                                                IOUtils.close(searchConnection);
-                                                handleSearchResults(results, netBiosDomainName, domainNameCache, listener);
-                                            }, e -> {
-                                                IOUtils.closeWhileHandlingException(searchConnection);
-                                                listener.onFailure(e);
-                                            }),
-                                    "ncname");
+                            search(
+                                searchConnection,
+                                "CN=Configuration," + domainDN,
+                                LdapSearchScope.SUB_TREE.scope(),
+                                filter,
+                                timeLimitSeconds,
+                                ignoreReferralErrors,
+                                ActionListener.wrap(results -> {
+                                    IOUtils.close(searchConnection);
+                                    handleSearchResults(results, netBiosDomainName, domainNameCache, listener);
+                                }, e -> {
+                                    IOUtils.closeWhileHandlingException(searchConnection);
+                                    listener.onFailure(e);
+                                }),
+                                "ncname"
+                            );
                         }
 
                         @Override
@@ -455,7 +462,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                             IOUtils.closeWhileHandlingException(searchConnection);
                             listener.onFailure(e);
                         }
-                    });
+                    };
+                    LdapUtils.maybeForkThenBind(searchConnection, bind, bindAsAuthenticatingUser == false, threadPool, body);
                 }
             } catch (LDAPException e) {
                 listener.onFailure(e);

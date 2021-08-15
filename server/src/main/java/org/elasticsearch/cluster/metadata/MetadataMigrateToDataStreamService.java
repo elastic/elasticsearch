@@ -25,6 +25,7 @@ import org.elasticsearch.core.Map;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
@@ -165,7 +166,8 @@ public class MetadataMigrateToDataStreamService {
 
         MapperService mapperService = mapperSupplier.apply(im);
         mapperService.merge(im, MapperService.MergeReason.MAPPING_RECOVERY);
-        mapperService.merge("_doc", Map.of("_data_stream_timestamp", Map.of("enabled", true)), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("_doc", Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true)),
+            MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper mapper = mapperService.documentMapper();
 
         b.put(IndexMetadata.builder(im)
@@ -197,6 +199,7 @@ public class MetadataMigrateToDataStreamService {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     public static final class MigrateToDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
 
         private final String aliasName;

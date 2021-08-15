@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -38,14 +39,18 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
@@ -57,6 +62,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DatafeedNodeSelectorTests extends ESTestCase {
+
+    private static final Set<DiscoveryNodeRole> ROLES = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, MachineLearning.ML_ROLE)));
 
     private IndexNameExpressionResolver resolver;
     private DiscoveryNodes nodes;
@@ -89,7 +97,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertEquals("node_id", result.getExecutorNode());
         new DatafeedNodeSelector(clusterState,
             resolver,
@@ -117,7 +125,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertEquals("node_id", result.getExecutorNode());
         new DatafeedNodeSelector(clusterState,
             resolver,
@@ -142,7 +150,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertEquals("node_id", result.getExecutorNode());
         new DatafeedNodeSelector(clusterState,
             resolver,
@@ -167,7 +175,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), equalTo("cannot start datafeed [datafeed_id], because the job's [job_id] state is " +
                 "[closed] while state [opened] is required"));
@@ -199,7 +207,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertNull(result.getExecutorNode());
         assertEquals("cannot start datafeed [datafeed_id], because the job's [job_id] state is [" + jobState +
                 "] while state [opened] is required", result.getExplanation());
@@ -236,7 +244,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), equalTo("cannot start datafeed [datafeed_id] because index [foo] " +
                 "does not have all primary shards active yet."));
@@ -270,7 +278,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), equalTo("cannot start datafeed [datafeed_id] because index [foo] " +
                 "does not have all primary shards active yet."));
@@ -298,7 +306,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(),
             equalTo("cannot start datafeed [datafeed_id] because it failed resolving indices given [not_foo] and " +
@@ -337,7 +345,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertEquals("node_id", result.getExecutorNode());
         new DatafeedNodeSelector(clusterState,
             resolver,
@@ -362,7 +370,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertNotNull(result.getExecutorNode());
     }
 
@@ -379,12 +387,14 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         givenClusterState("foo", 1, 0);
 
+        Collection<DiscoveryNode> candidateNodes = makeCandidateNodes("node_id1", "node_id2", "node_id3");
+
         PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(clusterState,
             resolver,
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(candidateNodes);
         assertNull(result.getExecutorNode());
         assertEquals("cannot start datafeed [datafeed_id], because the job's [job_id] state is stale",
                 result.getExplanation());
@@ -408,7 +418,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(candidateNodes);
         assertEquals("node_id1", result.getExecutorNode());
         new DatafeedNodeSelector(clusterState,
             resolver,
@@ -462,7 +472,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertThat(result, equalTo(MlTasks.AWAITING_UPGRADE));
     }
 
@@ -482,7 +492,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getId(),
             df.getJobId(),
             df.getIndices(),
-            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("node_id", "other_node_id"));
         assertThat(result, equalTo(MlTasks.RESET_IN_PROGRESS));
     }
 
@@ -505,6 +515,38 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 df.getIndices(),
                 SearchRequest.DEFAULT_INDICES_OPTIONS).checkDatafeedTaskCanBeCreated());
         assertThat(e.getMessage(), equalTo("Could not start datafeed [datafeed_id] as indices are being upgraded"));
+    }
+
+    public void testSelectNode_GivenJobIsOpenedAndNodeIsShuttingDown() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode(makeCandidateNodes("other_node_id"));
+        assertNull(result.getExecutorNode());
+        assertEquals("datafeed awaiting job relocation.", result.getExplanation());
+
+        // This is different to the pattern of the other tests - we allow the datafeed task to be
+        // created even though it cannot be assigned.  The reason is that it would be perverse for
+        // start datafeed to throw an error just because a user was unlucky and opened a job just
+        // before a node got shut down, such that their subsequent call to start its datafeed arrived
+        // after that node was shutting down.
+        new DatafeedNodeSelector(clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS).checkDatafeedTaskCanBeCreated();
     }
 
     private void givenClusterState(String index, int numberOfShards, int numberOfReplicas) {
@@ -584,5 +626,15 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         }
 
         return new RoutingTable.Builder().add(rtBuilder).build();
+    }
+
+    Collection<DiscoveryNode> makeCandidateNodes(String... nodeIds) {
+        List<DiscoveryNode> candidateNodes = new ArrayList<>();
+        int port = 9300;
+        for (String nodeId : nodeIds) {
+            candidateNodes.add(new DiscoveryNode(nodeId + "-name", nodeId, new TransportAddress(InetAddress.getLoopbackAddress(), port++),
+                Collections.emptyMap(), ROLES, Version.CURRENT));
+        }
+        return candidateNodes;
     }
 }

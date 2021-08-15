@@ -219,8 +219,8 @@ public class MoreTypes {
             if ((b instanceof TypeVariable) == false) {
                 return false;
             }
-            TypeVariable<?> va = (TypeVariable) a;
-            TypeVariable<?> vb = (TypeVariable) b;
+            TypeVariable<?> va = (TypeVariable<?>) a;
+            TypeVariable<?> vb = (TypeVariable<?>) b;
             return va.getGenericDeclaration() == vb.getGenericDeclaration()
                     && va.getName().equals(vb.getName());
 
@@ -263,7 +263,7 @@ public class MoreTypes {
 
     public static String toString(Type type) {
         if (type instanceof Class<?>) {
-            return ((Class) type).getName();
+            return ((Class<?>) type).getName();
 
         } else if (type instanceof ParameterizedType) {
             ParameterizedType parameterizedType = (ParameterizedType) type;
@@ -372,7 +372,7 @@ public class MoreTypes {
 
         // we skip searching through interfaces if unknown is an interface
         if (toResolve.isInterface()) {
-            Class[] interfaces = rawType.getInterfaces();
+            Class<?>[] interfaces = rawType.getInterfaces();
             for (int i = 0, length = interfaces.length; i < length; i++) {
                 if (interfaces[i] == toResolve) {
                     return rawType.getGenericInterfaces()[i];
@@ -399,7 +399,7 @@ public class MoreTypes {
         return toResolve;
     }
 
-    public static Type resolveTypeVariable(Type type, Class<?> rawType, TypeVariable unknown) {
+    public static Type resolveTypeVariable(Type type, Class<?> rawType, TypeVariable<?> unknown) {
         Class<?> declaredByRaw = declaringClassOf(unknown);
 
         // we can't reduce this further
@@ -429,7 +429,7 @@ public class MoreTypes {
      * Returns the declaring class of {@code typeVariable}, or {@code null} if it was not declared by
      * a class.
      */
-    private static Class<?> declaringClassOf(TypeVariable typeVariable) {
+    private static Class<?> declaringClassOf(TypeVariable<?> typeVariable) {
         GenericDeclaration genericDeclaration = typeVariable.getGenericDeclaration();
         return genericDeclaration instanceof Class
                 ? (Class<?>) genericDeclaration
@@ -445,7 +445,7 @@ public class MoreTypes {
         public ParameterizedTypeImpl(Type ownerType, Type rawType, Type... typeArguments) {
             // require an owner type if the raw type needs it
             if (rawType instanceof Class<?>) {
-                Class rawTypeAsClass = (Class) rawType;
+                Class<?> rawTypeAsClass = (Class<?>) rawType;
                 if (ownerType == null && rawTypeAsClass.getEnclosingClass() != null) {
                     throw new IllegalArgumentException("No owner type for enclosed " + rawType);
                 }
@@ -644,7 +644,7 @@ public class MoreTypes {
         }
 
         @Override
-        public Class getDeclaringClass() {
+        public Class<?> getDeclaringClass() {
             return declaringClass;
         }
 

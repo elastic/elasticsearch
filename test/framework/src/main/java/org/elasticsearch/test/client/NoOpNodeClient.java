@@ -58,9 +58,12 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
-    public void initialize(Map<ActionType, TransportAction> actions, Supplier<String> localNodeId,
-                           RemoteClusterService remoteClusterService, NamedWriteableRegistry namedWriteableRegistry) {
+    public void initialize(
+        Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions,
+        Supplier<String> localNodeId,
+        RemoteClusterService remoteClusterService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         throw new UnsupportedOperationException("cannot initialize " + this.getClass().getSimpleName());
     }
 

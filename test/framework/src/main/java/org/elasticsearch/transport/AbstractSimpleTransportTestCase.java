@@ -674,10 +674,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new, handler);
             serviceC.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new, handler);
 
+            final Compression.Scheme scheme;
+            if (serviceA.getLocalDiscoNode().getVersion().onOrAfter(Compression.Scheme.LZ4_VERSION) &&
+                serviceC.getLocalDiscoNode().getVersion().onOrAfter(Compression.Scheme.LZ4_VERSION)) {
+                scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
+            } else {
+                scheme = Compression.Scheme.DEFLATE;
+            }
+
             Settings settingsWithCompress = Settings.builder()
                 .put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.INDEXING_DATA)
-                .put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(),
-                    randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4))
+                .put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), scheme)
                 .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
@@ -965,6 +972,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 
@@ -1031,6 +1039,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 public void handleException(TransportException exp) {
                     latch.countDown();
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 
@@ -1643,6 +1652,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 
@@ -2415,7 +2425,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 transportResponseHandler);
             receivedLatch.await();
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
-                TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
+                TransportStats transportStats = serviceC.transport.getStats(); // request has been send
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());

@@ -182,7 +182,7 @@ public class ElasticsearchGeoAssertions {
         assertEquals(g1.getGeom(), g2.getGeom());
     }
 
-    public static void assertEquals(ShapeCollection s1, ShapeCollection s2) {
+    public static void assertEquals(ShapeCollection<?> s1, ShapeCollection<?> s2) {
         Assert.assertEquals(s1.size(), s2.size());
         for (int i = 0; i < s1.size(); i++) {
             assertEquals(s1.get(i), s2.get(i));
@@ -197,7 +197,7 @@ public class ElasticsearchGeoAssertions {
             JtsPoint p2 = (JtsPoint) s2;
             Assert.assertEquals(p1, p2);
         } else if (s1 instanceof ShapeCollection && s2 instanceof ShapeCollection) {
-            assertEquals((ShapeCollection)s1, (ShapeCollection)s2);
+            assertEquals((ShapeCollection<?>) s1, (ShapeCollection<?>) s2);
         } else if (s1 instanceof GeoCircle && s2 instanceof GeoCircle) {
             Assert.assertEquals(s1, s2);
         } else if (s1 instanceof RectangleImpl && s2 instanceof RectangleImpl) {

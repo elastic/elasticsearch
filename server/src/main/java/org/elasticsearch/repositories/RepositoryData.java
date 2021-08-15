@@ -596,6 +596,13 @@ public final class RepositoryData {
     }
 
     /**
+     * Checks if any snapshot in this repository contains the specified index in {@code indexName}
+     */
+    public boolean hasIndex(String indexName) {
+        return indices.containsKey(indexName);
+    }
+
+    /**
      * Resolve the given index names to index ids, creating new index ids for
      * new indices in the repository.
      *
@@ -736,7 +743,7 @@ public final class RepositoryData {
             builder.endArray();
             if (shouldWriteShardGens) {
                 builder.startArray(SHARD_GENERATIONS);
-                for (String gen : shardGenerations.getGens(indexId)) {
+                for (ShardGeneration gen : shardGenerations.getGens(indexId)) {
                     builder.value(gen);
                 }
                 builder.endArray();
@@ -951,7 +958,7 @@ public final class RepositoryData {
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             final String indexName = parser.currentName();
             final List<SnapshotId> snapshotIds = new ArrayList<>();
-            final List<String> gens = new ArrayList<>();
+            final List<ShardGeneration> gens = new ArrayList<>();
 
             IndexId indexId = null;
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
@@ -995,7 +1002,7 @@ public final class RepositoryData {
                     case SHARD_GENERATIONS:
                         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, currentToken, parser);
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            gens.add(parser.textOrNull());
+                            gens.add(ShardGeneration.fromXContent(parser));
                         }
                         break;
                 }
@@ -1004,7 +1011,7 @@ public final class RepositoryData {
             indexSnapshots.put(indexId, Collections.unmodifiableList(snapshotIds));
             indexLookup.put(indexId.getId(), indexId);
             for (int i = 0; i < gens.size(); i++) {
-                String parsedGen = gens.get(i);
+                ShardGeneration parsedGen = gens.get(i);
                 if (fixBrokenShardGens) {
                     parsedGen = ShardGenerations.fixShardGeneration(parsedGen);
                 }

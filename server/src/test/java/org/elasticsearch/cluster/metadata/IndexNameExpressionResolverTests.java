@@ -1606,7 +1606,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .indexAliases(state, "test-0", x -> true, true, new HashSet<>(Arrays.asList("test-0", "test-alias")));
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
-        DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
+        DocWriteRequest<?> request = randomFrom(new IndexRequest("test-alias"),
             new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, false));
@@ -1626,7 +1626,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .indexAliases(state, "test-0", x -> true, true, new HashSet<>(Arrays.asList("test-0", "test-1", "test-alias")));
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
-        DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
+        DocWriteRequest<?> request = randomFrom(new IndexRequest("test-alias"),
             new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, false));

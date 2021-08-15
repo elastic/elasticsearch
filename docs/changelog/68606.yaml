@@ -1,7 +1,0 @@
-pr: 68606
-issues: []
-area: SQL
-type: UNKNOWN
-summary: Add text formatting support for multivalue
-versions:
-  - v8.0.0

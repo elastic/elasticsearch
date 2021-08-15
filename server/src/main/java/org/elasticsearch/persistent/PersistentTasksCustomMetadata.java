@@ -127,12 +127,12 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             this.taskName = taskName;
         }
 
-        private TaskDescriptionBuilder setParams(Params params) {
+        private TaskDescriptionBuilder<Params> setParams(Params params) {
             this.params = params;
             return this;
         }
 
-        private TaskDescriptionBuilder setState(PersistentTaskState state) {
+        private TaskDescriptionBuilder<Params> setState(PersistentTaskState state) {
             this.state = state;
             return this;
         }
@@ -586,7 +586,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         }
 
         private <Params extends PersistentTaskParams> Builder setTasks(List<TaskBuilder<Params>> tasks) {
-            for (TaskBuilder builder : tasks) {
+            for (TaskBuilder<Params> builder : tasks) {
                 PersistentTask<?> task = builder.build();
                 this.tasks.put(task.getId(), task);
             }

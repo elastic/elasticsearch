@@ -16,7 +16,6 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -48,11 +47,12 @@ public class IndexAbstractionResolver {
         boolean wildcardSeen = false;
         for (String index : indices) {
             String indexAbstraction;
-            boolean minus = false;
+            final boolean minus;
             if (index.charAt(0) == '-' && wildcardSeen) {
                 indexAbstraction = index.substring(1);
                 minus = true;
             } else {
+                minus = false;
                 indexAbstraction = index;
             }
 
@@ -80,25 +80,22 @@ public class IndexAbstractionResolver {
 
             if (replaceWildcards && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
-                Set<String> resolvedIndices = new HashSet<>();
+                boolean isWildcardExpansionEmpty = true;
                 for (String authorizedIndex : availableIndexAbstractions) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex) &&
                         isIndexVisible(indexAbstraction, authorizedIndex, indicesOptions, metadata, indexNameExpressionResolver,
                             includeDataStreams)) {
-                        resolvedIndices.add(authorizedIndex);
+                        isWildcardExpansionEmpty = false;
+                        if (minus) {
+                            finalIndices.remove(authorizedIndex);
+                        } else {
+                            finalIndices.add(authorizedIndex);
+                        }
                     }
                 }
-                if (resolvedIndices.isEmpty()) {
-                    //es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
-                    if (indicesOptions.allowNoIndices() == false) {
-                        throw new IndexNotFoundException(indexAbstraction);
-                    }
-                } else {
-                    if (minus) {
-                        finalIndices.removeAll(resolvedIndices);
-                    } else {
-                        finalIndices.addAll(resolvedIndices);
-                    }
+                //es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
+                if (isWildcardExpansionEmpty && indicesOptions.allowNoIndices() == false) {
+                    throw new IndexNotFoundException(indexAbstraction);
                 }
             } else if (dateMathName.equals(indexAbstraction)) {
                 if (minus) {

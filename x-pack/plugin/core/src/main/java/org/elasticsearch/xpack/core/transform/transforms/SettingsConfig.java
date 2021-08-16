@@ -94,7 +94,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         } else {
             this.datesAsEpochMillis = DEFAULT_DATES_AS_EPOCH_MILLIS;
         }
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {  // TODO: 7.15
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
             this.interimResults = in.readOptionalInt();
         } else {
             this.interimResults = DEFAULT_INTERIM_RESULTS;
@@ -146,7 +146,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
             out.writeOptionalInt(datesAsEpochMillis);
         }
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {  // TODO: 7.15
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             out.writeOptionalInt(interimResults);
         }
     }

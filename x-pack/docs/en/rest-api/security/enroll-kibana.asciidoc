@@ -42,9 +42,9 @@ The API returns the following response:
   "http_ca" : "MIIJlAIBAzVoGCSqGSIb3...vsDfsA3UZBAjEPfhubpQysAICAA=", <3>
 }
 ----
-<1> The bearer token for the `elastic/kibana` service account.
-Use this token to {ref}/service-accounts.html#authenticate-with-service-account-token[authenticate the service account] with {es}.
+<1> The name of the bearer token for the `elastic/kibana` service account.
 <2> The value of the bearer token for the `elastic/kibana` service account.
+Use this value to {ref}/service-accounts.html#authenticate-with-service-account-token[authenticate the service account] with {es}.
 <3> The CA certificate used to sign the node certificates that {es} uses for TLS
 on the HTTP layer. The certificate is returned as a Base64 encoded string of the
 ASN.1 DER encoding of the certificate.

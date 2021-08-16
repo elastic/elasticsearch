@@ -559,7 +559,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                       List<String> dataStreams, List<SnapshotFeatureInfo> featureStates, long startTime, long repositoryStateId,
                       ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure, Map<String, Object> userMetadata,
                       Version version, @Nullable SnapshotId source,
-                      ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId) {
+                      @Nullable ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
@@ -659,7 +659,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             return new SnapshotsInProgress.Entry(
                     snapshot, includeGlobalState, partial, state, indices, dataStreams, featureStates, startTime, repositoryStateId,
-                    shards, failure, userMetadata, version, source, source == null ? null : clones);
+                    shards, failure, userMetadata, version, source, clones);
         }
 
         private static boolean assertShardsConsistent(SnapshotId source, State state, Map<String, IndexId> indices,
@@ -1043,8 +1043,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 out.writeStringCollection(dataStreams);
             }
             if (out.getVersion().onOrAfter(SnapshotsService.CLONE_SNAPSHOT_VERSION)) {
-                out.writeOptionalWriteable(source);
-                out.writeMap(shardStatusByRepoShardId);
+                if (source == null) {
+                    out.writeMap(ImmutableOpenMap.of());
+                } else {
+                    out.writeMap(shardStatusByRepoShardId);
+                }
             }
             if (out.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
                 out.writeList(featureStates);

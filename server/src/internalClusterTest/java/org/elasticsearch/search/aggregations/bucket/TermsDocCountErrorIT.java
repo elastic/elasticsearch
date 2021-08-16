@@ -1034,7 +1034,6 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
      * Tests the upper bounds are correct when performing incremental reductions
      * See https://github.com/elastic/elasticsearch/issues/40005 for more details
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75667")
     public void testIncrementalReduction() {
         SearchResponse response = client().prepareSearch("idx_fixed_docs_3", "idx_fixed_docs_4", "idx_fixed_docs_5")
             .addAggregation(terms("terms")

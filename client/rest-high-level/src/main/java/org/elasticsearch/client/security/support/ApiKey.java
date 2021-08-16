@@ -109,6 +109,14 @@ public final class ApiKey {
         return metadata;
     }
 
+    /**
+     * API keys can be retrieved with either {@link org.elasticsearch.client.security.GetApiKeyRequest}
+     * or {@link org.elasticsearch.client.security.QueryApiKeyRequest}. When sorting is specified for
+     * QueryApiKeyRequest, the sort values for each key is returned along with each API key.
+     *
+     * @return Sort values for this API key if it is retrieved with QueryApiKeyRequest and sorting is
+     *         required. Otherwise, it is null.
+     */
     public Object[] getSortValues() {
         return sortValues;
     }

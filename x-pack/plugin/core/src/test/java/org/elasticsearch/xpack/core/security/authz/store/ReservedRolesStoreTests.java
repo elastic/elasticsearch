@@ -53,6 +53,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
@@ -323,7 +324,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(enrichUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
-        final String index = "enrich-." + randomAlphaOfLength(randomIntBetween(0, 13));
+        final String index = EnrichPolicy.ENRICH_INDEX_PATTERN + randomAlphaOfLength(randomIntBetween(0, 13));
         assertThat(enrichUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
         assertThat(enrichUserRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
         assertThat(enrichUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));

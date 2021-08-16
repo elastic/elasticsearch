@@ -337,11 +337,11 @@ public class RestoreService implements ClusterStateApplier {
                 return true;
             }
             logger.warn(
-                "Restoring snapshot ["
-                    + snapshotInfo.snapshotId()
-                    + "]: skipping feature ["
-                    + featureName
-                    + "] because it is not available in this cluster"
+                () -> new ParameterizedMessage(
+                    "Restoring snapshot[{}] skipping feature [{}] because it is not available in this cluster",
+                    snapshotInfo.snapshotId(),
+                    featureName
+                )
             );
             return false;
         })

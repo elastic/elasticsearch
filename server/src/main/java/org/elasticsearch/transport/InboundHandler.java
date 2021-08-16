@@ -160,7 +160,7 @@ public class InboundHandler {
             final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
             assertRemoteVersion(stream, header.getVersion());
             final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                header.isCompressed(), header.isHandshake(), message.takeBreakerReleaseControl());
+                header.getCompressionScheme(), header.isHandshake(), message.takeBreakerReleaseControl());
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
@@ -175,7 +175,7 @@ public class InboundHandler {
             }
         } else {
             final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                header.isCompressed(), header.isHandshake(), message.takeBreakerReleaseControl());
+                header.getCompressionScheme(), header.isHandshake(), message.takeBreakerReleaseControl());
             try {
                 messageListener.onRequestReceived(requestId, action);
                 if (message.isShortCircuit()) {

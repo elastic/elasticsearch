@@ -1276,7 +1276,7 @@ Last time JVM statistics were refreshed.
 
 `uptime`::
 (optional, <<time-units,time value>>)
-Human readable JVM uptime. Enabled by the `human` parameter.
+Human-readable JVM uptime. Enabled by the `human` parameter.
 
 `uptime_in_millis`::
 (integer)

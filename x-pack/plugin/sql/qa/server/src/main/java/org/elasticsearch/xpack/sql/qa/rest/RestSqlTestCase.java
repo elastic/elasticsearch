@@ -277,6 +277,16 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertResponse(expected, runSql(mode, "SELECT DAY_OF_YEAR(test), COUNT(*) FROM test", columnar));
     }
 
+    public void testCustomTimeZone() throws IOException {
+        String mode = randomMode();
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo(mode, "t", "datetime", JDBCType.TIMESTAMP, 34)));
+        expected.put("rows", singletonList(singletonList("2021-08-17T00:00:00.000+01:00")));
+
+        assertResponse(expected, runSql(mode, "SELECT '2021-08-17T00:00'::timestamp t", "", false, ZoneId.of("+01:00")));
+    }
+
     public void testScoreWithFieldNamedScore() throws IOException {
         Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
@@ -605,20 +615,20 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     private Map<String, Object> runSql(String mode, String sql) throws IOException {
-        return runSql(mode, sql, StringUtils.EMPTY, randomBoolean());
+        return runSql(mode, sql, StringUtils.EMPTY, randomBoolean(), null);
     }
 
     private Map<String, Object> runSql(String mode, String sql, boolean columnar) throws IOException {
-        return runSql(mode, sql, StringUtils.EMPTY, columnar);
+        return runSql(mode, sql, StringUtils.EMPTY, columnar, null);
     }
 
-    private Map<String, Object> runSql(String mode, String sql, String suffix, boolean columnar) throws IOException {
+    private Map<String, Object> runSql(String mode, String sql, String suffix, boolean columnar, ZoneId zone) throws IOException {
         // put an explicit "columnar": false parameter or omit it altogether, it should make no difference
-        return runSql(
-            new StringEntity(query(sql).mode(mode).columnar(columnarValue(columnar)).toString(), ContentType.APPLICATION_JSON),
-            suffix,
-            mode
-        );
+        RequestObjectBuilder builder = query(sql).mode(mode).columnar(columnarValue(columnar));
+        if (zone != null) {
+            builder = builder.timeZone(zone.toString());
+        }
+        return runSql(new StringEntity(builder.toString(), ContentType.APPLICATION_JSON), suffix, mode);
     }
 
     protected Map<String, Object> runTranslateSql(String sql) throws IOException {

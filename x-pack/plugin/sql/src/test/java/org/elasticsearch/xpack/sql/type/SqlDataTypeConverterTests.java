@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import java.time.OffsetTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
@@ -34,6 +35,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -51,6 +53,8 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.asDateTimeWithNanos;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
 
 public class SqlDataTypeConverterTests extends ESTestCase {
+
+    private static final ZoneId MINUS_5 = ZoneId.of("-05:00");
 
     public void testConversionToString() {
         DataType to = KEYWORD;
@@ -79,6 +83,12 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals("1973-11-29T21:33:09.101Z", conversion.convert(DateUtils.asDateTimeWithMillis(123456789101L)));
             assertEquals("1966-02-02T02:26:50.899Z", conversion.convert(DateUtils.asDateTimeWithMillis(-123456789101L)));
             assertEquals("2020-05-01T10:20:30.123456789Z", conversion.convert(asDateTimeWithNanos("2020-05-01T10:20:30.123456789Z")));
+        }
+        {
+            Converter conversion = converterFor(DATETIME, to);
+            assertNull(conversion.convert(null));
+            assertEquals("1973-11-29T16:33:09.101-05:00", conversion.convert(DateUtils.asDateTimeWithMillis(123456789101L, MINUS_5)));
+            assertEquals("1966-02-01T21:26:50.899-05:00", conversion.convert(DateUtils.asDateTimeWithMillis(-123456789101L, MINUS_5)));
         }
     }
 
@@ -271,29 +281,29 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
-            assertEquals(dateTime(10L), conversion.convert(10.0));
-            assertEquals(dateTime(10L), conversion.convert(10.1));
-            assertEquals(dateTime(11L), conversion.convert(10.6));
+            assertEquals(asDateTime(10L), conversion.convert(10.0));
+            assertEquals(asDateTime(10L), conversion.convert(10.1));
+            assertEquals(asDateTime(11L), conversion.convert(10.6));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(INTEGER, to);
             assertNull(conversion.convert(null));
-            assertEquals(dateTime(10L), conversion.convert(10));
-            assertEquals(dateTime(-134L), conversion.convert(-134));
+            assertEquals(asDateTime(10L), conversion.convert(10));
+            assertEquals(asDateTime(-134L), conversion.convert(-134));
         }
         {
             Converter conversion = converterFor(BOOLEAN, to);
             assertNull(conversion.convert(null));
-            assertEquals(dateTime(1), conversion.convert(true));
-            assertEquals(dateTime(0), conversion.convert(false));
+            assertEquals(asDateTime(1), conversion.convert(true));
+            assertEquals(asDateTime(0), conversion.convert(false));
         }
         {
             Converter conversion = converterFor(DATE, to);
             assertNull(conversion.convert(null));
-            assertEquals(dateTime(123379200000L), conversion.convert(asDateOnly(123456789101L)));
-            assertEquals(dateTime(-123465600000L), conversion.convert(asDateOnly(-123456789101L)));
+            assertEquals(asDateTime(123379200000L), conversion.convert(asDateOnly(123456789101L)));
+            assertEquals(asDateTime(-123465600000L), conversion.convert(asDateOnly(-123456789101L)));
         }
         {
             assertNull(converterFor(TIME, to));
@@ -302,23 +312,23 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             Converter conversion = converterFor(KEYWORD, to);
             assertNull(conversion.convert(null));
 
-            assertEquals(dateTime(0L), conversion.convert("1970-01-01"));
-            assertEquals(dateTime(1000L), conversion.convert("1970-01-01T00:00:01Z"));
+            assertEquals(asDateTime(0L), conversion.convert("1970-01-01"));
+            assertEquals(asDateTime(1000L), conversion.convert("1970-01-01T00:00:01Z"));
 
-            assertEquals(dateTime(1483228800000L), conversion.convert("2017-01-01T00:00:00Z"));
-            assertEquals(dateTime(1483228800000L), conversion.convert("2017-01-01 00:00:00Z"));
+            assertEquals(asDateTime(1483228800000L), conversion.convert("2017-01-01T00:00:00Z"));
+            assertEquals(asDateTime(1483228800000L), conversion.convert("2017-01-01 00:00:00Z"));
 
-            assertEquals(dateTime(1483228800123L), conversion.convert("2017-01-01T00:00:00.123Z"));
-            assertEquals(dateTime(1483228800123L), conversion.convert("2017-01-01 00:00:00.123Z"));
+            assertEquals(asDateTime(1483228800123L), conversion.convert("2017-01-01T00:00:00.123Z"));
+            assertEquals(asDateTime(1483228800123L), conversion.convert("2017-01-01 00:00:00.123Z"));
 
-            assertEquals(dateTime(18000321L), conversion.convert("1970-01-01T00:00:00.321-05:00"));
-            assertEquals(dateTime(18000321L), conversion.convert("1970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01 00:00:00.321-05:00"));
 
-            assertEquals(dateTime(3849948162000321L), conversion.convert("+123970-01-01T00:00:00.321-05:00"));
-            assertEquals(dateTime(3849948162000321L), conversion.convert("+123970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(3849948162000321L, MINUS_5), conversion.convert("+123970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(3849948162000321L, MINUS_5), conversion.convert("+123970-01-01 00:00:00.321-05:00"));
 
-            assertEquals(dateTime(-818587277999679L), conversion.convert("-23970-01-01T00:00:00.321-05:00"));
-            assertEquals(dateTime(-818587277999679L), conversion.convert("-23970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(-818587277999679L, MINUS_5), conversion.convert("-23970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(-818587277999679L, MINUS_5), conversion.convert("-23970-01-01 00:00:00.321-05:00"));
 
             // double check back and forth conversion
             ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
@@ -733,10 +743,6 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         return randomFrom(SqlDataTypes.types().stream()
                 .filter(SqlDataTypes::isInterval)
                 .collect(toList()));
-    }
-
-    static ZonedDateTime dateTime(long millisSinceEpoch) {
-        return DateUtils.asDateTimeWithMillis(millisSinceEpoch);
     }
 
     static ZonedDateTime date(long millisSinceEpoch) {

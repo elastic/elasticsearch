@@ -9,7 +9,18 @@ package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 
+import java.time.ZoneId;
+
 public interface Converter extends NamedWriteable {
 
-    Object convert(Object value);
+    default Object convert(Object value) {
+        return convert(value, null);
+    }
+
+    /**
+     * Converts `value` to the target type considering `zoneId` if needed.
+     * `zoneId` can be null and it is ignored for all non-timezone aware conversions.
+     */
+    Object convert(Object value, ZoneId zoneId);
+
 }

@@ -20,8 +20,10 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.OffsetTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.BOOL_TO_INT;
@@ -325,6 +327,10 @@ public final class SqlDataTypeConverter {
     }
 
     public static Object convert(Object value, DataType dataType) {
+        return convert(value, dataType, null);
+    }
+
+    public static Object convert(Object value, DataType dataType, ZoneId zoneId) {
         DataType detectedType = SqlDataTypes.fromJava(value);
 
         if (detectedType == null) {
@@ -341,7 +347,7 @@ public final class SqlDataTypeConverter {
             throw new SqlIllegalArgumentException("cannot convert from [{}] to [{}]", value, dataType.typeName());
         }
 
-        return converter.convert(value);
+        return converter.convert(value, zoneId);
     }
 
     /**
@@ -390,10 +396,14 @@ public final class SqlDataTypeConverter {
 
         public static final String NAME = "dtc-sql";
 
-        private final Function<Object, Object> converter;
+        private final BiFunction<Object, ZoneId, Object> converter;
+
+        SqlConverter(BiFunction<Object, ZoneId, Object> converter) {
+            this.converter = converter;
+        }
 
         SqlConverter(Function<Object, Object> converter) {
-            this.converter = converter;
+            this((v, z) -> converter.apply(v));
         }
 
         private static Function<Object, Object> fromTime(Function<Long, Object> converter) {
@@ -433,11 +443,11 @@ public final class SqlDataTypeConverter {
         }
 
         @Override
-        public Object convert(Object l) {
-            if (l == null) {
+        public Object convert(Object value, ZoneId zoneId) {
+            if (value == null) {
                 return null;
             }
-            return converter.apply(l);
+            return converter.apply(value, zoneId);
         }
 
         @Override

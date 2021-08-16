@@ -417,13 +417,13 @@ public class SqlFunctionRegistry extends FunctionRegistry {
     protected static <T extends Function> FunctionDefinition def(Class<T> function, CastBuilder<T> ctorRef, String... names) {
         SqlFunctionBuilder builder = (source, children, cfg, distinct) -> {
             forbidDistinct(source, distinct);
-            return ctorRef.build(source, children.get(0), children.get(0).dataType());
+            return ctorRef.build(source, children.get(0), children.get(0).dataType(), cfg.zoneId());
         };
         return def(function, builder, false, names);
     }
 
     protected interface CastBuilder<T> {
-        T build(Source source, Expression expression, DataType dataType);
+        T build(Source source, Expression expression, DataType dataType, ZoneId zi);
     }
 
     private static void forbidDistinct(Source source, Boolean distinct) {

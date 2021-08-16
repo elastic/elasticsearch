@@ -408,11 +408,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Cast visitCastExpression(CastExpressionContext ctx) {
         CastTemplateContext castTc = ctx.castTemplate();
         if (castTc != null) {
-            return new Cast(source(castTc), expression(castTc.expression()), typedParsing(this, castTc.dataType(), DataType.class));
+            return new Cast(source(castTc), expression(castTc.expression()), typedParsing(this, castTc.dataType(), DataType.class),
+                zoneId);
         } else {
             ConvertTemplateContext convertTc = ctx.convertTemplate();
             DataType dataType = dataType(source(convertTc.dataType()), convertTc.dataType().getText());
-            return new Cast(source(convertTc), expression(convertTc.expression()), dataType);
+            return new Cast(source(convertTc), expression(convertTc.expression()), dataType, zoneId);
         }
     }
 
@@ -427,7 +428,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx) {
-        return new Cast(source(ctx), expression(ctx.primaryExpression()), typedParsing(this, ctx.dataType(), DataType.class));
+        return new Cast(source(ctx), expression(ctx.primaryExpression()), typedParsing(this, ctx.dataType(), DataType.class), zoneId);
     }
 
     @Override

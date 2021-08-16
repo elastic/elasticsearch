@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -100,6 +100,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.E;
@@ -434,12 +435,16 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
-        assertEquals("2019-08-08T12:34:56.000Z", rq.upper());
-        assertEquals("2019-08-08T12:34:56.000Z", rq.lower());
+        assertEquals(asStringInZone("2019-08-08T12:34:56.000", zoneId), rq.upper());
+        assertEquals(asStringInZone("2019-08-08T12:34:56.000", zoneId), rq.lower());
         assertTrue(rq.includeLower());
         assertTrue(rq.includeUpper());
         assertEquals(DATE_FORMAT, rq.format());
         assertEquals(zoneId, rq.zoneId());
+    }
+
+    private String asStringInZone(String dateString, ZoneId zoneId) {
+        return org.elasticsearch.xpack.ql.type.DateUtils.toString(asDateTime(dateString, zoneId));
     }
 
     public void testTermEqualityForDateWithLiteralTime() {

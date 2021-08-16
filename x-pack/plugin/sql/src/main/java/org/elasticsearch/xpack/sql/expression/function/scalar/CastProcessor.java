@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.type.Converter;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Objects;
 
 public class CastProcessor implements Processor {
@@ -19,13 +20,16 @@ public class CastProcessor implements Processor {
     public static final String NAME = "ca";
 
     private final Converter conversion;
+    private final ZoneId zoneId;
 
-    public CastProcessor(Converter conversion) {
+    public CastProcessor(Converter conversion, ZoneId zoneId) {
         this.conversion = conversion;
+        this.zoneId = zoneId;
     }
 
     public CastProcessor(StreamInput in) throws IOException {
         conversion = in.readNamedWriteable(Converter.class);
+        zoneId = in.readOptionalZoneId();
     }
 
     @Override
@@ -36,16 +40,19 @@ public class CastProcessor implements Processor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(conversion);
+        out.writeOptionalZoneId(zoneId);
     }
 
     @Override
     public Object process(Object input) {
-        return conversion.convert(input);
+        return conversion.convert(input, zoneId);
     }
 
     Converter converter() {
         return conversion;
     }
+
+    ZoneId zoneId() { return zoneId; }
 
     @Override
     public boolean equals(Object obj) {
@@ -58,12 +65,13 @@ public class CastProcessor implements Processor {
         }
 
         CastProcessor other = (CastProcessor) obj;
-        return Objects.equals(conversion, other.conversion);
+        return Objects.equals(conversion, other.conversion)
+            && Objects.equals(zoneId, other.zoneId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(conversion);
+        return Objects.hash(conversion, zoneId);
     }
 
     @Override

@@ -13,9 +13,11 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
+import java.util.function.BiFunction;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -440,7 +442,7 @@ public final class DataTypeConverter {
         RATIONAL_TO_DATETIME(toDateTime(RATIONAL_TO_LONG)),
         INTEGER_TO_DATETIME(toDateTime(INTEGER_TO_LONG)),
         BOOL_TO_DATETIME(toDateTime(BOOL_TO_INT)),
-        STRING_TO_DATETIME(fromString(DateUtils::asDateTime, "datetime")),
+        STRING_TO_DATETIME((v, z) -> fromString(s -> DateUtils.asDateTime(s, z), "datetime").apply(v)),
 
         NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
         STRING_TO_BOOLEAN(fromString(DataTypeConverter::convertToBoolean, "boolean")),
@@ -457,10 +459,14 @@ public final class DataTypeConverter {
 
         public static final String NAME = "dtc-def";
 
-        private final Function<Object, Object> converter;
+        private final BiFunction<Object, ZoneId, Object> converter;
+
+        DefaultConverter(BiFunction<Object, ZoneId, Object> converter) {
+            this.converter = converter;
+        }
 
         DefaultConverter(Function<Object, Object> converter) {
-            this.converter = converter;
+            this((v, z) -> converter.apply(v));
         }
 
         private static Function<Object, Object> fromDouble(DoubleFunction<Object> converter) {
@@ -496,11 +502,11 @@ public final class DataTypeConverter {
         }
 
         @Override
-        public Object convert(Object l) {
-            if (l == null) {
+        public Object convert(Object value, ZoneId zoneId) {
+            if (value == null) {
                 return null;
             }
-            return converter.apply(l);
+            return converter.apply(value, zoneId);
         }
 
         @Override

@@ -217,12 +217,12 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     public static Number tan(Number value) {
         return MathOperation.TAN.apply(value);
     }
-    
-    
+
+
 
     //
     // Date/Time functions
-    //    
+    //
     @Deprecated
     public static Integer dateTimeChrono(Object dateTime, String tzId, String chronoName) {
         String extractorName = null;
@@ -238,7 +238,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         }
         return dateTimeExtract(dateTime, tzId, extractorName);
     }
-    
+
     public static Integer dateTimeExtract(Object dateTime, String tzId, String extractorName) {
         if (dateTime == null || tzId == null || extractorName == null) {
             return null;
@@ -508,8 +508,13 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     // Casting
     //
     public static Object cast(Object value, String typeName) {
+        return cast(value, typeName, null);
+    }
+
+    public static Object cast(Object value, String typeName, String zoneId) {
         // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
         // since casting works for ZonedDateTime objects only
-        return SqlDataTypeConverter.convert(asDateTime(value, true), SqlDataTypes.fromSqlOrEsType(typeName));
+        return SqlDataTypeConverter.convert(asDateTime(value, true), SqlDataTypes.fromSqlOrEsType(typeName),
+            zoneId == null ? null : ZoneId.of(zoneId));
     }
 }

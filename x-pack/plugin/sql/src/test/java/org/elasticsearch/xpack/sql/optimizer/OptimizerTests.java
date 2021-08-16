@@ -269,7 +269,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testConstantFoldingDatetime() {
-        Expression cast = new Cast(EMPTY, literal("2018-01-19T10:23:27Z"), DATETIME);
+        Expression cast = new Cast(EMPTY, literal("2018-01-19T10:23:27Z"), DATETIME, UTC);
         assertEquals(2018, foldFunction(new Year(EMPTY, cast, UTC)));
         assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, UTC)));
@@ -344,7 +344,7 @@ public class OptimizerTests extends ESTestCase {
     public void testNullFoldingIsNullWithCast() {
         FoldNull foldNull = new FoldNull();
 
-        Cast cast = new Cast(EMPTY, L("foo"), DATE);
+        Cast cast = new Cast(EMPTY, L("foo"), DATE, UTC);
         IsNull isNull = new IsNull(EMPTY, cast);
         final IsNull isNullOpt = (IsNull) foldNull.rule(isNull);
         assertEquals(isNull, isNullOpt);
@@ -353,7 +353,7 @@ public class OptimizerTests extends ESTestCase {
                 () -> isNullOpt.asPipe().asProcessor().process(null));
         assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
 
-        isNull = new IsNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types())));
+        isNull = new IsNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types()), UTC));
         assertTrue((Boolean) ((IsNull) foldNull.rule(isNull)).asPipe().asProcessor().process(null));
     }
 
@@ -362,7 +362,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(true, foldNull.rule(new IsNotNull(EMPTY, TRUE)).fold());
         assertEquals(false, foldNull.rule(new IsNotNull(EMPTY, NULL)).fold());
 
-        Cast cast = new Cast(EMPTY, L("foo"), DATE);
+        Cast cast = new Cast(EMPTY, L("foo"), DATE, UTC);
         IsNotNull isNotNull = new IsNotNull(EMPTY, cast);
         assertEquals(isNotNull, foldNull.rule(isNotNull));
     }
@@ -370,7 +370,7 @@ public class OptimizerTests extends ESTestCase {
     public void testNullFoldingIsNotNullWithCast() {
         FoldNull foldNull = new FoldNull();
 
-        Cast cast = new Cast(EMPTY, L("foo"), DATE);
+        Cast cast = new Cast(EMPTY, L("foo"), DATE, UTC);
         IsNotNull isNotNull = new IsNotNull(EMPTY, cast);
         final IsNotNull isNotNullOpt = (IsNotNull) foldNull.rule(isNotNull);
         assertEquals(isNotNull, isNotNullOpt);
@@ -379,7 +379,7 @@ public class OptimizerTests extends ESTestCase {
                 () -> isNotNullOpt.asPipe().asProcessor().process(null));
         assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
 
-        isNotNull = new IsNotNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types())));
+        isNotNull = new IsNotNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types()), UTC));
         assertFalse((Boolean) ((IsNotNull) foldNull.rule(isNotNull)).asPipe().asProcessor().process(null));
     }
 
@@ -403,11 +403,11 @@ public class OptimizerTests extends ESTestCase {
     public void testNullFoldingOnCast() {
         FoldNull foldNull = new FoldNull();
 
-        Cast cast = new Cast(EMPTY, NULL, randomFrom(DataTypes.types()));
+        Cast cast = new Cast(EMPTY, NULL, randomFrom(DataTypes.types()), UTC);
         assertEquals(Nullability.TRUE, cast.nullable());
         assertNull(foldNull.rule(cast).fold());
 
-        cast = new Cast(EMPTY, L("foo"), DATE);
+        cast = new Cast(EMPTY, L("foo"), DATE, UTC);
         assertEquals(Nullability.UNKNOWN, cast.nullable());
         assertEquals(cast, foldNull.rule(cast));
     }
@@ -1109,13 +1109,13 @@ public class OptimizerTests extends ESTestCase {
 
     public void testReplaceCast() {
         FieldAttribute a = getFieldAttribute("a");
-        Cast c = new Cast(EMPTY, a, a.dataType());
+        Cast c = new Cast(EMPTY, a, a.dataType(), UTC);
         assertSame(a, new Optimizer.PruneCast().maybePruneCast(c));
     }
 
     public void testReplaceCastOnLiteral() {
         Literal literal = literal("string");
-        Cast c = new Cast(EMPTY, literal, literal.dataType());
+        Cast c = new Cast(EMPTY, literal, literal.dataType(), UTC);
         assertSame(literal, new Optimizer.PruneCast().maybePruneCast(c));
     }
 

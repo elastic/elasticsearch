@@ -15,8 +15,10 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
+import java.time.ZoneId;
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -25,20 +27,22 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 public class Cast extends UnaryScalarFunction {
 
     private final DataType dataType;
+    private final ZoneId zoneId;
 
-    public Cast(Source source, Expression field, DataType dataType) {
+    public Cast(Source source, Expression field, DataType dataType, ZoneId zoneId) {
         super(source, field);
         this.dataType = dataType;
+        this.zoneId = zoneId;
     }
 
     @Override
     protected NodeInfo<Cast> info() {
-        return NodeInfo.create(this, Cast::new, field(), dataType);
+        return NodeInfo.create(this, Cast::new, field(), dataType, zoneId);
     }
 
     @Override
     protected UnaryScalarFunction replaceChild(Expression newChild) {
-        return new Cast(source(), newChild, dataType);
+        return new Cast(source(), newChild, dataType, zoneId);
     }
 
     public DataType from() {
@@ -54,6 +58,8 @@ public class Cast extends UnaryScalarFunction {
         return dataType;
     }
 
+    public ZoneId zoneId() { return zoneId; }
+
     @Override
     public boolean foldable() {
         return field().foldable();
@@ -61,7 +67,7 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     public Object fold() {
-        return SqlDataTypeConverter.convert(field().fold(), dataType);
+        return SqlDataTypeConverter.convert(field().fold(), dataType, zoneId);
     }
 
     @Override
@@ -78,24 +84,36 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     protected Processor makeProcessor() {
-        return new CastProcessor(SqlDataTypeConverter.converterFor(from(), to()));
+        return new CastProcessor(SqlDataTypeConverter.converterFor(from(), to()), zoneId);
     }
 
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate fieldAsScript = asScript(field());
-        return new ScriptTemplate(
-                formatTemplate(format("{sql}.", "cast({},{})", fieldAsScript.template())),
+
+        if (DataTypes.isDateTime(dataType)) {
+            return new ScriptTemplate(
+                formatTemplate(format("{sql}.", "cast({},{},{})", fieldAsScript.template())),
                 paramsBuilder()
                     .script(fieldAsScript.params())
                     .variable(dataType.name())
-                    .build(),
-                dataType());
+                    .variable(zoneId.getId()).build(),
+                dataType()
+            );
+        } else {
+            return new ScriptTemplate(
+                formatTemplate(format("{sql}.", "cast({},{})", fieldAsScript.template())),
+                paramsBuilder()
+                    .script(fieldAsScript.params())
+                    .variable(dataType.name()).build(),
+                dataType()
+            );
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), dataType);
+        return Objects.hash(super.hashCode(), dataType, zoneId);
     }
 
     @Override

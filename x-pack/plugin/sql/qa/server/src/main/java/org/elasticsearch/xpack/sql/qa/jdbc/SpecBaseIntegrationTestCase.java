@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.TimeZone;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.TestUtils.pathAndName;
@@ -114,6 +116,8 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         return between(1, 150);
     }
 
+    private static final Pattern TZ_TEST_PARAM_PATTERN = Pattern.compile("(?i).*-TZ\\[([^]]*)]");
+
     // TODO: use UTC for now until deciding on a strategy for handling date extraction
     @Override
     protected Properties connectionProperties() {
@@ -121,7 +125,13 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         // H2 runs with test JVM's set (randomized) timezone, while the ES node with local test machine's. H2 will not take into account
         // TZ offsets for some time functions (YEAR/MONTH/HOUR) with timestamps, while ES will normalize the value to the given timezone.
         // So ES will need to be given the corresponding timezone (i.e. same as with H2's), in order to produce the same results.
-        final String timeZoneID = testName.toUpperCase(Locale.ROOT).endsWith("TZSYNC") ? TimeZone.getDefault().getID() : "UTC";
+        String timeZoneID = testName.toUpperCase(Locale.ROOT).endsWith("TZSYNC") ? TimeZone.getDefault().getID() : "UTC";
+
+        Matcher tzMatcher = TZ_TEST_PARAM_PATTERN.matcher(testName);
+        if (tzMatcher.matches()) {
+            timeZoneID = tzMatcher.group(1);
+        }
+
         connectionProperties.setProperty(JDBC_TIMEZONE, timeZoneID);
         return connectionProperties;
     }

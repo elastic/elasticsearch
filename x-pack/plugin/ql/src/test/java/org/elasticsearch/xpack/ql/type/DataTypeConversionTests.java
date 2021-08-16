@@ -12,8 +12,10 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
+import static java.time.ZoneOffset.UTC;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.commonType;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -33,6 +35,8 @@ import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 
 public class DataTypeConversionTests extends ESTestCase {
 
+    public static final ZoneId MINUS_5 = ZoneId.of("-05:00");
+
     public void testConversionToString() {
         DataType to = KEYWORD;
         {
@@ -45,7 +49,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertNull(conversion.convert(null));
             assertEquals("1973-11-29T21:33:09.101Z", conversion.convert(asDateTime(123456789101L)));
             assertEquals("1966-02-02T02:26:50.899Z", conversion.convert(asDateTime(-123456789101L)));
-            assertEquals("2020-05-01T10:20:30.123456789Z", conversion.convert(DateUtils.asDateTime("2020-05-01T10:20:30.123456789Z")));
+            assertEquals("2020-05-01T10:20:30.123456789Z", conversion.convert(DateUtils.asDateTime("2020-05-01T10:20:30.123456789Z", UTC)));
         }
     }
 
@@ -81,7 +85,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(123456789101L, conversion.convert(asDateTime(123456789101L)));
             assertEquals(-123456789101L, conversion.convert(asDateTime(-123456789101L)));
             // Nanos are ignored, only millis are used
-            assertEquals(1588328430123L, conversion.convert(DateUtils.asDateTime("2020-05-01T10:20:30.123456789Z")));
+            assertEquals(1588328430123L, conversion.convert(DateUtils.asDateTime("2020-05-01T10:20:30.123456789Z", UTC)));
         }
         {
             Converter conversion = converterFor(KEYWORD, to);
@@ -129,14 +133,14 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(asDateTime(1483228800123L), conversion.convert("2017-01-01T00:00:00.123Z"));
             assertEquals(asDateTime(1483228800123L), conversion.convert("2017-01-01 00:00:00.123Z"));
 
-            assertEquals(asDateTime(18000321L), conversion.convert("1970-01-01T00:00:00.321-05:00"));
-            assertEquals(asDateTime(18000321L), conversion.convert("1970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01 00:00:00.321-05:00"));
 
-            assertEquals(asDateTime(3849948162000321L), conversion.convert("+123970-01-01T00:00:00.321-05:00"));
-            assertEquals(asDateTime(3849948162000321L), conversion.convert("+123970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(3849948162000321L, MINUS_5), conversion.convert("+123970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(3849948162000321L, MINUS_5), conversion.convert("+123970-01-01 00:00:00.321-05:00"));
 
-            assertEquals(asDateTime(-818587277999679L), conversion.convert("-23970-01-01T00:00:00.321-05:00"));
-            assertEquals(asDateTime(-818587277999679L), conversion.convert("-23970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(-818587277999679L, MINUS_5), conversion.convert("-23970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(-818587277999679L, MINUS_5), conversion.convert("-23970-01-01 00:00:00.321-05:00"));
 
             // double check back and forth conversion
             ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
@@ -144,6 +148,42 @@ public class DataTypeConversionTests extends ESTestCase {
             Converter back = converterFor(KEYWORD, DATETIME);
             assertEquals(dt, back.convert(forward.convert(dt)));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
+            assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0",
+                e.getMessage());
+        }
+    }
+
+    public void testConversionToDateTimeWithZoneId() {
+        ZoneId minus3 = ZoneId.of("-03:00");
+        long offsetInMillis = 3 * 60 * 60 * 1000;
+
+        {
+            Converter conversion = converterFor(INTEGER, DATETIME);
+
+            assertNull(conversion.convert(null));
+            assertEquals(asDateTime(10L, UTC), conversion.convert(10, minus3));
+            assertEquals(asDateTime(-134L, UTC), conversion.convert(-134, minus3));
+        }
+        {
+            Converter conversion = converterFor(KEYWORD, DATETIME);
+
+            assertNull(conversion.convert(null, minus3));
+
+            assertEquals(asDateTime(offsetInMillis, minus3), conversion.convert("1970-01-01", minus3));
+            assertEquals(asDateTime(1000L + offsetInMillis, minus3), conversion.convert("1970-01-01T00:00:01", minus3));
+
+            assertEquals(asDateTime(1483228800123L + offsetInMillis, minus3), conversion.convert("2017-01-01T00:00:00.123", minus3));
+            assertEquals(asDateTime(1483228800123L), conversion.convert("2017-01-01T00:00:00.123Z", minus3));
+
+            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01T00:00:00.321-05:00", minus3));
+            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01 00:00:00.321-05:00", minus3));
+
+            // double check back and forth conversion
+            ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
+            Converter forward = converterFor(DATETIME, KEYWORD);
+            Converter back = converterFor(KEYWORD, DATETIME);
+            assertEquals(dt, back.convert(forward.convert(dt, minus3), minus3));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff", minus3));
             assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0",
                 e.getMessage());
         }
@@ -176,7 +216,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(1.23456789101E11f, (float) conversion.convert(asDateTime(123456789101L)), 0);
             assertEquals(-1.23456789101E11f, (float) conversion.convert(asDateTime(-123456789101L)), 0);
             // Nanos are ignored, only millis are used
-            assertEquals(1.5883284E12f, conversion.convert(DateUtils.asDateTime("2020-05-01T10:20:30.123456789Z")));
+            assertEquals(1.5883284E12f, conversion.convert(DateUtils.asDateTime("2020-05-01T10:20:30.123456789Z", UTC)));
         }
         {
             Converter conversion = converterFor(KEYWORD, to);
@@ -216,7 +256,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(1.23456789101E11, (double) conversion.convert(asDateTime(123456789101L)), 0);
             assertEquals(-1.23456789101E11, (double) conversion.convert(asDateTime(-123456789101L)), 0);
             // Nanos are ignored, only millis are used
-            assertEquals(1.588328430123E12, conversion.convert(DateUtils.asDateTime("2020-05-01T10:20:30.123456789Z")));
+            assertEquals(1.588328430123E12, conversion.convert(DateUtils.asDateTime("2020-05-01T10:20:30.123456789Z", UTC)));
         }
         {
             Converter conversion = converterFor(KEYWORD, to);
@@ -308,7 +348,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(223456789, conversion.convert(asDateTime(223456789L)));
             assertEquals(-123456789, conversion.convert(asDateTime(-123456789L)));
             // Nanos are ignored, only millis are used
-            assertEquals(62123, conversion.convert(DateUtils.asDateTime("1970-01-01T00:01:02.123456789Z")));
+            assertEquals(62123, conversion.convert(DateUtils.asDateTime("1970-01-01T00:01:02.123456789Z", UTC)));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asDateTime(Long.MAX_VALUE)));
             assertEquals("[" + Long.MAX_VALUE + "] out of [integer] range", e.getMessage());
         }
@@ -331,7 +371,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals((short) 12345, conversion.convert(asDateTime(12345L)));
             assertEquals((short) -12345, conversion.convert(asDateTime(-12345L)));
             // Nanos are ignored, only millis are used
-            assertEquals((short) 1123, conversion.convert(DateUtils.asDateTime("1970-01-01T00:00:01.123456789Z")));
+            assertEquals((short) 1123, conversion.convert(DateUtils.asDateTime("1970-01-01T00:00:01.123456789Z", UTC)));
             Exception e = expectThrows(QlIllegalArgumentException.class,
                 () -> conversion.convert(asDateTime(Integer.MAX_VALUE)));
             assertEquals("[" + Integer.MAX_VALUE + "] out of [short] range", e.getMessage());
@@ -355,7 +395,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals((byte) 123, conversion.convert(asDateTime(123L)));
             assertEquals((byte) -123, conversion.convert(asDateTime(-123L)));
             // Nanos are ignored, only millis are used
-            assertEquals((byte) 123, conversion.convert(DateUtils.asDateTime("1970-01-01T00:00:00.123456789Z")));
+            assertEquals((byte) 123, conversion.convert(DateUtils.asDateTime("1970-01-01T00:00:00.123456789Z", UTC)));
             Exception e = expectThrows(QlIllegalArgumentException.class,
                 () -> conversion.convert(asDateTime(Integer.MAX_VALUE)));
             assertEquals("[" + Integer.MAX_VALUE + "] out of [byte] range", e.getMessage());

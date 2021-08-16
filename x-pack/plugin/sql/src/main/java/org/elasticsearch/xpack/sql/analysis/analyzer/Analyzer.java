@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -45,7 +44,6 @@ import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
@@ -59,7 +57,6 @@ import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.With;
-import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1170,52 +1167,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 return new Project(ob.source(), plan, ob.output());
             }
             return ob;
-        }
-    }
-
-    private static class ImplicitCasting extends AnalyzerRule<LogicalPlan> {
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            return plan.transformExpressionsDown(this::implicitCast);
-        }
-
-        private Expression implicitCast(Expression e) {
-            if (e.childrenResolved() == false) {
-                return e;
-            }
-
-            Expression left = null, right = null;
-
-            // BinaryOperations are ignored as they are pushed down to ES
-            // and casting (and thus Aliasing when folding) gets in the way
-
-            if (e instanceof ArithmeticOperation) {
-                ArithmeticOperation f = (ArithmeticOperation) e;
-                left = f.left();
-                right = f.right();
-            }
-
-            if (left != null) {
-                DataType l = left.dataType();
-                DataType r = right.dataType();
-                if (l != r) {
-                    DataType common = SqlDataTypeConverter.commonType(l, r);
-                    if (common == null) {
-                        return e;
-                    }
-                    left = l == common ? left : new Cast(left.source(), left, common);
-                    right = r == common ? right : new Cast(right.source(), right, common);
-                    return e.replaceChildrenSameSize(Arrays.asList(left, right));
-                }
-            }
-
-            return e;
         }
     }
 

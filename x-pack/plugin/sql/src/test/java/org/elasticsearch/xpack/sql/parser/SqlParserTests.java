@@ -23,8 +23,10 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -310,6 +312,22 @@ public class SqlParserTests extends ESTestCase {
                 .concat(join("", nCopies(999, ")")))));
         assertThat(e.getMessage(),
             startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
+    }
+
+    public void testCustomZoneInCast() {
+        ZoneId zoneId = randomZone();
+
+        for (String sql : Arrays.asList(
+            "SELECT '2020-01-01T00:00'::timestamp",
+            "SELECT CAST('2020-01-01T00:00' AS timestamp)",
+            "SELECT CONVERT('2020-01-01T00:00', timestamp)"
+        )) {
+            LogicalPlan plan = new SqlParser().createStatement(sql, zoneId);
+
+            Project project = (Project) plan.collect(p -> p instanceof Project).get(0);
+            Cast cast = (Cast) project.projections().get(0).collect(p -> p instanceof Cast).get(0);
+            assertEquals(cast.zoneId(), zoneId);
+        }
     }
 
     private LogicalPlan parseStatement(String sql) {

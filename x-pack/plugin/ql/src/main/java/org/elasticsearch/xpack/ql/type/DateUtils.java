@@ -14,6 +14,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.util.Locale;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
@@ -31,7 +32,7 @@ public final class DateUtils {
         .optionalStart()
         .appendZoneOrOffsetId()
         .optionalEnd()
-        .toFormatter().withZone(UTC);
+        .toFormatter();
     private static final DateTimeFormatter DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL = new DateTimeFormatterBuilder()
         .append(ISO_LOCAL_DATE)
         .optionalStart()
@@ -40,7 +41,7 @@ public final class DateUtils {
         .optionalStart()
         .appendZoneOrOffsetId()
         .optionalEnd()
-        .toFormatter().withZone(UTC);
+        .toFormatter();
 
     private DateUtils() {}
 
@@ -51,10 +52,16 @@ public final class DateUtils {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
     }
 
+    public static ZonedDateTime asDateTime(long millis, ZoneId zone) {
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zone);
+    }
+
     /**
-     * Parses the given string into a DateTime using UTC as a default timezone.
+     * Parses the given string into a DateTime using `defaultZone` as a default timezone.
      */
-    public static ZonedDateTime asDateTime(String dateFormat) {
+    public static ZonedDateTime asDateTime(String dateFormat, ZoneId defaultZone) {
+        defaultZone = defaultZone == null ? UTC : defaultZone;
+
         int separatorIdx = dateFormat.indexOf('-'); // Find the first `-` date separator
         if (separatorIdx == 0) { // first char = `-` denotes a negative year
             separatorIdx = dateFormat.indexOf('-', 1); // Find the first `-` date separator past the negative year
@@ -67,9 +74,9 @@ public final class DateUtils {
 
         // Avoid index out of bounds - it will lead to DateTimeParseException anyways
         if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {
-            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL.parse(dateFormat)).withZoneSameInstant(UTC);
+            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL.parse(dateFormat), Locale.ROOT, defaultZone);
         } else {
-            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE.parse(dateFormat)).withZoneSameInstant(UTC);
+            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE.parse(dateFormat), Locale.ROOT, defaultZone);
         }
     }
 

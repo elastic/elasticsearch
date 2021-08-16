@@ -1,0 +1,72 @@
+
+// Tests using connection specific timezones (according to the `-TZ[...]` suffixes).
+//
+// Most of the tests cast timestamps to strings on the server side because of the way JDBC handles datetimes.
+// The issue is also described in https://github.com/elastic/elasticsearch/issues/40779.
+//
+// Note: Etc/GMT-1 is equivalent to offset +01:00 but JDBC requires timezone ids.
+
+castStringWithoutTZToDateTime-TZ[Etc/GMT-1]
+SELECT CAST(CAST('2020-06-01T09:20:30' AS DATETIME) AS STRING) t;
+
+           t:s
+-----------------------------
+2020-06-01T09:20:30.000+01:00
+;
+
+castIntToDateTime-TZ[Etc/GMT-1]
+SELECT CAST(CAST(0 AS DATETIME) AS STRING) t;
+
+           t:s
+-----------------------------
+1970-01-01T00:00:00.000Z
+;
+
+castStringWithTZToDateTime-TZ[Etc/GMT-1]
+SELECT ('2020-06-01T09:20:30Z'::DATETIME)::STRING a,
+       ('2020-06-01T09:20:30+01:00'::DATETIME)::STRING b,
+       ('2020-06-01T09:20:30-10:30'::DATETIME)::STRING c;
+
+           a:s          |           b:s               |           c:s
+------------------------+-----------------------------+-----------------------------
+2020-06-01T09:20:30.000Z|2020-06-01T09:20:30.000+01:00|2020-06-01T09:20:30.000-10:30
+;
+
+castStringWithoutTZToDatetimeInScript-TZ[Etc/GMT-1]
+SELECT hire_date::string,
+       hire_date >= '1997-05-19T01:00:00.000'::DATETIME c1,
+       hire_date >= '1997-05-19T01:00:00.001'::DATETIME c2
+FROM test_emp ORDER BY hire_date DESC LIMIT 3;
+
+          hire_date:s        |      c1:b     |      c2:b
+-----------------------------+---------------+---------------
+1999-04-30T01:00:00.000+01:00|true           |true
+1997-05-19T01:00:00.000+01:00|true           |false
+1996-11-05T01:00:00.000+01:00|false          |false
+;
+
+castStringWithoutTZToDatetimeInRangeFilter-TZ[Etc/GMT-1]
+SELECT hire_date::STRING FROM test_emp WHERE hire_date >= '1997-05-19T01:00:00.000'::DATETIME;
+
+          hire_date:s
+-----------------------------
+1999-04-30T01:00:00.000+01:00
+1997-05-19T01:00:00.000+01:00
+;
+
+castStringWithoutTZToDatetimeInEqualsFilter-TZ[Etc/GMT-1]
+SELECT hire_date::STRING FROM test_emp WHERE hire_date = '1997-05-19T01:00:00.000'::DATETIME;
+
+          hire_date:s
+-----------------------------
+1997-05-19T01:00:00.000+01:00
+;
+
+castStringWithoutTZToDatetimeInScriptFilter-TZ[Etc/GMT-1]
+SELECT hire_date::STRING FROM test_emp
+WHERE hire_date + INTERVAL 12 HOURS = '1997-05-19T01:00:00.000'::DATETIME + INTERVAL 12 HOURS;
+
+          hire_date:s
+-----------------------------
+1997-05-19T01:00:00.000+01:00
+;

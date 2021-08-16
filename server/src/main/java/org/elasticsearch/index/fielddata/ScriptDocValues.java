@@ -25,6 +25,7 @@ import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -242,7 +243,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
             throwIfEmpty();
             Instant dt = dates[0].toInstant();
             if (isNanos) {
-                return TimeUnit.SECONDS.toNanos(dt.getEpochSecond()) + dt.getNano();
+                return ChronoUnit.NANOS.between(java.time.Instant.EPOCH, dt);
             }
             return dt.toEpochMilli();
         }

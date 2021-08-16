@@ -60,6 +60,18 @@ public class Converters {
                     return StringToBigInteger((StringField) sourceField);
                 }
 
+                if (sourceField instanceof DateMillisField) {
+                    return LongToBigInteger(DateMillisToLong((DateMillisField) sourceField));
+                }
+
+                if (sourceField instanceof DateNanosField) {
+                    return LongToBigInteger(DateNanosToLong((DateNanosField) sourceField));
+                }
+
+                if (sourceField instanceof BooleanField) {
+                    return LongToBigInteger(BooleanToLong((BooleanField) sourceField));
+                }
+
                 throw new InvalidConversion(sourceField.getClass(), getFieldClass());
             }
 

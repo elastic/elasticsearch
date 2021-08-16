@@ -224,3 +224,147 @@ setup:
     - match: { hits.hits.1.fields.missing_field.0: -9223372036854775809 }
     - match: { hits.hits.2._id: d3 }
     - match: { hits.hits.2.fields.missing_field.0: 12 }
+---
+"date to long":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              number_of_shards: 2
+            mappings:
+              properties:
+                dval:
+                  type: double
+                dtnanos:
+                  type: date_nanos
+                dt:
+                  type: date
+    - do:
+        index:
+          index: test
+          id: d1
+          body: { "dval": 101,  "dt": "2015-01-01T12:10:40Z" }
+    - do:
+        index:
+          index: test
+          id: d2
+          body: { "dval": 202, "dt": "2015-01-01" }
+    - do:
+        index:
+          index: test
+          id: d3
+          body: { "dval": 303, "dt": 1420072496000 }
+    - do:
+        index:
+          index: test
+          id: d4
+          body: { "dval": 404, "dtnanos": "2015-01-01T12:10:30.123456789Z"}
+    - do:
+        index:
+          index: test
+          id: d5
+          body: { "dval": 505, "dtnanos": "2261-04-11T23:47:33.54775807Z" }
+    - do:
+        index:
+          index: test
+          id: d6
+          body: { "dval": 606 }
+    - do:
+        indices.refresh: {}
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query: { "match_all": {} }
+            sort: [ { dval: asc } ]
+            script_fields:
+              dt_bigint:
+                script:
+                  source: "field('dt').as(Field.BigInteger).getValue(BigInteger.TEN).add(BigInteger.ONE)"
+    - match: { hits.total: 6 }
+    - match: { hits.hits.0._id: d1 }
+    - match: { hits.hits.0.fields.dt_bigint.0: 1420114240001 }
+    - match: { hits.hits.1._id: d2 }
+    - match: { hits.hits.1.fields.dt_bigint.0: 1420070400001 }
+    - match: { hits.hits.2._id: d3 }
+    - match: { hits.hits.2.fields.dt_bigint.0: 1420072496001 }
+    - match: { hits.hits.3._id: d4 }
+    - match: { hits.hits.3.fields.dt_bigint.0: 11 }
+    - match: { hits.hits.4._id: d5 }
+    - match: { hits.hits.4.fields.dt_bigint.0: 11 }
+    - match: { hits.hits.5._id: d6 }
+    - match: { hits.hits.5.fields.dt_bigint.0: 11 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query: { "match_all": {} }
+            sort: [ { dval: asc } ]
+            script_fields:
+              dt_long:
+                script:
+                  source: "field('dt').as(Field.Long).getValue(10L) + 2L"
+    - match: { hits.total: 6 }
+    - match: { hits.hits.0._id: d1 }
+    - match: { hits.hits.0.fields.dt_long.0: 1420114240002 }
+    - match: { hits.hits.1._id: d2 }
+    - match: { hits.hits.1.fields.dt_long.0: 1420070400002 }
+    - match: { hits.hits.2._id: d3 }
+    - match: { hits.hits.2.fields.dt_long.0: 1420072496002 }
+    - match: { hits.hits.3._id: d4 }
+    - match: { hits.hits.3.fields.dt_long.0: 12 }
+    - match: { hits.hits.4._id: d5 }
+    - match: { hits.hits.4.fields.dt_long.0: 12 }
+    - match: { hits.hits.5._id: d6 }
+    - match: { hits.hits.5.fields.dt_long.0: 12 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query: { "match_all": {} }
+            sort: [ { dval: asc } ]
+            script_fields:
+              dtnan_bigint:
+                script:
+                  source: "field('dtnanos').as(Field.BigInteger).getValue(BigInteger.TEN).add(BigInteger.ONE)"
+    - match: { hits.total: 6 }
+    - match: { hits.hits.0._id: d1 }
+    - match: { hits.hits.0.fields.dtnan_bigint.0: 11 }
+    - match: { hits.hits.1._id: d2 }
+    - match: { hits.hits.1.fields.dtnan_bigint.0: 11 }
+    - match: { hits.hits.2._id: d3 }
+    - match: { hits.hits.2.fields.dtnan_bigint.0: 11 }
+    - match: { hits.hits.3._id: d4 }
+    - match: { hits.hits.3.fields.dtnan_bigint.0: 1420114230123456790 }
+    - match: { hits.hits.4._id: d5 }
+    - match: { hits.hits.4.fields.dtnan_bigint.0: 9191836053547758071 }
+    - match: { hits.hits.5._id: d6 }
+    - match: { hits.hits.5.fields.dtnan_bigint.0: 11 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query: { "match_all": {} }
+            sort: [ { dval: asc } ]
+            script_fields:
+              dtnan_long:
+                script:
+                  source: "field('dtnanos').as(Field.Long).getValue(field('dt').as(Field.Long).getValue(0L) * 1000) + 2L"
+    - match: { hits.total: 6 }
+    - match: { hits.hits.0._id: d1 }
+    - match: { hits.hits.0.fields.dtnan_long.0: 1420114240000002 }
+    - match: { hits.hits.1._id: d2 }
+    - match: { hits.hits.1.fields.dtnan_long.0: 1420070400000002 }
+    - match: { hits.hits.2._id: d3 }
+    - match: { hits.hits.2.fields.dtnan_long.0: 1420072496000002 }
+    - match: { hits.hits.3._id: d4 }
+    - match: { hits.hits.3.fields.dtnan_long.0: 1420114230123456791 }
+    - match: { hits.hits.4._id: d5 }
+    - match: { hits.hits.4.fields.dtnan_long.0: 9191836053547758072 }
+    - match: { hits.hits.5._id: d6 }
+    - match: { hits.hits.5.fields.dtnan_long.0: 2 }

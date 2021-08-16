@@ -2622,7 +2622,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final long total = queryApiKeyResponse.getTotal();  // <1>
             final int count = queryApiKeyResponse.getCount();  // <2>
             final List<ApiKey> apiKeys = queryApiKeyResponse.getApiKeys();  // <3>
-            final Object[] sortValues = apiKeys.get(0).getSortValues();  // <4>
+            final Object[] sortValues = apiKeys.get(apiKeys.size()-1).getSortValues();  // <4>
             // end::query-api-key-from-size-sort-response
 
             assertThat(total, equalTo(2L));

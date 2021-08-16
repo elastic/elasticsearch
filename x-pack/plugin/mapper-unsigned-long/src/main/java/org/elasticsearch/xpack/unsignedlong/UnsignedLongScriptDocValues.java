@@ -60,6 +60,10 @@ public class UnsignedLongScriptDocValues extends ScriptDocValues<Long> {
         return format(index);
     }
 
+    /**
+     * Applies the formatting from {@link org.elasticsearch.search.DocValueFormat.UnsignedLongShiftedDocValueFormat#format(long)} so
+     * that the underlying value can be treated as a primitive long as that method returns either a {@code long} or a {@code BigInteger}.
+     */
     protected long format(int index) {
         return values[index] ^ MASK_2_63;
     }

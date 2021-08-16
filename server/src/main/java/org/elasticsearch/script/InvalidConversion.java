@@ -8,8 +8,15 @@
 
 package org.elasticsearch.script;
 
+/**
+ * A failed conversion of a script {@link Field}.  Thrown by {@link Converter}s and
+ * {@link FieldValues#getDoubleValue()}/{@link FieldValues#getLongValue()}.
+ */
 public class InvalidConversion extends RuntimeException {
+    /** Source {@link Field} or underlying value */
     protected final Class<?> from;
+
+    /** Destination class or {@link Converter} */
     protected final Class<?> converter;
 
     public InvalidConversion(Class<?> from, Class<?> converter) {

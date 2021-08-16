@@ -11,6 +11,9 @@ package org.elasticsearch.script;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Script field with no mapping, always returns {@code defaultValue}.
+ */
 public class EmptyField<T> extends Field<T> {
     public EmptyField(String name) {
         super(name, null);

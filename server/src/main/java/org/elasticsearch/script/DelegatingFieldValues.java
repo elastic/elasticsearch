@@ -8,6 +8,10 @@
 
 package org.elasticsearch.script;
 
+/**
+ * Helper for creating {@link Converter} classes which delegates all un-overridden methods to the underlying
+ * {@link FieldValues}.
+ */
 public abstract class DelegatingFieldValues<T, D> implements FieldValues<T> {
     protected FieldValues<D> values;
 

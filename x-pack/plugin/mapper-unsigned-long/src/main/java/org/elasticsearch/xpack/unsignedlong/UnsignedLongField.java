@@ -24,6 +24,7 @@ public class UnsignedLongField extends Field.LongField {
         super(name, values);
     }
 
+    // UnsignedLongFields must define their own conversions as they are in x-pack
     @Override
     public <CT, CF extends Field<CT>> Field<CT> as(Converter<CT, CF> converter) {
         if (converter.getFieldClass().isInstance(this)) {

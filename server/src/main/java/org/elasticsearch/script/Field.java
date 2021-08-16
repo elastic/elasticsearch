@@ -55,6 +55,15 @@ public abstract class Field<T> {
         return values.getValues();
     }
 
+    /**
+     * Convert this {@code Field} into another {@code Field} type using a {@link Converter} of the target type.
+     *
+     * As this is called from user scripts, {@code as} may be called to convert a field into it's same type, if
+     * so {@code this} is cast via that converters {@link Converter#getFieldClass()}.
+     *
+     * Extensions outside the core package should override this method to implement their own conversions, calling
+     * this method as a fallback.
+     */
     public <CT, CF extends Field<CT>> Field<CT> as(Converter<CT, CF> converter) {
         if (converter.getFieldClass().isInstance(this)) {
             return converter.getFieldClass().cast(this);
@@ -63,6 +72,9 @@ public abstract class Field<T> {
         return converter.convert(this);
     }
 
+    /**
+     * Provide {@link Converter}s access to the underlying {@link FieldValues}, should not be exposed to scripts
+     */
     public FieldValues<T> getFieldValues() {
         return values;
     }
@@ -75,6 +87,10 @@ public abstract class Field<T> {
         return values.getNonPrimitiveValue();
     }
 
+    /**
+     * Get the underlying value as a {@code double} unless {@link #isEmpty()}, in which case return {@code defaultValue}.
+     * May throw {@link InvalidConversion} if the underlying value is not representable as a {@code double}.
+     */
     public double getDouble(double defaultValue) {
         if (isEmpty()) {
             return defaultValue;
@@ -82,6 +98,11 @@ public abstract class Field<T> {
         return values.getDoubleValue();
     }
 
+
+    /**
+     * Get the underlying value as a {@code long} unless {@link #isEmpty()}, in which case return {@code defaultValue}.
+     * May throw {@link InvalidConversion} if the underlying value is not representable as a {@code long}.
+     */
     public long getLong(long defaultValue) {
         if (isEmpty()) {
             return defaultValue;

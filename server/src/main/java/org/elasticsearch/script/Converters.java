@@ -21,8 +21,27 @@ import static org.elasticsearch.script.Field.DateNanosField;
 import static org.elasticsearch.script.Field.LongField;
 import static org.elasticsearch.script.Field.StringField;
 
+/**
+ * {@link Converters} for scripting fields.  These constants are exposed as static fields on {@link Field} to
+ * allow a user to convert via {@link Field#as(Converter)}.
+ */
 public class Converters {
+    /**
+     * Convert to a {@link BigIntegerField} from Long, Double or String Fields.
+     * Longs and Doubles are wrapped as BigIntegers.
+     * Strings are parsed as either Longs or Doubles and wrapped in a BigInteger.
+     */
     public static final Converter<BigInteger, BigIntegerField> BIGINTEGER;
+
+    /**
+     * Convert to a {@link LongField} from Double, String, DateMillis, DateNanos, BigInteger or Boolean Fields.
+     * Double is cast to a Long.
+     * String is parsed as a Long.
+     * DateMillis is milliseconds since epoch.
+     * DateNanos is nanoseconds since epoch.
+     * {@link BigInteger#longValue()} is used for the BigInteger conversion.
+     * Boolean is {@code 1L} if {@code true}, {@code 0L} if {@code false}.
+     */
     public static final Converter<Long, LongField> LONG;
 
     static {

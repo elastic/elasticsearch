@@ -33,15 +33,15 @@ class RemoteClusterResolver extends RemoteClusterAware {
             this.remoteIndicesPerClusterAlias = remoteIndicesPerClusterAlias;
         }
 
-        public Map<String, List<String>> getRemoteIndicesPerClusterAlias() {
+        Map<String, List<String>> getRemoteIndicesPerClusterAlias() {
             return remoteIndicesPerClusterAlias;
         }
 
-        public List<String> getLocalIndices() {
+        List<String> getLocalIndices() {
             return localIndices;
         }
 
-        public int numClusters() {
+        int numClusters() {
             return remoteIndicesPerClusterAlias.size() + (localIndices.isEmpty() ? 0 : 1);
         }
     }

@@ -132,12 +132,11 @@ class SomeClass {
         
         repositories {
             mavenCentral()
-            maven { url 'https://jitpack.io' }
         }
         
         dependencies {
             rewrite "org.openrewrite:rewrite-java-11"
-            rewrite "com.github.breskeby:java-recipes:0dde6854d5"
+            rewrite "com.breskeby.rewrite:java-recipes:1.0.0"
         }
         """
 
@@ -200,7 +199,7 @@ class SomeClass {
         
         dependencies {
             rewrite "org.openrewrite:rewrite-java-11"
-            rewrite "com.github.breskeby:java-recipes:0dde6854d5"
+            rewrite "com.github.breskeby:java-recipes:1.0"
         }
         """
 

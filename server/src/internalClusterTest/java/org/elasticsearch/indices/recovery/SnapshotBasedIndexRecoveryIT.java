@@ -715,9 +715,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         if (waitForSnapshotDownloadToStart) {
             // must complete using snapshots alone.
-            // todo: use snapshot recovered bytes
             RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
-            assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(snapshotSizeForIndex));
+            assertThat(recoveryState.getIndex().recoveredFromSnapshotBytes(), equalTo(snapshotSizeForIndex));
         }
 
         assertDocumentsAreEqual(indexName, numDocs.get());

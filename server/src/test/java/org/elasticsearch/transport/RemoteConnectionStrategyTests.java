@@ -76,7 +76,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     }
 
     public void testCompressionSchemeDefaults() {
-        // Test explicit
+        // Test explicit default
         Settings.Builder explicitBuilder = Settings.builder();
         explicitBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(),
             "proxy");
@@ -85,8 +85,24 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         explicitBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
             randomFrom("true", "indexing_data", "false"));
         explicitBuilder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), "lz4");
-        ConnectionProfile connectionProfile = FakeConnectionStrategy.buildConnectionProfile("cluster-alias", explicitBuilder.build());
-        assertEquals(Compression.Scheme.DEFLATE, connectionProfile.getCompressionScheme());
+        ConnectionProfile connectionProfileExplicit = FakeConnectionStrategy.buildConnectionProfile("cluster-alias",
+            explicitBuilder.build());
+        assertEquals(Compression.Scheme.DEFLATE, connectionProfileExplicit.getCompressionScheme());
+
+        // Test explicit set
+        Settings.Builder explicit2Builder = Settings.builder();
+        explicit2Builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "proxy");
+        explicit2Builder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "127.0.0.1:9300");
+        explicit2Builder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            randomFrom("true", "indexing_data", "false"));
+        explicit2Builder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME
+            .getConcreteSettingForNamespace("cluster-alias").getKey(), "lz4");
+        explicit2Builder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), "deflate");
+        ConnectionProfile connectionProfileExplicit2 = FakeConnectionStrategy.buildConnectionProfile("cluster-alias",
+            explicit2Builder.build());
+        assertEquals(Compression.Scheme.LZ4, connectionProfileExplicit2.getCompressionScheme());
 
         // Test implicit
         Settings.Builder implicitBuilder = Settings.builder();

@@ -252,7 +252,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         // segments_N and .si files are recovered from the file metadata directly
         long expectedRecoveredBytesFromRepo = 0;
+        long totalBytesRecoveredFromSnapshot = 0;
         for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
+            totalBytesRecoveredFromSnapshot += fileDetail.recoveredFromSnapshot();
             if (fileDetail.name().startsWith("segments") || fileDetail.name().endsWith(".si")) {
                 continue;
             }
@@ -264,6 +266,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         long snapshotSizeForIndex = getSnapshotSizeForIndex(repoName, snapshot, indexName);
         assertThat(repository.totalBytesRead.get(), is(greaterThan(0L)));
         assertThat(repository.totalBytesRead.get(), is(lessThanOrEqualTo(snapshotSizeForIndex)));
+        assertThat(totalBytesRecoveredFromSnapshot, is(equalTo(snapshotSizeForIndex)));
 
         assertDocumentsAreEqual(indexName, numDocs);
     }

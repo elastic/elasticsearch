@@ -205,8 +205,7 @@ public abstract class GradleUtils {
 
     public static boolean isModuleProject(String projectPath) {
         return projectPath.contains("modules:")
-            || projectPath.startsWith(":x-pack:plugin")
-            || projectPath.startsWith(":x-pack:quota-aware-fs");
+            || projectPath.startsWith(":x-pack:plugin");
     }
 
     public static void disableTransitiveDependencies(Configuration config) {

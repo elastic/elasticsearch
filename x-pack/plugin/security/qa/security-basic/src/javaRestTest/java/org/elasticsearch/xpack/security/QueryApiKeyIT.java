@@ -17,8 +17,10 @@ import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -27,7 +29,11 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
@@ -47,6 +53,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 assertThat(apiKeys.size(), equalTo(2));
                 assertThat(apiKeys.get(0).get("name"), oneOf("my-org/alert-key-1", "my-alert-key-2"));
                 assertThat(apiKeys.get(1).get("name"), oneOf("my-org/alert-key-1", "my-alert-key-2"));
+                apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
             });
 
         // An empty request body means search for all keys
@@ -62,6 +69,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 assertThat(
                     apiKeys.stream().map(k -> k.get("name")).collect(Collectors.toList()),
                     containsInAnyOrder("my-org/ingest-key-1", "my-org/management-key-1"));
+                apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
             }
         );
 
@@ -69,12 +77,14 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             "{\"query\":{\"terms\":{\"metadata.tags\":[\"prod\",\"east\"]}}}",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(5));
+                apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
             });
 
         assertQuery(API_KEY_ADMIN_AUTH_HEADER,
-            "{\"query\":{\"range\":{\"creation_time\":{\"lt\":\"now\"}}}}",
+            "{\"query\":{\"range\":{\"creation\":{\"lt\":\"now\"}}}}",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(6));
+                apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
             });
 
         // Search for keys belong to an user
@@ -84,6 +94,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 assertThat(apiKeys.size(), equalTo(2));
                 assertThat(apiKeys.stream().map(m -> m.get("name")).collect(Collectors.toSet()),
                     equalTo(Set.of("my-ingest-key-1", "my-alert-key-2")));
+                apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
             });
 
         // Search for keys belong to users from a realm
@@ -91,6 +102,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             "{ \"query\": { \"term\": {\"realm_name\": \"default_file\"} } }",
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(6));
+                apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
                 // search using explicit IDs
                 try {
 
@@ -100,6 +112,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                             + subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(",")) + "] } } }",
                         keys -> {
                             assertThat(keys, hasSize(subset.size()));
+                            keys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
                         });
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -129,6 +142,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             assertThat(apiKeys.size(), equalTo(2));
             assertThat(apiKeys.stream().map(m -> m.get("name")).collect(Collectors.toSet()),
                 containsInAnyOrder("my-ingest-key-1", "my-alert-key-2"));
+            apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
         });
 
         assertQuery(API_KEY_USER_AUTH_HEADER,
@@ -136,11 +150,31 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             apiKeys -> {
                 assertThat(apiKeys.size(), equalTo(1));
                 assertThat(apiKeys.get(0).get("name"), equalTo("my-alert-key-2"));
+                apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
             });
 
         // User without manage_api_key or manage_own_api_key gets 403 trying to search API keys
         assertQueryError(TEST_USER_AUTH_HEADER, 403,
             "{ \"query\": { \"wildcard\": {\"name\": \"*alert*\"} } }");
+
+        // Invalidated API keys are returned by default, but can be filtered out
+        final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
+        final String invalidatedApiKeyId1 = createAndInvalidateApiKey("temporary-key-1", authHeader);
+        final String queryString = randomFrom("{ \"query\": { \"term\": {\"name\": \"temporary-key-1\"} } }",
+            "{\"query\":{\"bool\":{\"must\":[{\"term\":{\"name\":{\"value\":\"temporary-key-1\"}}}," +
+                "{\"term\":{\"invalidated\":{\"value\":\"" + randomBoolean() + "\"}}}]}}}");
+
+        assertQuery(authHeader, queryString, apiKeys -> {
+            if (queryString.contains("\"invalidated\":{\"value\":\"false\"")) {
+                assertThat(apiKeys, empty());
+            } else {
+                assertThat(apiKeys.size(), equalTo(1));
+                assertThat(apiKeys.get(0).get("name"), equalTo("temporary-key-1"));
+                assertThat(apiKeys.get(0).get("id"), equalTo(invalidatedApiKeyId1));
+                assertThat(apiKeys.get(0).get("invalidated"), is(true));
+            }
+            apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
+        });
     }
 
     public void testQueryShouldRespectOwnerIdentityWithApiKeyAuth() throws IOException {
@@ -166,6 +200,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 apiKeys.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableSet()),
                 equalTo(Set.of("power-key-1", "limit-key-1", "power-key-1-derived-1", "limit-key-1-derived-1",
                     "user-key-1", "user-key-2")));
+            apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
         });
 
         // limitKey gets only keys owned by the original user, not including the derived keys since they are not
@@ -175,7 +210,132 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             assertThat(
                 apiKeys.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableSet()),
                 equalTo(Set.of("power-key-1", "limit-key-1")));
+            apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
         });
+
+    }
+
+    public void testPagination() throws IOException {
+        final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
+        final int total = randomIntBetween(8, 12);
+        final List<String> apiKeyIds = new ArrayList<>(total);
+        for (int i = 0; i < total; i++) {
+            apiKeyIds.add(createApiKey(String.format(Locale.ROOT, "k-%02d", i), null, authHeader).v1());
+        }
+
+        final int from = randomIntBetween(0, 3);
+        final int size = randomIntBetween(2, 5);
+        final int remaining = total - from;
+        final List<String> sortFields = List.of(randomFrom("name", "creation"), "_doc");
+        final String sortFieldsString = sortFields.stream().map(f -> "\"" + f + "\"").collect(Collectors.joining(","));
+
+        final List<Map<String, Object>> apiKeyInfos = new ArrayList<>(remaining);
+        final Request request1 = new Request("GET", "/_security/_query/api_key");
+        request1.setOptions(request1.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        request1.setJsonEntity("{\"from\":" + from + ",\"size\":" + size + ",\"sort\":[" + sortFieldsString + "]}");
+        collectApiKeys(apiKeyInfos, request1, total, size);
+
+        while (apiKeyInfos.size() < remaining) {
+            final Request request2 = new Request("GET", "/_security/_query/api_key");
+            request2.setOptions(request2.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+            final StringBuilder searchAfter = new StringBuilder();
+            @SuppressWarnings("unchecked")
+            final List<Object> sortValues = (List<Object>) apiKeyInfos.get(apiKeyInfos.size() - 1).get("_sort");
+            if (sortFields.get(0).equals("name")) {
+                assertThat(String.format(Locale.ROOT, "k-%02d", from + apiKeyInfos.size() - 1), equalTo(sortValues.get(0)));
+                searchAfter.append("\"").append(sortValues.get(0)).append("\"");
+            } else {
+                assertThat(apiKeyInfos.get(apiKeyInfos.size() - 1).get("creation"), equalTo(sortValues.get(0)));
+                searchAfter.append(sortValues.get(0));
+            }
+            searchAfter.append(",").append(sortValues.get(1));
+            request2.setJsonEntity("{\"size\":" + size + ",\"sort\":[" + sortFieldsString + "],\"search_after\":[" + searchAfter + "]}");
+            collectApiKeys(apiKeyInfos, request2, total, size);
+        }
+
+        for (int i = from; i < total; i++) {
+            assertThat(apiKeyInfos.get(i - from).get("id"), equalTo(apiKeyIds.get(i)));
+        }
+
+        // size can be zero, but total should still reflect the number of keys matched
+        final Request request2 = new Request("GET", "/_security/_query/api_key");
+        request2.setOptions(request2.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        request2.setJsonEntity("{\"size\":0}");
+        final Response response2 = client().performRequest(request2);
+        assertOK(response2);
+        final Map<String, Object> responseMap2 = responseAsMap(response2);
+        assertThat(responseMap2.get("total"), equalTo(total));
+        assertThat(responseMap2.get("count"), equalTo(0));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSort() throws IOException {
+        final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
+        final List<String> apiKeyIds = new ArrayList<>(3);
+        apiKeyIds.add(createApiKey("k2", Map.of("letter", "a", "symbol", "2"), authHeader).v1());
+        apiKeyIds.add(createApiKey("k1", Map.of("letter", "b", "symbol", "2"), authHeader).v1());
+        apiKeyIds.add(createApiKey("k0", Map.of("letter", "c", "symbol", "1"), authHeader).v1());
+
+        assertQuery(authHeader, "{\"sort\":[{\"creation\":{\"order\":\"desc\"}}]}", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(3));
+            for (int i = 2, j = 0; i >=0; i--, j++) {
+                assertThat(apiKeys.get(i).get("id"), equalTo(apiKeyIds.get(j)));
+                assertThat(apiKeys.get(i).get("creation"), equalTo(((List<Integer>) apiKeys.get(i).get("_sort")).get(0)));
+            }
+        });
+
+        assertQuery(authHeader, "{\"sort\":[{\"name\":{\"order\":\"asc\"}}]}", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(3));
+            for (int i = 2, j = 0; i >=0; i--, j++) {
+                assertThat(apiKeys.get(i).get("id"), equalTo(apiKeyIds.get(j)));
+                assertThat(apiKeys.get(i).get("name"), equalTo(((List<String>) apiKeys.get(i).get("_sort")).get(0)));
+            }
+        });
+
+        assertQuery(authHeader, "{\"sort\":[\"metadata.letter\"]}", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(3));
+            for (int i = 0; i < 3; i++) {
+                assertThat(apiKeys.get(i).get("id"), equalTo(apiKeyIds.get(i)));
+            }
+        });
+
+        assertQuery(authHeader, "{\"sort\":[\"metadata.symbol\",\"metadata.letter\"]}", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(3));
+            assertThat(apiKeys.get(0).get("id"), equalTo(apiKeyIds.get(2)));
+            assertThat(apiKeys.get(1).get("id"), equalTo(apiKeyIds.get(0)));
+            assertThat(apiKeys.get(2).get("id"), equalTo(apiKeyIds.get(1)));
+            apiKeys.forEach(k -> {
+                final Map<String, Object> metadata = (Map<String, Object>) k.get("metadata");
+                assertThat(metadata.get("symbol"), equalTo(((List<Integer>) k.get("_sort")).get(0)));
+                assertThat(metadata.get("letter"), equalTo(((List<Integer>) k.get("_sort")).get(1)));
+            });
+        });
+
+        assertQuery(authHeader, "{\"sort\":[\"_doc\"]}", apiKeys -> {
+            assertThat(apiKeys.size(), equalTo(3));
+            for (int i = 0; i < 3; i++) {
+                assertThat(apiKeys.get(i).get("id"), equalTo(apiKeyIds.get(i)));
+                assertThat(apiKeys.get(i).get("_sort"), notNullValue());
+            }
+        });
+
+        final String invalidFieldName = randomFrom("doc_type", "api_key_invalidated", "metadata_flattened.letter");
+        assertQueryError(authHeader, 400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
+    }
+
+    private void collectApiKeys(List<Map<String, Object>> apiKeyInfos, Request request, int total, int size) throws IOException {
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        final Map<String, Object> responseMap = responseAsMap(response);
+        final int before = apiKeyInfos.size();
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> apiKeysMap = (List<Map<String, Object>>) responseMap.get("api_keys");
+        apiKeyInfos.addAll(apiKeysMap);
+        assertThat(responseMap.get("total"), equalTo(total));
+        assertThat(responseMap.get("count"), equalTo(apiKeyInfos.size() - before));
+        if (before == 0) {
+            assertThat(responseMap.get("count"), equalTo(size));
+        }
     }
 
     private void assertQueryError(String authHeader, int statusCode, String body) throws IOException {
@@ -197,8 +357,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertOK(response);
         final Map<String, Object> responseMap = responseAsMap(response);
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> api_keys = (List<Map<String, Object>>) responseMap.get("api_keys");
-        apiKeysVerifier.accept(api_keys);
+        final List<Map<String, Object>> apiKeys = (List<Map<String, Object>>) responseMap.get("api_keys");
+        apiKeysVerifier.accept(apiKeys);
     }
 
     private void createApiKeys() throws IOException {
@@ -290,6 +450,15 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertOK(response);
         final Map<String, Object> m = responseAsMap(response);
         return new Tuple<>((String) m.get("id"), (String) m.get("api_key"));
+    }
+
+    private String createAndInvalidateApiKey(String name, String authHeader) throws IOException {
+        final Tuple<String, String> tuple = createApiKey(name, null, authHeader);
+        final Request request = new Request("DELETE", "/_security/api_key");
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        request.setJsonEntity("{\"ids\": [\"" + tuple.v1() + "\"],\"owner\":true}");
+        assertOK(client().performRequest(request));
+        return tuple.v1();
     }
 
     private void createUser(String name) throws IOException {

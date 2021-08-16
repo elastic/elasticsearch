@@ -367,11 +367,20 @@ void addBuildDockerEssImageTask(Architecture architecture) {
     tasks.register(taskName('build', architecture, base, 'DockerContext'), Sync) {
       into contextDir
 
-      into("plugins-archive") {
+      final Path projectDir = project.projectDir.toPath()
+
+      into("plugins") {
+        expand([
+          version: VersionProperties.elasticsearch
+        ])
+        from projectDir.resolve("src/docker/bin/plugin-wrapper.sh")
+      }
+
+      into("plugins/archive") {
         from configurations.nonRepositoryPlugins
       }
 
-      from(project.projectDir.toPath().resolve("src/docker/Dockerfile.cloud-ess")) {
+      from(projectDir.resolve("src/docker/Dockerfile.cloud-ess")) {
         expand([
           base_image: "elasticsearch-cloud:${VersionProperties.elasticsearch}"
         ])

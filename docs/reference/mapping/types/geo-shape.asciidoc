@@ -25,9 +25,8 @@ default. To use BKD encoding, do not specify the following
 * `tree_levels`
 * `tree`
 
-If you specify one or more of these options, the `geo_shape` field will instead
-use prefix tree encoding. Prefix tree encoding is deprecated and will be removed
-in a future release.
+If you specify one or more of these options, the field will use prefix tree
+encoding instead. Prefix tree encoding is deprecated and will be removed in 8.0.
 ====
 
 [[geo-shape-mapping-options]]

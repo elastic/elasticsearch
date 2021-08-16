@@ -3,6 +3,8 @@
 [[node-lifecycle-api]]
 == Node lifecycle APIs
 
+NOTE: {cloud-only}
+
 You use the shutdown APIs to prepare nodes for temporary or permanent shutdown, monitor the shutdown status, and enable a previously shut-down node to resume normal operations.
 
 [discrete]

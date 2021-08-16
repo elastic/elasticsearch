@@ -1,8 +1,10 @@
 [[delete-shutdown]]
 === Delete shutdown API
 
-Cancels shutdown preparations or clears a shutdown request 
-so a node can resume normal operations. 
+NOTE: {cloud-only}
+
+Cancels shutdown preparations or clears a shutdown request
+so a node can resume normal operations.
 
 [[delete-shutdown-api-request]]
 ==== {api-request-title}
@@ -21,10 +23,10 @@ you must be an operator to use this API.
 [[delete-shutdown-api-desc]]
 ==== {api-description-title}
 
-Enables a node to resume normal operations following a 
-<<put-shutdown, put shutdown>> request. 
-You must explicitly clear the shutdown request when a node rejoins the cluster, 
-regardless of the shutdown type. 
+Enables a node to resume normal operations following a
+<<put-shutdown, put shutdown>> request.
+You must explicitly clear the shutdown request when a node rejoins the cluster,
+regardless of the shutdown type.
 
 
 [[delete-shutdown-api-path-params]]
@@ -42,7 +44,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[delete-shutdown-api-example]]
 ==== {api-examples-title}
 
-Prepare a node to be restarted: 
+Prepare a node to be restarted:
 
 [source,console]
 --------------------------------------------------
@@ -56,7 +58,7 @@ PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 // TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
 
 Cancel the shutdown preparations or clear the shutdown request
-after restarting: 
+after restarting:
 
 [source,console]
 --------------------------------------------------

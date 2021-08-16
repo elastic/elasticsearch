@@ -1,6 +1,8 @@
 [[get-shutdown]]
 === Get shutdown API
 
+NOTE: {cloud-only}
+
 Retrieves the status of a node that's being prepared for shutdown.
 
 [[get-shutdown-api-request]]

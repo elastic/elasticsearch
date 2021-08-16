@@ -1,7 +1,9 @@
 [[put-shutdown]]
 === Put shutdown API
 
-Prepares a node to be shut down. 
+NOTE: {cloud-only}
+
+Prepares a node to be shut down.
 
 [[put-shutdown-api-request]]
 ==== {api-request-title}
@@ -20,17 +22,17 @@ to use this API.
 [[put-shutdown-api-desc]]
 ==== {api-description-title}
 
-Migrates ongoing tasks and index shards to other nodes as needed 
+Migrates ongoing tasks and index shards to other nodes as needed
 to prepare a node to be restarted or shut down and removed from the cluster.
 This ensures that {es} can be stopped safely with minimal disruption to the cluster.
 
-You must specify the type of shutdown: `restart` or `remove`. 
-If a node is already being prepared for shutdown, 
+You must specify the type of shutdown: `restart` or `remove`.
+If a node is already being prepared for shutdown,
 you can use this API to change the shutdown type.
 
-IMPORTANT: This API does *NOT* terminate the {es} process. 
+IMPORTANT: This API does *NOT* terminate the {es} process.
 Monitor the <<get-shutdown,node shutdown status>> to determine
-when it  is safe to stop {es}. 
+when it  is safe to stop {es}.
 
 [[put-shutdown-api-path-params]]
 ==== {api-path-parms-title}
@@ -41,8 +43,8 @@ The ID of the node you want to prepare for shutdown.
 If you specify a node that is offline,
 it will be prepared for shut down when it rejoins the cluster.
 
-IMPORTANT: This parameter is *NOT* validated against the cluster's active nodes. 
-This enables you to register a node for shut down while it is offline. 
+IMPORTANT: This parameter is *NOT* validated against the cluster's active nodes.
+This enables you to register a node for shut down while it is offline.
 No error is thrown if you specify an invalid node ID.
 
 [[put-shutdown-api-params]]
@@ -56,16 +58,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `type`::
 (Required, string)
-Valid values are `restart` and `remove`. 
-Use `restart` when you need to temporarily shut down a node to perform an upgrade, 
-make configuration changes, or perform other maintenance. 
-Because the node is expected to rejoin the cluster, data is not migrated off of the node.  
-Use `remove` when you need to permanently remove a node from the cluster. 
-The node is not marked ready for shutdown until data is migrated off of the node 
+Valid values are `restart` and `remove`.
+Use `restart` when you need to temporarily shut down a node to perform an upgrade,
+make configuration changes, or perform other maintenance.
+Because the node is expected to rejoin the cluster, data is not migrated off of the node.
+Use `remove` when you need to permanently remove a node from the cluster.
+The node is not marked ready for shutdown until data is migrated off of the node
 
 `reason`::
 (Required, string)
-A human-readable reason that the node is being shut down. 
+A human-readable reason that the node is being shut down.
 This field provides information for other cluster operators;
 it does not affect the shut down process.
 
@@ -92,5 +94,5 @@ PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 --------------------------------------------------
 ////
 
-<1> Prepares the node to be permanently removed. 
+<1> Prepares the node to be permanently removed.
 Use `restart` for nodes that will rejoin the cluster.

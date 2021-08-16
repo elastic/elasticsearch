@@ -16,14 +16,19 @@
 source "`dirname "$0"`"/elasticsearch-env
 
 CHECK_KEYSTORE=true
+AUTO_CONFIG="${AUTO_CONFIG:-true}"
 DAEMONIZE=false
 for option in "$@"; do
   case "$option" in
     -h|--help|-V|--version)
       CHECK_KEYSTORE=false
+      AUTO_CONFIG=false
       ;;
     -d|--daemonize)
       DAEMONIZE=true
+      ;;
+    -e|--enroll)
+      AUTO_CONFIG=false
       ;;
   esac
 done
@@ -43,6 +48,18 @@ then
     echo "Failed to read keystore password on console" 1>&2
     exit 1
   fi
+fi
+
+if [[ $AUTO_CONFIG = true ]]; then
+  # it is possible that an auto-configuration failure can prevent the node from starting, but this is only the exceptional case
+  # most likely an auto-configuration failure will leave the configuration untouched, optionally printing a message
+  # if the error is unexpected, but the node will start as usual
+  ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigInitialNode \
+    ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
+    ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+    "$(dirname "$0")/elasticsearch-cli" \
+    "$@" \
+    <<<"$KEYSTORE_PASSWORD"
 fi
 
 # The JVM options parser produces the final JVM options to start Elasticsearch.

@@ -31,8 +31,8 @@ public class EmptyField<T> extends Field<T> {
 
     @Override
     public <CT, CF extends Field<CT>> Field<CT> as(Converter<CT, CF> converter) {
-        // TODO(stu): test
-        return converter.getFieldClass().cast(this);
+        // new object created to ensure EmptyField<CT>
+        return new EmptyField<>(name);
     }
 
     @Override

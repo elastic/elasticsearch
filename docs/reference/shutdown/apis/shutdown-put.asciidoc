@@ -71,6 +71,15 @@ A human-readable reason that the node is being shut down.
 This field provides information for other cluster operators;
 it does not affect the shut down process.
 
+`allocation_delay`::
+(Optional, string)
+Only valid if `type` is `restart`. Controls the delay between the indicated
+node going offline and when those shards are reassigned to other nodes, to
+allow time for the indicated node restart. This behaves in the same way as the
+<<delayed-allocation,general delayed allocation>> mechanism. Note that the
+longer of the delay configured for this restart and any index-level allocation
+delay will be used.
+
 [[put-shutdown-api-example]]
 ==== {api-examples-title}
 
@@ -81,7 +90,8 @@ Register a node for shutdown:
 PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 {
   "type": "remove", <1>
-  "reason": "Demonstrating how the node shutdown API works"
+  "reason": "Demonstrating how the node shutdown API works",
+  "allocation_delay": "20m"
 }
 --------------------------------------------------
 
@@ -94,5 +104,5 @@ PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 --------------------------------------------------
 ////
 
-<1> Prepares the node to be permanently removed.
-Use `restart` for nodes that will rejoin the cluster.
+<1> Prepares the node to be restarted.
+Use `remove` for nodes that will be permanently removed from the cluster.

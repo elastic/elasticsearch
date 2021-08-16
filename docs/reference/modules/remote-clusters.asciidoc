@@ -301,8 +301,7 @@ separately.
   requests to a specific remote cluster. This setting impacts only requests
   sent to the remote cluster. If an inbound request is compressed, {es}
   compresses the response using the same compression scheme. The setting options
-  are `deflate` and `lz4`. If unset, the global `transport.compression_scheme`
-  is used as the fallback setting.
+  are `deflate` and `lz4`. Defaults to `deflate`.
 
 [discrete]
 [[remote-cluster-sniff-settings]]

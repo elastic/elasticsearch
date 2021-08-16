@@ -1,14 +1,11 @@
 [discrete]
 [[breaking_80_ilm_changes]]
-==== {ilm-cap} changes
+==== {ilm-cap} ({ilm-init}) changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
 [[ilm-poll-interval-limit]]
 .The `indices.lifecycle.poll_interval` setting must be greater than `1s`.
 [%collapsible]
@@ -41,3 +38,4 @@ renamed to `ilm` to match the package rename inside the {es} code.
 Update your workflow and applications to use the `ilm` package in place of
 `indexlifecycle`.
 ====
+// end::notable-breaking-changes[]

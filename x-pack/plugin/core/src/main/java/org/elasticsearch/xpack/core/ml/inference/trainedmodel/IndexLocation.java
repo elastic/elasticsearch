@@ -20,7 +20,6 @@ import java.util.Objects;
 public class IndexLocation implements StrictlyParsedTrainedModelLocation, LenientlyParsedTrainedModelLocation {
 
     public static final ParseField INDEX = new ParseField("index");
-    private static final ParseField MODEL_ID = new ParseField("model_id");
     private static final ParseField NAME = new ParseField("name");
 
     private static final ConstructingObjectParser<IndexLocation, Void> LENIENT_PARSER = createParser(true);
@@ -30,8 +29,7 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
         ConstructingObjectParser<IndexLocation, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new IndexLocation((String) a[0], (String) a[1]));
-        parser.declareString(ConstructingObjectParser.constructorArg(), MODEL_ID);
+            a -> new IndexLocation((String) a[0]));
         parser.declareString(ConstructingObjectParser.constructorArg(), NAME);
         return parser;
     }
@@ -44,22 +42,14 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
         return LENIENT_PARSER.parse(parser, null);
     }
 
-    private final String modelId;
     private final String indexName;
 
-    IndexLocation(String modelId, String indexName) {
-        this.modelId = Objects.requireNonNull(modelId);
+    public IndexLocation(String indexName) {
         this.indexName = Objects.requireNonNull(indexName);
     }
 
     public IndexLocation(StreamInput in) throws IOException {
-        this.modelId = in.readString();
         this.indexName = in.readString();
-    }
-
-    @Override
-    public String getModelId() {
-        return modelId;
     }
 
     public String getIndexName() {
@@ -74,7 +64,6 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MODEL_ID.getPreferredName(), modelId);
         builder.field(NAME.getPreferredName(), indexName);
         builder.endObject();
         return builder;
@@ -82,7 +71,6 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(modelId);
         out.writeString(indexName);
     }
 
@@ -105,12 +93,11 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
             return false;
         }
         IndexLocation that = (IndexLocation) o;
-        return Objects.equals(modelId, that.modelId)
-            && Objects.equals(indexName, that.indexName);
+        return Objects.equals(indexName, that.indexName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, indexName);
+        return Objects.hash(indexName);
     }
 }

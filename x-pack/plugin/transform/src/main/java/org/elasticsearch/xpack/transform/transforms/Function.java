@@ -209,6 +209,7 @@ public interface Function {
      * @param destinationPipeline the destination pipeline
      * @param fieldMappings field mappings for the destination
      * @param stats a stats object to record/collect stats
+     * @param progress a progress object to record/collect progress information
      * @return a tuple with the stream of index requests and the cursor
      */
     Tuple<Stream<IndexRequest>, Map<String, Object>> processSearchResponse(
@@ -216,6 +217,7 @@ public interface Function {
         String destinationIndex,
         String destinationPipeline,
         Map<String, String> fieldMappings,
-        TransformIndexerStats stats
+        TransformIndexerStats stats,
+        TransformProgress progress
     );
 }

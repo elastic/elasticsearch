@@ -91,7 +91,7 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
         } else {
             String httpCa;
             try {
-                httpCa = Base64.getUrlEncoder().encodeToString(caCertificates.get(0).getEncoded());
+                httpCa = Base64.getEncoder().encodeToString(caCertificates.get(0).getEncoded());
             } catch (CertificateEncodingException cee) {
                 listener.onFailure(new ElasticsearchException(
                     "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration uses a malformed CA certificate",
@@ -101,7 +101,7 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
             final char[] password = generateKibanaSystemPassword();
             final ChangePasswordRequest changePasswordRequest =
                 new ChangePasswordRequestBuilder(client).username("kibana_system")
-                    .password(password, Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(environment.settings())))
+                    .password(password.clone(), Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(environment.settings())))
                     .request();
             client.execute(ChangePasswordAction.INSTANCE, changePasswordRequest, ActionListener.wrap(response -> {
                 logger.debug("Successfully set the password for user [kibana_system] during kibana enrollment");

@@ -1,0 +1,39 @@
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  testImplementation testArtifact(project(':qa:snapshot-based-recoveries'))
+}
+
+final File repoDir = file("$buildDir/testclusters/snapshot-recoveries-repo")
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot'
+  }
+}
+
+tasks.withType(Test).configureEach {
+  doFirst {
+    delete(repoDir)
+  }
+  systemProperty 'tests.path.repo', repoDir
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 3
+  setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.security.enabled', 'false'
+}

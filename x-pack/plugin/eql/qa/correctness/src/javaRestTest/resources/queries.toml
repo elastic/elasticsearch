@@ -349,13 +349,13 @@ expected_event_ids = [3299718, 3364047]
 filter_counts = [24, 3, 37]
 filters = [
   'process where process_name == "powershell.exe" and opcode == 1',
-  'powershell where wildcard(message, "*Get-NetShare*") == true',
+  'powershell where message like "*Get-NetShare*"',
   'process where process_name == "powershell.exe" and opcode == 2'
 ]
 query = '''
 sequence by hostname, unique_pid
    [process where process_name == "powershell.exe" and opcode == 1]
-   [powershell where wildcard(message, "*Get-NetShare*") == true]
+   [powershell where message like "*Get-NetShare*"]
 until
    [process where process_name == "powershell.exe" and opcode == 2]
 '''
@@ -444,17 +444,17 @@ count = 1
 expected_event_ids = [2732749, 2732788]
 filter_counts = [89, 1]
 filters = [
-  '''file where file_extension in ("exe", "EXE", "Exe", "scr") and wildcard(file_path, "C:\\Users*", "C:\\ProgramData*") and file_name != "DismHost.exe"''',
-  '''process where opcode == 1 and signature_status == "noSignature" and wildcard(process_path, "C:\\Users*", "C:\\ProgramData*")'''
+  '''file where file_extension in ("exe", "EXE", "Exe", "scr") and file_path like ("C:\\Users*", "C:\\ProgramData*") and file_name != "DismHost.exe"''',
+  '''process where opcode == 1 and signature_status == "noSignature" and process_path like ("C:\\Users*", "C:\\ProgramData*")'''
 ]
 query = '''
 sequence by hostname with maxspan=5m
   [file where file_extension in ("exe", "EXE", "Exe", "scr")
-    and wildcard(file_path, "C:\\Users*", "C:\\ProgramData*")
+    and file_path like ("C:\\Users*", "C:\\ProgramData*")
     and file_name != "DismHost.exe"
   ] by process_path
   [process where opcode == 1 and signature_status == "noSignature"
-    and wildcard(process_path, "C:\\Users*", "C:\\ProgramData*")
+    and process_path like ("C:\\Users*", "C:\\ProgramData*")
   ] by parent_process_path
 '''
 time = 7.179757833480835

@@ -6,8 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.internal.MavenFilteringHack
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.redline_rpm.header.Flags
@@ -33,7 +33,7 @@ import java.util.regex.Pattern
  *    empty directory requires more wits than I have.
  * 3. ospackage really wants to suck up some of the debian control scripts
  *    directly from the filesystem. It doesn't want to process them through
- *    MavenFilteringHack or any other copy-style action.
+ *    any copy-style action.
  *
  * The following commands are useful when it comes to check the user/group
  * and files permissions set within the RPM and DEB packages:
@@ -47,6 +47,16 @@ buildscript {
     mavenCentral()
     maven { url 'https://jitpack.io' }
   }
+
+  // We rely on a specific version of the redline library used to build rpm packages
+  // to support sha256header in our elasticsearch RPMs
+  // TODO: Remove once https://github.com/nebula-plugins/gradle-ospackage-plugin/pull/402 got merged and released
+  configurations.all {
+    resolutionStrategy {
+      force 'org.redline-rpm:redline:1.2.10'
+    }
+  }
+
   dependencies {
     classpath "com.github.breskeby:gradle-ospackage-plugin:98455c1"
   }
@@ -64,13 +74,14 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
+      filter("tokens" : expansionsForDistribution(type, oss, jdk), ReplaceTokens.class)
     }
 
     into('etc/elasticsearch') {
       with configFiles(type, oss, jdk)
     }
-    MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
+
+    filter("tokens" : expansionsForDistribution(type, oss, jdk), ReplaceTokens.class)
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
@@ -293,7 +304,7 @@ ospackage {
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
       project.file(project.property('signing.secretKeyRingFile')) :
-      new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
+      new File(new File(project.providers.systemProperty('user.home').orElse('.gnupg').forUseAtConfigurationTime().get()), 'secring.gpg')
   }
 
   // version found on oldest supported distro, centos-6
@@ -534,14 +545,17 @@ subprojects {
         assertLinesInFile(noticePath, noticeLines)
       }
     }
-    tasks.named("check").configure { dependsOn "checkNotice" }
 
-    tasks.register('checkLicenseMetadata', LoggedExec) {
+    def checkLicenseMetadataTaskProvider = tasks.register('checkLicenseMetadata', LoggedExec) {
       dependsOn buildDist, "checkExtraction"
     }
-    check.dependsOn checkLicenseMetadata
+    tasks.named("check").configure {
+      dependsOn "checkNotice"
+      dependsOn(checkLicenseMetadataTaskProvider)
+    }
+
     if (project.name.contains('deb')) {
-      checkLicenseMetadata { LoggedExec exec ->
+      checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
         onlyIf dpkgExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
         exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
@@ -577,7 +591,7 @@ subprojects {
       }
     } else {
       assert project.name.contains('rpm')
-      checkLicenseMetadata { LoggedExec exec ->
+      checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
         onlyIf rpmExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
         exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.get().outputs.files.singleFile}"

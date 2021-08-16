@@ -14,7 +14,7 @@ tags:
 # Build args passed to Dockerfile ARGs
 args:
   BASE_IMAGE: "redhat/ubi/ubi8"
-  BASE_TAG: "8.3"
+  BASE_TAG: "8.4"
 
 # Docker image labels
 labels:
@@ -39,6 +39,9 @@ labels:
 resources:
   - filename: "elasticsearch-${version}-linux-x86_64.tar.gz"
     url: "<artifact_path>/elasticsearch-${version}-linux-x86_64.tar.gz"
+    validation:
+      type: "sha512"
+      value: "<insert SHA 512 here>"
   - filename: "tini"
     url: "https://github.com/krallin/tini/releases/download/v0.19.0/tini-amd64"
     validation:
@@ -47,7 +50,14 @@ resources:
 
 # List of project maintainers
 maintainers:
-  - name: "Nassim Kammah"
-    email: "nassim.kammah@elastic.co"
   - name: "Rory Hunter"
     email: "rory.hunter@elastic.co"
+    username: "rory"
+  - email: "klepal_alexander@bah.com"
+    name: "Alexander Klepal"
+    username: "alexander.klepal"
+    cht_member: true
+  - email: "yalabe.dukuly@anchore.com"
+    name: "Yalabe Dukuly"
+    username: "yalabe.dukuly"
+    cht_member: true

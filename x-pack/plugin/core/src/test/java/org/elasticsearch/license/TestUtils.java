@@ -46,6 +46,9 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TestUtils {
 
@@ -364,11 +367,11 @@ public class TestUtils {
         public final List<Long> expirationDateUpdates = new ArrayList<>();
 
         public AssertingLicenseState() {
-            super(Settings.EMPTY, () -> 0);
+            super(() -> 0);
         }
 
         @Override
-        void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
+        protected void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
             expirationDateUpdates.add(expirationDate);
@@ -386,7 +389,7 @@ public class TestUtils {
         }
 
         public UpdatableLicenseState(Settings settings) {
-            super(settings, () -> 0);
+            super(() -> 0);
         }
 
         @Override
@@ -396,10 +399,20 @@ public class TestUtils {
     }
 
     public static XPackLicenseState newTestLicenseState() {
-        return new XPackLicenseState(Settings.EMPTY, () -> 0);
+        return new XPackLicenseState(() -> 0);
     }
 
     public static void putLicense(Metadata.Builder builder, License license) {
         builder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
+    }
+
+    public static MockLicenseState newMockLicenceState() {
+        MockLicenseState mock = mock(MockLicenseState.class);
+        // These are deprecated methods, but we haven't replaced all usage of them yet
+        // By calling the real methods, we force everything through a small number of mockable methods like
+        //  XPackLicenseState.isAllowed(LicensedFeature)
+        when(mock.isAllowed(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
+        when(mock.checkFeature(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
+        return mock;
     }
 }

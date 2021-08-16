@@ -2,14 +2,10 @@ FROM ${base_image} AS builder
 
 USER root
 
-RUN mkdir -p /opt/plugins/archive
+COPY plugins/*.zip /opt/plugins/archive
 
-COPY plugins /opt/plugins
-
-RUN chown -R root.root /opt/plugins \\
-    && find /opt/plugins -type d -exec chmod 0555 {} + \\
-    && find /opt/plugins -type f -exec chmod 0444 {} + \\
-    && chmod -R 0555 /opt/plugins/plugin-wrapper.sh
+RUN chown root.root /opt/plugins/archive/*
+RUN chmod 0444 /opt/plugins/archive/*
 
 FROM ${base_image}
 

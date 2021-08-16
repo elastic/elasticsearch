@@ -274,6 +274,12 @@ COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
 RUN mkdir -p /opt/filebeat /opt/metricbeat && \\
     tar xf /tmp/filebeat-${version}.tar.gz -C /opt/filebeat --strip-components=1 && \\
     tar xf /tmp/metricbeat-${version}.tar.gz -C /opt/metricbeat --strip-components=1
+
+# Add plugins infrastructure
+RUN mkdir -p /opt/plugins/archive
+COPY bin/plugin-wrapper.sh /opt/plugins
+# These are the correct permissions for both the directories and the script
+RUN chmod -R 0555 /opt/plugins
 <% } %>
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>

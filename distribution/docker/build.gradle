@@ -245,6 +245,12 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         from configurations.metricbeat
         // For some reason, the artifact name can differ depending on what repository we used.
         rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
+
+        into('bin') {
+          from(project.projectDir.toPath().resolve('src/docker/cloud')) {
+            expand([ version: VersionProperties.elasticsearch ])
+          }
+        }
       }
 
       onlyIf { Architecture.current() == architecture }
@@ -300,19 +306,17 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
 private static List<String> generateTags(DockerBase base) {
   final String version = VersionProperties.elasticsearch
 
-  if (base == DockerBase.CLOUD_ESS) {
-    final String namespace = VersionProperties.isElasticsearchSnapshot() ? 'cloud-ci' : 'cloud-assets'
-    return [
-      "elasticsearch${base.suffix}:test",
-      "elasticsearch${base.suffix}:${version}",
-      "docker.elastic.co/${namespace}/elasticsearch:${version}"
-    ]
+  String image = "elasticsearch${base.suffix}"
+
+  String namespace = 'elasticsearch'
+  if (base == DockerBase.CLOUD || base == DockerBase.CLOUD_ESS) {
+    namespace += '-ci'
   }
 
   return [
-    "elasticsearch${base.suffix}:test",
-    "elasticsearch${base.suffix}:${version}",
-    "docker.elastic.co/elasticsearch/elasticsearch${base.suffix}:${version}"
+    "${image}:test",
+    "${image}:${version}",
+    "docker.elastic.co/${namespace}/${image}:${version}"
   ]
 }
 
@@ -370,13 +374,6 @@ void addBuildDockerEssImageTask(Architecture architecture) {
       final Path projectDir = project.projectDir.toPath()
 
       into("plugins") {
-        expand([
-          version: VersionProperties.elasticsearch
-        ])
-        from projectDir.resolve("src/docker/bin/plugin-wrapper.sh")
-      }
-
-      into("plugins/archive") {
         from configurations.nonRepositoryPlugins
       }
 

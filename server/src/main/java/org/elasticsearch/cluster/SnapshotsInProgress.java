@@ -824,6 +824,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public Index indexByName(String name) {
+            assert isClone() == false : "tried to get routing index for clone entry [" + this + "]";
             return snapshotIndices.get(name);
         }
 

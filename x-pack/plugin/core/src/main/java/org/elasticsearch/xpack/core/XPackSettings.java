@@ -145,9 +145,9 @@ public class XPackSettings {
         new Setting.SimpleKey("xpack.security.authc.password_hashing.algorithm"),
         (s) -> {
             if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
-                return "PBKDF2";
+                return Hasher.PBKDF2_STRETCH.name();
             } else {
-                return "BCRYPT";
+                return Hasher.BCRYPT.name();
             }
         },
         Function.identity(),

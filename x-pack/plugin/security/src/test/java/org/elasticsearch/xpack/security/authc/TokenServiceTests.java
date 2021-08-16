@@ -182,7 +182,7 @@ public class TokenServiceTests extends ESTestCase {
                 final UpdateResponse response = new UpdateResponse(shardId, result.getId(), result.getSeqNo(), result.getPrimaryTerm(),
                     result.getVersion() + 1, DocWriteResponse.Result.UPDATED);
                 response.setGetResult(result);
-                responses[i] = new BulkItemResponse(i, DocWriteRequest.OpType.UPDATE, response);
+                responses[i] = BulkItemResponse.success(i, DocWriteRequest.OpType.UPDATE, response);
             }
             responseActionListener.onResponse(new BulkResponse(responses, randomLongBetween(1, 500)));
             return null;

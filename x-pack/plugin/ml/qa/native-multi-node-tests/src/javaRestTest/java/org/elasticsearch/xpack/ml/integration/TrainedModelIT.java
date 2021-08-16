@@ -10,14 +10,10 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.ml.GetTrainedModelsResponse;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
-import org.elasticsearch.client.ml.inference.trainedmodel.IndexLocation;
-import org.elasticsearch.client.ml.inference.TrainedModelType;
-import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
@@ -33,7 +29,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -248,24 +243,6 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"count\":2"));
     }
 
-    public void testPyTorchModelConfig() throws IOException {
-        String modelId = "pytorch1";
-        String pytorchModelId = "pytorch_model";
-        String index = "pytorch_index";
-        putPyTorchModel(modelId, pytorchModelId, index);
-        Response getModel = client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "trained_models/" + modelId));
-
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), getModel.getEntity().getContent())) {
-            GetTrainedModelsResponse response = GetTrainedModelsResponse.fromXContent(parser);
-            TrainedModelConfig model = response.getTrainedModels().get(0);
-            assertThat(model.getModelType(), equalTo(TrainedModelType.PYTORCH));
-            IndexLocation location = (IndexLocation) model.getLocation();
-            assertThat(location.getModelId(), equalTo(pytorchModelId));
-            assertThat(location.getIndex(), equalTo(index));
-            assertThat(model.getEstimatedOperations(), equalTo(0L));
-        }
-    }
-
     private void putRegressionModel(String modelId) throws IOException {
         try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
             TrainedModelDefinition.Builder definition = new TrainedModelDefinition.Builder()
@@ -276,21 +253,6 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setInferenceConfig(new RegressionConfig())
                 .setModelId(modelId)
                 .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3")))
-                .build().toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Request model = new Request("PUT", "_ml/trained_models/" + modelId);
-            model.setJsonEntity(XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON));
-            assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
-        }
-    }
-
-    private void putPyTorchModel(String modelId, String pytorchModelId, String index) throws IOException {
-        try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            TrainedModelConfig.builder()
-                .setLocation(new IndexLocation(pytorchModelId, index))
-                .setModelType(TrainedModelType.PYTORCH)
-                .setInferenceConfig(new ClassificationConfig())
-                .setModelId(modelId)
-                .setInput(new TrainedModelInput(Collections.singletonList("text")))
                 .build().toXContent(builder, ToXContent.EMPTY_PARAMS);
             Request model = new Request("PUT", "_ml/trained_models/" + modelId);
             model.setJsonEntity(XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON));

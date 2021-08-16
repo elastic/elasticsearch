@@ -38,6 +38,9 @@ grant {
   // Hadoop depends on the Kerberos login module for kerberos authentication
   // com.sun.security.auth.module.Krb5LoginModule.login()
   permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";
+  // CryptoOutputStream depends on the following two permissions:
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
 
   // com.sun.security.auth.module.Krb5LoginModule.commit()
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";

@@ -67,10 +67,13 @@ class HdfsSecurityContext {
             new AuthPermission("modifyPrincipals"),
             new PrivateCredentialPermission("org.apache.hadoop.security.Credentials * \"*\"", "read"),
             new PrivateCredentialPermission("javax.security.auth.kerberos.KerberosTicket * \"*\"", "read"),
-            new PrivateCredentialPermission("javax.security.auth.kerberos.KeyTab * \"*\"", "read")
+            new PrivateCredentialPermission("javax.security.auth.kerberos.KeyTab * \"*\"", "read"),
             // Included later:
             // 7) allow code to initiate kerberos connections as the logged in user
             // Still far and away fewer permissions than the original full plugin policy
+            // The following are required by CryptoOutputStream:
+            new RuntimePermission("accessClassInPackage.sun.nio.ch"),
+            new RuntimePermission("accessClassInPackage.sun.misc")
         };
     }
 

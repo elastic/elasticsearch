@@ -5,7 +5,7 @@ setup:
       reason: "compatible from 8.x to 7.x"
       features:
         - "headers"
-        - "warnings"
+        - "warnings_regex"
 
 ---
 "Bulk indexing of monitoring data":
@@ -27,7 +27,7 @@ setup:
               system: 1.51
               iowait: 0.85
               idle:   84.20
-      warnings:
-        - "[POST /_xpack/monitoring/_bulk] is deprecated! Use [POST /_monitoring/bulk] instead."
+      warnings_regex:
+        - "\\[.* /_xpack/monitoring/_bulk\\] is deprecated! Use \\[.* /_monitoring/bulk\\] instead."
 
   - is_false: errors

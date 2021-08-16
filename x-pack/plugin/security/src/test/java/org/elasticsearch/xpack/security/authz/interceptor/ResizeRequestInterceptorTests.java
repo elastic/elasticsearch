@@ -54,7 +54,6 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
     public void testResizeRequestInterceptorThrowsWhenFLSDLSEnabled() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -107,7 +106,6 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
     public void testResizeRequestInterceptorThrowsWhenTargetHasGreaterPermissions() throws Exception {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);

@@ -10,17 +10,14 @@ esplugin {
 
 ext {
   // EQL dependency versions
-  antlrVersion = "4.5.3"
+  antlrVersion = "4.9.2"
 }
 
 archivesBaseName = 'x-pack-eql'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  compileOnly(project(':modules:lang-painless')) {
-    exclude group: "org.ow2.asm"
-  }
-  api "org.antlr:antlr4-runtime:${antlrVersion}"
+  compileOnly(project(':modules:lang-painless:spi'))
   compileOnly project(xpackModule('ql'))
 
   testImplementation project(':test:framework')

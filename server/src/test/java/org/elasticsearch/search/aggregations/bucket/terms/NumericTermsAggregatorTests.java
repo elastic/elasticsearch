@@ -114,7 +114,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
 
     private void testSearchCase(Query query, List<Long> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
-                                Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
+                                Consumer<InternalMappedTerms<?, ?>> verify, ValueType valueType) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
@@ -140,7 +140,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 MappedFieldType longFieldType
                     = new NumberFieldMapper.NumberFieldType(LONG_FIELD, NumberFieldMapper.NumberType.LONG);
 
-                InternalMappedTerms rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, longFieldType);
+                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, longFieldType);
                 verify.accept(rareTerms);
             }
         }

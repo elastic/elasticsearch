@@ -21,6 +21,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Script producing IP addresses. Unlike the other {@linkplain AbstractFieldScript}s
@@ -52,6 +53,26 @@ public abstract class IpFieldScript extends AbstractFieldScript {
             emitFromSource();
         }
     };
+
+    public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
+        return (leafFieldName, params, searchLookup) -> {
+            CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
+                return new IpFieldScript(leafFieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void setDocument(int docId) {
+                        compositeFieldScript.setDocument(docId);
+                    }
+
+                    @Override
+                    public void execute() {
+                        emitFromCompositeScript(compositeFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

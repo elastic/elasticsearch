@@ -81,7 +81,7 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
     }
 
-    private void assertValidIterators(Iterator expectedBucketIter, Iterator expectedCountsIter, Iterator expectedValuesIter) {
+    private void assertValidIterators(Iterator<?> expectedBucketIter, Iterator<?> expectedCountsIter, Iterator<?> expectedValuesIter) {
         if (expectedBucketIter.hasNext() == false) {
             fail("`expectedBucketIter` iterator ended before `actual` iterator, size mismatch");
         }

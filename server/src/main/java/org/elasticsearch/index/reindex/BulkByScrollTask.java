@@ -367,11 +367,10 @@ public class BulkByScrollTask extends CancellableTask {
             FIELDS_SET.add(SLICES_FIELD);
         }
 
-        @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Tuple<Long, Long>, Void> RETRIES_PARSER = new ConstructingObjectParser<>(
             "bulk_by_scroll_task_status_retries",
             true,
-            a -> new Tuple(a[0], a[1])
+            a -> new Tuple<>(((Long) a[0]), (Long) a[1])
         );
         static {
             RETRIES_PARSER.declareLong(constructorArg(), new ParseField(RETRIES_BULK_FIELD));

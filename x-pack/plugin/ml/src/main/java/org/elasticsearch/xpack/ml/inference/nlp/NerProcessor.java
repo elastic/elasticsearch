@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
@@ -70,8 +71,8 @@ public class NerProcessor implements NlpTask.Processor {
     private final BertRequestBuilder bertRequestBuilder;
     private final IobTag[] iobMap;
 
-    NerProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config);
+    NerProcessor(BertTokenizer tokenizer, NerConfig config) {
+        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config.getTokenizationParams().maxSequenceLength());
         validate(config.getClassificationLabels());
         iobMap = buildIobMap(config.getClassificationLabels());
     }

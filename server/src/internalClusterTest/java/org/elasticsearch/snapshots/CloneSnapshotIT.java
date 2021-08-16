@@ -647,7 +647,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
             awaitClusterState(clusterState -> {
                 final List<SnapshotsInProgress.Entry> entries = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
                     .entries();
-                return entries.size() == 2 && entries.get(1).clones().isEmpty() == false;
+                return entries.size() == 2 && entries.get(1).shardsByRepoShardId().isEmpty() == false;
             });
             assertFalse(blockedSnapshot.isDone());
         } finally {
@@ -684,9 +684,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> waiting for snapshot clone to be fully initialized");
         awaitClusterState(state -> {
             for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
-                if (entry.clones().isEmpty() == false) {
+                if (entry.shardsByRepoShardId().isEmpty() == false) {
                     assertEquals(sourceSnapshot, entry.source().getName());
-                    for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> value : entry.clones().values()) {
+                    for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> value : entry.shardsByRepoShardId().values()) {
                         assertSame(value.value, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED);
                     }
                     return true;

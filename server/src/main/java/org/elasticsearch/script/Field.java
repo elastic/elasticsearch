@@ -23,7 +23,6 @@ import java.util.List;
  * * {@code isEmpty() == true}
  * * {@code getValues().equals(Collections.emptyList())}
  * * {@code getValue(defaultValue) == defaultValue}
- * @param <T>
  */
 public abstract class Field<T> {
     public static final Converter<BigInteger, BigIntegerField> BigInteger = Converters.BIGINTEGER;

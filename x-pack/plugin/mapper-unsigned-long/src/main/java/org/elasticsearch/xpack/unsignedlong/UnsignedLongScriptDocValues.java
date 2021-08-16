@@ -65,7 +65,12 @@ public class UnsignedLongScriptDocValues extends ScriptDocValues<Long> {
      * that the underlying value can be treated as a primitive long as that method returns either a {@code long} or a {@code BigInteger}.
      */
     protected long format(int index) {
-        return values[index] ^ MASK_2_63;
+        return shiftedLong(values[index]);
+    }
+
+    // Package private for use in UnsignedLongField
+    static long shiftedLong(long unshifted) {
+        return unshifted ^ MASK_2_63;
     }
 
     @Override

@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.elasticsearch.script.Converter;
-import org.elasticsearch.script.DelegatingFieldValues;
+import org.elasticsearch.script.Converters;
 import org.elasticsearch.script.Field;
 import org.elasticsearch.script.FieldValues;
-import org.elasticsearch.script.InvalidConversion;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -39,30 +38,9 @@ public class UnsignedLongField extends Field.LongField {
         return super.as(converter);
     }
 
-    public static class UnsignedLongConverter implements Converter<Long, UnsignedLongField> {
-        @Override
-        public UnsignedLongField convert(Field<?> sourceField) {
-            if (sourceField instanceof BigIntegerField) {
-                return BigIntegerToUnsignedLong((BigIntegerField) sourceField);
-            }
-
-            throw new InvalidConversion(sourceField.getClass(), getFieldClass());
-        }
-
-        @Override
-        public Class<UnsignedLongField> getFieldClass() {
-            return UnsignedLongField.class;
-        }
-
-        @Override
-        public Class<Long> getTargetClass() {
-            return Long.class;
-        }
-    }
-
     public static BigIntegerField UnsignedLongToBigInteger(UnsignedLongField sourceField) {
         FieldValues<Long> fv = sourceField.getFieldValues();
-        return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<java.math.BigInteger, Long>(fv) {
+        return new BigIntegerField(sourceField.getName(), new Converters.DelegatingFieldValues<java.math.BigInteger, Long>(fv) {
             protected BigInteger toBigInteger(long formatted) {
                 return java.math.BigInteger.valueOf(formatted).and(BIGINTEGER_2_64_MINUS_ONE);
             }
@@ -81,7 +59,7 @@ public class UnsignedLongField extends Field.LongField {
 
     public static UnsignedLongField BigIntegerToUnsignedLong(BigIntegerField sourceField) {
         FieldValues<BigInteger> fv = sourceField.getFieldValues();
-        return new UnsignedLongField(sourceField.getName(), new DelegatingFieldValues<>(fv) {
+        return new UnsignedLongField(sourceField.getName(), new Converters.DelegatingFieldValues<>(fv) {
             @Override
             public List<Long> getValues() {
                 return values.getValues().stream().map(java.math.BigInteger::longValue).collect(Collectors.toList());

@@ -224,3 +224,83 @@ setup:
     - match: { hits.hits.1.fields.missing_field.0: -9223372036854775809 }
     - match: { hits.hits.2._id: d3 }
     - match: { hits.hits.2.fields.missing_field.0: 12 }
+---
+"date to long":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              number_of_shards: 2
+            mappings:
+              properties:
+                dval:
+                  type: double
+    - do:
+        index:
+          index: test
+          id: d1
+          body: { "dval": 101,  "dt": "2015-01-01T12:10:30Z" }
+    - do:
+        index:
+          index: test
+          id: d2
+          body: { "dval": 202, "dt": 1420070400001 }
+    - do:
+        index:
+          index: test
+          id: d3
+          body: { "dval": 303, "dt": "2015-01-01" }
+    - do:
+        index:
+          index: test
+          id: d4
+          body: { "dval": 404, "dtnanos": "2015-01-01T12:10:30.123456789Z"}
+    - do:
+        index:
+          index: test
+          id: d5
+          body: { "dval": 505, "dtnanos": 1420070412345 }
+    - do:
+        index:
+          index: test
+          id: d6
+          body:{ "dval": 606 }
+    - do:
+        indices.refresh: {}
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query: { "match_all": {} }
+            sort: [ { dval: asc } ]
+            script_fields:
+              missing_field:
+                script:
+                  source: "field('foo').as(Field.BigInteger).getValue(BigInteger.TEN).add(BigInteger.ONE)"
+    - match: { hits.total: 3 }
+    - match: { hits.hits.0._id: d1 }
+    - match: { hits.hits.0.fields.missing_field.0: 26 }
+    - match: { hits.hits.1._id: d2 }
+    - match: { hits.hits.1.fields.missing_field.0: 9223372036854775808 }
+    - match: { hits.hits.2._id: d3 }
+    - match: { hits.hits.2.fields.missing_field.0: 11 }
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query: { "match_all": {} }
+            sort: [ { dval: asc } ]
+            script_fields:
+              missing_field:
+                script:
+                  source: "field('foo').as(Field.BigInteger).as(Field.Long).getValue(10L) + 2L"
+    - match: { hits.total: 3 }
+    - match: { hits.hits.0._id: d1 }
+    - match: { hits.hits.0.fields.missing_field.0: 27 }
+    - match: { hits.hits.1._id: d2 }
+    - match: { hits.hits.1.fields.missing_field.0: -9223372036854775809 }
+    - match: { hits.hits.2._id: d3 }
+    - match: { hits.hits.2.fields.missing_field.0: 12 }

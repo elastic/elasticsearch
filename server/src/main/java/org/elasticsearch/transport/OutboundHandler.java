@@ -93,10 +93,15 @@ final class OutboundHandler {
                       final TransportResponse response, final Compression.Scheme compressionScheme, final boolean isHandshake)
         throws IOException {
         Version version = Version.min(this.version, nodeVersion);
-        assert compressionScheme != Compression.Scheme.LZ4 || version.onOrAfter(Compression.Scheme.LZ4_VERSION);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), response, version,
             requestId, isHandshake, compressionScheme);
-        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
+        ActionListener<Void> listener = ActionListener.wrap(() -> {
+                try {
+                    messageListener.onResponseSent(requestId, action, response);
+                } finally {
+                    response.decRef();
+                }
+        });
         sendMessage(channel, message, listener);
     }
 

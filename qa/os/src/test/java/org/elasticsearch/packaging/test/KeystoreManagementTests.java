@@ -461,6 +461,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             case DOCKER_UBI:
             case DOCKER_IRON_BANK:
             case DOCKER_CLOUD:
+            case DOCKER_CLOUD_ESS:
                 assertThat(keystore, DockerFileMatcher.file(p660));
                 break;
             default:

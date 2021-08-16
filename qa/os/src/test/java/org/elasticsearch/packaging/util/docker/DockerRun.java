@@ -157,6 +157,10 @@ public class DockerRun {
                 suffix = "-cloud";
                 break;
 
+            case DOCKER_CLOUD_ESS:
+                suffix = "-cloud-ess";
+                break;
+
             default:
                 throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
         }

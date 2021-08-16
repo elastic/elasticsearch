@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Distribution.Packaging;
@@ -52,6 +53,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.docker.Docker.getJson;
+import static org.elasticsearch.packaging.util.docker.Docker.listContents;
 import static org.elasticsearch.packaging.util.docker.Docker.mkDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.restartContainer;
@@ -120,7 +122,12 @@ public class DockerTests extends PackagingTestCase {
         waitForElasticsearch(installation, USERNAME, PASSWORD);
         final int statusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), USERNAME, "wrong_password", null);
         assertThat(statusCode, equalTo(401));
+    }
 
+    /**
+     * Check that security can be disabled
+     */
+    public void test012SecurityCanBeDisabled() throws Exception {
         // restart container with security disabled
         runContainer(distribution(), builder().envVars(Map.of("xpack.security.enabled", "false")));
         waitForElasticsearch(installation);
@@ -132,7 +139,10 @@ public class DockerTests extends PackagingTestCase {
      * Checks that no plugins are initially active.
      */
     public void test020PluginsListWithNoPlugins() {
-        assumeTrue("Only applies to non-Cloud images", distribution.packaging != Packaging.DOCKER_CLOUD);
+        assumeTrue(
+            "Only applies to non-Cloud images",
+            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
+        );
 
         final Installation.Executables bin = installation.executables();
         final Result r = sh.run(bin.pluginTool + " list");
@@ -141,10 +151,13 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Checks that no plugins are initially active.
+     * Check that Cloud images bundle a selection of plugins.
      */
     public void test021PluginsListWithPlugins() {
-        assumeTrue("Only applies to Cloud images", distribution.packaging == Packaging.DOCKER_CLOUD);
+        assumeTrue(
+            "Only applies to non-Cloud images",
+            distribution.packaging == Packaging.DOCKER_CLOUD || distribution().packaging == Packaging.DOCKER_CLOUD_ESS
+        );
 
         final Installation.Executables bin = installation.executables();
         final List<String> plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
@@ -154,6 +167,29 @@ public class DockerTests extends PackagingTestCase {
             plugins,
             equalTo(List.of("repository-azure", "repository-gcs", "repository-s3"))
         );
+    }
+
+    /**
+     * Checks that ESS images can install plugins from the local archive.
+     */
+    public void test022InstallPluginsFromLocalArchive() {
+        assumeTrue("Only applies to ESS images", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
+
+        final String plugin = "analysis-icu";
+
+        final Installation.Executables bin = installation.executables();
+        List<String> plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
+
+        assertThat("Expected " + plugin + " to not be installed", plugins, not(hasItems(plugin)));
+
+        // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
+        sh.getEnv()
+            .put("ES_JAVA_OPTS", "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999");
+        sh.run("/opt/plugins/plugin-wrapper.sh install --batch analysis-icu");
+
+        plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
+
+        assertThat("Expected " + plugin + " to be installed", plugins, hasItems(plugin));
     }
 
     /**
@@ -960,12 +996,12 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Cloud image contains the required Beats
      */
     public void test400CloudImageBundlesBeats() {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD || distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
 
-        final List<String> contents = sh.run("ls -1 --color=never /opt").stdout.lines().collect(Collectors.toList());
-        assertThat("Incorrect contents of /opt", contents, equalTo(List.of("filebeat", "metricbeat")));
+        final List<String> contents = listContents("/opt");
+        assertThat("Expected beats in /opt", contents, hasItems("filebeat", "metricbeat"));
 
-        contents.forEach(beat -> {
+        Stream.of("filebeat", "metricbeat").forEach(beat -> {
             assertThat(Path.of("/opt/" + beat), file(Directory, "root", "root", p755));
             assertThat(Path.of("/opt/" + beat + "/" + beat), file(File, "root", "root", p755));
             assertThat(Path.of("/opt/" + beat + "/module"), file(Directory, "root", "root", p755));

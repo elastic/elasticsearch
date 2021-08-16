@@ -16,6 +16,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Distribution.Packaging;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -27,11 +28,13 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
@@ -46,7 +49,9 @@ import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
 import static org.elasticsearch.packaging.util.docker.DockerRun.getImageName;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -57,7 +62,7 @@ public class Docker {
     private static final Log logger = LogFactory.getLog(Docker.class);
 
     public static final Shell sh = new Shell();
-    private static final DockerShell dockerShell = new DockerShell();
+    public static final DockerShell dockerShell = new DockerShell();
     public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
     public static final int STARTUP_ATTEMPTS_MAX = 10;
 
@@ -388,16 +393,19 @@ public class Docker {
 
         Stream.of(es.bundledJdk, es.lib, es.modules).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p555)));
 
-        // You can't install plugins that include configuration when running as `elasticsearch` and the `config`
+        // You couldn't install plugins that include configuration when running as `elasticsearch` if the `config`
         // dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
         // config directory.
         Stream.of(es.bin, es.config, es.logs, es.config.resolve("jvm.options.d"), es.data, es.plugins)
             .forEach(dir -> assertThat(dir, file(Directory, "elasticsearch", "root", p775)));
 
-        Stream.of(es.bin, es.bundledJdk.resolve("bin"), es.modules.resolve("x-pack-ml/platform/linux-*/bin"))
+        final String arch = dockerShell.run("arch").stdout.trim();
+
+        Stream.of(es.bin, es.bundledJdk.resolve("bin"), es.modules.resolve("x-pack-ml/platform/linux-" + arch + "/bin"))
             .forEach(
-                binariesPath -> sh.run("ls " + binariesPath).stdout.lines()
-                    .forEach(bin -> assertThat(binariesPath.resolve(bin), file("root", "root", p555)))
+                binariesPath -> listContents(binariesPath).forEach(
+                    binFile -> assertThat(binariesPath.resolve(binFile), file("root", "root", p555))
+                )
             );
 
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
@@ -417,6 +425,31 @@ public class Docker {
                     dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
                 )
             );
+
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+            verifyCloudContainerInstallation(es);
+        }
+    }
+
+    private static void verifyCloudContainerInstallation(Installation es) {
+        assertThat(Path.of("/opt/plugins/plugin-wrapper.sh"), file("root", "root", p555));
+
+        final String pluginArchive = "/opt/plugins/archive";
+        final List<String> plugins = listContents(pluginArchive);
+
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+            assertThat("ESS image should come with plugins in " + pluginArchive, plugins, not(empty()));
+
+            final List<String> repositoryPlugins = plugins.stream().filter(p -> p.startsWith("repository")).collect(Collectors.toList());
+            // Assert on equality to that the error reports the unexpected values.
+            assertThat(
+                "ESS image should not have repository plugins in " + pluginArchive,
+                repositoryPlugins,
+                equalTo(Collections.emptyList())
+            );
+        } else {
+            assertThat("Cloud image should not have any plugins in " + pluginArchive, plugins, empty());
+        }
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
@@ -575,4 +608,16 @@ public class Docker {
         return attrs;
     }
 
+    /**
+     * Returns a list of the file contents of the supplied path.
+     * @param path the path to list
+     * @return the listing
+     */
+    public static List<String> listContents(String path) {
+        return dockerShell.run("ls -1 --color=never " + path).stdout.lines().collect(Collectors.toList());
+    }
+
+    public static List<String> listContents(Path path) {
+        return listContents(path.toString());
+    }
 }

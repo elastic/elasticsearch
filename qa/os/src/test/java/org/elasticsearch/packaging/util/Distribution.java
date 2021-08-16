@@ -34,6 +34,8 @@ public class Distribution {
             this.packaging = Packaging.DOCKER_IRON_BANK;
         } else if (filename.endsWith(".cloud.tar")) {
             this.packaging = Packaging.DOCKER_CLOUD;
+        } else if (filename.endsWith(".cloud-ess.tar")) {
+            this.packaging = Packaging.DOCKER_CLOUD_ESS;
         } else {
             int lastDot = filename.lastIndexOf('.');
             this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
@@ -66,6 +68,7 @@ public class Distribution {
             case DOCKER_UBI:
             case DOCKER_IRON_BANK:
             case DOCKER_CLOUD:
+            case DOCKER_CLOUD_ESS:
                 return true;
         }
         return false;
@@ -80,7 +83,8 @@ public class Distribution {
         DOCKER(".docker.tar", Platforms.isDocker()),
         DOCKER_UBI(".ubi.tar", Platforms.isDocker()),
         DOCKER_IRON_BANK(".ironbank.tar", Platforms.isDocker()),
-        DOCKER_CLOUD(".cloud.tar", Platforms.isDocker());
+        DOCKER_CLOUD(".cloud.tar", Platforms.isDocker()),
+        DOCKER_CLOUD_ESS(".cloud-ess.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;

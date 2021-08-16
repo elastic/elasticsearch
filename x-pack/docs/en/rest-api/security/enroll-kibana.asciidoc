@@ -35,10 +35,15 @@ The API returns the following response:
 [source,console_result]
 ----
 {
-  "token" : "AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ", <1>
-  "http_ca" : "MIIJlAIBAzCCCVoGCSqGSIb3....vsDfsA3UZBAjEPfhubpQysAICCAA=", <2>
+  "token" : {
+    "name" : "enroll-process-token-1629123923000", <1>
+    "value": "AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ" <2>
+  },
+  "http_ca" : "MIIJlAIBAzCCCVoGCSqGSIb3....vsDfsA3UZBAjEPfhubpQysAICCAA=", <3>
 }
 ----
-<1> A token that can be used as a bearer token for the `elastic/kibana` service account.
-<2> The CA certificate used to sign the node certificates that {es} uses for TLS on the HTTP layer.
+<1> The name of a token that can be used as a bearer token for the `elastic/kibana` service account.
+See link:/security/authentication/service-accounts.html#authenticate-with-service-account-token.html[Authenticate with service account tokens] for more information
+<2> The value of the aforementioned token.
+<3> The CA certificate used to sign the node certificates that {es} uses for TLS on the HTTP layer.
 The certificate is returned as a Base64 encoded string of the ASN.1 DER encoding of the certificate.

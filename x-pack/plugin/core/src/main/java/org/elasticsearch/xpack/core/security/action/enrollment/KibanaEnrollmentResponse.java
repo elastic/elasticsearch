@@ -11,75 +11,61 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-
 import java.io.IOException;
 import java.util.Objects;
 
 public final class KibanaEnrollmentResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ParseField TOKEN = new ParseField("token");
-    private static final ParseField HTTP_CA = new ParseField("http_ca");
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<KibanaEnrollmentResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            KibanaEnrollmentResponse.class.getName(), true,
-            a -> new KibanaEnrollmentResponse(new SecureString(((String) a[0]).toCharArray()), (String) a[1]));
-
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TOKEN);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA);
-    }
-
-    private final SecureString token;
+    private final String tokenName;
+    private final SecureString tokenValue;
     private final String httpCa;
 
     public KibanaEnrollmentResponse(StreamInput in) throws IOException {
         super(in);
-        token = in.readSecureString();
+        tokenName = in.readString();
+        tokenValue = in.readSecureString();
         httpCa = in.readString();
     }
 
-    public KibanaEnrollmentResponse(SecureString token, String httpCa) {
-        this.token = token;
+    public KibanaEnrollmentResponse(String tokenName, SecureString tokenValue, String httpCa) {
+        this.tokenName = tokenName;
+        this.tokenValue = tokenValue;
         this.httpCa = httpCa;
     }
 
-    public SecureString getToken() { return token; }
+    public String getTokenName() { return tokenName; }
+    public SecureString getTokenValue() { return tokenValue; }
     public String getHttpCa() {
         return httpCa;
     }
 
-    @Override public XContentBuilder toXContent(
-        XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(TOKEN.getPreferredName(), token.toString());
-        builder.field(HTTP_CA.getPreferredName(), httpCa);
-        return builder.endObject();
-    }
-
     @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeSecureString(token);
+        out.writeString(tokenName);
+        out.writeSecureString(tokenValue);
         out.writeString(httpCa);
-    }
-
-    public static KibanaEnrollmentResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        KibanaEnrollmentResponse response = (KibanaEnrollmentResponse) o;
-        return token.equals(response.token) && httpCa.equals(response.httpCa);
+        KibanaEnrollmentResponse that = (KibanaEnrollmentResponse) o;
+        return tokenName.equals(that.tokenName) && tokenValue.equals(that.tokenValue) && httpCa.equals(that.httpCa);
     }
 
     @Override public int hashCode() {
-        return Objects.hash(token, httpCa);
+        return Objects.hash(tokenName, tokenValue, httpCa);
+    }
+
+    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject()
+            .startObject("token")
+            .field("name", tokenName)
+            .field("value", tokenValue.toString())
+            .endObject()
+            .field("http_ca", httpCa)
+            .endObject();
+        return builder;
     }
 }

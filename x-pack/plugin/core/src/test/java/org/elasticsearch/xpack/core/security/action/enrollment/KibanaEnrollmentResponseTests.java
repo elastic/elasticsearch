@@ -7,41 +7,81 @@
 
 package org.elasticsearch.xpack.core.security.action.enrollment;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.equalTo;
 
-public class KibanaEnrollmentResponseTests extends AbstractXContentTestCase<KibanaEnrollmentResponse> {
+public class KibanaEnrollmentResponseTests extends AbstractWireSerializingTestCase<KibanaEnrollmentResponse> {
 
-    @Override protected KibanaEnrollmentResponse createTestInstance() {
+
+    @Override
+    protected Writeable.Reader<KibanaEnrollmentResponse> instanceReader() {
+        return KibanaEnrollmentResponse::new;
+    }
+
+    @Override
+    protected KibanaEnrollmentResponse createTestInstance() {
         return new KibanaEnrollmentResponse(
-            new SecureString(randomAlphaOfLengthBetween(30, 40).toCharArray()),
-            randomAlphaOfLength(50));
+            randomAlphaOfLengthBetween(8, 12),
+            new SecureString(randomAlphaOfLengthBetween(58, 70).toCharArray()),
+            randomAlphaOfLength(50)
+        );
     }
 
-    @Override protected KibanaEnrollmentResponse doParseInstance(XContentParser parser) throws IOException {
-        return KibanaEnrollmentResponse.fromXContent(parser);
-    }
-
-    @Override protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    public void testSerialization() throws IOException{
-        KibanaEnrollmentResponse response = createTestInstance();
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            response.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                KibanaEnrollmentResponse serialized = new KibanaEnrollmentResponse(in);
-                assertThat(response.getHttpCa(), is(serialized.getHttpCa()));
-                assertThat(response.getToken(), is(serialized.getToken()));
-            }
+    @Override
+    protected KibanaEnrollmentResponse mutateInstance(KibanaEnrollmentResponse instance) throws IOException {
+        switch (randomIntBetween(0, 3)) {
+            case 0:
+                return new KibanaEnrollmentResponse(
+                    randomAlphaOfLengthBetween(14, 20),
+                    new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
+                    randomAlphaOfLength(52)
+                );
+            case 1:
+                return new KibanaEnrollmentResponse(
+                    instance.getTokenName(),
+                    new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
+                    randomAlphaOfLength(52)
+                );
+            case 2:
+                return new KibanaEnrollmentResponse(
+                    randomAlphaOfLengthBetween(14, 20),
+                    instance.getTokenValue(),
+                    randomAlphaOfLength(52)
+                );
+            case 3:
+                return new KibanaEnrollmentResponse(
+                    randomAlphaOfLengthBetween(14, 20),
+                    new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
+                    instance.getHttpCa()
+                );
         }
+        // we never reach here
+        return null;
     }
+
+    public void testToXContent() throws IOException {
+        final KibanaEnrollmentResponse response = createTestInstance();
+        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+        response.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(
+            BytesReference.bytes(jsonBuilder),
+            false, jsonBuilder.contentType()).v2();
+
+        assertThat(responseMap, equalTo(Map.of(
+            "token", Map.of("name", response.getTokenName(), "value", response.getTokenValue().toString()),
+            "http_ca", response.getHttpCa()
+        )));
+    }
+
 }

@@ -109,7 +109,7 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         assertThat(response.getHttpCa(), startsWith("MIIDSjCCAjKgAwIBAgIVALCgZXvbceUrjJaQMheDCX0kXnRJMA0GCSqGSIb3DQEBCwUAMDQxMjAw" +
             "BgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMB4XDTIxMDQyODEyNTY0MVoXDTI0MDQyNzEyNTY0MVowNDEyMDAGA1UEA" +
             "xMpRWxhc3RpYyBDZXJ0aWZpY2F0ZSBUb29sIEF1dG9nZW5lcmF0ZWQgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCCJbOU4JvxDD/F"));
-        assertThat(response.getToken(), equalTo(TOKEN_VALUE));
+        assertThat(response.getTokenValue(), equalTo(TOKEN_VALUE));
         assertThat(createServiceAccountTokenRequests.size(), equalTo(1));
     }
 
@@ -125,6 +125,6 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         final PlainActionFuture<KibanaEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
-        assertThat(e.getDetailedMessage(), containsString("Failed to create credentials for the [elastic/kibana] service account"));
+        assertThat(e.getDetailedMessage(), containsString("Failed to create token for the [elastic/kibana] service account"));
     }
 }

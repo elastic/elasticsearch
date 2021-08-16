@@ -10,7 +10,7 @@
  * We need this separate project as tests related to the enrollment process require
  * test clusters with a specific TLS setup which is also not FIPS 140-2 compliant
  * (as it uses PKCS#12 keystores). In order to not disable the entire rest-high-level
- * project when running in fips mode, we moved enrollment tests in this subproject. 
+ * project when running in fips mode, we moved enrollment tests in this subproject.
  *
  */
 

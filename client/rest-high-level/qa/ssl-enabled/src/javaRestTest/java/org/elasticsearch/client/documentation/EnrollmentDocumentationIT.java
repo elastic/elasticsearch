@@ -26,13 +26,16 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.startsWith;
+
 public class EnrollmentDocumentationIT extends ESRestHighLevelClientTestCase {
     static Path HTTP_TRUSTSTORE;
 
     @BeforeClass
-    static void getResources() throws Exception{
+    public static void getResources() throws Exception {
         HTTP_TRUSTSTORE = PathUtils.get(EnrollmentDocumentationIT.class.getResource("/httpCa.p12").toURI());
     }
+
     @Override
     protected String getProtocol() {
         return "https";
@@ -100,10 +103,12 @@ public class EnrollmentDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::kibana-enrollment-execute
 
             // tag::kibana-enrollment-response
-            SecureString token = response.getToken(); // <1>
-            String httoCa = response.getHttpCa(); // <2>
+            String tokenName = response.getTokenName(); // <1>
+            SecureString tokenValue = response.getTokenValue(); // <2>
+            String httoCa = response.getHttpCa(); // <3>
             // end::kibana-enrollment-response
-            assertNotNull(token);
+            assertNotNull(tokenValue);
+            assertThat(tokenName, startsWith("enroll-process-token-"));
         }
 
         {

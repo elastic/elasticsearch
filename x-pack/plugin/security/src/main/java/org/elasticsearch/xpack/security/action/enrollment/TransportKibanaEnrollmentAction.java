@@ -97,16 +97,17 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
             final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
                 new CreateServiceAccountTokenRequest("elastic", "kibana", getTokenName());
             client.execute(CreateServiceAccountTokenAction.INSTANCE, createServiceAccountTokenRequest, ActionListener.wrap(response -> {
-                logger.debug("Successfully created credentials for the [elastic/kibana] service account during kibana enrollment");
-                listener.onResponse(new KibanaEnrollmentResponse(response.getValue(), httpCa));
+                logger.debug("Successfully created token [{}] for the [elastic/kibana] service account during kibana enrollment",
+                    response.getName());
+                listener.onResponse(new KibanaEnrollmentResponse(response.getName(), response.getValue(), httpCa));
             }, e -> listener.onFailure(
-                new ElasticsearchException("Failed to create credentials for the [elastic/kibana] service account", e))));
+                new ElasticsearchException("Failed to create token for the [elastic/kibana] service account", e))));
         }
     }
 
     protected static String getTokenName(){
-        final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
+        final ZonedDateTime enrollTime = ZonedDateTime.now(ZoneOffset.UTC);
         final String prefix = "enroll-process-token-";
-        return prefix + autoConfigDate.toInstant().getEpochSecond();
+        return prefix + enrollTime.toInstant().toEpochMilli();
     }
 }

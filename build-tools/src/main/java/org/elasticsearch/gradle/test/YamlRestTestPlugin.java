@@ -19,8 +19,10 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
@@ -50,22 +52,35 @@ public class YamlRestTestPlugin implements Plugin<Project> {
             .getExtensions()
             .getByName(TestClustersPlugin.EXTENSION_NAME);
 
-        var cluster = testClusters.maybeCreate("yamlRestTest");
         testSourceSet.getOutput().dir(copyRestTestSpecs.map(Task::getOutputs));
-
-        String elasticsearchVersion = VersionProperties.getElasticsearch();
         Configuration yamlRestTestImplementation = configurations.getByName(testSourceSet.getImplementationConfigurationName());
-        System.out.println("yamlRestTestImplementation.getName() = " + yamlRestTestImplementation.getName());
 
+        setupDefaultDependencies(project.getDependencies(), restTestSpecs, yamlRestTestImplementation);
+        var cluster = testClusters.maybeCreate("yamlRestTest");
+        TaskProvider<StandaloneRestIntegTestTask> yamlRestTestTask = setupTestTask(project, testSourceSet, cluster);
+
+        project.getPlugins().withType(PluginBuildPlugin.class, p -> {
+            TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
+            cluster.plugin(bundle.flatMap(Zip::getArchiveFile));
+            yamlRestTestTask.configure(t -> { t.dependsOn(bundle); });
+        });
+    }
+
+    private static void setupDefaultDependencies(DependencyHandler dependencyHandler,
+                                                 Configuration restTestSpecs,
+                                                 Configuration yamlRestTestImplementation) {
+        String elasticsearchVersion = VersionProperties.getElasticsearch();
         yamlRestTestImplementation.defaultDependencies(
-            deps -> deps.add(project.getDependencies().create("org.elasticsearch.test:framework:" + elasticsearchVersion))
+            deps -> deps.add(dependencyHandler.create("org.elasticsearch.test:framework:" + elasticsearchVersion))
         );
 
         restTestSpecs.defaultDependencies(
-            deps -> deps.add(project.getDependencies().create("org.elasticsearch:rest-api-spec:" + elasticsearchVersion))
+            deps -> deps.add(dependencyHandler.create("org.elasticsearch:rest-api-spec:" + elasticsearchVersion))
         );
+    }
 
-        var yamlRestTestTask = project.getTasks().register("yamlRestTest", StandaloneRestIntegTestTask.class, task -> {
+    private TaskProvider<StandaloneRestIntegTestTask> setupTestTask(Project project, SourceSet testSourceSet, ElasticsearchCluster cluster) {
+        return project.getTasks().register("yamlRestTest", StandaloneRestIntegTestTask.class, task -> {
             task.useCluster(cluster);
             task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
             task.setClasspath(testSourceSet.getRuntimeClasspath());
@@ -76,12 +91,6 @@ public class YamlRestTestPlugin implements Plugin<Project> {
             nonInputProperties.systemProperty("tests.clustername", () -> cluster.getName());
             task.getJvmArgumentProviders().add(nonInputProperties);
             task.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString());
-        });
-
-        project.getPlugins().withType(PluginBuildPlugin.class, p -> {
-            TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
-            cluster.plugin(bundle.flatMap(Zip::getArchiveFile));
-            yamlRestTestTask.configure(t -> { t.dependsOn(bundle); });
         });
     }
 

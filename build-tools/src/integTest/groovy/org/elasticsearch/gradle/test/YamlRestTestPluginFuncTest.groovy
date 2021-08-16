@@ -34,7 +34,6 @@ restTestSpecs
 yamlRestTestImplementation - Implementation only dependencies for source set 'yaml rest test'. (n)
 \\--- org.elasticsearch.test:framework:8.0.0-SNAPSHOT (n)
 """)
-
     }
 
     def "yamlRestTest does nothing when there are no tests"() {
@@ -57,9 +56,9 @@ yamlRestTestImplementation - Implementation only dependencies for source set 'ya
         when:
         def result = gradleRunner("yamlRestTest").build()
         then:
-        result.task(':yamlRestTest').outcome == TaskOutcome.NO_SOURCE
         result.task(':compileYamlRestTestJava').outcome == TaskOutcome.NO_SOURCE
         result.task(':processYamlRestTestResources').outcome == TaskOutcome.NO_SOURCE
+        result.task(':yamlRestTest').outcome == TaskOutcome.NO_SOURCE
     }
 
 }

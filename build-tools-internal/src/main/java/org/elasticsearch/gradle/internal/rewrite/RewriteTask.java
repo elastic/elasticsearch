@@ -12,10 +12,12 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
@@ -44,6 +46,9 @@ public abstract class RewriteTask extends DefaultTask {
 
     @InputFile
     abstract RegularFileProperty getConfigFile();
+
+    @Internal
+    abstract Property<String> getMaxHeapSize();
 
     @Inject
     public RewriteTask(
@@ -86,6 +91,7 @@ public abstract class RewriteTask extends DefaultTask {
             spec.getForkOptions().jvmArgs("--add-exports");
             spec.getForkOptions().jvmArgs("jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED");
             spec.getForkOptions().workingDir(getProject().getProjectDir());
+            spec.getForkOptions().setMaxHeapSize(getMaxHeapSize().get());
         });
 
         List<File> javaPaths = getSourceFiles().getFiles()

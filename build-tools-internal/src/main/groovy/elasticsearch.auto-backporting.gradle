@@ -21,7 +21,6 @@ allprojects {
 
     repositories {
         mavenCentral()
-//        maven { url 'https://jitpack.io' }
     }
 
     configurations {
@@ -48,5 +47,9 @@ allprojects {
                 java.setTargetCompatibility(JavaVersion.VERSION_11)
             }
         }
+    }
+
+    tasks.named('rewrite').configure {rewrite ->
+        rewrite.getMaxHeapSize().set("2g")
     }
 }

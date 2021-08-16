@@ -84,7 +84,7 @@ final class QueryTranslator {
 
         public static Query doTranslate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
             checkInsensitiveComparison(bc);
-            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
+            return handler.wrapFunctionQuery(bc, bc.left(), (field) -> translate(bc, field, handler));
         }
 
         public static void checkInsensitiveComparison(InsensitiveBinaryComparison bc) {
@@ -94,17 +94,12 @@ final class QueryTranslator {
                 Expressions.name(bc.right()), bc.symbol());
         }
 
-        private static Query translate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
+        private static Query translate(InsensitiveBinaryComparison bc, FieldAttribute field, TranslatorHandler handler) {
             Source source = bc.source();
-            String name = handler.nameOf(bc.left());
+            String name = field.exactAttribute().name();
             Object value = valueOf(bc.right());
 
             if (bc instanceof InsensitiveEquals || bc instanceof InsensitiveNotEquals) {
-                if (bc.left() instanceof FieldAttribute) {
-                    // equality should always be against an exact match
-                    // (which is important for strings)
-                    name = ((FieldAttribute) bc.left()).exactAttribute().name();
-                }
                 Query query = new TermQuery(source, name, value, true);
 
                 if (bc instanceof InsensitiveNotEquals) {
@@ -163,7 +158,7 @@ final class QueryTranslator {
                 }
             }
 
-            return handler.wrapFunctionQuery(f, f, () -> new ScriptQuery(f.source(), f.asScript()));
+            return handler.wrapFunctionQuery(f, f, (field) -> new ScriptQuery(f.source(), f.asScript()));
         }
     }
 

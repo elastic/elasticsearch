@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.type.DataType;
 
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * Parameterized handler used during query translation.
@@ -25,9 +25,9 @@ public interface TranslatorHandler {
 
     Query asQuery(Expression e);
 
-    default Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
+    default Query wrapFunctionQuery(ScalarFunction sf, Expression field, Function<FieldAttribute, Query> querySupplier) {
         if (field instanceof FieldAttribute) {
-            return ExpressionTranslator.wrapIfNested(querySupplier.get(), field);
+            return ExpressionTranslator.wrapIfNested(querySupplier.apply((FieldAttribute) field), field);
         }
         return new ScriptQuery(sf.source(), sf.asScript());
     }

@@ -215,17 +215,11 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(IsNotNull isNotNull, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), () -> translate(isNotNull, handler));
+            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), (field) -> translate(isNotNull, field, handler));
         }
 
-        private static Query translate(IsNotNull isNotNull, TranslatorHandler handler) {
-            Query query = null;
-            if (isNotNull.field() instanceof FieldAttribute) {
-                query = new ExistsQuery(isNotNull.source(), handler.nameOf(isNotNull.field()));
-            } else {
-                query = new ScriptQuery(isNotNull.source(), isNotNull.asScript());
-            }
-            return query;
+        private static Query translate(IsNotNull isNotNull, FieldAttribute field, TranslatorHandler handler) {
+            return new ExistsQuery(isNotNull.source(), handler.nameOf(field));
         }
     }
 
@@ -237,19 +231,11 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(IsNull isNull, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(isNull, isNull.field(), () -> translate(isNull, handler));
+            return handler.wrapFunctionQuery(isNull, isNull.field(), (field) -> translate(isNull, field, handler));
         }
 
-        private static Query translate(IsNull isNull, TranslatorHandler handler) {
-            Query query = null;
-
-            if (isNull.field() instanceof FieldAttribute) {
-                query = new NotQuery(isNull.source(), new ExistsQuery(isNull.source(), handler.nameOf(isNull.field())));
-            } else {
-                query = new ScriptQuery(isNull.source(), isNull.asScript());
-            }
-
-            return query;
+        private static Query translate(IsNull isNull, FieldAttribute field, TranslatorHandler handler) {
+            return new NotQuery(isNull.source(), new ExistsQuery(isNull.source(), handler.nameOf(field)));
         }
     }
 
@@ -270,14 +256,12 @@ public final class ExpressionTranslators {
 
         public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {
             checkBinaryComparison(bc);
-            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
+            return handler.wrapFunctionQuery(bc, bc.left(), (field) -> translate(bc, field, handler));
         }
 
-        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
-            assert bc.left() instanceof FieldAttribute;
-
+        static Query translate(BinaryComparison bc, FieldAttribute field, TranslatorHandler handler) {
             Source source = bc.source();
-            String name = handler.nameOf(bc.left());
+            String name = handler.nameOf(field);
             Object value = valueOf(bc.right());
             String format = null;
             boolean isDateLiteralComparison = false;
@@ -301,7 +285,7 @@ public final class ExpressionTranslators {
             }
 
             ZoneId zoneId = null;
-            if (DataTypes.isDateTime(bc.left().dataType())) {
+            if (DataTypes.isDateTime(field.dataType())) {
                 zoneId = bc.zoneId();
             }
             if (bc instanceof GreaterThan) {
@@ -319,7 +303,7 @@ public final class ExpressionTranslators {
             if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
                 // equality should always be against an exact match
                 // (which is important for strings)
-                name = ((FieldAttribute) bc.left()).exactAttribute().name();
+                name = field.exactAttribute().name();
 
                 Query query;
                 if (isDateLiteralComparison) {
@@ -347,10 +331,10 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(Range r, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(r, r.value(), () -> translate(r, handler));
+            return handler.wrapFunctionQuery(r, r.value(), (field) -> translate(r, field, handler));
         }
 
-        private static RangeQuery translate(Range r, TranslatorHandler handler) {
+        private static RangeQuery translate(Range r, FieldAttribute field, TranslatorHandler handler) {
             Object lower = valueOf(r.lower());
             Object upper = valueOf(r.upper());
             String format = null;
@@ -376,7 +360,7 @@ public final class ExpressionTranslators {
                 format = formatter.pattern();
             }
             return new RangeQuery(
-                r.source(), handler.nameOf(r.value()), lower, r.includeLower(), upper, r.includeUpper(), format, r.zoneId());
+                r.source(), handler.nameOf(field), lower, r.includeLower(), upper, r.includeUpper(), format, r.zoneId());
         }
     }
 
@@ -388,35 +372,39 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(In in, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
+            return handler.wrapFunctionQuery(in, in.value(), (field) -> translate(in, field, handler));
         }
 
-        private static Query translate(In in, TranslatorHandler handler) {
-            assert in.value() instanceof FieldAttribute;
+        private static Query translate(In in, FieldAttribute field, TranslatorHandler handler) {
+            boolean isDateTimeComparison = DataTypes.isDateTime(field.dataType());
 
             Set<Object> terms = new LinkedHashSet<>();
             List<Query> queries = new ArrayList<>();
 
             for (Expression rhs : in.list()) {
                 if (DataTypes.isNull(rhs.dataType()) == false) {
-                    // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
-                    Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), handler);
+                    if (isDateTimeComparison) {
+                        // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
+                        Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), field, handler);
 
-                    if (query instanceof TermQuery) {
-                        terms.add(((TermQuery) query).value());
+                        if (query instanceof TermQuery) {
+                            terms.add(((TermQuery) query).value());
+                        } else {
+                            queries.add(query);
+                        }
                     } else {
-                        queries.add(query);
+                        terms.add(valueOf(rhs));
                     }
                 }
             }
 
-            String fieldName = ((FieldAttribute) in.value()).exactAttribute().name();
             if (terms.isEmpty() == false) {
+                String fieldName = field.exactAttribute().name();
                 queries.add(new TermsQuery(in.source(), fieldName, terms));
             }
 
             return queries.stream()
-                .reduce((q1, q2) -> new BoolQuery(in.source(), false, q1, q2)).get();
+                .reduce((q1, q2) -> or(in.source(), q1, q2)).get();
         }
     }
 
@@ -432,7 +420,7 @@ public final class ExpressionTranslators {
             if (q != null) {
                 return q;
             }
-            return handler.wrapFunctionQuery(f, f, () -> new ScriptQuery(f.source(), f.asScript()));
+            return handler.wrapFunctionQuery(f, f, (field) -> new ScriptQuery(f.source(), f.asScript()));
         }
 
         public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {

@@ -401,6 +401,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         RecoveryState.FileDetail fileDetails = recoveryStateIndex.getFileDetails(storeFileMetadata.name());
         assertThat(fileDetails.recovered(), equalTo(storeFileMetadata.length()));
+        assertThat(fileDetails.recoveredFromSnapshot(), equalTo(storeFileMetadata.length()));
 
         recoveryTarget.decRef();
         closeShards(shard);
@@ -516,6 +517,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         ReleasableBytesReference bytesRef = ReleasableBytesReference.wrap(new BytesArray(fileData));
         recoveryTarget.writeFileChunk(storeFileMetadata, 0, bytesRef, true, 0, writeChunkFuture);
         writeChunkFuture.get();
+
+        assertThat(fileDetails.recovered(), equalTo(storeFileMetadata.length()));
 
         recoveryTarget.decRef();
         closeShards(shard);

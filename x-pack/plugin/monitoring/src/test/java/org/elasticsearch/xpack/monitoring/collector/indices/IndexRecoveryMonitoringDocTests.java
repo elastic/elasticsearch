@@ -159,6 +159,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                               + "\"total_in_bytes\":0,"
                               + "\"reused_in_bytes\":0,"
                               + "\"recovered_in_bytes\":0,"
+                              + "\"recovered_from_snapshot_in_bytes\": 0,"
                               + "\"percent\":\"0.0%\""
                             + "},"
                             + "\"files\":{"

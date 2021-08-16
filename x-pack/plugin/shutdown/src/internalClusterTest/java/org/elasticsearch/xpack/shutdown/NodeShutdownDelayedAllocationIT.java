@@ -216,7 +216,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = client().prepareIndex("test", "_doc").setSource("field", "value");
         }
         indexRandom(true, builders);
     }

@@ -146,8 +146,28 @@ public class Realms implements Iterable<Realm> {
             return Collections.emptyList();
         }
         // TODO : Recalculate this when the license changes rather than on every call
-        return Collections.unmodifiableList(
-            realms.stream().filter(r -> checkLicense(r, licenseStateSnapshot)).collect(Collectors.toList()));
+        List<Realm> licensedRealms = Collections.unmodifiableList(
+            this.realms.stream().filter(r -> checkLicense(r, licenseStateSnapshot)).collect(Collectors.toList()));
+
+        if (hasUserRealm(licensedRealms)) {
+            return licensedRealms;
+        } else {
+            // Automatically enable native/file realms if no other (non-reserved) realms are permitted by the active license
+            return nativeRealmsOnly;
+        }
+    }
+
+    /**
+     * Returns true if this list contains at least one non-reserved realm
+     */
+    private boolean hasUserRealm(List<Realm> licensedRealms) {
+        if (licensedRealms.isEmpty()) {
+            return false;
+        }
+        if (licensedRealms.size() == 1 && licensedRealms.get(0) == reservedRealm) {
+            return false;
+        }
+        return true;
     }
 
     private static boolean checkLicense(Realm realm, XPackLicenseState licenseState) {

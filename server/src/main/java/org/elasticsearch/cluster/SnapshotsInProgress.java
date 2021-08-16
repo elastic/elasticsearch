@@ -1043,6 +1043,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 out.writeStringCollection(dataStreams);
             }
             if (out.getVersion().onOrAfter(SnapshotsService.CLONE_SNAPSHOT_VERSION)) {
+                out.writeOptionalWriteable(source);
                 if (source == null) {
                     out.writeMap(ImmutableOpenMap.of());
                 } else {

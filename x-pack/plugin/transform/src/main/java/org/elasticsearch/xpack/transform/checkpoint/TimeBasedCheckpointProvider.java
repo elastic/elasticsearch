@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.time.Clock;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.Map;
@@ -136,7 +137,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             groups.values().stream()
                 .filter(DateHistogramGroupSource.class::isInstance)
                 .map(DateHistogramGroupSource.class::cast)
-                .filter(group -> group.getField().equals(transformConfig.getSyncConfig().getField()))
+                .filter(group -> Objects.equals(group.getField(), transformConfig.getSyncConfig().getField()))
                 .findFirst();
         if (dateHistogramGroupSource.isEmpty()) {
             return identity();

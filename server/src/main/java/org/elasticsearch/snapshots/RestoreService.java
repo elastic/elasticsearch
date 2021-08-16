@@ -332,16 +332,19 @@ public class RestoreService implements ClusterStateApplier {
             .collect(Collectors.toSet());
 
         final Map<String, SystemIndices.Feature> featureSet = systemIndices.getFeatures();
-        final Set<String> featureStateDataStreams = featureStatesToRestore.keySet()
-            .stream()
-            .filter(featureName -> {
-                if (featureSet.containsKey(featureName)) {
-                    return true;
-                }
-                logger.warn("Restoring snapshot [" + snapshotInfo.snapshotId() + "]: skipping feature [" +
-                    featureName + "] because it is not available in this cluster");
-                return false;
-            })
+        final Set<String> featureStateDataStreams = featureStatesToRestore.keySet().stream().filter(featureName -> {
+            if (featureSet.containsKey(featureName)) {
+                return true;
+            }
+            logger.warn(
+                "Restoring snapshot ["
+                    + snapshotInfo.snapshotId()
+                    + "]: skipping feature ["
+                    + featureName
+                    + "] because it is not available in this cluster"
+            );
+            return false;
+        })
             .map(name -> systemIndices.getFeatures().get(name))
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
             .map(SystemDataStreamDescriptor::getDataStreamName)

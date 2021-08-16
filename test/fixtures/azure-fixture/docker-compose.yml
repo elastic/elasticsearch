@@ -35,3 +35,12 @@ services:
       - ./testfixtures_shared/shared:/fixture/shared
     ports:
       - "8091"
+
+  azure-fixture-snapshot-based-recoveries:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "8091"

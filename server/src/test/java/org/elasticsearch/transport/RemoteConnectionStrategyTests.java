@@ -78,8 +78,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     public void testCompressionSchemeDefaults() {
         // Test explicit
         Settings.Builder explicitBuilder = Settings.builder();
-        explicitBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy");
-        explicitBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300");
+        explicitBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "proxy");
+        explicitBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "127.0.0.1:9300");
         explicitBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
             randomFrom("true", "indexing_data", "false"));
         explicitBuilder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), "lz4");
@@ -88,8 +90,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         // Test implicit
         Settings.Builder implicitBuilder = Settings.builder();
-        implicitBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy");
-        implicitBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300");
+        implicitBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "proxy");
+        implicitBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+            "127.0.0.1:9300");
         implicitBuilder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), randomFrom("true", "indexing_data", "false"));
         implicitBuilder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), "lz4");
         ConnectionProfile connectionProfileImplicit = FakeConnectionStrategy.buildConnectionProfile("cluster-alias",

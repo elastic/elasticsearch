@@ -466,6 +466,9 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         boolean delayed = reason == UnassignedInfo.Reason.NODE_LEFT &&
             UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings).nanos() > 0;
         int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
+        final String lastAllocatedNodeId = reason == UnassignedInfo.Reason.NODE_RESTARTING || randomBoolean()
+            ? randomAlphaOfLength(10)
+            : null;
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
@@ -474,7 +477,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                             RecoverySource.PeerRecoverySource.INSTANCE,
                                             new UnassignedInfo(reason, null, null, failedAllocations, System.nanoTime(),
                                                 System.currentTimeMillis(), delayed, UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                                                Collections.emptySet(), null)))
+                                                Collections.emptySet(), lastAllocatedNodeId)))
                                         .build())
                 )
                 .build();

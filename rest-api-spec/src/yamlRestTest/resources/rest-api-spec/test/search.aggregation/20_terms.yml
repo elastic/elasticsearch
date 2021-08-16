@@ -1327,6 +1327,10 @@ precise size:
 
 ---
 huge size:
+  - skip:
+        version: " - 7.99.99"
+        reason: "Fixed in 8.0.0 to be backported to 7.14.1"
+
   - do:
       bulk:
         index: test_1

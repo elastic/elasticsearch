@@ -89,7 +89,7 @@ Register a node for shutdown:
 --------------------------------------------------
 PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 {
-  "type": "remove", <1>
+  "type": "restart", <1>
   "reason": "Demonstrating how the node shutdown API works",
   "allocation_delay": "20m"
 }

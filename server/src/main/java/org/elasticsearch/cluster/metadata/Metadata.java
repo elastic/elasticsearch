@@ -1546,7 +1546,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         writeIndexOfWriteDataStream = indices.get(writeDataStream.getWriteIndex().getName());
                     }
                     IndexAbstraction existing = indicesLookup.put(alias.getName(),
-                        new IndexAbstraction.DataStreamAlias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream));
+                        new IndexAbstraction.Alias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream));
                     assert existing == null : "duplicate data stream alias for " + alias.getName();
                 }
             }
@@ -1597,7 +1597,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 // Sanity check, because elsewhere a more user friendly error should have occurred:
                 List<String> conflictingAliases = indicesLookup.values().stream()
                     .filter(ia -> ia.getType() == IndexAbstraction.Type.ALIAS)
-                    .filter(ia -> ia instanceof IndexAbstraction.Alias) // TODO: a nicer to only select index aliases?
+                    .filter(ia -> ia.isDataStreamRelated() == false)
                     .filter(ia -> {
                         for (IndexMetadata index : ia.getIndices()) {
                             if (indicesLookup.get(index.getIndex().getName()).getParentDataStream() != null) {

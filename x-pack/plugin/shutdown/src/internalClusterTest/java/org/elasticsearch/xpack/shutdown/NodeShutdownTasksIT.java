@@ -77,11 +77,9 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
     }
 
     public void testTasksAreNotAssignedToShuttingDownNode() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         // Start two nodes, one will be marked as shutting down
-        Settings enabledSettings = Settings.builder().put(ShutdownPlugin.SHUTDOWN_FEATURE_ENABLED_FLAG, true).build();
-        final String node1 = internalCluster().startNode(enabledSettings);
-        final String node2 = internalCluster().startNode(enabledSettings);
+        final String node1 = internalCluster().startNode();
+        final String node2 = internalCluster().startNode();
 
         final String shutdownNode;
         final String candidateNode;

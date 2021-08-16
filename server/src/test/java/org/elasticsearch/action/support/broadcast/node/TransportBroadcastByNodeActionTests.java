@@ -328,7 +328,10 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 shards.add(shard);
             }
         }
-        final TransportBroadcastByNodeAction.BroadcastByNodeTransportRequestHandler handler =
+        final TransportBroadcastByNodeAction<
+            Request,
+            Response,
+            TransportBroadcastByNodeAction.EmptyResult>.BroadcastByNodeTransportRequestHandler handler =
                 action.new BroadcastByNodeTransportRequestHandler();
 
         final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
@@ -390,7 +393,10 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 shards.add(shard);
             }
         }
-        final TransportBroadcastByNodeAction.BroadcastByNodeTransportRequestHandler handler =
+        final TransportBroadcastByNodeAction<
+            Request,
+            Response,
+            TransportBroadcastByNodeAction.EmptyResult>.BroadcastByNodeTransportRequestHandler handler =
                 action.new BroadcastByNodeTransportRequestHandler();
 
         final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
@@ -403,6 +409,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         TransportResponse response = future.actionGet();
         assertTrue(response instanceof TransportBroadcastByNodeAction.NodeResponse);
+        @SuppressWarnings("rawtypes")
         TransportBroadcastByNodeAction.NodeResponse nodeResponse = (TransportBroadcastByNodeAction.NodeResponse) response;
 
         // check the operation was executed on the correct node
@@ -422,6 +429,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         assertEquals("successful shards", successfulShards, nodeResponse.getSuccessfulShards());
         assertEquals("total shards", action.getResults().size(), nodeResponse.getTotalShards());
         assertEquals("failed shards", failedShards, nodeResponse.getExceptions().size());
+        @SuppressWarnings("unchecked")
         List<BroadcastShardOperationFailedException> exceptions = nodeResponse.getExceptions();
         for (BroadcastShardOperationFailedException exception : exceptions) {
             assertThat(exception.getMessage(), is("operation indices:admin/test failed"));
@@ -482,8 +490,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                     }
                 }
                 totalSuccessfulShards += shardResults.size();
-                TransportBroadcastByNodeAction.NodeResponse nodeResponse = action.new NodeResponse(entry.getKey(), shards.size(),
-                    shardResults, exceptions);
+                TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult>.NodeResponse nodeResponse =
+                    action.new NodeResponse(entry.getKey(), shards.size(), shardResults, exceptions);
                 transport.handleResponse(requestId, nodeResponse);
             }
         }

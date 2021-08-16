@@ -354,7 +354,7 @@ public class PublishClusterStateAction {
         return bStream.bytes();
     }
 
-    public static BytesReference serializeDiffClusterState(Diff diff, Version nodeVersion) throws IOException {
+    public static BytesReference serializeDiffClusterState(Diff<?> diff, Version nodeVersion) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
         try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream))) {
             stream.setVersion(nodeVersion);

@@ -288,6 +288,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return allowExpensiveQueries.getAsBoolean();
     }
 
+    @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
         return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(),
             () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()));
@@ -589,7 +590,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     @Override
-    public void executeAsyncActions(ActionListener listener) {
+    public void executeAsyncActions(ActionListener<Object> listener) {
         failIfFrozen();
         super.executeAsyncActions(listener);
     }

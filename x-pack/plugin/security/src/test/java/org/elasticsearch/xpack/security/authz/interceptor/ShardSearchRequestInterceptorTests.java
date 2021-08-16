@@ -44,7 +44,6 @@ public class ShardSearchRequestInterceptorTests extends ESTestCase {
     public void init() {
         threadPool = new TestThreadPool("shard search request interceptor tests");
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)).thenReturn(true);
         clusterService = mock(ClusterService.class);
         interceptor = new ShardSearchRequestInterceptor(threadPool, licenseState, clusterService);

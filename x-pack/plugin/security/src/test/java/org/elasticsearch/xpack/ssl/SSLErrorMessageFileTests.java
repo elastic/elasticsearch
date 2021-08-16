@@ -352,7 +352,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     private String blockedFile() throws IOException {
-        return PathUtils.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toString();
+        return PathUtils.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toAbsolutePath().toString();
     }
 
     /**

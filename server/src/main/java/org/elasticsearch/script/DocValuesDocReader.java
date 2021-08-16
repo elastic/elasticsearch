@@ -23,13 +23,9 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
     // provide access to the leaf context reader for expressions
     protected final LeafReaderContext leafReaderContext;
 
-    // backwards compatibility access for random score script
-    protected final int docBase;
-
     public DocValuesDocReader(SearchLookup lookup, LeafReaderContext leafContext) {
         this.leafReaderContext = leafContext;
         this.leafLookup = lookup.getLeafSearchLookup(leafReaderContext);
-        this.docBase = leafContext.docBase;
     }
 
     @Override
@@ -61,11 +57,6 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
     @Override
     public Map<String, ScriptDocValues<?>> doc() {
         return leafLookup.doc();
-    }
-
-    @Override
-    public int getDocBase() {
-        return docBase;
     }
 
     @Override

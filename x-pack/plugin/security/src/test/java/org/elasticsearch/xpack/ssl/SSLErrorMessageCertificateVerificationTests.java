@@ -120,13 +120,15 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
                 DiagnosticTrustManager.class.getName(),
                 Level.WARN,
                 "failed to establish trust with server at \\[" + Pattern.quote(webServer.getHostName()) + "\\];" +
-                    " the server provided a certificate with subject name \\[CN=not-this-host\\]" +
-                    " and fingerprint \\[[0-9a-f]{40}\\];" +
+                    " the server provided a certificate with subject name \\[CN=not-this-host\\]," +
+                    " fingerprint \\[[0-9a-f]{40}\\], no keyUsage and no extendedKeyUsage;" +
+                    " the session uses cipher suite \\[TLS_[A-Z0-9_]*\\] and protocol \\[TLSv[0-9.]*\\];" +
                     " the certificate has subject alternative names \\[DNS:not\\.this\\.host\\];" +
                     " the certificate is issued by \\[CN=Certificate Authority 1,OU=ssl-error-message-test,DC=elastic,DC=co\\]" +
                     " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
                     " the issuing certificate with fingerprint \\[[0-9a-f]{40}\\]" +
-                    " is trusted in this ssl context " + Pattern.quote("([" + HTTP_CLIENT_SSL + "])")));
+                    " is trusted in this ssl context " + Pattern.quote("([" + HTTP_CLIENT_SSL + "])"
+            )));
             enableHttpsHostnameChecking(clientSocket);
             connect(clientSocket, webServer);
             assertThat(clientSocket.isConnected(), is(true));

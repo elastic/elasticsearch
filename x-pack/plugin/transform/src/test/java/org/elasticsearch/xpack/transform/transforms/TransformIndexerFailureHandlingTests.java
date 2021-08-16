@@ -303,7 +303,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null),
             null,
             null,
             null
@@ -377,7 +377,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null),
             null,
             null,
             null
@@ -440,7 +440,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null),
+            new SettingsConfig(pageSize, null, (Boolean) null, null),
             null,
             null,
             null

@@ -544,7 +544,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 new SettingsConfig(
                     maxPageSearchSize,
                     builder.getSettings().getDocsPerSecond(),
-                    builder.getSettings().getDatesAsEpochMillis()
+                    builder.getSettings().getDatesAsEpochMillis(),
+                    builder.getSettings().getInterimResults()
                 )
             );
         }
@@ -552,7 +553,22 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         // 2. set dates_as_epoch_millis to true for transforms < 7.11 to keep BWC
         if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_11_0)) {
             builder.setSettings(
-                new SettingsConfig(builder.getSettings().getMaxPageSearchSize(), builder.getSettings().getDocsPerSecond(), true)
+                new SettingsConfig(
+                    builder.getSettings().getMaxPageSearchSize(),
+                    builder.getSettings().getDocsPerSecond(),
+                    true,
+                    builder.getSettings().getInterimResults())
+            );
+        }
+
+        // 3. set interim_results to true for transforms < 7.15 to keep BWC
+        if (builder.getVersion() != null && builder.getVersion().before(Version.CURRENT)) {  // TODO: 7.15
+            builder.setSettings(
+                new SettingsConfig(
+                    builder.getSettings().getMaxPageSearchSize(),
+                    builder.getSettings().getDocsPerSecond(),
+                    builder.getSettings().getDatesAsEpochMillis(),
+                    true)
             );
         }
 

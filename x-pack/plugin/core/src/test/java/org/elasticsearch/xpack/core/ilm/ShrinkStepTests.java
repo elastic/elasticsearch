@@ -6,14 +6,18 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -22,6 +26,7 @@ import org.mockito.Mockito;
 import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
@@ -37,7 +42,6 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         } else {
             maxPrimaryShardSize = new ByteSizeValue(between(1,100));
         }
-        String shrunkIndexPrefix = randomAlphaOfLength(10);
         return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, maxPrimaryShardSize);
     }
 
@@ -122,6 +126,49 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
+    }
+
+    public void testPerformActionShrunkenIndexExists() throws Exception {
+        String sourceIndexName = randomAlphaOfLength(10);
+        String lifecycleName = randomAlphaOfLength(5);
+        ShrinkStep step = createRandomInstance();
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(step.getKey().getPhase());
+        lifecycleState.setAction(step.getKey().getAction());
+        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+        String generatedShrunkenIndexName = GenerateUniqueIndexNameStep.generateValidIndexName(SHRUNKEN_INDEX_PREFIX, sourceIndexName);
+        lifecycleState.setShrinkIndexName(generatedShrunkenIndexName);
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
+            .settings(settings(Version.CURRENT)
+                .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+            )
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .putAlias(AliasMetadata.builder("my_alias"))
+            .build();
+
+        IndexMetadata indexMetadata = IndexMetadata.builder(generatedShrunkenIndexName).settings(settings(Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(0).build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder().fPut(
+            generatedShrunkenIndexName, indexMetadata);
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices.build()))
+            .build();
+
+        final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
+        step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean aBoolean) {
+                conditionMetHolder.set(aBoolean);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("onFailure should not be called in this test, called with exception: " + e.getMessage());
+            }
+        });
+
+        assertTrue(conditionMetHolder.get());
     }
 
     public void testPerformActionIsCompleteForUnAckedRequests() throws Exception {

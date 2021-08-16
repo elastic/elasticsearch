@@ -527,7 +527,7 @@ public class AuthorizationService {
                     }
                     final String resolved = resolvedIndices.getLocal().get(0);
                     if (localIndices.contains(resolved) == false) {
-                        throw illegalArgument("Found bulk item that writes to index " + resolved + " but the request writes to " +
+                        throw illegalArgument("Found bulk item that writes to index [" + resolved + "] but the request writes to " +
                                 localIndices);
                     }
                     return resolved;

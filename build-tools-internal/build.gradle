@@ -160,7 +160,7 @@ gradlePlugin {
     }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
   }
 }

@@ -24,9 +24,9 @@ public final class KibanaEnrollmentResponse {
     private SecureString tokenValue;
     private String httpCa;
 
-    public KibanaEnrollmentResponse(String tokenName, SecureString token, String httpCa) {
+    public KibanaEnrollmentResponse(String tokenName, SecureString tokenValue, String httpCa) {
         this.tokenName = tokenName;
-        this.tokenValue = token;
+        this.tokenValue = tokenValue;
         this.httpCa = httpCa;
     }
 

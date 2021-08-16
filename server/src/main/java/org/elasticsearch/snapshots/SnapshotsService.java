@@ -527,8 +527,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         || featureDataStreamBackingIndices.size() > 0) {
 
                         featureStates.add(
-                            new SnapshotFeatureInfo(featureName,
-                            Collections.unmodifiableList(new ArrayList<>(featureSystemIndices))));
+                            new SnapshotFeatureInfo(featureName, Collections.unmodifiableList(new ArrayList<>(featureSystemIndices)))
+                        );
                         indexNames.addAll(featureSystemIndices);
                         indexNames.addAll(featureAssociatedIndices);
                         indexNames.addAll(featureDataStreamBackingIndices);

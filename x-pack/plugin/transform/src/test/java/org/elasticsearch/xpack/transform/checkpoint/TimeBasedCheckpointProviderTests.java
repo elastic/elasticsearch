@@ -271,7 +271,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             null,
             false,
             new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval(dateHistogramInterval.getStringRep())),
-            randomBoolean() ? randomZone() : null
+            null
         );
         Supplier<SingleGroupSource> singleGroupSourceSupplier =
             new Supplier<>() {

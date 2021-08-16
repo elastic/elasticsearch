@@ -26,7 +26,7 @@ esplugin {
 }
 
 versions << [
-  'hadoop2': '2.10.1'
+  'hadoop2': '2.8.5'
 ]
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"

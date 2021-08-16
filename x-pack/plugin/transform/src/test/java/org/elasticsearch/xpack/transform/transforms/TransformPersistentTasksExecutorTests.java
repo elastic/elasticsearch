@@ -240,6 +240,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         IndexBasedTransformConfigManager transformsConfigManager = new IndexBasedTransformConfigManager(client, xContentRegistry());
         TransformCheckpointService transformCheckpointService = new TransformCheckpointService(
+            Clock.systemUTC(),
             Settings.EMPTY,
             new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
             transformsConfigManager,

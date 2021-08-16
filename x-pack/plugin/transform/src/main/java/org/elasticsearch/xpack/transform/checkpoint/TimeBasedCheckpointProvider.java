@@ -139,7 +139,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
                 .map(DateHistogramGroupSource.class::cast)
                 .filter(group -> Objects.equals(group.getField(), transformConfig.getSyncConfig().getField()))
                 .findFirst();
-        if (dateHistogramGroupSource.isEmpty()) {
+        if (dateHistogramGroupSource.isPresent() == false) {
             return identity();
         }
         return dateHistogramGroupSource.get().getRounding()::round;

@@ -274,7 +274,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             null
         );
         Supplier<SingleGroupSource> singleGroupSourceSupplier =
-            new Supplier<>() {
+            new Supplier<SingleGroupSource>() {
                 int groupCount = 0;
                 @Override
                 public SingleGroupSource get() {

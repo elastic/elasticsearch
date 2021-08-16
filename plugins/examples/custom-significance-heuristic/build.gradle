@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name 'custom-significance-heuristic'

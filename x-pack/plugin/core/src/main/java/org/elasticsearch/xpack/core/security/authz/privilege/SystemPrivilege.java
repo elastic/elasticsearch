@@ -45,7 +45,7 @@ public final class SystemPrivilege extends Privilege {
         "cluster:internal/xpack/ml/reset_mode",
         "cluster:admin/transform/stop",
         "cluster:admin/xpack/ml/datafeed/stop",
-        "cluster:internal/xpack/ml/job/kill/process",
+        "cluster:internal/xpack/ml/job/kill/*",
         "cluster:admin/xpack/ml/job/close",
         "cluster:admin/xpack/ml/data_frame/analytics/stop",
         "indices:admin/delete"

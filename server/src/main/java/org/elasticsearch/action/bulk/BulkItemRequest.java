@@ -83,7 +83,7 @@ public class BulkItemRequest implements Writeable, Accountable {
         if (primaryResponse == null) {
             final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(),
                     Objects.requireNonNull(cause), true);
-            setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
+            setPrimaryResponse(BulkItemResponse.failure(id, request.opType(), failure));
         } else {
             assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()
                     : "response [" + Strings.toString(primaryResponse) + "]; cause [" + cause + "]";

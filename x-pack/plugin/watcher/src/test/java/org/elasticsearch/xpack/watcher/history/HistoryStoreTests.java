@@ -107,7 +107,9 @@ public class HistoryStoreTests extends ESTestCase {
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
             if (indexRequest.id().equals(wid.value()) &&
                 indexRequest.opType() == OpType.CREATE && indexRequest.index().equals(index)) {
-                listener.onResponse(new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse(1, OpType.CREATE, indexResponse) }, 1));
+                listener.onResponse(
+                    new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1)
+                );
             } else {
                 listener.onFailure(new ElasticsearchException("test issue"));
             }
@@ -173,7 +175,7 @@ public class HistoryStoreTests extends ESTestCase {
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
 
             IndexResponse indexResponse = mock(IndexResponse.class);
-            listener.onResponse(new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse(1, OpType.CREATE, indexResponse) }, 1));
+            listener.onResponse(new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1));
             return null;
         }).when(client).bulk(requestCaptor.capture(), any());
 

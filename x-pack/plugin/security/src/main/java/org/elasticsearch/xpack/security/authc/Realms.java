@@ -19,13 +19,13 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
 import java.util.ArrayList;
@@ -86,7 +86,7 @@ public class Realms implements Iterable<Realm> {
                 standardRealms.add(realm);
             }
 
-            if (FileRealmSettings.TYPE.equals(realm.type()) || NativeRealmSettings.TYPE.equals(realm.type())) {
+            if (InternalRealms.isBuiltinRealm(realm.type())) {
                 nativeRealms.add(realm);
             }
         }
@@ -122,7 +122,7 @@ public class Realms implements Iterable<Realm> {
         }
 
         // If all realms are allowed, then nothing is unlicensed
-        if (licenseStateSnapshot.checkFeature(Feature.SECURITY_ALL_REALMS)) {
+        if (Security.ALL_REALMS_FEATURE.checkWithoutTracking(licenseStateSnapshot)) {
             return Collections.emptyList();
         }
 
@@ -133,8 +133,7 @@ public class Realms implements Iterable<Realm> {
         }
 
         // Otherwise, we return anything in "all realms" that is not in the allowed realm list
-        List<Realm> unlicensed = realms.stream().filter(r -> allowedRealms.contains(r) == false).collect(Collectors.toList());
-        return Collections.unmodifiableList(unlicensed);
+        return Collections.unmodifiableList(realms.stream().filter(r -> allowedRealms.contains(r) == false).collect(Collectors.toList()));
     }
 
     public Stream<Realm> stream() {
@@ -146,14 +145,42 @@ public class Realms implements Iterable<Realm> {
         if (licenseStateSnapshot.isSecurityEnabled() == false) {
             return Collections.emptyList();
         }
-        if (licenseStateSnapshot.checkFeature(Feature.SECURITY_ALL_REALMS)) {
-            return realms;
-        } else if (licenseStateSnapshot.checkFeature(Feature.SECURITY_STANDARD_REALMS)) {
-            return standardRealmsOnly;
+        // TODO : Recalculate this when the license changes rather than on every call
+        List<Realm> licensedRealms = Collections.unmodifiableList(
+            this.realms.stream().filter(r -> checkLicense(r, licenseStateSnapshot)).collect(Collectors.toList()));
+
+        if (hasUserRealm(licensedRealms)) {
+            return licensedRealms;
         } else {
-            // native realms are basic licensed, and always allowed, even for an expired license
+            // Automatically enable native/file realms if no other (non-reserved) realms are permitted by the active license
             return nativeRealmsOnly;
         }
+    }
+
+    /**
+     * Returns true if this list contains at least one non-reserved realm
+     */
+    private boolean hasUserRealm(List<Realm> licensedRealms) {
+        if (licensedRealms.isEmpty()) {
+            return false;
+        }
+        if (licensedRealms.size() == 1 && licensedRealms.get(0) == reservedRealm) {
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean checkLicense(Realm realm, XPackLicenseState licenseState) {
+        if (ReservedRealm.TYPE.equals(realm.type())) {
+            return true;
+        }
+        if (InternalRealms.isBuiltinRealm(realm.type())) {
+            return true;
+        }
+        if (InternalRealms.isStandardRealm(realm.type())) {
+            return Security.STANDARD_REALMS_FEATURE.checkAndStartTracking(licenseState, realm.name());
+        }
+        return Security.ALL_REALMS_FEATURE.checkAndStartTracking(licenseState, realm.name());
     }
 
     public Realm realm(String name) {
@@ -356,12 +383,12 @@ public class Realms implements Iterable<Realm> {
     }
 
     public static boolean isRealmTypeAvailable(XPackLicenseState licenseState, String type) {
-        if (licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)) {
+        if (Security.ALL_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
             return true;
-        } else if (licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS)) {
+        } else if (Security.STANDARD_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
             return InternalRealms.isStandardRealm(type) || ReservedRealm.TYPE.equals(type);
         } else {
-            return FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type);
+            return InternalRealms.isBuiltinRealm(type);
         }
     }
 

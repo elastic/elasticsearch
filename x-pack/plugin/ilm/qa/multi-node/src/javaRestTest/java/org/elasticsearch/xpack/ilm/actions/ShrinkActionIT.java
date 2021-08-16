@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.core.ilm.CheckTargetShardsCountStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
+import org.elasticsearch.xpack.core.ilm.Step;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -280,10 +282,8 @@ public class ShrinkActionIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numShards + randomIntBetween(1, numShards), null));
         updatePolicy(client(), index, policy);
-        assertBusy(() -> {
-            String failedStep = getFailedStepForIndex(index);
-            assertThat(failedStep, equalTo(ShrinkStep.NAME));
-        }, 60, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index),
+            equalTo(new Step.StepKey("warm", ShrinkAction.NAME, CheckTargetShardsCountStep.NAME))), 60, TimeUnit.SECONDS);
 
         // update policy to be correct
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null));
@@ -301,52 +301,5 @@ public class ShrinkActionIT extends ESRestTestCase {
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
         });
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
-    }
-
-    public void testShrinkStepMovesForwardIfShrunkIndexIsCreatedBetweenRetries() throws Exception {
-        int numShards = 4;
-        int expectedFinalShards = 1;
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numShards + randomIntBetween(1, numShards), null));
-        updatePolicy(client(), index, policy);
-        assertBusy(() -> {
-            String failedStep = getFailedStepForIndex(index);
-            assertThat(failedStep, equalTo(ShrinkStep.NAME));
-        }, 60, TimeUnit.SECONDS);
-
-        String shrinkIndexName = waitAndGetShrinkIndexName(client(), index);
-        Request shrinkIndexRequest = new Request("POST", index + "/_shrink/" + shrinkIndexName);
-        shrinkIndexRequest.setEntity(new StringEntity(
-            "{\"settings\": {\n" +
-                "      \"" + SETTING_NUMBER_OF_SHARDS + "\": 1,\n" +
-                "      \"" + SETTING_NUMBER_OF_REPLICAS + "\": 0,\n" +
-                "      \"" + LifecycleSettings.LIFECYCLE_NAME + "\": \"" + policy + "\",\n" +
-                "      \"" + IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id" + "\": null\n" +
-                "   \n}\n" +
-                "\n}", ContentType.APPLICATION_JSON));
-        client().performRequest(shrinkIndexRequest);
-
-        // assert manually shrunk index is picked up and policy completes successfully
-        assertBusy(() -> assertTrue(indexExists(shrinkIndexName)), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertTrue(aliasExists(shrinkIndexName, index)));
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrinkIndexName), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
-        assertBusy(() -> {
-            Map<String, Object> settings = getOnlyIndexSettings(client(), shrinkIndexName);
-            assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
-            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
-            assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
-        });
-        expectThrows(ResponseException.class, () -> indexDocument(client(), index));
-    }
-
-    @Nullable
-    private String getFailedStepForIndex(String indexName) throws IOException {
-        Map<String, Object> indexResponse = explainIndex(client(), indexName);
-        if (indexResponse == null) {
-            return null;
-        }
-
-        return (String) indexResponse.get("failed_step");
     }
 }

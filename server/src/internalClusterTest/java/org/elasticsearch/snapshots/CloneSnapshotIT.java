@@ -495,6 +495,75 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testSnapshotQueuedAfterCloneFromBrokenSourceSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String testIndex = "index-test";
+        createIndexWithContent(testIndex);
+
+        final String sourceSnapshot = "source-snapshot";
+        blockDataNode(repoName, dataNode);
+        final Client masterClient = internalCluster().masterClient();
+        final ActionFuture<CreateSnapshotResponse> sourceSnapshotFuture = masterClient.admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, sourceSnapshot)
+            .setWaitForCompletion(true)
+            .execute();
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(dataNode, repoName);
+        internalCluster().restartNode(dataNode);
+        ensureGreen();
+        assertThat(sourceSnapshotFuture.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+        final String sourceSnapshotHealthy = "source-snapshot-healthy";
+        createFullSnapshot(repoName, "source-snapshot-healthy");
+
+        final ActionFuture<CreateSnapshotResponse> sn1 = startFullSnapshot(repoName, "concurrent-snapshot-1");
+        final ActionFuture<AcknowledgedResponse> clone1 = startClone(
+            masterClient,
+            repoName,
+            sourceSnapshotHealthy,
+            "target-snapshot-1",
+            testIndex
+        );
+        final ActionFuture<CreateSnapshotResponse> sn2 = startFullSnapshot(repoName, "concurrent-snapshot-2");
+        final ActionFuture<AcknowledgedResponse> clone2 = startClone(
+            masterClient,
+            repoName,
+            sourceSnapshotHealthy,
+            "target-snapshot-2",
+            testIndex
+        );
+        final ActionFuture<CreateSnapshotResponse> sn3 = startFullSnapshot(repoName, "concurrent-snapshot-3");
+        final ActionFuture<AcknowledgedResponse> clone3 = startClone(
+            masterClient,
+            repoName,
+            sourceSnapshotHealthy,
+            "target-snapshot-3",
+            testIndex
+        );
+        final SnapshotException sne = expectThrows(
+            SnapshotException.class,
+            () -> startClone(masterClient, repoName, sourceSnapshot, "target-snapshot", testIndex).actionGet(
+                TimeValue.timeValueSeconds(30L)
+            )
+        );
+        assertThat(
+            sne.getMessage(),
+            containsString(
+                "Can't clone index [" + getRepositoryData(repoName).resolveIndexId(testIndex) + "] because its snapshot was not successful."
+            )
+        );
+
+        assertSuccessful(sn1);
+        assertSuccessful(sn2);
+        assertSuccessful(sn3);
+        assertAcked(clone1.get());
+        assertAcked(clone2.get());
+        assertAcked(clone3.get());
+    }
+
     public void testStartSnapshotWithSuccessfulShardClonePendingFinalization() throws Exception {
         final String masterName = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         final String dataNode = internalCluster().startDataOnlyNode();
@@ -578,7 +647,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
             awaitClusterState(clusterState -> {
                 final List<SnapshotsInProgress.Entry> entries = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
                     .entries();
-                return entries.size() == 2 && entries.get(1).clones().isEmpty() == false;
+                return entries.size() == 2 && entries.get(1).shardsByRepoShardId().isEmpty() == false;
             });
             assertFalse(blockedSnapshot.isDone());
         } finally {
@@ -615,9 +684,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> waiting for snapshot clone to be fully initialized");
         awaitClusterState(state -> {
             for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
-                if (entry.clones().isEmpty() == false) {
+                if (entry.shardsByRepoShardId().isEmpty() == false) {
                     assertEquals(sourceSnapshot, entry.source().getName());
-                    for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> value : entry.clones().values()) {
+                    for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> value : entry.shardsByRepoShardId().values()) {
                         assertSame(value.value, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED);
                     }
                     return true;

@@ -52,7 +52,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
      */
     protected InternalMappedTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo fix after backport
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
             if (in.readBoolean()) {
                 docCountError = in.readZLong();
             } else {
@@ -70,7 +70,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     @Override
     protected final void writeTermTypeInfoTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // todo fix after backport
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             if (docCountError != null) {
                 out.writeBoolean(true);
                 out.writeZLong(docCountError);

@@ -218,11 +218,6 @@ public interface IndexAbstraction {
             return Type.ALIAS;
         }
 
-        @Override
-        public boolean isDataStreamRelated() {
-            return dataStreamAlias;
-        }
-
         public String getName() {
             return aliasName;
         }
@@ -251,6 +246,11 @@ public interface IndexAbstraction {
         @Override
         public boolean isSystem() {
             return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
+        }
+
+        @Override
+        public boolean isDataStreamRelated() {
+            return dataStreamAlias;
         }
 
         private void validateAliasProperties() {
@@ -320,11 +320,6 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public boolean isDataStreamRelated() {
-            return true;
-        }
-
-        @Override
         public List<IndexMetadata> getIndices() {
             return dataStreamIndices;
         }
@@ -347,6 +342,11 @@ public interface IndexAbstraction {
         @Override
         public boolean isSystem() {
             return dataStream.isSystem();
+        }
+
+        @Override
+        public boolean isDataStreamRelated() {
+            return true;
         }
 
         public org.elasticsearch.cluster.metadata.DataStream getDataStream() {

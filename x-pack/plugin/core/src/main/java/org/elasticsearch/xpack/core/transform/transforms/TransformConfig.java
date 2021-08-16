@@ -556,7 +556,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         }
 
         // 3. set interim_results to true for transforms < 7.15 to keep BWC
-        if (builder.getVersion() != null && builder.getVersion().before(Version.CURRENT)) {  // TODO: 7.15
+        if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_15_0)) {
             builder.setSettings(
                 new SettingsConfig(
                     builder.getSettings().getMaxPageSearchSize(),

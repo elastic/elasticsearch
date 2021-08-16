@@ -662,6 +662,64 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
     }
 
+    public void testRecoveryConcurrentlyWithIndexing() throws Exception {
+        internalCluster().startDataOnlyNode();
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                .build()
+        );
+
+        AtomicInteger numDocs = new AtomicInteger(randomIntBetween(1, 1000));
+        indexDocs(indexName, 0, numDocs.get());
+
+        String repoName = "repo";
+        createRepo(repoName, TestRepositoryPlugin.INSTRUMENTED_TYPE);
+        createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+        long snapshotSizeForIndex = getSnapshotSizeForIndex(repoName, "snap", indexName);
+
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        boolean waitForSnapshotDownloadToStart = randomBoolean();
+        if (waitForSnapshotDownloadToStart) {
+            // wait for the snapshot download to start.
+            assertBusy(() -> {
+                RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
+                assertThat(recoveryState.getIndex().recoveredBytes(), greaterThan(0L));
+            });
+        }
+
+        // busy wait to complete and add a bit of indexing.
+        assertBusy(() -> {
+            if (randomBoolean()) {
+                int moreDocs = between(1, 5);
+                indexDocs(indexName, numDocs.getAndAdd(moreDocs), moreDocs);
+            }
+            RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
+            assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
+        });
+
+        ensureGreen(indexName);
+
+        if (waitForSnapshotDownloadToStart) {
+            // must complete using snapshots alone.
+            // todo: use snapshot recovered bytes
+            RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
+            assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(snapshotSizeForIndex));
+        }
+
+        assertDocumentsAreEqual(indexName, numDocs.get());
+    }
+
     private long getSnapshotSizeForIndex(String repository, String snapshot, String index) {
         GetSnapshotsResponse getSnapshotsResponse =
             client().admin().cluster().prepareGetSnapshots(repository).addSnapshots(snapshot).get();

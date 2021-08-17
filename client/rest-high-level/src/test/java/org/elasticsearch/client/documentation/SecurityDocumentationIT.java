@@ -713,8 +713,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 31 system roles plus the three we created
-            assertThat(roles.size(), equalTo(31 + 3));
+            // 30 system roles plus the three we created
+            assertThat(roles.size(), equalTo(30 + 3));
         }
 
         {

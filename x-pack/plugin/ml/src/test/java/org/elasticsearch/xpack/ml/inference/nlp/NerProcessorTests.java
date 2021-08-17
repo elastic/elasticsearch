@@ -10,10 +10,14 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenizationParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -211,20 +215,26 @@ public class NerProcessorTests extends ESTestCase {
     }
 
     private static NerProcessor.NerResultProcessor createProcessor(List<String> vocab, String input){
-        BertTokenizer tokenizer = BertTokenizer.builder(vocab)
-            .setDoLowerCase(true)
-            .setWithSpecialTokens(false)
-            .build();
-        BertTokenizer.TokenizationResult tokenizationResult = tokenizer.tokenize(input);
+        NlpTokenizer tokenizer = NlpTokenizer.build(
+            new Vocabulary(vocab),
+            randomFrom(
+                new BertTokenizationParams(true, false, null),
+                new DistilBertTokenizationParams(true, false, null)
+            )
+        );
+        TokenizationResult tokenizationResult = tokenizer.tokenize(input);
         return new NerProcessor.NerResultProcessor(tokenizationResult, NerProcessor.IobTag.values());
     }
 
     private static NerProcessor.NerResultProcessor createProcessor(List<String> vocab, String input, NerProcessor.IobTag[] iobMap){
-        BertTokenizer tokenizer = BertTokenizer.builder(vocab)
-            .setDoLowerCase(true)
-            .setWithSpecialTokens(false)
-            .build();
-        BertTokenizer.TokenizationResult tokenizationResult = tokenizer.tokenize(input);
+        NlpTokenizer tokenizer = NlpTokenizer.build(
+            new Vocabulary(vocab),
+            randomFrom(
+                new BertTokenizationParams(true, false, null),
+                new DistilBertTokenizationParams(true, false, null)
+            )
+        );
+        TokenizationResult tokenizationResult = tokenizer.tokenize(input);
         return new NerProcessor.NerResultProcessor(tokenizationResult, iobMap);
     }
 }

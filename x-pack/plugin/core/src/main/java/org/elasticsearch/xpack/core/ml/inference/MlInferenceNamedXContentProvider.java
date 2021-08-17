@@ -27,7 +27,9 @@ import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResul
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SentimentAnalysisResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenizationParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
@@ -46,6 +48,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SentimentAnalysisC
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationParams;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
@@ -189,6 +192,22 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             LangIdentNeuralNetwork.NAME,
             LangIdentNeuralNetwork::fromXContentLenient));
 
+        // Tokenization
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                TokenizationParams.class,
+                BertTokenizationParams.NAME,
+                (p, c) -> BertTokenizationParams.fromXContent(p, (boolean) c)
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                TokenizationParams.class,
+                DistilBertTokenizationParams.NAME,
+                (p, c) -> DistilBertTokenizationParams.fromXContent(p, (boolean) c)
+            )
+        );
+
         return namedXContent;
     }
 
@@ -279,6 +298,22 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         // Location
         namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModelLocation.class,
             IndexLocation.INDEX.getPreferredName(), IndexLocation::new));
+
+        // Tokenization
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TokenizationParams.class,
+                BertTokenizationParams.NAME.getPreferredName(),
+                BertTokenizationParams::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TokenizationParams.class,
+                DistilBertTokenizationParams.NAME.getPreferredName(),
+                DistilBertTokenizationParams::new
+            )
+        );
 
         return namedWriteables;
     }

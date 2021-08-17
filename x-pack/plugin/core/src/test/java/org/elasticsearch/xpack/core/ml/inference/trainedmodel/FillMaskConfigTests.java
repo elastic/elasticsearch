@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 
-public class FillMaskConfigTests extends AbstractBWCSerializationTestCase<FillMaskConfig> {
+public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskConfig> {
 
     private boolean lenient;
 
@@ -47,7 +47,10 @@ public class FillMaskConfigTests extends AbstractBWCSerializationTestCase<FillMa
     public static FillMaskConfig createRandom() {
         return new FillMaskConfig(
             VocabularyConfigTests.createRandom(),
-            randomBoolean() ? null : TokenizationParamsTests.createRandom()
+            randomBoolean() ?
+                null :
+                randomFrom(BertTokenizationParamsTests.createRandom(), DistilBertTokenizationParamsTests.createRandom())
+
         );
     }
 }

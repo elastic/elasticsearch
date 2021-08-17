@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 
 /**
  * A NLP processor that directly returns the PyTorch result
@@ -19,10 +19,10 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
  */
 public class PassThroughProcessor implements NlpTask.Processor {
 
-    private final BertRequestBuilder bertRequestBuilder;
+    private final NlpTask.RequestBuilder requestBuilder;
 
-    PassThroughProcessor(BertTokenizer tokenizer, BertPassThroughConfig config) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config.getTokenizationParams().maxSequenceLength());
+    PassThroughProcessor(NlpTokenizer tokenizer, BertPassThroughConfig config) {
+        this.requestBuilder = tokenizer.requestBuilder(config, t -> PassThroughProcessor::processResult);
     }
 
     @Override
@@ -32,15 +32,10 @@ public class PassThroughProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder() {
-        return bertRequestBuilder;
+        return requestBuilder;
     }
 
-    @Override
-    public NlpTask.ResultProcessor getResultProcessor() {
-        return this::processResult;
-    }
-
-    private InferenceResults processResult(PyTorchResult pyTorchResult) {
+    private static InferenceResults processResult(PyTorchResult pyTorchResult) {
         return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult());
     }
 }

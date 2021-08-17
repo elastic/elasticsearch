@@ -11,12 +11,14 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SentimentAnalysisResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SentimentAnalysisConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,10 +27,10 @@ import java.util.Locale;
 
 public class SentimentAnalysisProcessor implements NlpTask.Processor {
 
-    private final BertTokenizer tokenizer;
+    private final NlpTokenizer tokenizer;
     private final List<String> classLabels;
 
-    SentimentAnalysisProcessor(BertTokenizer tokenizer, SentimentAnalysisConfig config) {
+    SentimentAnalysisProcessor(NlpTokenizer tokenizer, SentimentAnalysisConfig config) {
         this.tokenizer = tokenizer;
         List<String> classLabels = config.getClassificationLabels();
         if (classLabels == null || classLabels.isEmpty()) {
@@ -59,14 +61,9 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
         return this::buildRequest;
     }
 
-    BytesReference buildRequest(String input, String requestId) throws IOException {
-        BertTokenizer.TokenizationResult tokenization = tokenizer.tokenize(input);
-        return jsonRequest(tokenization.getTokenIds(), requestId);
-    }
-
-    @Override
-    public NlpTask.ResultProcessor getResultProcessor() {
-        return this::processResult;
+    Tuple<BytesReference, NlpTask.ResultProcessor> buildRequest(String input, String requestId) throws IOException {
+        TokenizationResult tokenization = tokenizer.tokenize(input);
+        return Tuple.tuple(jsonRequest(tokenization.getTokenIds(), requestId), this::processResult);
     }
 
     InferenceResults processResult(PyTorchResult pyTorchResult) {

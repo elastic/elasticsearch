@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 
-public class SentimentAnalysisConfigTests extends AbstractBWCSerializationTestCase<SentimentAnalysisConfig> {
+public class SentimentAnalysisConfigTests extends InferenceConfigItemTestCase<SentimentAnalysisConfig> {
 
     private boolean lenient;
 
@@ -47,7 +47,9 @@ public class SentimentAnalysisConfigTests extends AbstractBWCSerializationTestCa
     public static SentimentAnalysisConfig createRandom() {
         return new SentimentAnalysisConfig(
             VocabularyConfigTests.createRandom(),
-            randomBoolean() ? null : TokenizationParamsTests.createRandom(),
+            randomBoolean() ?
+                null :
+                randomFrom(BertTokenizationParamsTests.createRandom(), DistilBertTokenizationParamsTests.createRandom()),
             randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10))
         );
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -226,11 +227,13 @@ public class DeploymentManager {
                     String text = NlpTask.extractInput(processContext.modelInput.get(), doc);
                     NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
                     processor.validateInputs(text);
-                    BytesReference request = processor.getRequestBuilder().buildRequest(text, requestId);
-                    logger.trace(() -> "Inference Request "+ request.utf8ToString());
+                    Tuple<BytesReference, NlpTask.ResultProcessor> requestAndResult = processor
+                        .getRequestBuilder()
+                        .buildRequest(text, requestId);
+                    logger.trace(() -> "Inference Request "+ requestAndResult.v1().utf8ToString());
                     PyTorchResultProcessor.PendingResult pendingResult = processContext.resultProcessor.requestWritten(requestId);
-                    processContext.process.get().writeInferenceRequest(request);
-                    waitForResult(processContext, pendingResult, requestId, timeout, processor.getResultProcessor(), listener);
+                    processContext.process.get().writeInferenceRequest(requestAndResult.v1());
+                    waitForResult(processContext, pendingResult, requestId, timeout, requestAndResult.v2(), listener);
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));

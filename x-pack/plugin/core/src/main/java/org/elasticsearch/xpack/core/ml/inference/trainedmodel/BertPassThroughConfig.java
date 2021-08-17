@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -38,8 +39,10 @@ public class BertPassThroughConfig implements NlpConfig {
         ConstructingObjectParser<BertPassThroughConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
             a -> new BertPassThroughConfig((VocabularyConfig) a[0], (TokenizationParams) a[1]));
         parser.declareObject(ConstructingObjectParser.constructorArg(), VocabularyConfig.createParser(ignoreUnknownFields), VOCABULARY);
-        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), TokenizationParams.createParser(ignoreUnknownFields),
-            TOKENIZATION_PARAMS);
+        parser.declareNamedObject(
+            ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(TokenizationParams.class, n, ignoreUnknownFields),
+            TOKENIZATION_PARAMS
+        );
         return parser;
     }
 
@@ -53,14 +56,14 @@ public class BertPassThroughConfig implements NlpConfig {
 
     public BertPassThroughConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
-        tokenizationParams = new TokenizationParams(in);
+        tokenizationParams = in.readNamedWriteable(TokenizationParams.class);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig);
-        builder.field(TOKENIZATION_PARAMS.getPreferredName(), tokenizationParams);
+        NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION_PARAMS.getPreferredName(), tokenizationParams);
         builder.endObject();
         return builder;
     }
@@ -73,7 +76,7 @@ public class BertPassThroughConfig implements NlpConfig {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         vocabularyConfig.writeTo(out);
-        tokenizationParams.writeTo(out);
+        out.writeNamedWriteable(tokenizationParams);
     }
 
     @Override

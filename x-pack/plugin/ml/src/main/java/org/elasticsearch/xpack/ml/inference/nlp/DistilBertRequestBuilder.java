@@ -17,18 +17,16 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class BertRequestBuilder implements NlpTask.RequestBuilder {
+public class DistilBertRequestBuilder implements NlpTask.RequestBuilder {
 
     static final String REQUEST_ID = "request_id";
     static final String TOKENS = "tokens";
     static final String ARG1 = "arg_1";
-    static final String ARG2 = "arg_2";
-    static final String ARG3 = "arg_3";
 
     private final BertTokenizer tokenizer;
     private final NlpTask.ResultProcessorFactory resultProcessorFactory;
 
-    public BertRequestBuilder(BertTokenizer tokenizer, NlpTask.ResultProcessorFactory resultProcessorFactory) {
+    public DistilBertRequestBuilder(BertTokenizer tokenizer, NlpTask.ResultProcessorFactory resultProcessorFactory) {
         this.tokenizer = tokenizer;
         this.resultProcessorFactory = resultProcessorFactory;
     }
@@ -47,14 +45,8 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
 
         int[] inputMask = new int[tokens.length];
         Arrays.fill(inputMask, 1);
-        int[] segmentMask = new int[tokens.length];
-        Arrays.fill(segmentMask, 0);
-        int[] positionalIds = new int[tokens.length];
-        Arrays.setAll(positionalIds, i -> i);
 
         builder.array(ARG1, inputMask);
-        builder.array(ARG2, segmentMask);
-        builder.array(ARG3, positionalIds);
         builder.endObject();
 
         // BytesReference.bytes closes the builder

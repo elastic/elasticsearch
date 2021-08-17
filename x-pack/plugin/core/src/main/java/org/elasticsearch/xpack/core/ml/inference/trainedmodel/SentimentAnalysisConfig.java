@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,8 +42,10 @@ public class SentimentAnalysisConfig implements NlpConfig {
         ConstructingObjectParser<SentimentAnalysisConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
             a -> new SentimentAnalysisConfig((VocabularyConfig) a[0], (TokenizationParams) a[1], (List<String>) a[2]));
         parser.declareObject(ConstructingObjectParser.constructorArg(), VocabularyConfig.createParser(ignoreUnknownFields), VOCABULARY);
-        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), TokenizationParams.createParser(ignoreUnknownFields),
-            TOKENIZATION_PARAMS);
+        parser.declareNamedObject(
+            ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(TokenizationParams.class, n, ignoreUnknownFields),
+            TOKENIZATION_PARAMS
+        );
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), CLASSIFICATION_LABELS);
         return parser;
     }
@@ -60,14 +63,14 @@ public class SentimentAnalysisConfig implements NlpConfig {
 
     public SentimentAnalysisConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
-        tokenizationParams = new TokenizationParams(in);
+        tokenizationParams = in.readNamedWriteable(TokenizationParams.class);
         classificationLabels = in.readStringList();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         vocabularyConfig.writeTo(out);
-        tokenizationParams.writeTo(out);
+        out.writeNamedWriteable(tokenizationParams);
         out.writeStringCollection(classificationLabels);
     }
 
@@ -75,7 +78,7 @@ public class SentimentAnalysisConfig implements NlpConfig {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig);
-        builder.field(TOKENIZATION_PARAMS.getPreferredName(), tokenizationParams);
+        NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION_PARAMS.getPreferredName(), tokenizationParams);
         if (classificationLabels.isEmpty() == false) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }

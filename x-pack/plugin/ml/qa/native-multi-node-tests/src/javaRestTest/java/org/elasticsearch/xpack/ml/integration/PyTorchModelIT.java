@@ -210,7 +210,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             "              \"id\": \"test_vocab\"\n" +
             "            },\n" +
             "            \"tokenization_params\": {" +
-            "              \"with_special_tokens\": false\n" +
+            "              \"bert\": {\"with_special_tokens\": false}\n" +
             "            }\n" +
             "        }\n" +
             "    },\n" +

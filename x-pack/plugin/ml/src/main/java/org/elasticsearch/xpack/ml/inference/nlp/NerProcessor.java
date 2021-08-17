@@ -14,7 +14,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,13 +69,13 @@ public class NerProcessor implements NlpTask.Processor {
         }
     }
 
-    private final BertRequestBuilder bertRequestBuilder;
+    private final NlpTask.RequestBuilder requestBuilder;
     private final IobTag[] iobMap;
 
-    NerProcessor(BertTokenizer tokenizer, NerConfig config) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config.getTokenizationParams().maxSequenceLength());
+    NerProcessor(NlpTokenizer tokenizer, NerConfig config) {
         validate(config.getClassificationLabels());
-        iobMap = buildIobMap(config.getClassificationLabels());
+        this.iobMap = buildIobMap(config.getClassificationLabels());
+        this.requestBuilder = tokenizer.requestBuilder(config, tokenizationResult -> new NerResultProcessor(tokenizationResult, iobMap));
     }
 
     /**
@@ -125,20 +126,15 @@ public class NerProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder() {
-        return bertRequestBuilder;
-    }
-
-    @Override
-    public NlpTask.ResultProcessor getResultProcessor() {
-        return new NerResultProcessor(bertRequestBuilder.getTokenization(), iobMap);
+        return requestBuilder;
     }
 
     static class NerResultProcessor implements NlpTask.ResultProcessor {
 
-        private final BertTokenizer.TokenizationResult tokenization;
+        private final TokenizationResult tokenization;
         private final IobTag[] iobMap;
 
-        NerResultProcessor(BertTokenizer.TokenizationResult tokenization, IobTag[] iobMap) {
+        NerResultProcessor(TokenizationResult tokenization, IobTag[] iobMap) {
             this.tokenization = Objects.requireNonNull(tokenization);
             this.iobMap = iobMap;
         }

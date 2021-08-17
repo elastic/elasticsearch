@@ -791,7 +791,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
             // LeafPlans are tables and BinaryPlans are joins so pushing can only happen on unary
             if (plan instanceof UnaryPlan) {
-                return plan.replaceChildrenSameSize(singletonList(propagateMissing(((UnaryPlan) plan).child(), missing, failed)));
+                UnaryPlan unary = (UnaryPlan) plan;
+                return unary.replaceChild(propagateMissing(unary.child(), missing, failed));
             }
 
             failed.addAll(missing);

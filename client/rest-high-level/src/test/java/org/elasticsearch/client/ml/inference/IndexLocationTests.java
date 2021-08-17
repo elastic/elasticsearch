@@ -17,7 +17,7 @@ import java.io.IOException;
 public class IndexLocationTests extends AbstractXContentTestCase<IndexLocation> {
 
     static IndexLocation randomInstance() {
-        return new IndexLocation(randomAlphaOfLength(7), randomAlphaOfLength(7));
+        return new IndexLocation(randomAlphaOfLength(7));
     }
 
     @Override

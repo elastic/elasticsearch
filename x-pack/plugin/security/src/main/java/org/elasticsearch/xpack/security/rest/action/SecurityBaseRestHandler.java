@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.rest.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -23,7 +22,7 @@ import java.io.IOException;
  */
 public abstract class SecurityBaseRestHandler extends BaseRestHandler {
 
-    private final Settings settings;
+    protected final Settings settings;
     protected final XPackLicenseState licenseState;
 
     /**
@@ -57,8 +56,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     /**
      * Check whether the given request is allowed within the current license state and setup,
      * and return the name of any unlicensed feature.
-     * By default this returns an exception if security is not available by the current license or
-     * security is not enabled.
+     * By default this returns an exception if security is not enabled.
      * Sub-classes can override this method if they have additional requirements.
      *
      * @return {@code null} if all required features are available, otherwise an exception to be
@@ -67,11 +65,6 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     protected Exception checkFeatureAvailable(RestRequest request) {
         if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             return new IllegalStateException("Security is not enabled but a security rest handler is registered");
-        } else if (licenseState.isSecurityEnabled() == false) {
-            return new ElasticsearchException("Security must be explicitly enabled when using a [" +
-                    licenseState.getOperationMode().description() + "] license. " +
-                    "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
-                    "and restart the node.");
         } else {
             return null;
         }

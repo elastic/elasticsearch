@@ -45,9 +45,8 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                           ActionListener<Void> listener) {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
-            // TODO: should we check is DLS/FLS feature allowed here as part of shouldIntercept
-            boolean shouldIntercept = licenseState.isSecurityEnabled();
-            if (supports(indicesRequest) && shouldIntercept) {
+            // TODO: should we check is DLS/FLS feature allowed here
+            if (supports(indicesRequest)) {
                 var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
                 final IndicesAccessControl indicesAccessControl
                     = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);

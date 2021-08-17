@@ -25,6 +25,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.ManagedHttpClientConnectionFactory;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.ssl.SSLContextBuilder;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +57,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.AccessControlException;
 import java.security.AccessController;
+import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -596,12 +598,11 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         return server;
     }
 
-    private static MockWebServer getSslServer(Path keyPath, Path certPath, String password) throws KeyStoreException, CertificateException,
-        NoSuchAlgorithmException, IOException, KeyManagementException, UnrecoverableKeyException {
+    private static MockWebServer getSslServer(Path keyPath, Path certPath, String password) throws GeneralSecurityException, IOException {
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, password.toCharArray());
         keyStore.setKeyEntry("testnode_ec", PemUtils.readPrivateKey(keyPath, password::toCharArray), password.toCharArray(),
-            CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
+            CertParsingUtils.readX509Certificates(Collections.singletonList(certPath)));
         final SSLContext sslContext = new SSLContextBuilder()
             .loadKeyMaterial(keyStore, password.toCharArray())
             .build();
@@ -634,7 +635,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         KeyManagementException, IOException, CertificateException {
         KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
         trustStore.load(null, null);
-        for (Certificate cert : CertParsingUtils.readCertificates(trustedCertificatePaths)) {
+        for (Certificate cert : CertParsingUtils.readX509Certificates(trustedCertificatePaths)) {
             trustStore.setCertificateEntry(cert.toString(), cert);
         }
         final SSLContext sslContext = new SSLContextBuilder()

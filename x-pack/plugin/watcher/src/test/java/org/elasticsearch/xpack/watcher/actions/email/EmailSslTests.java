@@ -11,10 +11,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -64,7 +64,7 @@ public class EmailSslTests extends ESTestCase {
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, keystorePassword);
         keyStore.setKeyEntry("test-smtp", PemUtils.readPrivateKey(keyPath, keystorePassword::clone), keystorePassword,
-            CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
+                CertParsingUtils.readX509Certificates(Collections.singletonList(certPath)));
         final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, keystorePassword).build();
         server = EmailServer.localhost(logger, sslContext);
     }

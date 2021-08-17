@@ -42,8 +42,10 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -256,6 +258,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).blockOnDataFiles();
     }
 
+    public static void blockAndFailDataNode(String repository, String nodeName) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).blockAndFailOnDataFiles();
+    }
+
     public static void blockAllDataNodes(String repository) {
         for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             ((MockRepository) repositoriesService.repository(repository)).blockOnDataFiles();
@@ -331,6 +337,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
         if (rarely()) {
             settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        }
+        if (randomBoolean()) {
+            settings.put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), randomBoolean());
         }
         return settings;
     }
@@ -480,9 +489,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             SnapshotState.FAILED,
             Collections.emptyMap()
         );
-        PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
+        PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(f -> repo.finalizeSnapshot(new FinalizeSnapshotContext(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
-                SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));
+                SnapshotsService.OLD_SNAPSHOT_FORMAT, f)));
     }
 
     protected void awaitNDeletionsInProgress(int count) throws Exception {

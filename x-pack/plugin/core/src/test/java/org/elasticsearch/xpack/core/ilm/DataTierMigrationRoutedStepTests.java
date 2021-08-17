@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -18,8 +17,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.DataTier;
@@ -32,6 +29,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
+import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -77,7 +75,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), null, null, true, ShardRoutingState.UNASSIGNED,
-                        new UnassignedInfo(randomFrom(Reason.values()), "the shard is intentionally unassigned")));
+                        randomUnassignedInfo("the shard is intentionally unassigned")));
 
         ClusterState clusterState =
             ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true).build())

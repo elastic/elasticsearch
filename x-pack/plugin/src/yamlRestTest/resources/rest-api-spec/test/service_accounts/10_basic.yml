@@ -10,21 +10,30 @@ teardown:
       security.delete_service_token:
         namespace: elastic
         service: fleet-server
-        name: api-token-1
+        name: api-token-fleet
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: elastic
+        service: kibana
+        name: api-token-kibana
         ignore: 404
 
 ---
 "Test get service accounts":
   - do:
       security.get_service_accounts: {}
-  - length: { '': 1 }
+  - length: { '': 2 }
   - is_true: "elastic/fleet-server"
+  - is_true: "elastic/kibana"
 
   - do:
       security.get_service_accounts:
         namespace: elastic
-  - length: { '': 1 }
+  - length: { '': 2 }
   - is_true: "elastic/fleet-server"
+  - is_true: "elastic/kibana"
 
   - do:
       security.get_service_accounts:
@@ -41,26 +50,36 @@ teardown:
       security.create_service_token:
         namespace: elastic
         service: fleet-server
-        name: api-token-1
+        name: api-token-fleet
 
   - is_true: created
-  - match: { "token.name": "api-token-1" }
-  - set: { "token.value": service_token }
+  - match: { "token.name": "api-token-fleet" }
+  - set: { "token.value": service_token_fleet }
+
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: kibana
+        name: api-token-kibana
+
+  - is_true: created
+  - match: { "token.name": "api-token-kibana" }
+  - set: { "token.value": service_token_kibana }
 
   - do:
       headers:
-        Authorization: Bearer ${service_token}
+        Authorization: Bearer ${service_token_fleet}
       security.authenticate: {}
 
   - match: { username: "elastic/fleet-server" }
   - match: { roles:  [] }
   - match: { full_name: "Service account - elastic/fleet-server" }
-  - match: { "token.name": "api-token-1" }
+  - match: { "token.name": "api-token-fleet" }
 
   - do:
       catch: forbidden
       headers:
-        Authorization: Bearer ${service_token}
+        Authorization: Bearer ${service_token_fleet}
       security.delete_user:
         username: foo
 
@@ -69,20 +88,41 @@ teardown:
       error.reason: "action [cluster:admin/xpack/security/user/delete] is unauthorized for user [elastic/fleet-server], this action is granted by the cluster privileges [manage_security,all]"
 
   - do:
+      headers:
+        Authorization: Bearer ${service_token_kibana}
+      security.authenticate: {}
+
+  - match: { username: "elastic/kibana" }
+  - match: { roles:  [] }
+  - match: { full_name: "Service account - elastic/kibana" }
+  - match: { "token.name": "api-token-kibana" }
+
+  - do:
       security.get_service_credentials:
         namespace: elastic
         service: fleet-server
 
   - match: { "service_account": "elastic/fleet-server" }
   - match: { "count": 2 }
-  - match: { "tokens": { "api-token-1": {} } }
-  - match: { "file_tokens": { "token1": {}} }
+  - match: { "tokens": { "api-token-fleet": {} } }
+  - match: { "nodes_credentials._nodes.failed": 0 }
+  - is_true: nodes_credentials.file_tokens.token1
+  - is_true: nodes_credentials.file_tokens.token1.nodes
+  - match: { "nodes_credentials.file_tokens.token1.nodes.0" : "/(yamlRestTest-0|yamlRestCompatTest-0)/" }
 
   - do:
       security.clear_cached_service_tokens:
         namespace: elastic
         service: fleet-server
-        name: api-token-1
+        name: api-token-fleet
+
+  - match: { _nodes.failed: 0 }
+
+  - do:
+      security.clear_cached_service_tokens:
+        namespace: elastic
+        service: kibana
+        name: api-token-kibana
 
   - match: { _nodes.failed: 0 }
 
@@ -90,9 +130,16 @@ teardown:
       security.clear_cached_service_tokens:
         namespace: elastic
         service: fleet-server
-        name: [ "api-token-1", "does-not-exist" ]
+        name: [ "api-token-fleet", "does-not-exist" ]
 
   - match: { _nodes.failed: 0 }
 
+  - do:
+      security.clear_cached_service_tokens:
+        namespace: elastic
+        service: kibana
+        name: [ "api-token-kibana", "does-not-exist-either" ]
+
+  - match: { _nodes.failed: 0 }
 
 

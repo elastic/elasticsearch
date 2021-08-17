@@ -180,6 +180,12 @@
           "title": "docs per second",
           "type": "number"
         },
+        "interim_results": {
+          "$id": "#root/settings/interim_results",
+          "title": "interim results",
+          "type": "boolean",
+          "default": false
+        },
         "max_page_search_size": {
           "$id": "#root/settings/max_page_search_size",
           "title": "max page search size",

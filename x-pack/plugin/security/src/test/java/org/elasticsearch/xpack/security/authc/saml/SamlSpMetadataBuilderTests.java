@@ -41,7 +41,7 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
     public void setup() throws Exception {
         SamlUtils.initialize(logger);
         final Path certPath = getDataPath("saml.crt");
-        final Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath));
+        final Certificate[] certs = CertParsingUtils.readX509Certificates(Collections.singletonList(certPath));
         if (certs.length != 1) {
             fail("Expected exactly 1 certificate in " + certPath);
         }
@@ -52,11 +52,11 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
         }
 
         final Path threeCertsPath = getDataPath("saml-three-certs.crt");
-        final Certificate[] threeCerts = CertParsingUtils.readCertificates(Collections.singletonList(threeCertsPath));
+        final Certificate[] threeCerts = CertParsingUtils.readX509Certificates(Collections.singletonList(threeCertsPath));
         if (threeCerts.length != 3) {
             fail("Expected exactly 3 certificate in " + certPath);
         }
-        List<Class> notX509Certificates = Arrays.stream(threeCerts).filter((cert) -> {
+        List<Class<?>> notX509Certificates = Arrays.stream(threeCerts).filter((cert) -> {
             return (cert instanceof X509Certificate) == false;
         }).map(cert -> cert.getClass()).collect(Collectors.toList());
         if (notX509Certificates.isEmpty() == false) {

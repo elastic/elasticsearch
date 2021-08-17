@@ -542,7 +542,7 @@ public class MetadataCreateIndexService {
                 isDataStream ? Collections.emptySet() : request.aliases(),
                 isDataStream ?
                     Collections.emptyList() :
-                    MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName, false),
+                    MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName),
                 currentState.metadata(),
                 aliasValidator,
                 xContentRegistry,
@@ -588,7 +588,7 @@ public class MetadataCreateIndexService {
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(template, componentTemplates, false, null), currentState.metadata(),
+                MetadataIndexTemplateService.resolveAliases(template, componentTemplates), currentState.metadata(),
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),

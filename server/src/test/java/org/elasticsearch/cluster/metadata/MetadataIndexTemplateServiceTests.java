@@ -1260,8 +1260,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             Arrays.asList("ct_low", "ct_high"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<Map<String, AliasMetadata>> resolvedAliases =
-            MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template", true);
+        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(Arrays.asList(a3, a1, a2)));

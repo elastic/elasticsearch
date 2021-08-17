@@ -19,7 +19,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.enrollment.EnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.enrollment.EnrollmentToken;
 import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
-import org.elasticsearch.xpack.security.tool.CommandUtils;
 import org.elasticsearch.xpack.security.tool.HttpResponse;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -119,7 +118,6 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
             .setSecureSettings(secureSettings)
             .put("path.home", tempDir)
             .build();
-        CommandUtils commandUtils = mock(CommandUtils.class);
     }
 
     public void testGenerateNewPasswordSuccess() throws Exception {

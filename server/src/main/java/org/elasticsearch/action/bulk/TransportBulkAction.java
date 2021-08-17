@@ -336,8 +336,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         if (writeRequest.routing() != null) {
             IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
-            throw new IllegalArgumentException("index request targeting data stream [" + dataStream.getName() + "] specifies a custom " +
-                "routing. target the backing indices directly or remove the custom routing.");
+            if(dataStream.getDataStream().getAllowCustomRouting() == null || dataStream.getDataStream().getAllowCustomRouting() == false){
+                throw new IllegalArgumentException("index request targeting data stream [" + dataStream.getName() + "] specifies a custom " +
+                    "routing. allow_custom_routing within data_stream field must be true when custom routing is enabled.");
+            }
         }
     }
 
@@ -443,7 +445,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case CREATE:
                         case INDEX:
                             prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
-                            //prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
+                            prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                             final IndexMetadata indexMetadata = metadata.index(concreteIndex);
                             MappingMetadata mappingMd = indexMetadata.mapping();

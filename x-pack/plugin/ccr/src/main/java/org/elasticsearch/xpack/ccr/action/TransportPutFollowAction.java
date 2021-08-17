@@ -274,7 +274,7 @@ public final class TransportPutFollowAction
             // just copying the data stream is in this case safe.
             return new DataStream(remoteDataStream.getName(), remoteDataStream.getTimeStampField(),
                 List.of(backingIndexToFollow), remoteDataStream.getGeneration(), remoteDataStream.getMetadata(),
-                remoteDataStream.isHidden(), true);
+                remoteDataStream.isHidden(), true, remoteDataStream.getAllowCustomRouting());
         } else {
             if (localDataStream.isReplicated() == false) {
                 throw new IllegalArgumentException("cannot follow backing index [" + backingIndexToFollow.getName() +
@@ -292,7 +292,7 @@ public final class TransportPutFollowAction
 
             return new DataStream(localDataStream.getName(), localDataStream.getTimeStampField(), backingIndices,
                 remoteDataStream.getGeneration(), remoteDataStream.getMetadata(), localDataStream.isHidden(),
-                localDataStream.isReplicated());
+                localDataStream.isReplicated(), localDataStream.getAllowCustomRouting());
         }
     }
 

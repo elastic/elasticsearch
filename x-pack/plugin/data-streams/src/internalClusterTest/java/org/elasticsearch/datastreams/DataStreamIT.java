@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response.DataStreamInfo;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1099,7 +1098,6 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("0"));
     }
 
-    @Ignore
     public void testIndexDocsWithCustomRoutingTargetingDataStreamIsNotAllowed() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-foo*"));
 
@@ -1121,8 +1119,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(
             exception.getMessage(),
             is(
-                "index request targeting data stream [logs-foobar] specifies a custom routing. target the "
-                    + "backing indices directly or remove the custom routing."
+                "index request targeting data stream [logs-foobar] specifies a custom routing. allow_custom_routing within data_stream field must be true when custom routing is enabled."
             )
         );
 
@@ -1143,14 +1140,17 @@ public class DataStreamIT extends ESIntegTestCase {
                 responseItem.getFailureMessage(),
                 is(
                     "java.lang.IllegalArgumentException: index request targeting data stream "
-                        + "[logs-foobar] specifies a custom routing. target the backing indices directly or remove the custom routing."
+                        + "[logs-foobar] specifies a custom routing. allow_custom_routing within data_stream field must be true when custom routing is enabled."
                 )
             );
         }
     }
 
     public void testIndexDocsWithCustomRoutingAllowed() throws Exception {
-        putComposableIndexTemplate("id1", List.of("logs-foo*"));
+        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of("logs-foobar*"), new Template(null, null, null), null, null, null,
+            null, new ComposableIndexTemplate.DataStreamTemplate(false, true));
+        client().execute(PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("id1").indexTemplate(template)).actionGet();
         // Index doc that triggers creation of a data stream
         String dataStream = "logs-foobar";
         IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)

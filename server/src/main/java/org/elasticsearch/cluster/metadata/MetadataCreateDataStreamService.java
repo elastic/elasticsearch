@@ -214,8 +214,17 @@ public class MetadataCreateDataStreamService {
         List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem ? false : template.getDataStreamTemplate().isHidden();
-        DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
-            template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden, false, isSystem);
+        DataStream newDataStream = new DataStream(
+            dataStreamName,
+            timestampField,
+            dsBackingIndices,
+            1L,
+            template.metadata() != null ? Map.copyOf(template.metadata()) : null,
+            hidden,
+            false,
+            isSystem,
+            template.getDataStreamTemplate().getAllowCustomRouting()
+        );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 
         List<String> aliases = new ArrayList<>();

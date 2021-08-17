@@ -17,8 +17,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
-import java.nio.file.Files;
-
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 

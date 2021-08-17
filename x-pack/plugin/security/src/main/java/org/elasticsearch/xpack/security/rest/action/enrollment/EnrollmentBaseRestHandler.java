@@ -30,7 +30,9 @@ public abstract class EnrollmentBaseRestHandler extends SecurityBaseRestHandler 
         if (failedFeature != null) {
             return failedFeature;
         } else if (XPackSettings.ENROLLMENT_ENABLED.get(settings) == false) {
-            return new ElasticsearchSecurityException("Enrollment mode is not enabled", RestStatus.FORBIDDEN);
+            return new ElasticsearchSecurityException("Enrollment mode [" + XPackSettings.ENROLLMENT_ENABLED.getKey() + "] is not " +
+                "configured",
+                RestStatus.FORBIDDEN);
         } else {
             return null;
         }

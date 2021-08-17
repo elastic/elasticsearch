@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.security.rest.action.enrollment;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.License;
-import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -41,7 +40,7 @@ public class EnrollmentBaseRestHandlerTests extends ESTestCase {
         final EnrollmentBaseRestHandler handler = buildHandler(settings);
         Exception ex = handler.checkFeatureAvailable(new FakeRestRequest());
         assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(ex.getMessage(), Matchers.containsString("Enrollment mode is not enabled"));
+        assertThat(ex.getMessage(), Matchers.containsString("Enrollment mode [xpack.security.enrollment.enabled] is not configured"));
         assertThat(((ElasticsearchSecurityException)ex).status(), Matchers.equalTo(RestStatus.FORBIDDEN));
     }
 
@@ -57,12 +56,7 @@ public class EnrollmentBaseRestHandlerTests extends ESTestCase {
     }
 
     private EnrollmentBaseRestHandler buildHandler(Settings settings) {
-        License.OperationMode licenseMode = randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL,
-            License.OperationMode.PLATINUM, License.OperationMode.ENTERPRISE);
-        final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState(settings);
-        licenseState.update(licenseMode, true, Long.MAX_VALUE, null);
-
-        return new EnrollmentBaseRestHandler(settings, licenseState) {
+        return new EnrollmentBaseRestHandler(settings, new XPackLicenseState(() -> 0)) {
 
             @Override
             public String getName() {

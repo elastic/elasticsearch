@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -1522,6 +1523,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private SortedMap<String, IndexAbstraction> buildIndicesLookup() {
             SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
             Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
+            Map<String, DataStreamAlias> dataStreamAliases = Map.of();
             DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
             // If there are no indices, then skip data streams. This happens only when metadata is read from disk
             if (dataStreamMetadata != null && indices.size() > 0) {
@@ -1540,21 +1542,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         indexToDataStreamLookup.put(i.getName(), dataStream);
                     }
                 }
-                for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
-                    List<IndexMetadata> allIndicesOfAllDataStreams = alias.getDataStreams().stream()
-                        .map(name -> dataStreamMetadata.dataStreams().get(name))
-                        .flatMap(ds -> ds.getIndices().stream())
-                        .map(index -> indices.get(index.getName()))
-                        .collect(Collectors.toList());
-                    IndexMetadata writeIndexOfWriteDataStream = null;
-                    if (alias.getWriteDataStream() != null) {
-                        DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
-                        writeIndexOfWriteDataStream = indices.get(writeDataStream.getWriteIndex().getName());
-                    }
-                    IndexAbstraction existing = indicesLookup.put(alias.getName(),
-                        new IndexAbstraction.Alias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream));
-                    assert existing == null : "duplicate data stream alias for " + alias.getName();
-                }
+                dataStreamAliases = dataStreamMetadata.getDataStreamAliases();
             }
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
@@ -1589,10 +1577,35 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 }
             }
 
-            for (var entry : aliasToIndices.entrySet()) {
-                AliasMetadata alias = entry.getValue().get(0).getAliases().get(entry.getKey());
-                IndexAbstraction existing = indicesLookup.put(entry.getKey(), new IndexAbstraction.Alias(alias, entry.getValue()));
-                assert existing == null : "duplicate for " + entry.getKey();
+            for (String aliasName : Sets.union(aliasToIndices.keySet(), dataStreamAliases.keySet())) {
+                DataStreamAlias dataStreamAlias = dataStreamAliases.get(aliasName);
+                List<IndexMetadata> indexAlias = aliasToIndices.get(aliasName);
+                if (dataStreamAlias != null) {
+                    List<IndexMetadata> allIndices = dataStreamAlias.getDataStreams().stream()
+                        .map(name -> dataStreamMetadata.dataStreams().get(name))
+                        .flatMap(ds -> ds.getIndices().stream())
+                        .map(index -> indices.get(index.getName()))
+                        .collect(Collectors.toList());
+                    IndexMetadata writeIndex = null;
+                    if (dataStreamAlias.getWriteDataStream() != null) {
+                        DataStream writeDataStream = dataStreamMetadata.dataStreams().get(dataStreamAlias.getWriteDataStream());
+                        writeIndex = indices.get(writeDataStream.getWriteIndex().getName());
+                    }
+
+                    if (indexAlias != null) {
+                        // TODO: fail if index alias has conflicting settings (write index, hidden, routing, query) compared to
+                        //  data stream alias?
+                        allIndices.addAll(indexAlias);
+                    }
+
+                    IndexAbstraction existing =
+                        indicesLookup.put(aliasName, new IndexAbstraction.Alias(dataStreamAlias, allIndices, writeIndex));
+                    assert existing == null : "duplicate data stream alias for " + aliasName;
+                } else if (indexAlias != null) {
+                    AliasMetadata alias = indexAlias.get(0).getAliases().get(aliasName);
+                    IndexAbstraction existing = indicesLookup.put(aliasName, new IndexAbstraction.Alias(alias, indexAlias));
+                    assert existing == null : "duplicate for " + aliasName;
+                }
             }
 
             return indicesLookup;

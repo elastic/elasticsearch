@@ -199,7 +199,7 @@ public interface IndexAbstraction {
             }
 
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
-            dataStreamAlias = false;
+            this.dataStreamAlias = false;
             validateAliasProperties();
         }
 

@@ -121,17 +121,16 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                         if (action.isHidden() != null) {
                             throw new IllegalArgumentException("aliases that point to data streams don't support is_hidden");
                         }
-                        // Fail if expressions match both data streams and regular indices:
-                        if (nonBackingIndices.isEmpty() == false) {
-                            throw new IllegalArgumentException("expressions " + Arrays.toString(action.indices()) +
-                                " that match with both data streams and regular indices are disallowed");
-                        }
                         for (String dataStreamName : concreteDataStreams) {
                             for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
                                 finalActions.add(new AddDataStreamAlias(alias, dataStreamName, action.writeIndex(), action.filter()));
                             }
                         }
-                        continue;
+                        if (nonBackingIndices.isEmpty() == false) {
+                            break;
+                        } else {
+                            continue;
+                        }
                     case REMOVE:
                         for (String dataStreamName : concreteDataStreams) {
                             for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {

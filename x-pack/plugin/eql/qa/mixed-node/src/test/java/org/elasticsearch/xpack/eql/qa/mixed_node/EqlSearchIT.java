@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.eql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -119,13 +118,10 @@ public class EqlSearchIT extends ESRestTestCase {
             .collect(Collectors.toSet());
         // each function has a query and query results associated to it
         Set<String> testedFunctions = new HashSet<>();
-        // TODO: remove the 8.0.0 version check after code reaches 7.x as well
-        boolean multiValued = newNodes.get(0).getVersion() != Version.V_8_0_0
-            && nodes.getBWCVersion().onOrAfter(RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
+        boolean multiValued = nodes.getBWCVersion().onOrAfter(RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
         try (
-            // TODO: use newNodes (instead of bwcNodes) after code reaches 7.x as well
             RestClient client = buildClient(restClientSettings(),
-                bwcNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
+                newNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
         ) {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._id";

@@ -47,7 +47,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.readResource;
 /**
  * Class testing the behavior of events and sequence queries in a mixed cluster scenario (during rolling upgrade).
  * The test is against a three-node cluster where one node is upgraded, the other two are on the old version.
- *  
+ *
  */
 public class EqlSearchIT extends ESRestTestCase {
 
@@ -66,7 +66,7 @@ public class EqlSearchIT extends ESRestTestCase {
         numDocs = randomIntBetween(numShards, 15);
         newNodes = new ArrayList<>(nodes.getNewNodes());
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
-        
+
         String mappings = readResource(EqlSearchIT.class.getResourceAsStream("/eql_mapping.json"));
         createIndex(
             index,
@@ -106,6 +106,7 @@ public class EqlSearchIT extends ESRestTestCase {
      * if their version is lower than {@code org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION}
      * version.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76618")
     public void testMultiValueFields() throws Exception {
         final String bulkEntries = readResource(EqlSearchIT.class.getResourceAsStream("/eql_data.json"));
         Request bulkRequst = new Request("POST", index + "/_bulk?refresh");

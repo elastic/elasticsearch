@@ -56,6 +56,10 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         return items;
     }
 
+    public int getCount() {
+        return items.length;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()

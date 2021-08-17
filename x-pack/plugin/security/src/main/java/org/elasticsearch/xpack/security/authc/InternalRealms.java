@@ -67,17 +67,6 @@ public final class InternalRealms {
     private static final Set<String> STANDARD_TYPES = Collections.unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE,
         FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE));
 
-    /**
-     * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,
-     * including the {@link ReservedRealm}
-     */
-    static boolean isXPackRealm(String type) {
-        if (XPACK_TYPES.contains(type)) {
-            return true;
-        }
-        return ReservedRealm.TYPE.equals(type);
-    }
-
     public static Collection<String> getConfigurableRealmsTypes() {
         return Collections.unmodifiableSet(XPACK_TYPES);
     }
@@ -89,6 +78,10 @@ public final class InternalRealms {
      */
     static boolean isStandardRealm(String type) {
         return STANDARD_TYPES.contains(type);
+    }
+
+    static boolean isBuiltinRealm(String type) {
+        return FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type);
     }
 
     /**
@@ -147,4 +140,5 @@ public final class InternalRealms {
             .collect(Collectors.toList());
         return checks;
     }
+
 }

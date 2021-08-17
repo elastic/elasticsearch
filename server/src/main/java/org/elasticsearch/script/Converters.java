@@ -166,24 +166,25 @@ public class Converters {
     public static BigIntegerField StringToBigInteger(StringField sourceField) {
         FieldValues<String> fv = sourceField.getFieldValues();
         return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<BigInteger, String>(fv) {
-            protected long parseNumber(String str) {
-                try {
-                    return Long.parseLong(str);
-                } catch (NumberFormatException err) {
-                    return (long) Double.parseDouble(str);
+            protected BigInteger parseNumber(String str) {
+                String trimmed = trimNumber(str);
+                int decimal = trimmed.indexOf(".");
+                if (decimal >= 0) {
+                    trimmed = trimmed.substring(0, decimal);
                 }
+                // TODO(stu): should we use Double.valueOf if this throws, Double.valueOf accepts many more formats
+                return new BigInteger(trimmed);
             }
 
             @Override
             public List<java.math.BigInteger> getValues() {
-                return values.getValues().stream().map(
-                    str -> java.math.BigInteger.valueOf(parseNumber(str))
-                ).collect(Collectors.toList());
+                // TODO(stu): this may throw
+                return values.getValues().stream().map(this::parseNumber).collect(Collectors.toList());
             }
 
             @Override
             public java.math.BigInteger getNonPrimitiveValue() {
-                return java.math.BigInteger.valueOf(values.getLongValue());
+                return parseNumber(values.getNonPrimitiveValue());
             }
         });
     }
@@ -271,10 +272,11 @@ public class Converters {
         FieldValues<String> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, String>(fv) {
             protected long parseNumber(String str) {
+                String trimmed = trimNumber(str);
                 try {
-                    return Long.parseLong(str);
+                    return Long.parseLong(trimmed);
                 } catch (NumberFormatException err) {
-                    return (long) Double.parseDouble(str);
+                    return (long) Double.parseDouble(trimmed);
                 }
             }
 
@@ -295,7 +297,7 @@ public class Converters {
 
             @Override
             public double getDoubleValue() {
-                String str = values.getNonPrimitiveValue();
+                String str = trimNumber(values.getNonPrimitiveValue());
                 try {
                     return Double.parseDouble(str);
                 } catch (NumberFormatException err) {
@@ -303,6 +305,15 @@ public class Converters {
                 }
             }
         });
+    }
+
+    /**
+     * Trim common leading and trailing values for strings, double quote, single quote, tab, new line and space.
+     *
+     * This avoids NumberFormatException when attempting to parse numbers from Strings for these common cases.
+     */
+    public static String trimNumber(String maybeNumber) {
+        return maybeNumber.replaceAll("^[\"' \t\n]*|[\"' \t\n]*$", "");
     }
 
     /**

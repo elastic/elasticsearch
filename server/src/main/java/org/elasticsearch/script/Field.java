@@ -83,7 +83,11 @@ public abstract class Field<T> {
         if (isEmpty()) {
             return defaultValue;
         }
-        return values.getNonPrimitiveValue();
+        try {
+            return values.getNonPrimitiveValue();
+        } catch (RuntimeException err) {
+            return defaultValue;
+        }
     }
 
     /**
@@ -94,7 +98,11 @@ public abstract class Field<T> {
         if (isEmpty()) {
             return defaultValue;
         }
-        return values.getDoubleValue();
+        try {
+            return values.getDoubleValue();
+        } catch (RuntimeException err) {
+            return defaultValue;
+        }
     }
 
 
@@ -106,7 +114,11 @@ public abstract class Field<T> {
         if (isEmpty()) {
             return defaultValue;
         }
-        return values.getLongValue();
+        try {
+            return values.getLongValue();
+        } catch (RuntimeException err) {
+            return defaultValue;
+        }
     }
 
     public static class BooleanField extends Field<Boolean> {

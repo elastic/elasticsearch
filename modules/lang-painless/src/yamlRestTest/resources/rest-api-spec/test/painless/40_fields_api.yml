@@ -224,6 +224,7 @@ setup:
     - match: { hits.hits.1.fields.missing_field.0: -9223372036854775809 }
     - match: { hits.hits.2._id: d3 }
     - match: { hits.hits.2.fields.missing_field.0: 12 }
+
 ---
 "date to long":
     - do:
@@ -368,3 +369,192 @@ setup:
     - match: { hits.hits.4.fields.dtnan_long.0: 9191836053547758072 }
     - match: { hits.hits.5._id: d6 }
     - match: { hits.hits.5.fields.dtnan_long.0: 2 }
+
+---
+"boolean to long and bigint":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 2
+          mappings:
+            properties:
+              dval:
+                type: double
+              bool:
+                type: boolean
+  - do:
+      index:
+        index: test
+        id: d1
+        body: { "dval": 101,  "bool": true }
+  - do:
+      index:
+        index: test
+        id: d2
+        body: { "dval": 202, "bool": false }
+  - do:
+      index:
+        index: test
+        id: d3
+        body: { "dval": 303 }
+  - do:
+      indices.refresh: {}
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query: { "match_all": {} }
+          sort: [ { dval: asc } ]
+          script_fields:
+            bool:
+              script:
+                source: "field('bool').as(Field.Long).getValue(-1)"
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._id: d1 }
+  - match: { hits.hits.0.fields.bool.0: 1 }
+  - match: { hits.hits.1._id: d2 }
+  - match: { hits.hits.1.fields.bool.0: 0 }
+  - match: { hits.hits.2._id: d3 }
+  - match: { hits.hits.2.fields.bool.0: -1 }
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query: { "match_all": {} }
+          sort: [ { dval: asc } ]
+          script_fields:
+            bool:
+              script:
+                source: "field('bool').as(Field.BigInteger).getValue(-1)"
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._id: d1 }
+  - match: { hits.hits.0.fields.bool.0: 1 }
+  - match: { hits.hits.1._id: d2 }
+  - match: { hits.hits.1.fields.bool.0: 0 }
+  - match: { hits.hits.2._id: d3 }
+  - match: { hits.hits.2.fields.bool.0: -1 }
+---
+"string to long and bigint":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 2
+          mappings:
+            properties:
+              dval:
+                type: double
+              str:
+                type: keyword
+  - do:
+      index:
+        index: test
+        id: d1
+        body: { "dval": 101,  "str": "18446744073709551618" }
+  - do:
+      index:
+        index: test
+        id: d2
+        body: { "dval": 202, "str": "9223372036854775809" }
+  - do:
+      index:
+        index: test
+        id: d3
+        body: { "dval": 303, "str": "  '-1'  " }
+  - do:
+      index:
+        index: test
+        id: d4
+        body: { "dval": 404 }
+  - do:
+      index:
+        index: test
+        id: d5
+        body: { "dval": 505, "str": "unparseable number" }
+  - do:
+      index:
+        index: test
+        id: d6
+        body: { "dval": 606, "str": "10E40" }
+  - do:
+      index:
+        index: test
+        id: d7
+        body: { "dval": 707, "str": "18446744073709551618.555" }
+  - do:
+      indices.refresh: {}
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query: { "match_all": {} }
+          sort: [ { dval: asc } ]
+          script_fields:
+            str:
+              script:
+                source: "field('str').as(Field.Long).getValue(-20)"
+  - match: { hits.total: 7 }
+  - match: { hits.hits.0._id: d1 }
+  - match: { hits.hits.0.fields.str.0: 9223372036854775807 }
+  - match: { hits.hits.1._id: d2 }
+  - match: { hits.hits.1.fields.str.0: 9223372036854775807 }
+  - match: { hits.hits.2._id: d3 }
+  - match: { hits.hits.2.fields.str.0: -1 }
+  - match: { hits.hits.3._id: d4 }
+  - match: { hits.hits.3.fields.str.0: -20 }
+  - match: { hits.hits.4._id: d5 }
+  - match: { hits.hits.4.fields.str.0: -20 }
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query: { "match_all": {} }
+          sort: [ { dval: asc } ]
+          script_fields:
+            str:
+              script:
+                source: "field('str').getLong(-40)"
+  - match: { hits.total: 7 }
+  - match: { hits.hits.0._id: d1 }
+  - match: { hits.hits.0.fields.str.0: -40 }
+  - match: { hits.hits.1._id: d2 }
+  - match: { hits.hits.1.fields.str.0: -40 }
+  - match: { hits.hits.2._id: d3 }
+  - match: { hits.hits.2.fields.str.0: -1 }
+  - match: { hits.hits.3._id: d4 }
+  - match: { hits.hits.3.fields.str.0: -40 }
+  - match: { hits.hits.4._id: d5 }
+  - match: { hits.hits.4.fields.str.0: -40 }
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query: { "match_all": {} }
+          sort: [ { dval: asc } ]
+          script_fields:
+            str:
+              script:
+                source: "field('str').as(Field.BigInteger).getValue(BigInteger.TEN)"
+  - match: { hits.total: 7 }
+  - match: { hits.hits.0._id: d1 }
+  - match: { hits.hits.0.fields.str.0: 18446744073709551618 }
+  - match: { hits.hits.1._id: d2 }
+  - match: { hits.hits.1.fields.str.0: 9223372036854775809 }
+  - match: { hits.hits.2._id: d3 }
+  - match: { hits.hits.2.fields.str.0: -1 }
+  - match: { hits.hits.3._id: d4 }
+  - match: { hits.hits.3.fields.str.0: 10 }
+  - match: { hits.hits.4._id: d5 }
+  - match: { hits.hits.4.fields.str.0: 10 }
+  - match: { hits.hits.5._id: d6 }
+  - match: { hits.hits.5.fields.str.0: 10 }
+  - match: { hits.hits.6._id: d7 }
+  - match: { hits.hits.6.fields.str.0: 18446744073709551618 }

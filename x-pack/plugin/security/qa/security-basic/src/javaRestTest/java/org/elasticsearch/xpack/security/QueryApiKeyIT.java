@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -215,12 +216,15 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
     }
 
-    public void testPagination() throws IOException {
+    public void testPagination() throws IOException, InterruptedException {
         final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
         final int total = randomIntBetween(8, 12);
+        final List<String> apiKeyNames =
+            IntStream.range(0, total).mapToObj(i -> String.format(Locale.ROOT, "k-%02d", i)).collect(Collectors.toUnmodifiableList());
         final List<String> apiKeyIds = new ArrayList<>(total);
         for (int i = 0; i < total; i++) {
-            apiKeyIds.add(createApiKey(String.format(Locale.ROOT, "k-%02d", i), null, authHeader).v1());
+            apiKeyIds.add(createApiKey(apiKeyNames.get(i), null, authHeader).v1());
+            Thread.sleep(10); // make sure keys are created with sufficient time interval to guarantee sorting order
         }
 
         final int from = randomIntBetween(0, 3);
@@ -233,29 +237,47 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final Request request1 = new Request("GET", "/_security/_query/api_key");
         request1.setOptions(request1.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
         request1.setJsonEntity("{\"from\":" + from + ",\"size\":" + size + ",\"sort\":[" + sortFieldsString + "]}");
-        collectApiKeys(apiKeyInfos, request1, total, size);
+        int actualSize = collectApiKeys(apiKeyInfos, request1, total, size);
+        assertThat(actualSize, equalTo(size));  // first batch should be a full page
 
         while (apiKeyInfos.size() < remaining) {
             final Request request2 = new Request("GET", "/_security/_query/api_key");
             request2.setOptions(request2.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
             final StringBuilder searchAfter = new StringBuilder();
-            @SuppressWarnings("unchecked")
-            final List<Object> sortValues = (List<Object>) apiKeyInfos.get(apiKeyInfos.size() - 1).get("_sort");
+            final List<Object> sortValues = extractSortValues(apiKeyInfos.get(apiKeyInfos.size() - 1));
             if (sortFields.get(0).equals("name")) {
-                assertThat(String.format(Locale.ROOT, "k-%02d", from + apiKeyInfos.size() - 1), equalTo(sortValues.get(0)));
                 searchAfter.append("\"").append(sortValues.get(0)).append("\"");
             } else {
-                assertThat(apiKeyInfos.get(apiKeyInfos.size() - 1).get("creation"), equalTo(sortValues.get(0)));
                 searchAfter.append(sortValues.get(0));
             }
             searchAfter.append(",").append(sortValues.get(1));
             request2.setJsonEntity("{\"size\":" + size + ",\"sort\":[" + sortFieldsString + "],\"search_after\":[" + searchAfter + "]}");
-            collectApiKeys(apiKeyInfos, request2, total, size);
+            actualSize = collectApiKeys(apiKeyInfos, request2, total, size);
+            if (actualSize == 0 && apiKeyInfos.size() < remaining) {
+                fail("fail to retrieve all API keys, expect [" + remaining + "] keys, got [" + apiKeyInfos + "]");
+            }
+            // Before all keys are retrieved, each page should be a full page
+            if (apiKeyInfos.size() < remaining) {
+                assertThat(actualSize, equalTo(size));
+            }
         }
 
-        for (int i = from; i < total; i++) {
-            assertThat(apiKeyInfos.get(i - from).get("id"), equalTo(apiKeyIds.get(i)));
+        // assert sort values match the field of API key information
+        if ("name".equals(sortFields.get(0))) {
+            assertThat(
+                apiKeyInfos.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableList()),
+                equalTo(apiKeyInfos.stream().map(m -> (String) extractSortValues(m).get(0)).collect(Collectors.toUnmodifiableList())));
+        } else {
+            assertThat(
+                apiKeyInfos.stream().map(m -> (long) m.get("creation")).collect(Collectors.toUnmodifiableList()),
+                equalTo(apiKeyInfos.stream().map(m -> (long) extractSortValues(m).get(0)).collect(Collectors.toUnmodifiableList())));
         }
+        assertThat(
+            apiKeyInfos.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableList()),
+            equalTo(apiKeyNames.subList(from, total)));
+        assertThat(
+            apiKeyInfos.stream().map(m -> (String) m.get("id")).collect(Collectors.toUnmodifiableList()),
+            equalTo(apiKeyIds.subList(from, total)));
 
         // size can be zero, but total should still reflect the number of keys matched
         final Request request2 = new Request("GET", "/_security/_query/api_key");
@@ -323,7 +345,12 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertQueryError(authHeader, 400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
     }
 
-    private void collectApiKeys(List<Map<String, Object>> apiKeyInfos, Request request, int total, int size) throws IOException {
+    @SuppressWarnings("unchecked")
+    private List<Object> extractSortValues(Map<String, Object> apiKeyInfo) {
+        return (List<Object>) apiKeyInfo.get("_sort");
+    }
+
+    private int collectApiKeys(List<Map<String, Object>> apiKeyInfos, Request request, int total, int size) throws IOException {
         final Response response = client().performRequest(request);
         assertOK(response);
         final Map<String, Object> responseMap = responseAsMap(response);
@@ -332,10 +359,9 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final List<Map<String, Object>> apiKeysMap = (List<Map<String, Object>>) responseMap.get("api_keys");
         apiKeyInfos.addAll(apiKeysMap);
         assertThat(responseMap.get("total"), equalTo(total));
-        assertThat(responseMap.get("count"), equalTo(apiKeyInfos.size() - before));
-        if (before == 0) {
-            assertThat(responseMap.get("count"), equalTo(size));
-        }
+        final int actualSize = apiKeyInfos.size() - before;
+        assertThat(responseMap.get("count"), equalTo(actualSize));
+        return actualSize;
     }
 
     private void assertQueryError(String authHeader, int statusCode, String body) throws IOException {

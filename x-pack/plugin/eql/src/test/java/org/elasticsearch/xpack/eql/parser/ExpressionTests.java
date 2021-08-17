@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Great
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -403,7 +402,7 @@ public class ExpressionTests extends ESTestCase {
         Expression value = expr(valueText);
 
         assertEquals(new Equals(null, field, value, UTC), expr(fieldText + "==" + valueText));
-        assertEquals(new NotEquals(null, field, value, UTC), expr(fieldText + "!=" + valueText));
+        assertEquals(new Not(null, new Equals(null, field, value, UTC)), expr(fieldText + "!=" + valueText));
         assertEquals(new LessThanOrEqual(null, field, value, UTC), expr(fieldText + "<=" + valueText));
         assertEquals(new GreaterThanOrEqual(null, field, value, UTC), expr(fieldText + ">=" + valueText));
         assertEquals(new GreaterThan(null, field, value, UTC), expr(fieldText + ">" + valueText));

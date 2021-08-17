@@ -32,6 +32,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -130,7 +131,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
         "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
-    public LicenseService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
+    public LicenseService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Clock clock, Environment env,
                           ResourceWatcherService resourceWatcherService, XPackLicenseState licenseState) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -143,6 +144,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             () -> updateLicenseState(getLicensesMetadata()));
         this.scheduler.register(this);
         populateExpirationCallbacks();
+
+        threadPool.scheduleWithFixedDelay(licenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), ThreadPool.Names.GENERIC);
     }
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {

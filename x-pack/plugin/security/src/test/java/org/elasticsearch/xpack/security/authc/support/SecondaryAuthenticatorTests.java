@@ -101,7 +101,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         realm = new DummyUsernamePasswordRealm(new RealmConfig(new RealmIdentifier("dummy", "test_realm"), settings, env, threadContext));
-        when(realms.asList()).thenReturn(List.of(realm));
+        when(realms.getActiveRealms()).thenReturn(List.of(realm));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
 
         final AuditTrailService auditTrail = new AuditTrailService(Collections.emptyList(), null);
@@ -126,8 +126,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         securityContext = new SecurityContext(settings, threadContext);
 
         tokenService = new TokenService(settings, clock, client, licenseState, securityContext, securityIndex, tokensIndex, clusterService);
-        final ApiKeyService apiKeyService = new ApiKeyService(settings, clock, client, licenseState,
-                                                              securityIndex, clusterService,
+        final ApiKeyService apiKeyService = new ApiKeyService(settings, clock, client, securityIndex, clusterService,
                                                               mock(CacheInvalidatorRegistry.class),threadPool);
         final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
         doAnswer(invocationOnMock -> {

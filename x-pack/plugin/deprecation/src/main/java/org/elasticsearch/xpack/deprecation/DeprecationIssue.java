@@ -82,7 +82,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         message = in.readString();
         url = in.readString();
         details = in.readOptionalString();
-        resolveDuringRollingUpgrade = in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean();
+        resolveDuringRollingUpgrade = in.getVersion().onOrAfter(Version.V_7_15_0) && in.readBoolean();
         meta = in.getVersion().onOrAfter(Version.V_7_14_0) ? in.readMap() : null;
     }
 
@@ -123,7 +123,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         out.writeString(message);
         out.writeString(url);
         out.writeOptionalString(details);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             out.writeBoolean(resolveDuringRollingUpgrade);
         }
         if (out.getVersion().onOrAfter(Version.V_7_14_0)) {

@@ -15,13 +15,15 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 
+import static org.elasticsearch.core.Types.forciblyCast;
+
 /**
  * Utility class to keep track of the bottom doc's sort values in a distributed search.
  */
 class BottomSortValuesCollector {
     private final int topNSize;
     private final SortField[] sortFields;
-    private final FieldComparator[] comparators;
+    private final FieldComparator<?>[] comparators;
     private final int[] reverseMuls;
 
     private volatile long totalHits;
@@ -29,7 +31,7 @@ class BottomSortValuesCollector {
 
     BottomSortValuesCollector(int topNSize, SortField[] sortFields) {
         this.topNSize = topNSize;
-        this.comparators = new FieldComparator[sortFields.length];
+        this.comparators = new FieldComparator<?>[sortFields.length];
         this.reverseMuls = new int[sortFields.length];
         this.sortFields = sortFields;
         for (int i = 0; i < sortFields.length; i++) {
@@ -90,7 +92,7 @@ class BottomSortValuesCollector {
 
     private int compareValues(Object[] v1, Object[] v2) {
         for (int i = 0; i < v1.length; i++) {
-            int cmp = reverseMuls[i] * comparators[i].compareValues(v1[i], v2[i]);
+            int cmp = reverseMuls[i] * comparators[i].compareValues(forciblyCast(v1[i]), forciblyCast(v2[i]));
             if (cmp != 0) {
                 return cmp;
             }

@@ -10,11 +10,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -124,7 +125,7 @@ public abstract class SamlTestCase extends ESTestCase {
     protected static List<Credential> buildOpenSamlCredential(final Tuple<X509Certificate, PrivateKey> keyPair) {
         try {
             return Arrays.asList(new X509KeyManagerX509CredentialAdapter(
-                    CertParsingUtils.keyManager(new Certificate[]{keyPair.v1()}, keyPair.v2(), new char[0]), "key"));
+                    KeyStoreUtil.createKeyManager(new Certificate[]{keyPair.v1()}, keyPair.v2(), new char[0]), "key"));
 
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
@@ -135,7 +136,7 @@ public abstract class SamlTestCase extends ESTestCase {
         final List<Credential> credentials = keyPairs.stream().map((keyPair) -> {
             try {
                 return new X509KeyManagerX509CredentialAdapter(
-                        CertParsingUtils.keyManager(new Certificate[]{keyPair.v1()}, keyPair.v2(), new char[0]), "key");
+                        KeyStoreUtil.createKeyManager(new Certificate[]{keyPair.v1()}, keyPair.v2(), new char[0]), "key");
             } catch (Exception e) {
                 throw ExceptionsHelper.convertToRuntime(e);
             }

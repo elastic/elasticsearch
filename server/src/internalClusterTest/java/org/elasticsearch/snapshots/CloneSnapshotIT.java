@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -74,7 +76,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final SnapshotId targetSnapshotId = new SnapshotId("target-snapshot", UUIDs.randomBase64UUID(random()));
 
-        final String currentShardGen;
+        final ShardGeneration currentShardGen;
         if (useBwCFormat) {
             currentShardGen = null;
         } else {
@@ -83,11 +85,10 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final ShardSnapshotResult shardSnapshotResult = PlainActionFuture.get(
             f -> repository.cloneShardSnapshot(sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, currentShardGen, f)
         );
-        final String newShardGeneration = shardSnapshotResult.getGeneration();
+        final ShardGeneration newShardGeneration = shardSnapshotResult.getGeneration();
 
         if (useBwCFormat) {
-            final long gen = Long.parseLong(newShardGeneration);
-            assertEquals(gen, 1L); // Initial snapshot brought it to 0, clone increments it to 1
+            assertEquals(newShardGeneration, new ShardGeneration(1L)); // Initial snapshot brought it to 0, clone increments it to 1
         }
 
         final BlobStoreIndexShardSnapshot targetShardSnapshot = readShardSnapshot(repository, repositoryShardId, targetSnapshotId);
@@ -736,6 +737,66 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(clone2.get());
     }
 
+    public void testRemoveFailedCloneFromCSWithoutIO() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String testIndex = "index-test";
+        createIndexWithContent(testIndex);
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        final String targetSnapshot = "target-snapshot";
+        blockAndFailMasterOnShardClone(repoName);
+        final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, targetSnapshot, testIndex);
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(masterNode, repoName);
+        unblockNode(repoName, masterNode);
+        expectThrows(SnapshotException.class, cloneFuture::actionGet);
+        awaitNoMoreRunningOperations();
+        assertAllSnapshotsSuccessful(getRepositoryData(repoName), 1);
+        assertAcked(startDeleteSnapshot(repoName, sourceSnapshot).get());
+    }
+
+    public void testRemoveFailedCloneFromCSWithQueuedSnapshotInProgress() throws Exception {
+        // single threaded master snapshot pool so we can selectively fail part of a clone by letting it run shard by shard
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put("thread_pool.snapshot.core", 1).put("thread_pool.snapshot.max", 1).build()
+        );
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String testIndex = "index-test";
+        final String testIndex2 = "index-test-2";
+        createIndexWithContent(testIndex);
+        createIndexWithContent(testIndex2);
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        final String targetSnapshot = "target-snapshot";
+        blockAndFailMasterOnShardClone(repoName);
+
+        createIndexWithContent("test-index-3");
+        blockDataNode(repoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> fullSnapshotFuture1 = startFullSnapshot(repoName, "full-snapshot-1");
+        waitForBlock(dataNode, repoName);
+        final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, targetSnapshot, testIndex, testIndex2);
+        awaitNumberOfSnapshotsInProgress(2);
+        waitForBlock(masterNode, repoName);
+        unblockNode(repoName, masterNode);
+        final ActionFuture<CreateSnapshotResponse> fullSnapshotFuture2 = startFullSnapshot(repoName, "full-snapshot-2");
+        expectThrows(SnapshotException.class, cloneFuture::actionGet);
+        unblockNode(repoName, dataNode);
+        awaitNoMoreRunningOperations();
+        assertSuccessful(fullSnapshotFuture1);
+        assertSuccessful(fullSnapshotFuture2);
+        assertAllSnapshotsSuccessful(getRepositoryData(repoName), 3);
+        assertAcked(startDeleteSnapshot(repoName, sourceSnapshot).get());
+    }
+
     private ActionFuture<AcknowledgedResponse> startCloneFromDataNode(
         String repoName,
         String sourceSnapshot,
@@ -772,6 +833,10 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repoName).setBlockOnWriteShardLevelMeta();
     }
 
+    private void blockAndFailMasterOnShardClone(String repoName) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repoName).setBlockAndFailOnWriteShardLevelMeta();
+    }
+
     /**
      * Assert that given {@link RepositoryData} contains exactly the given number of snapshots and all of them are successful.
      */
@@ -786,7 +851,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     private static BlobStoreIndexShardSnapshots readShardGeneration(
         BlobStoreRepository repository,
         RepositoryShardId repositoryShardId,
-        String generation
+        ShardGeneration generation
     ) {
         return PlainActionFuture.get(
             f -> repository.threadPool()
@@ -797,7 +862,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
                         () -> BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(
                             repository.getMetadata().name(),
                             repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
-                            generation,
+                            generation.toBlobNamePart(),
                             NamedXContentRegistry.EMPTY
                         )
                     )

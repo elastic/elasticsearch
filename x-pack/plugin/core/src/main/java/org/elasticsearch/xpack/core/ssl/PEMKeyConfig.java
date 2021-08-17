@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
@@ -22,6 +23,7 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.AccessControlException;
+import java.security.GeneralSecurityException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -78,7 +80,7 @@ class PEMKeyConfig extends KeyConfig {
     private Certificate[] getCertificateChain(@Nullable Environment environment) throws CertificateException, IOException {
         final Path certificate = CertParsingUtils.resolvePath(certPath, environment);
         try {
-            return CertParsingUtils.readCertificates(Collections.singletonList(certificate));
+            return CertParsingUtils.readX509Certificates(Collections.singletonList(certificate));
         } catch (FileNotFoundException | NoSuchFileException fileException) {
             throw missingKeyConfigFile(fileException, CERTIFICATE_FILE, certificate);
         } catch (AccessDeniedException accessException) {
@@ -120,6 +122,8 @@ class PEMKeyConfig extends KeyConfig {
             throw unreadableKeyConfigFile(accessException, KEY_FILE, key);
         } catch (AccessControlException securityException) {
             throw blockedKeyConfigFile(securityException, environment, KEY_FILE, key);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("Error parsing Private Key from: " + keyPath, e);
         }
     }
 

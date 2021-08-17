@@ -8,6 +8,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
@@ -210,6 +211,11 @@ public final class ShardGenerations {
                 }
             });
             return this;
+        }
+
+        public Builder put(IndexId indexId, int shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
+            // only track generations for successful shard status values
+            return put(indexId, shardId, status.state().failed() ? null : status.generation());
         }
 
         public Builder put(IndexId indexId, int shardId, ShardGeneration generation) {

@@ -1293,7 +1293,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
         ShardGenerations.Builder builder = ShardGenerations.builder();
         if (snapshot.isClone()) {
-            snapshot.shardsByRepoShardId().forEach(c -> builder.put(c.key.index(), c.key.shardId(), c.value.generation()));
+            snapshot.shardsByRepoShardId().forEach(c -> builder.put(c.key.index(), c.key.shardId(), c.value));
         } else {
             snapshot.shardsByRepoShardId().forEach(c -> {
                 final Index index = snapshot.indexByName(c.key.indexName());
@@ -1301,7 +1301,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                     return;
                 }
-                builder.put(c.key.index(), c.key.shardId(), c.value.generation());
+                builder.put(c.key.index(), c.key.shardId(), c.value);
             });
         }
         return builder.build();

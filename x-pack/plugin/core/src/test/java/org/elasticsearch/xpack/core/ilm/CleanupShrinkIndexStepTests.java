@@ -73,7 +73,6 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         cleanupShrinkIndexStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                assertTrue("onResponse must be called", true);
             }
 
             @Override
@@ -137,7 +136,6 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
             step.performAction(shrunkIndexMetadata, clusterState, null, new ActionListener<>() {
                 @Override
                 public void onResponse(Void complete) {
-                    assertTrue("onResponse must be called", true);
                 }
 
                 @Override

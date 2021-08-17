@@ -18,7 +18,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -75,21 +75,20 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/transport.p12"), transportPath);
         when(env.configFile()).thenReturn(tempDir);
         final SSLService sslService = mock(SSLService.class);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("keystore.secure_password", "password");
         final Settings httpSettings = Settings.builder()
-            .put("keystore.path", "httpCa.p12")
-            .put("keystore.password", "password")
+            .put("keystore.path", httpCaPath)
+            .setSecureSettings(secureSettings)
             .build();
         final SSLConfiguration httpSslConfiguration = new SSLConfiguration(httpSettings);
         when(sslService.getHttpTransportSSLConfiguration()).thenReturn(httpSslConfiguration);
         final Settings transportSettings = Settings.builder()
-            .put("keystore.path", "transport.p12")
+            .put("keystore.path", transportPath)
             .put("keystore.password", "password")
             .build();
         final SSLConfiguration transportSslConfiguration = new SSLConfiguration(transportSettings);
         when(sslService.getTransportSSLConfiguration()).thenReturn(transportSslConfiguration);
-        final ClusterService clusterService = mock(ClusterService.class);
-        final String clusterName = randomAlphaOfLengthBetween(6, 10);
-        when(clusterService.getClusterName()).thenReturn(new ClusterName(clusterName));
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -132,12 +131,11 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             Collections.emptySet());
 
         final TransportNodeEnrollmentAction action =
-            new TransportNodeEnrollmentAction(transportService, clusterService, sslService, client, mock(ActionFilters.class), env);
+            new TransportNodeEnrollmentAction(transportService, sslService, client, mock(ActionFilters.class), env);
         final NodeEnrollmentRequest request = new NodeEnrollmentRequest();
         final PlainActionFuture<NodeEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         final NodeEnrollmentResponse response = future.get();
-        assertThat(response.getClusterName(), equalTo(clusterName));
         assertSameCertificate(response.getHttpCaCert(), httpCaPath, "password".toCharArray(), true);
         assertSameCertificate(response.getTransportCert(), transportPath, "password".toCharArray(), false);
         assertThat(response.getNodesAddresses().size(), equalTo(numberOfNodes));
@@ -150,7 +148,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
     private void assertSameCertificate(String cert, Path original, char[] originalPassword, boolean isCa) throws Exception{
         Map<Certificate, Key> originalKeysAndCerts = CertParsingUtils.readPkcs12KeyPairs(original, originalPassword, p -> originalPassword);
         Certificate deserializedCert = CertParsingUtils.readCertificates(
-            new ByteArrayInputStream(Base64.getUrlDecoder().decode(cert.getBytes(StandardCharsets.UTF_8)))).get(0);
+            new ByteArrayInputStream(Base64.getDecoder().decode(cert.getBytes(StandardCharsets.UTF_8)))).get(0);
         assertThat(originalKeysAndCerts, hasKey(deserializedCert));
         assertThat(deserializedCert, instanceOf(X509Certificate.class));
         if (isCa) {

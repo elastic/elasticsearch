@@ -47,7 +47,7 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
         PARSER = new ObjectParser<>("saml_complete_logout", SamlCompleteLogoutRequest::new);
 
     static {
-        PARSER.declareStringOrNull(SamlCompleteLogoutRequest::setQueryString, new ParseField("queryString"));
+        PARSER.declareStringOrNull(SamlCompleteLogoutRequest::setQueryString, new ParseField("query_string", "queryString"));
         PARSER.declareStringOrNull(SamlCompleteLogoutRequest::setContent, new ParseField("content"));
         PARSER.declareStringArray(SamlCompleteLogoutRequest::setValidRequestIds, new ParseField("ids"));
         PARSER.declareString(SamlCompleteLogoutRequest::setRealm, new ParseField("realm"));

@@ -107,3 +107,13 @@ corresponding value for that component.
 ----
 String uriParts(String value);
 ----
+
+===== Network community ID
+Use the {ref}/community-id-processor.html[community ID processor] to compute the network
+community ID for network flow data.
+
+[source,Painless]
+----
+String communityId(String sourceIpAddrString, String destIpAddrString, Object ianaNumber, Object transport, Object sourcePort, Object destinationPort, Object icmpType, Object icmpCode, int seed)
+String communityId(String sourceIpAddrString, String destIpAddrString, Object ianaNumber, Object transport, Object sourcePort, Object destinationPort, Object icmpType, Object icmpCode)
+----

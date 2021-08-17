@@ -58,7 +58,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
-import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -158,7 +157,7 @@ public class TextFieldMapper extends FieldMapper {
         }
     }
 
-    private static PrefixConfig parsePrefixConfig(String propName, ParserContext parserContext, Object propNode) {
+    private static PrefixConfig parsePrefixConfig(String propName, MappingParserContext parserContext, Object propNode) {
         if (propNode == null) {
             return null;
         }
@@ -217,7 +216,7 @@ public class TextFieldMapper extends FieldMapper {
         Defaults.FIELDDATA_MIN_FREQUENCY, Defaults.FIELDDATA_MAX_FREQUENCY, Defaults.FIELDDATA_MIN_SEGMENT_SIZE
     );
 
-    private static FielddataFrequencyFilter parseFrequencyFilter(String name, ParserContext parserContext, Object node) {
+    private static FielddataFrequencyFilter parseFrequencyFilter(String name, MappingParserContext parserContext, Object node) {
         Map<?,?> frequencyFilter = (Map<?, ?>) node;
         double minFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("min"), 0);
         double maxFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("max"), Integer.MAX_VALUE);
@@ -850,7 +849,7 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
 
         if (value == null) {

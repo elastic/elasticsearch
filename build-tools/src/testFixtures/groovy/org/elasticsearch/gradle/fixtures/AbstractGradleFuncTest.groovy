@@ -101,8 +101,6 @@ abstract class AbstractGradleFuncTest extends Specification {
         import org.elasticsearch.gradle.Architecture
         import org.elasticsearch.gradle.internal.info.BuildParams
 
-        BuildParams.init { it.setIsInternal(true) }
-
         import org.elasticsearch.gradle.internal.BwcVersions
         import org.elasticsearch.gradle.Version
 
@@ -113,7 +111,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         )
 
         BwcVersions versions = new BwcVersions(new TreeSet<>(versionList), currentVersion)
-        BuildParams.init { it.setBwcVersions(versions) }
+        BuildParams.init { it.setBwcVersions(provider(() -> versions)) }
         """
     }
 

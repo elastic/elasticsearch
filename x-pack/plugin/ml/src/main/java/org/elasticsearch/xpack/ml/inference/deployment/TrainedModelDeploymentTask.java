@@ -9,48 +9,74 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationNodeService;
 
 import java.util.Map;
+import java.util.Optional;
 
-public class TrainedModelDeploymentTask extends AllocatedPersistentTask implements StartTrainedModelDeploymentAction.TaskMatcher {
+public class TrainedModelDeploymentTask extends CancellableTask implements StartTrainedModelDeploymentAction.TaskMatcher {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelDeploymentTask.class);
 
     private final TaskParams params;
-    private volatile DeploymentManager manager;
+    private final TrainedModelAllocationNodeService trainedModelAllocationNodeService;
+    private volatile boolean stopped;
+    private final SetOnce<String> stoppedReason = new SetOnce<>();
 
-    public TrainedModelDeploymentTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
-                                      TaskParams taskParams) {
-        super(id, type, action, MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + taskParams.getModelId(), parentTask, headers);
+    public TrainedModelDeploymentTask(
+        long id,
+        String type,
+        String action,
+        TaskId parentTask,
+        Map<String, String> headers,
+        TaskParams taskParams,
+        TrainedModelAllocationNodeService trainedModelAllocationNodeService
+    ) {
+        super(id, type, action, MlTasks.trainedModelDeploymentTaskId(taskParams.getModelId()), parentTask, headers);
         this.params = taskParams;
+        this.trainedModelAllocationNodeService = ExceptionsHelper.requireNonNull(
+            trainedModelAllocationNodeService,
+            "trainedModelAllocationNodeService"
+        );
     }
 
     public String getModelId() {
         return params.getModelId();
     }
 
-    public String getIndex() {
-        return params.getIndex();
+    public long estimateMemoryUsageBytes() {
+        return params.estimateMemoryUsageBytes();
     }
 
     public void stop(String reason) {
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
-
-        assert manager != null : "manager should not be unset when stop is called";
-        manager.stopDeployment(this);
-        markAsCompleted();
+        stopped = true;
+        stoppedReason.trySet(reason);
+        trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason);
     }
 
-    public void setDeploymentManager(DeploymentManager manager) {
-        this.manager = manager;
+    public void stopWithoutNotification(String reason) {
+        logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
+        stoppedReason.trySet(reason);
+        stopped = true;
+    }
+
+    public boolean isStopped() {
+        return stopped;
+    }
+
+    public Optional<String> stoppedReason() {
+        return Optional.ofNullable(stoppedReason.get());
     }
 
     @Override
@@ -60,6 +86,6 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
     }
 
     public void infer(String input, TimeValue timeout, ActionListener<InferenceResults> listener) {
-        manager.infer(this, input, timeout, listener);
+        trainedModelAllocationNodeService.infer(this, input, timeout, listener);
     }
 }

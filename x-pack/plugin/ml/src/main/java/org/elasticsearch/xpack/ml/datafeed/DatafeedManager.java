@@ -28,6 +28,7 @@ import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -87,6 +88,7 @@ public final class DatafeedManager {
     private final ClusterService clusterService;
     private final Client client;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
+    private final Settings settings;
 
     public DatafeedManager(DatafeedConfigProvider datafeedConfigProvider,
                            JobConfigProvider jobConfigProvider,
@@ -100,6 +102,7 @@ public final class DatafeedManager {
         this.clusterService = clusterService;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.client = client;
+        this.settings = settings;
     }
 
     public void putDatafeed(
@@ -110,7 +113,7 @@ public final class DatafeedManager {
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String[] indices = request.getDatafeed().getIndices().toArray(new String[0]);
 
@@ -193,6 +196,41 @@ public final class DatafeedManager {
                 datafeeds.addAll(clusterStateConfigs.values());
                 Collections.sort(datafeeds, Comparator.comparing(DatafeedConfig::getId));
                 listener.onResponse(new QueryPage<>(datafeeds, datafeeds.size(), DatafeedConfig.RESULTS_FIELD));
+            },
+            listener::onFailure
+        ));
+    }
+
+    public void getDatafeedsByJobIds(Set<String> jobIds, ClusterState state, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
+        datafeedConfigProvider.findDatafeedsByJobIds(jobIds, ActionListener.wrap(
+            datafeeds -> {
+                Map<String, DatafeedConfig.Builder> response = new HashMap<>(datafeeds);
+                Map<String, DatafeedConfig> fromState = MlMetadata.getMlMetadata(state).getDatafeedsByJobIds(jobIds);
+                for (Map.Entry<String, DatafeedConfig> datafeedConfigEntry : fromState.entrySet()) {
+                    DatafeedConfig.Builder alreadyExistingDatafeed = response.get(datafeedConfigEntry.getKey());
+                    if (alreadyExistingDatafeed != null) {
+                        if (alreadyExistingDatafeed.getId().equals(datafeedConfigEntry.getValue().getId())) {
+                            listener.onFailure(new IllegalStateException(
+                                "Datafeed ["
+                                    + alreadyExistingDatafeed.getId()
+                                    + "] configuration "
+                                    + "exists in both clusterstate and index"));
+                            return;
+                        }
+                        listener.onFailure(new IllegalStateException(
+                            "datafeed ["
+                                + datafeedConfigEntry.getValue().getId()
+                                + "] configuration in cluster state and ["
+                                + alreadyExistingDatafeed.getId()
+                                + "] in the configuration index both refer to job ["
+                                + datafeedConfigEntry.getKey()
+                                + "]"
+                        ));
+                        return;
+                    }
+                    response.put(datafeedConfigEntry.getKey(), new DatafeedConfig.Builder(datafeedConfigEntry.getValue()));
+                }
+                listener.onResponse(response);
             },
             listener::onFailure
         ));
@@ -387,7 +425,7 @@ public final class DatafeedManager {
     }
 
     private void checkJobDoesNotHaveADatafeed(String jobId, ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
+        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
             datafeedIds -> {
                 if (datafeedIds.isEmpty()) {
                     listener.onResponse(Boolean.TRUE);

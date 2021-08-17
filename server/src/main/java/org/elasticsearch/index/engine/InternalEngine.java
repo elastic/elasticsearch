@@ -30,6 +30,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -43,10 +44,6 @@ import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -58,13 +55,17 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -585,8 +586,7 @@ public class InternalEngine extends Engine {
             try {
                 final ElasticsearchDirectoryReader directoryReader =
                     ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                internalReaderManager = new ElasticsearchReaderManager(directoryReader,
-                       new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService()));
+                internalReaderManager = new ElasticsearchReaderManager(directoryReader);
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalRefreshListener);
                 success = true;
@@ -607,26 +607,31 @@ public class InternalEngine extends Engine {
         }
     }
 
+    private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
+        @Override
+        public void onUse(Query query) {
+
+        }
+
+        @Override
+        public boolean shouldCache(Query query) {
+            return false;
+        }
+    };
+
+    public final AtomicLong translogGetCount = new AtomicLong(); // number of times realtime get was done on translog
+    public final AtomicLong translogInMemorySegmentsCount = new AtomicLong(); // number of times in-memory index needed to be created
+
     private GetResult getFromTranslog(Get get, Translog.Index index, MappingLookup mappingLookup, DocumentParser documentParser,
                                       Function<Searcher, Searcher> searcherWrapper) throws IOException {
         assert get.isReadFromTranslog();
-        final SingleDocDirectoryReader inMemoryReader = new SingleDocDirectoryReader(shardId, index, mappingLookup, documentParser,
-            config().getAnalyzer());
+        translogGetCount.incrementAndGet();
+        final TranslogDirectoryReader inMemoryReader = new TranslogDirectoryReader(shardId, index, mappingLookup, documentParser,
+            config().getAnalyzer(), translogInMemorySegmentsCount::incrementAndGet);
         final Engine.Searcher searcher = new Engine.Searcher("realtime_get", ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
-            config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), inMemoryReader);
+            config().getSimilarity(), null /*query cache disabled*/, NEVER_CACHE_POLICY, inMemoryReader);
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
-        if (wrappedSearcher == searcher) {
-            searcher.close();
-            assert inMemoryReader.assertMemorySegmentStatus(false);
-            final TranslogLeafReader translogLeafReader = new TranslogLeafReader(index);
-            return new GetResult(new Engine.Searcher("realtime_get", translogLeafReader,
-                IndexSearcher.getDefaultSimilarity(), null, IndexSearcher.getDefaultQueryCachingPolicy(), translogLeafReader),
-                new VersionsAndSeqNoResolver.DocIdAndVersion(
-                    0, index.version(), index.seqNo(), index.primaryTerm(), translogLeafReader, 0), true);
-        } else {
-            assert inMemoryReader.assertMemorySegmentStatus(true);
-            return getFromSearcher(get, wrappedSearcher);
-        }
+        return getFromSearcher(get, wrappedSearcher, true);
     }
 
     @Override
@@ -675,10 +680,10 @@ public class InternalEngine extends Engine {
                     assert versionValue.seqNo >= 0 : versionValue;
                     refreshIfNeeded("realtime_get", versionValue.seqNo);
                 }
-                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper));
+                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
-                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper));
+                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
             }
         }
     }
@@ -1136,7 +1141,7 @@ public class InternalEngine extends Engine {
         return mayHaveBeenIndexBefore;
     }
 
-    private void addDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+    private void addDocs(final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
         if (docs.size() > 1) {
             indexWriter.addDocuments(docs);
         } else {
@@ -1145,8 +1150,8 @@ public class InternalEngine extends Engine {
         numDocAppends.inc(docs.size());
     }
 
-    private void addStaleDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
-        for (ParseContext.Document doc : docs) {
+    private void addStaleDocs(final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
+        for (LuceneDocument doc : docs) {
             doc.add(softDeletesField); // soft-deleted every document before adding to Lucene
         }
         if (docs.size() > 1) {
@@ -1239,7 +1244,7 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+    private void updateDocs(final Term uid, final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
         if (docs.size() > 1) {
             indexWriter.softUpdateDocuments(uid, docs, softDeletesField);
         } else {
@@ -1424,7 +1429,7 @@ public class InternalEngine extends Engine {
             assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
             tombstone.version().setLongValue(plan.versionOfDeletion);
-            final ParseContext.Document doc = tombstone.docs().get(0);
+            final LuceneDocument doc = tombstone.docs().get(0);
             assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null :
                 "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
             doc.add(softDeletesField);
@@ -1553,7 +1558,7 @@ public class InternalEngine extends Engine {
                         // version field.
                         tombstone.version().setLongValue(1L);
                         assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
-                        final ParseContext.Document doc = tombstone.docs().get(0);
+                        final LuceneDocument doc = tombstone.docs().get(0);
                         assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
                             : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
                         doc.add(softDeletesField);
@@ -1913,6 +1918,14 @@ public class InternalEngine extends Engine {
                 }
                 if (flush) {
                     flush(false, true);
+
+                    // If any merges happened then we need to release the unmerged input segments so they can be deleted. A periodic refresh
+                    // will do this eventually unless the user has disabled refreshes or isn't searching this shard frequently, in which
+                    // case we should do something here to ensure a timely refresh occurs. However there's no real need to defer it nor to
+                    // have any should-we-actually-refresh-here logic: we're already doing an expensive force-merge operation at the user's
+                    // request and therefore don't expect any further writes so we may as well do the final refresh immediately and get it
+                    // out of the way.
+                    refresh("force-merge");
                 }
             } finally {
                 store.decRef();

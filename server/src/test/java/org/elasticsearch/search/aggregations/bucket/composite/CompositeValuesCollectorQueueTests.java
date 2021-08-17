@@ -148,7 +148,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             ClassAndName type = types[i];
             final Comparable<?>[] values;
             int numValues = randomIntBetween(1, numDocs * 2);
-            values = new Comparable[numValues];
+            values = new Comparable<?>[numValues];
             if (type.clazz == Long.class) {
                 if (i < indexSortSourcePrefix) {
                     indexSortFields[i] = new SortedNumericSortField(type.fieldType.name(), SortField.Type.LONG);
@@ -228,7 +228,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             }
             IndexReader reader = DirectoryReader.open(directory);
             int size = keys.size() > 1 ? randomIntBetween(1, keys.size()) : 1;
-            SingleDimensionValuesSource<?>[] sources = new SingleDimensionValuesSource[types.length];
+            SingleDimensionValuesSource<?>[] sources = new SingleDimensionValuesSource<?>[types.length];
             for (int i = 0; i < types.length; i++) {
                 final MappedFieldType fieldType = types[i].fieldType;
                 if (types[i].clazz == Long.class) {
@@ -254,10 +254,9 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                     );
                 } else if (types[i].clazz == BytesRef.class) {
                     if (forceMerge) {
-                        // we don't create global ordinals but we test this mode when the reader has a single segment
-                        // since ordinals are global in this case.
-                        sources[i] = new GlobalOrdinalValuesSource(
+                        sources[i] = new OrdinalValuesSource(
                             bigArrays,
+                            (b) -> {},
                             fieldType,
                             context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
                             DocValueFormat.RAW,
@@ -353,6 +352,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             } else if (key2.get(i) == null) {
                 return 1;
             }
+            @SuppressWarnings("unchecked")
             Comparable<Object> cmp1 = (Comparable<Object>) key1.get(i);
             int cmp = cmp1.compareTo(key2.get(i));
             if (cmp != 0) {
@@ -364,7 +364,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
 
     private static List<CompositeKey> createListCombinations(List<List<Comparable<?>>> values) {
         List<CompositeKey> keys = new ArrayList<>();
-        createListCombinations(new Comparable[values.size()], values, 0, values.size(), keys);
+        createListCombinations(new Comparable<?>[values.size()], values, 0, values.size(), keys);
         return keys;
     }
 

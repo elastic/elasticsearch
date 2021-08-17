@@ -212,9 +212,9 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                 List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
                 assertThat(buckets.size(), equalTo(numValueBuckets));
 
-                Object[] propertiesKeys = (Object[]) ((InternalAggregation)histogram).getProperty("_key");
-                Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)histogram).getProperty("_count");
-                Object[] propertiesSumCounts = (Object[]) ((InternalAggregation)histogram).getProperty("sum.value");
+                Object[] propertiesKeys = (Object[]) histogram.getProperty("_key");
+                Object[] propertiesDocCounts = (Object[]) histogram.getProperty("_count");
+                Object[] propertiesSumCounts = (Object[]) histogram.getProperty("sum.value");
 
                 Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
                 // overwritten
@@ -261,9 +261,9 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
                 assertThat(histogram, notNullValue());
                 assertThat(histogram.getName(), equalTo("histo"));
-                Object[] propertiesKeys = (Object[]) ((InternalAggregation)histogram).getProperty("_key");
-                Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)histogram).getProperty("_count");
-                Object[] propertiesSumCounts = (Object[]) ((InternalAggregation)histogram).getProperty("stats.sum");
+                Object[] propertiesKeys = (Object[]) histogram.getProperty("_key");
+                Object[] propertiesDocCounts = (Object[]) histogram.getProperty("_count");
+                Object[] propertiesSumCounts = (Object[]) histogram.getProperty("stats.sum");
 
                 Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
                 // overwritten

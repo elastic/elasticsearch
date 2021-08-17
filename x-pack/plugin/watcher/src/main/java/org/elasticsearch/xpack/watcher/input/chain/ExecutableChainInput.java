@@ -24,9 +24,9 @@ import static org.elasticsearch.xpack.watcher.input.chain.ChainInput.TYPE;
 public class ExecutableChainInput extends ExecutableInput<ChainInput,ChainInput.Result> {
     private static final Logger logger = LogManager.getLogger(ExecutableChainInput.class);
 
-    private List<Tuple<String, ExecutableInput>> inputs;
+    private List<Tuple<String, ExecutableInput<?, ?>>> inputs;
 
-    public ExecutableChainInput(ChainInput input, List<Tuple<String, ExecutableInput>> inputs) {
+    public ExecutableChainInput(ChainInput input, List<Tuple<String, ExecutableInput<?, ?>>> inputs) {
         super(input);
         this.inputs = inputs;
     }
@@ -37,7 +37,7 @@ public class ExecutableChainInput extends ExecutableInput<ChainInput,ChainInput.
         Map<String, Object> payloads = new HashMap<>();
 
         try {
-            for (Tuple<String, ExecutableInput> tuple : inputs) {
+            for (Tuple<String, ExecutableInput<?, ?>> tuple : inputs) {
                 Input.Result result = tuple.v2().execute(ctx, new Payload.Simple(payloads));
                 results.add(new Tuple<>(tuple.v1(), result));
                 payloads.put(tuple.v1(), result.payload().data());

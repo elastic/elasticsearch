@@ -285,7 +285,8 @@ public class DefaultRestChannelTests extends ESTestCase {
         final BytesReference content = new ReleasableBytesReference(BytesReference.fromByteArray(byteArray, 0) , byteArray);
         channel.sendResponse(new TestRestResponse(RestStatus.METHOD_NOT_ALLOWED, content));
 
-        Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
+        @SuppressWarnings("unchecked")
+        Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class<?>) ActionListener.class;
         ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
         verify(httpChannel).sendResponse(any(), listenerCaptor.capture());
         ActionListener<Void> listener = listenerCaptor.getValue();

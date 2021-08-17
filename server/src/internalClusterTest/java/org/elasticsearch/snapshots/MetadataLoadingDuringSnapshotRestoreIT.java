@@ -81,7 +81,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             .addSnapshots("snap")
             .setVerbose(randomBoolean())
             .get();
-        assertThat(getSnapshotsResponse.getSnapshots("repository"), hasSize(1));
+        assertThat(getSnapshotsResponse.getSnapshots(), hasSize(1));
         assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 0);
         assertIndexMetadataLoads("snap", "others", 0);

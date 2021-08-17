@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-
+import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -63,12 +64,17 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     private final String message;
     private final String url;
     private final String details;
+    private final boolean resolveDuringRollingUpgrade;
+    private final Map<String, Object> meta;
 
-    public DeprecationIssue(Level level, String message, String url, @Nullable String details) {
+    public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean resolveDuringRollingUpgrade,
+                            @Nullable Map<String, Object> meta) {
         this.level = level;
         this.message = message;
         this.url = url;
         this.details = details;
+        this.resolveDuringRollingUpgrade = resolveDuringRollingUpgrade;
+        this.meta = meta;
     }
 
     public DeprecationIssue(StreamInput in) throws IOException {
@@ -76,8 +82,9 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         message = in.readString();
         url = in.readString();
         details = in.readOptionalString();
+        resolveDuringRollingUpgrade = in.getVersion().onOrAfter(Version.V_7_15_0) && in.readBoolean();
+        meta = in.getVersion().onOrAfter(Version.V_7_14_0) ? in.readMap() : null;
     }
-
 
     public Level getLevel() {
         return level;
@@ -95,12 +102,33 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         return details;
     }
 
+    /**
+     * @return whether a deprecation issue can only be resolved during a rolling upgrade when a node is offline.
+     */
+    public boolean isResolveDuringRollingUpgrade() {
+        return resolveDuringRollingUpgrade;
+    }
+
+    /**
+     * @return custom metadata, which allows the ui to display additional details
+     *         without parsing the deprecation message itself.
+     */
+    public Map<String, Object> getMeta() {
+        return meta;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         level.writeTo(out);
         out.writeString(message);
         out.writeString(url);
         out.writeOptionalString(details);
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+            out.writeBoolean(resolveDuringRollingUpgrade);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+            out.writeMap(meta);
+        }
     }
 
     @Override
@@ -111,6 +139,10 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
             .field("url", url);
         if (details != null) {
             builder.field("details", details);
+        }
+        builder.field("resolve_during_rolling_upgrade", resolveDuringRollingUpgrade);
+        if (meta != null) {
+            builder.field("_meta", meta);
         }
         return builder.endObject();
     }
@@ -127,12 +159,14 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         return Objects.equals(level, that.level) &&
             Objects.equals(message, that.message) &&
             Objects.equals(url, that.url) &&
-            Objects.equals(details, that.details);
+            Objects.equals(details, that.details) &&
+            Objects.equals(resolveDuringRollingUpgrade, that.resolveDuringRollingUpgrade) &&
+            Objects.equals(meta, that.meta);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(level, message, url, details);
+        return Objects.hash(level, message, url, details, resolveDuringRollingUpgrade, meta);
     }
 
     @Override

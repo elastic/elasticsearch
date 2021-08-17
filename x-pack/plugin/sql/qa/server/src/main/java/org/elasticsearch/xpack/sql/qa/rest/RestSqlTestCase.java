@@ -356,16 +356,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     @Override
-    public void testSelectFromEmptyIndex() throws Exception {
-        // Create an index without any types
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("{}");
-        client().performRequest(request);
-        String mode = randomFrom("jdbc", "plain");
-        expectBadRequest(() -> runSql(mode, "SELECT * FROM test"), containsString("1:8: Cannot determine columns for [*]"));
-    }
-
-    @Override
     public void testSelectColumnFromEmptyIndex() throws Exception {
         Request request = new Request("PUT", "/test");
         request.setJsonEntity("{}");
@@ -463,7 +453,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         index("{\"foo\":1}");
         expectBadRequest(
             () -> runSql(randomMode(), "SELECT SCORE().bar FROM test"),
-            containsString("line 1:15: extraneous input '.' expecting {<EOF>, ','")
+            containsString("line 1:15: mismatched input '.' expecting {<EOF>, ")
         );
     }
 

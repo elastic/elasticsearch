@@ -59,7 +59,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenCacheService implements Releasable {
 
@@ -73,6 +73,14 @@ public class FrozenCacheService implements Releasable {
         ByteSizeValue.ofMb(16).getStringRep(),
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
         getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = new Setting<>(
+        SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
+        ByteSizeValue.ofKb(128L).getStringRep(),
+        s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size"),
+        getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size"),
         Setting.Property.NodeScope
     );
 
@@ -179,14 +187,6 @@ public class FrozenCacheService implements Releasable {
                 }
             }
         },
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
-        SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
-        new ByteSizeValue(128, ByteSizeUnit.KB),                // default
-        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
-        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
     );
 

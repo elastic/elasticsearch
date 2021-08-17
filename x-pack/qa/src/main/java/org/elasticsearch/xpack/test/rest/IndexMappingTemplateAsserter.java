@@ -75,7 +75,7 @@ public class IndexMappingTemplateAsserter {
         assertComposableTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet(), false);
         // Depending on the order Full Cluster restart tests are run there may not be an notifications index yet
         assertComposableTemplateMatchesIndexMappings(client,
-            ".ml-notifications-000001", ".ml-notifications-000001", true, notificationsIndexExceptions, false);
+            ".ml-notifications-000002", ".ml-notifications-000002", true, notificationsIndexExceptions, false);
         // .ml-annotations-6 does not use a template
         // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
 

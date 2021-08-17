@@ -38,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -178,8 +179,15 @@ public class DefaultSearchContextTests extends ESTestCase {
                 + "] index level setting."));
 
             readerContext.close();
-            readerContext = new ReaderContext(
-                newContextId(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
+            readerContext = new ReaderContext(newContextId(), indexService, indexShard,
+                searcherSupplier.get(), randomNonNegativeLong(), false) {
+                @Override
+                public ScrollContext scrollContext() {
+                    ScrollContext scrollContext = new ScrollContext();
+                    scrollContext.scroll = new Scroll(TimeValue.timeValueSeconds(5));
+                    return scrollContext;
+                }
+            };
             // rescore is null but sliceBuilder is not null
             DefaultSearchContext context2 = new DefaultSearchContext(readerContext, shardSearchRequest, target,
                 null, timeout, null, false);

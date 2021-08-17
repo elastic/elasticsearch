@@ -8,16 +8,8 @@
 
 package org.elasticsearch.index.get;
 
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.index.StoredFieldVisitor;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
@@ -28,30 +20,27 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.TranslogLeafReader;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -158,7 +147,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         Engine.GetResult get = indexShard.get(new Engine.Get(realtime, realtime, id)
             .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
-        assert get.isFromTranslog() == false || realtime : "should only read from translog if realtime enabled";
         if (get.exists() == false) {
             get.close();
         }
@@ -197,11 +185,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> metadataFields = null;
         BytesReference source = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        // force fetching source if we read from translog and need to recreate stored fields
-        boolean forceSourceForComputingTranslogStoredFields = get.isFromTranslog() && storedFields != null &&
-                Stream.of(storedFields).anyMatch(f -> TranslogLeafReader.ALL_FIELD_NAMES.contains(f) == false);
-        FieldsVisitor fieldVisitor = buildFieldsVisitors(storedFields,
-            forceSourceForComputingTranslogStoredFields ? FetchSourceContext.FETCH_SOURCE : fetchSourceContext);
+        FieldsVisitor fieldVisitor = buildFieldsVisitors(storedFields, fetchSourceContext);
         if (fieldVisitor != null) {
             try {
                 docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
@@ -209,54 +193,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 throw new ElasticsearchException("Failed to get id [" + id + "]", e);
             }
             source = fieldVisitor.source();
-
-            // in case we read from translog, some extra steps are needed to make _source consistent and to load stored fields
-            if (get.isFromTranslog()) {
-                // Fast path: if only asked for the source or stored fields that have been already provided by TranslogLeafReader,
-                // just make source consistent by reapplying source filters from mapping (possibly also nulling the source)
-                if (forceSourceForComputingTranslogStoredFields == false) {
-                    try {
-                        source = indexShard.mapperService().documentMapper().sourceMapper().applyFilters(source, null);
-                    } catch (IOException e) {
-                        throw new ElasticsearchException("Failed to reapply filters for [" + id + "] after reading from translog", e);
-                    }
-                } else {
-                    // Slow path: recreate stored fields from original source
-                    assert source != null : "original source in translog must exist";
-                    SourceToParse sourceToParse = new SourceToParse(shardId.getIndexName(), id, source, XContentHelper.xContentType(source),
-                        fieldVisitor.routing(), Map.of());
-                    MapperService mapperService = indexShard.mapperService();
-                    ParsedDocument doc = mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup());
-                    assert doc.dynamicMappingsUpdate() == null : "mapping updates should not be required on already-indexed doc";
-                    // update special fields
-                    doc.updateSeqID(docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
-                    doc.version().setLongValue(docIdAndVersion.version);
-
-                    // retrieve stored fields from parsed doc
-                    fieldVisitor = buildFieldsVisitors(storedFields, fetchSourceContext);
-                    for (IndexableField indexableField : doc.rootDoc().getFields()) {
-                        IndexableFieldType fieldType = indexableField.fieldType();
-                        if (fieldType.stored()) {
-                            FieldInfo fieldInfo = new FieldInfo(indexableField.name(), 0, false, false, false, IndexOptions.NONE,
-                                DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
-                            StoredFieldVisitor.Status status = fieldVisitor.needsField(fieldInfo);
-                            if (status == StoredFieldVisitor.Status.YES) {
-                                if (indexableField.numericValue() != null) {
-                                    fieldVisitor.objectField(fieldInfo, indexableField.numericValue());
-                                } else if (indexableField.binaryValue() != null) {
-                                    fieldVisitor.binaryField(fieldInfo, indexableField.binaryValue());
-                                } else if (indexableField.stringValue() != null) {
-                                    fieldVisitor.objectField(fieldInfo, indexableField.stringValue());
-                                }
-                            } else if (status == StoredFieldVisitor.Status.STOP) {
-                                break;
-                            }
-                        }
-                    }
-                    // retrieve source (with possible transformations, e.g. source filters
-                    source = fieldVisitor.source();
-                }
-            }
 
             // put stored fields into result objects
             if (fieldVisitor.fields().isEmpty() == false) {

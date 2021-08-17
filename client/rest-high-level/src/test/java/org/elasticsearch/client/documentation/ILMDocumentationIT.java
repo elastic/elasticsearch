@@ -621,9 +621,6 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                     .put("index.lifecycle.name", "my_policy")
                     .build());
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
-            assertBusy(() -> assertNotNull(client.indexLifecycle()
-                .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
-                .getIndexResponses().get("my_index").getFailedStep()), 30, TimeUnit.SECONDS);
         }
 
         // tag::ilm-retry-lifecycle-policy-request
@@ -644,8 +641,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(acknowledged);
         } catch (ElasticsearchException e) {
-            // the retry API might fail as the shrink action steps are retryable (so if the retry API reaches ES when ILM is retrying the
-            // failed `shrink` step, the retry API will fail)
+            // the retry API might fail as the shrink action steps are retryable (ILM will stuck in the `check-target-shards-count` step
+            // with no failure, the retry API will fail)
             // assert that's the exception we encountered (we want to test to fail if there is an actual error with the retry api)
             assertThat(e.getMessage(), containsStringIgnoringCase("reason=cannot retry an action for an index [my_index] that has not " +
                 "encountered an error when running a Lifecycle Policy"));
@@ -1044,7 +1041,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(new String[]{repo}, new String[]{snapshotName});
             try {
                 final GetSnapshotsResponse snaps = client.snapshot().get(getSnapshotsRequest, RequestOptions.DEFAULT);
-                Optional<SnapshotInfo> info = snaps.getSnapshots(repo).stream().findFirst();
+                Optional<SnapshotInfo> info = snaps.getSnapshots().stream().findFirst();
                 if (info.isPresent()) {
                     info.ifPresent(si -> {
                         assertThat(si.snapshotId().getName(), equalTo(snapshotName));

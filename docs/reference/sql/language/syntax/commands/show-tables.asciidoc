@@ -27,7 +27,7 @@ patterns.
 include-tagged::{sql-specs}/docs/docs.csv-spec[showTables]
 ----
 
-Match multiple indices by using {es} <<multi-index,multi-target syntax>>
+Match multiple indices by using {es} <<api-multi-index,multi-target syntax>>
 notation:
 
 [source, sql]

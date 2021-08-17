@@ -9,6 +9,7 @@
 package org.elasticsearch.client.migration;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -69,8 +70,12 @@ public class DeprecationInfoResponseTests extends ESTestCase {
             .field("level", issue.getLevel())
             .field("message", issue.getMessage())
             .field("url", issue.getUrl());
-        if (issue.getDetails()!= null) {
+        if (issue.getDetails() != null) {
             builder.field("details", issue.getDetails());
+        }
+        builder.field("resolve_during_rolling_upgrade", issue.isResolveDuringRollingUpgrade());
+        if (issue.getMeta() != null) {
+            builder.field("_meta", issue.getMeta());
         }
         builder.endObject();
     }
@@ -94,7 +99,9 @@ public class DeprecationInfoResponseTests extends ESTestCase {
             list.add(new DeprecationInfoResponse.DeprecationIssue(randomFrom(WARNING, CRITICAL),
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),
-                randomBoolean() ? randomAlphaOfLength(5) : null));
+                randomBoolean() ? randomAlphaOfLength(5) : null,
+                randomBoolean(),
+                randomBoolean() ? randomMap(1, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))) : null));
         }
         return list;
     }

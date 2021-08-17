@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ public class DeprecationChecksTests extends ESTestCase {
     private static DeprecationIssue createRandomDeprecationIssue() {
         String details = randomBoolean() ? randomAlphaOfLength(10) : null;
         return new DeprecationIssue(randomFrom(DeprecationIssue.Level.values()), randomAlphaOfLength(10),
-            randomAlphaOfLength(10), details);
+            randomAlphaOfLength(10), details, randomBoolean(),
+            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4))));
     }
 }

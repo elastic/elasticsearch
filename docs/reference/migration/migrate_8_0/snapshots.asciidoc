@@ -6,67 +6,6 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
-.The get snapshot API's response format has changed.
-[%collapsible]
-====
-*Details* +
-It's possible to get snapshots from multiple repositories in one go. The response format has changed
-and now contains separate response for each repository.
-
-For example, requesting one snapshot from particular repository
-
-[source,console]
------------------------------------
-GET _snapshot/repo1/snap1
------------------------------------
-// TEST[skip:no repo and snapshots are created]
-
-produces the following response
-
-[source,console-result]
------------------------------------
-{
-  "responses": [
-    {
-      "repository": "repo1",
-      "snapshots": [
-        {
-          "snapshot": "snap1",
-          "uuid": "cEzdqUKxQ5G6MyrJAcYwmA",
-          "version_id": 8000099,
-          "version": "8.0.0",
-          "indices": [],
-          "include_global_state": true,
-          "state": "SUCCESS",
-          "start_time": "2019-05-10T17:01:57.868Z",
-          "start_time_in_millis": 1557507717868,
-          "end_time": "2019-05-10T17:01:57.909Z",
-          "end_time_in_millis": 1557507717909,
-          "duration_in_millis": 41,
-          "failures": [],
-          "shards": {
-            "total": 0,
-            "failed": 0,
-            "successful": 0
-          }
-        }
-      ]
-    }
-  ]
-}
------------------------------------
-// TESTRESPONSE[skip:no repo and snapshots are created]
-
-See <<modules-snapshots>> for more information.
-
-*Impact* +
-Update your workflow and applications to use the get snapshot API's new response
-format.
-====
-
 .The `repositories.fs.compress` node-level setting has been removed.
 [%collapsible]
 ====
@@ -77,7 +16,8 @@ The `repositories.fs.compress` setting has been removed.
 
 *Impact* +
 Use the repository specific `compress` setting to enable compression. See
-<<modules-snapshots>> for information on the `compress` setting.
+{ref}/snapshots-register-repository.html[Register a snapshot repository] for
+information on the `compress` setting.
 
 Discontinue use of the `repositories.fs.compress` node-level setting.
 ====
@@ -91,7 +31,8 @@ Previously, the default value for `compress` was `false`. The default has been c
 This change will affect both newly created repositories and existing repositories where `compress=false` has not been
 explicitly specified.
 
-For more information on the compress option, see <<modules-snapshots>>
+For more information on the compress option, see
+{ref}/snapshots-register-repository.html[Register a snapshot repository].
 
 *Impact* +
 Update your workflow and applications to assume a default value of `true` for
@@ -139,5 +80,7 @@ The repository stats API has been removed. We deprecated this experimental API
 in 7.10.0. 
 
 *Impact* +
-Use the <<repositories-metering-apis,repositories metering APIs>> instead.
+Use the {ref}/repositories-metering-apis.html[repositories metering APIs]
+instead.
 ====
+// end::notable-breaking-changes[]

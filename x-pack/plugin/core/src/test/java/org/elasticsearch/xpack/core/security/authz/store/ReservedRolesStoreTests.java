@@ -218,7 +218,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("transform_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
-        assertThat(ReservedRolesStore.isReserved("kibana_dashboard_only_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("beats_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved(XPackUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(AsyncSearchUser.ROLE_NAME), is(true));
@@ -438,7 +437,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // read-only index access, excluding cross cluster
         Arrays.asList(
             ".ml-anomalies-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ".ml-notifications-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             ".ml-stats-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((index) -> {
             logger.trace("index name [{}]", index);
@@ -448,6 +446,25 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+        });
+
+        // read/write index access, excluding cross cluster
+        Arrays.asList(
+            ".ml-annotations-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ".ml-notifications-" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach((index) -> {
+            logger.trace("index name [{}]", index);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
@@ -532,6 +549,22 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // read-only datastream for Endpoint policy responses
         Arrays.asList("metrics-endpoint.policy-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+        });
+
+        // read-only datastream for Endpoint metrics
+        Arrays.asList("metrics-endpoint.metrics-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
@@ -1001,44 +1034,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(reportingUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(reportingUserRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
-    }
-
-    public void testKibanaDashboardOnlyUserRole() {
-        final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
-
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_dashboard_only_user");
-        assertNotNull(roleDescriptor);
-        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-        assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
-
-        Role dashboardsOnlyUserRole = Role.builder(roleDescriptor, null).build();
-        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
-
-        assertThat(dashboardsOnlyUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
-
-        final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"), "*"),
-            is(false));
-
-        final String application = "kibana-.kibana";
-        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"), is(false));
-        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(application, "app-all", "all"), "*"), is(false));
-        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(application, "app-read", "read"), "*"), is(true));
-
-        final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(dashboardsOnlyUserRole.application().grants(
-            new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"), is(false));
-
-        assertNoAccessAllowed(dashboardsOnlyUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
-        assertNoAccessAllowed(dashboardsOnlyUserRole, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
     }
 
     public void testSuperuserRole() {

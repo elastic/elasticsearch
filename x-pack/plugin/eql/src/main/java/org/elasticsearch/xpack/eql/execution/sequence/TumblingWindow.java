@@ -35,6 +35,7 @@ import java.util.Set;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
 /**
  * Time-based window encapsulating query creation and advancement.
@@ -629,7 +630,7 @@ public class TumblingWindow implements Executable {
                     SearchHit hit = delegate.next();
                     SequenceKey k = key(criterion.key(hit));
                     Ordinal o = criterion.ordinal(hit);
-                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(hit.getIndex()), hit.getId()));
+                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(qualifiedIndex(hit)), hit.getId()));
                 }
             };
         };

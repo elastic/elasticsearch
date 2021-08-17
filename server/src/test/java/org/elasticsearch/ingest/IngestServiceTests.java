@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -933,7 +934,7 @@ public class IngestServiceTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         int numIndexRequests = 0;
         for (int i = 0; i < numRequest; i++) {
-            DocWriteRequest request;
+            DocWriteRequest<?> request;
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     request = new DeleteRequest("_index", "_id");
@@ -1370,6 +1371,24 @@ public class IngestServiceTests extends ESTestCase {
         metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
         result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
+        assertThat(result, is(true));
+        assertThat(indexRequest.isPipelineResolved(), is(true));
+        assertThat(indexRequest.getPipeline(), equalTo("_none"));
+        assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+    }
+
+    public void testResolveFinalPipelineWithDateMathExpression() {
+        final long epochMillis = randomLongBetween(1, System.currentTimeMillis());
+        final DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
+        IndexMetadata.Builder builder = IndexMetadata.builder("idx-" + dateFormatter.formatMillis(epochMillis))
+            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        Metadata metadata = Metadata.builder().put(builder).build();
+
+        // index name matches with IDM:
+        IndexRequest indexRequest = new IndexRequest("<idx-{now/d}>");
+        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata, epochMillis);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("_none"));

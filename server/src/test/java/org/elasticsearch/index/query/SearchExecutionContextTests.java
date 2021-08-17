@@ -47,12 +47,12 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -128,6 +128,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertThat(context.buildAnonymousFieldType("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testToQueryFails() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         Exception exc = expectThrows(Exception.class,
@@ -324,7 +325,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
@@ -446,7 +447,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        when(mapperService.parserContext()).thenReturn(new Mapper.TypeParser.ParserContext(
+        when(mapperService.parserContext()).thenReturn(new MappingParserContext(
             null,
             mapperRegistry.getMapperParsers()::get,
             mapperRegistry.getRuntimeFieldParsers()::get,
@@ -555,7 +556,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 };
             }
         };
-        return new TestRuntimeField(name, null, Collections.singleton(fieldType));
+        return new TestRuntimeField(name, Collections.singleton(fieldType));
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext) throws IOException {

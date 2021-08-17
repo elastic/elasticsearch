@@ -1207,8 +1207,8 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     // Tests the workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
-    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes)
-    // and SUM(all nulls)
+    // should be removed as soon as root cause https://github.com/elastic/elasticsearch/issues/71582 is fixed and the sum aggregation
+    // results can differentiate between SUM(all zeroes) and SUM(all nulls)
     public void testReplaceSumWithStats() {
         List<String> testCases = asList(
             "SELECT keyword, SUM(int) FROM test GROUP BY keyword",

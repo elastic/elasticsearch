@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.NodesResponseHeader;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
@@ -100,6 +101,7 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
+import org.elasticsearch.client.security.KibanaEnrollmentResponse;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -121,6 +123,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -130,6 +133,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -701,8 +705,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 31 system roles plus the three we created
-            assertThat(roles.size(), equalTo(31 + 3));
+            // 30 system roles plus the three we created
+            assertThat(roles.size(), equalTo(30 + 3));
         }
 
         {
@@ -2614,13 +2618,12 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74278")
     public void testCreateServiceAccountToken() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
             // tag::create-service-account-token-request
             CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "my_token_1");
             // end::create-service-account-token-request
 
             // tag::create-service-account-token-execute
@@ -2632,7 +2635,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String tokenName = createServiceAccountTokenResponse.getName(); // <1>
             final SecureString tokenValue = createServiceAccountTokenResponse.getValue(); // <2>
             // end::create-service-account-token-response
-            assertThat(createServiceAccountTokenResponse.getName(), equalTo("token1"));
+            assertThat(createServiceAccountTokenResponse.getName(), equalTo("my_token_1"));
             assertNotNull(tokenValue);
         }
 
@@ -2723,14 +2726,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74278")
     public void testGetServiceAccountCredentials() throws IOException {
         RestHighLevelClient client = highLevelClient();
         final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token2");
         final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
             client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
-        assertThat(createServiceAccountTokenResponse.getName(), equalTo("token1"));
+        assertThat(createServiceAccountTokenResponse.getName(), equalTo("token2"));
 
         {
             // tag::get-service-account-credentials-request
@@ -2745,15 +2747,23 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::get-service-account-credentials-response
             final String principal = getServiceAccountCredentialsResponse.getPrincipal(); // <1>
-            final String nodeName = getServiceAccountCredentialsResponse.getNodeName(); // <2>
-            final List<ServiceTokenInfo> serviceTokenInfos = getServiceAccountCredentialsResponse.getServiceTokenInfos(); // <3>
-            final String tokenName = serviceTokenInfos.get(0).getName(); // <4>
-            final String tokenSource = serviceTokenInfos.get(0).getSource(); // <5>
+            final List<ServiceTokenInfo> indexTokenInfos = getServiceAccountCredentialsResponse.getIndexTokenInfos(); // <2>
+            final String tokenName = indexTokenInfos.get(0).getName(); // <3>
+            final String tokenSource = indexTokenInfos.get(0).getSource(); // <4>
+            final Collection<String> nodeNames = indexTokenInfos.get(0).getNodeNames(); // <5>
+            final List<ServiceTokenInfo> fileTokenInfos
+                = getServiceAccountCredentialsResponse.getNodesResponse().getFileTokenInfos(); // <6>
+            final NodesResponseHeader fileTokensResponseHeader
+                = getServiceAccountCredentialsResponse.getNodesResponse().getHeader(); // <7>
+            final int nSuccessful = fileTokensResponseHeader.getSuccessful(); // <8>
+            final int nFailed = fileTokensResponseHeader.getFailed(); // <9>
             // end::get-service-account-credentials-response
             assertThat(principal, equalTo("elastic/fleet-server"));
-            assertThat(serviceTokenInfos.size(), equalTo(1));
-            assertThat(tokenName, equalTo("token1"));
-            assertThat(tokenSource, equalTo("index"));
+            // Cannot assert exactly one token because there are rare occasions where tests overlap and it will see
+            // token created from other tests
+            assertThat(indexTokenInfos.size(), greaterThanOrEqualTo(1));
+            assertThat(indexTokenInfos.stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()), hasItem("token2"));
+            assertThat(indexTokenInfos.stream().map(ServiceTokenInfo::getSource).collect(Collectors.toSet()), hasItem("index"));
         }
 
         {
@@ -2785,8 +2795,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(future.actionGet());
             assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
-            assertThat(future.actionGet().getServiceTokenInfos().size(), equalTo(1));
-            assertThat(future.actionGet().getServiceTokenInfos().get(0), equalTo(new ServiceTokenInfo("token1", "index")));
+            assertThat(future.actionGet().getIndexTokenInfos().size(), greaterThanOrEqualTo(1));
+            assertThat(future.actionGet().getIndexTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
+                hasItem("token2"));
         }
     }
 
@@ -2878,8 +2889,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             String httpCaCert = response.getHttpCaCert(); // <2>
             String transportKey = response.getTransportKey(); // <3>
             String transportCert = response.getTransportCert(); // <4>
-            String clusterName = response.getClusterName(); // <5>
-            List<String> nodesAddresses = response.getNodesAddresses();  // <6>
+            List<String> nodesAddresses = response.getNodesAddresses();  // <5>
             // end::node-enrollment-response
         }
 
@@ -2891,7 +2901,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     public void onResponse(NodeEnrollmentResponse response) {
                         // <1>
                     }
-
 
                     @Override
                     public void onFailure(Exception e) {
@@ -2905,6 +2914,47 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::node-enrollment-execute-async
             client.security().enrollNodeAsync(RequestOptions.DEFAULT, listener);
             // end::node-enrollment-execute-async
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    public void testKibanaEnrollment() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::kibana-enrollment-execute
+            KibanaEnrollmentResponse response = client.security().enrollKibana(RequestOptions.DEFAULT);
+            // end::kibana-enrollment-execute
+
+            // tag::kibana-enrollment-response
+            SecureString password = response.getPassword(); // <1>
+            String httoCa = response.getHttpCa(); // <2>
+            // end::kibana-enrollment-response
+            assertThat(password.length(), equalTo(14));
+        }
+
+        {
+            // tag::kibana-enrollment-execute-listener
+            ActionListener<KibanaEnrollmentResponse> listener =
+                new ActionListener<KibanaEnrollmentResponse>() {
+                    @Override
+                    public void onResponse(KibanaEnrollmentResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }};
+            // end::kibana-enrollment-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::kibana-enrollment-execute-async
+            client.security().enrollKibanaAsync(RequestOptions.DEFAULT, listener);
+            // end::kibana-enrollment-execute-async
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }

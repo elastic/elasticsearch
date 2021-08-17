@@ -89,6 +89,10 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
 
     @Override
     protected LifecyclePolicyMetadata createTestInstance() {
+        return createRandomPolicyMetadata(lifecycleName);
+    }
+
+    public static LifecyclePolicyMetadata createRandomPolicyMetadata(String lifecycleName) {
         Map<String, String> headers = new HashMap<>();
         int numberHeaders = between(0, 10);
         for (int i = 0; i < numberHeaders; i++) {

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
@@ -89,8 +90,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
     public void testMigrateIlmPolicyForIndexWithoutILMMetadata() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
-        AllocateAction warmAllocateAction = new AllocateAction(null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
-        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, Map.of("data", "cold"));
+        AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
+        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, null, Map.of("data", "cold"));
         SetPriorityAction warmSetPriority = new SetPriorityAction(100);
         LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(warmSetPriority, shrinkAction, warmAllocateAction,
             coldAllocateAction);
@@ -102,7 +103,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             .build();
 
         Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-        List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+        List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
         assertThat(migratedPolicies.size(), is(1));
         assertThat(migratedPolicies.get(0), is(lifecycleName));
 
@@ -122,11 +123,45 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         assertThat(migratedColdAllocateAction.getRequire().size(), is(0));
     }
 
+    public void testMigrateIlmPolicyFOrPhaseWithDeactivatedMigrateAction() {
+        ShrinkAction shrinkAction = new ShrinkAction(2, null);
+        AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
+        MigrateAction deactivatedMigrateAction = new MigrateAction(false);
+
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName,
+            Map.of("warm",
+                new Phase("warm", TimeValue.ZERO, Map.of(shrinkAction.getWriteableName(), shrinkAction,
+                    warmAllocateAction.getWriteableName(), warmAllocateAction, deactivatedMigrateAction.getWriteableName(),
+                    deactivatedMigrateAction))
+            ));
+        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
+            randomNonNegativeLong(), randomNonNegativeLong());
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
+                Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
+            .put(IndexMetadata.builder(indexName).settings(getBaseIndexSettings())).build())
+            .build();
+
+        Metadata.Builder newMetadata = Metadata.builder(state.metadata());
+        List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
+        assertThat(migratedPolicies.size(), is(1));
+        assertThat(migratedPolicies.get(0), is(lifecycleName));
+
+        ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+        IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
+        Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
+        assertThat("allocate action in the warm phase didn't specify any number of replicas so it must be removed, together with the " +
+                "deactivated migrate action", warmActions.size(), is(1));
+        assertThat(warmActions.get(shrinkAction.getWriteableName()), is(shrinkAction));
+    }
+
     @SuppressWarnings("unchecked")
     public void testMigrateIlmPolicyRefreshesCachedPhase() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
-        AllocateAction warmAllocateAction = new AllocateAction(null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
-        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, Map.of("data", "cold"));
+        AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
+        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, null, Map.of("data", "cold"));
         SetPriorityAction warmSetPriority = new SetPriorityAction(100);
         LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(warmSetPriority, shrinkAction, warmAllocateAction,
             coldAllocateAction);
@@ -150,7 +185,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
@@ -188,7 +223,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
@@ -230,7 +265,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
@@ -270,7 +305,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
@@ -302,11 +337,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testAllocateActionDefinesRoutingRules() {
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, Map.of("data", "cold"), null, null)), is(true));
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, Map.of("data", "cold"), null)), is(true));
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, Map.of("another_attribute", "rack1"), null,
+        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, Map.of("data", "cold"), null, null)), is(true));
+        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null, Map.of("data", "cold"), null)), is(true));
+        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, Map.of("another_attribute", "rack1"), null,
             Map.of("data", "cold"))), is(true));
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null, Map.of("another_attribute", "cold"))),
+        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null, null, Map.of("another_attribute",
+            "cold"))),
             is(false));
         assertThat(allocateActionDefinesRoutingRules("data", null), is(false));
     }
@@ -512,8 +548,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testMigrateToDataTiersRouting() {
-        AllocateAction allocateActionWithDataAttribute = new AllocateAction(null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
-        AllocateAction allocateActionWithOtherAttribute = new AllocateAction(0, null, null, Map.of("other", "cold"));
+        AllocateAction allocateActionWithDataAttribute = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack",
+            "rack1"));
+        AllocateAction allocateActionWithOtherAttribute = new AllocateAction(0, null, null, null, Map.of("other", "cold"));
 
         LifecyclePolicy policyToMigrate = new LifecyclePolicy(lifecycleName,
             Map.of("warm",
@@ -551,7 +588,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         {
             Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-                migrateToDataTiersRouting(state, "data", "catch-all", REGISTRY, client);
+                migrateToDataTiersRouting(state, "data", "catch-all", REGISTRY, client, null);
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
             assertThat(migratedEntities.removedIndexTemplateName, is("catch-all"));
@@ -569,7 +606,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // let's test a null template name to make sure nothing is removed
             Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-                migrateToDataTiersRouting(state, "data", null, REGISTRY, client);
+                migrateToDataTiersRouting(state, "data", null, REGISTRY, client, null);
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
             assertThat(migratedEntities.removedIndexTemplateName, nullValue());
@@ -587,7 +624,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // let's test a null node attribute parameter defaults to "data"
             Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-                migrateToDataTiersRouting(state, null, null, REGISTRY, client);
+                migrateToDataTiersRouting(state, null, null, REGISTRY, client, null);
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
             assertThat(migratedEntities.migratedPolicies.size(), is(1));
@@ -607,7 +644,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     Map.of(), OperationMode.RUNNING)))
                 .build();
             IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-                () -> migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client));
+                () -> migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client, null));
             assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [RUNNING]"));
         }
 
@@ -617,7 +654,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     Map.of(), OperationMode.STOPPING)))
                 .build();
             IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-                () -> migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client));
+                () -> migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client, null));
             assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [STOPPING]"));
         }
 
@@ -627,7 +664,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     Map.of(), OperationMode.STOPPED)))
                 .build();
             Tuple<ClusterState, MigratedEntities> migratedState = migrateToDataTiersRouting(ilmStoppedState, "data", "catch-all",
-                REGISTRY, client);
+                REGISTRY, client, null);
             assertThat(migratedState.v2().migratedIndices, empty());
             assertThat(migratedState.v2().migratedPolicies, empty());
             assertThat(migratedState.v2().removedIndexTemplateName, nullValue());
@@ -645,7 +682,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             .put(composableTemplateName, composableIndexTemplate).build())
             .build();
         Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-            migrateToDataTiersRouting(clusterState, "data", composableTemplateName, REGISTRY, client);
+            migrateToDataTiersRouting(clusterState, "data", composableTemplateName, REGISTRY, client, null);
         assertThat(migratedEntitiesTuple.v2().removedIndexTemplateName, nullValue());
         assertThat(migratedEntitiesTuple.v1().metadata().templatesV2().get(composableTemplateName), is(composableIndexTemplate));
     }

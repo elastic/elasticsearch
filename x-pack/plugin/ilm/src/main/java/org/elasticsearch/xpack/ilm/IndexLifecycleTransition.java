@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
@@ -83,8 +85,13 @@ public final class IndexLifecycleTransition {
                 "], currently: [" + realKey + "]");
         }
 
-        // Always allow moving to the terminal step, even if it doesn't exist in the policy
-        if (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false) {
+        final Set<Step.StepKey> cachedStepKeys =
+            stepRegistry.parseStepKeysFromPhase(lifecycleState.getPhaseDefinition(), lifecycleState.getPhase());
+        boolean isNewStepCached = cachedStepKeys != null && cachedStepKeys.contains(newStepKey);
+
+        // Always allow moving to the terminal step or to a step that's present in the cached phase, even if it doesn't exist in the policy
+        if (isNewStepCached == false &&
+            (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false)) {
             throw new IllegalArgumentException("step [" + newStepKey + "] for index [" + idxMeta.getIndex().getName() +
                 "] with policy [" + indexPolicySetting + "] does not exist");
         }
@@ -277,7 +284,7 @@ public final class IndexLifecycleTransition {
                                                                                     LifecycleExecutionState existingState,
                                                                                     LongSupplier nowSupplier, LifecyclePolicy oldPolicy,
                                                                                     LifecyclePolicyMetadata newPolicyMetadata,
-                                                                                    Client client) {
+                                                                                    Client client, XPackLicenseState licenseState) {
         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
         Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(existingState);
         if (currentStepKey == null) {
@@ -286,7 +293,7 @@ public final class IndexLifecycleTransition {
             return existingState;
         }
 
-        List<Step> policySteps = oldPolicy.toSteps(client);
+        List<Step> policySteps = oldPolicy.toSteps(client, licenseState);
         Optional<Step> currentStep = policySteps.stream()
             .filter(step -> step.getKey().equals(currentStepKey))
             .findFirst();

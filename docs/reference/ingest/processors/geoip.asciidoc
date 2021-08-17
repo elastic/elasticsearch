@@ -4,24 +4,24 @@
 <titleabbrev>GeoIP</titleabbrev>
 ++++
 
-The `geoip` processor adds information about the geographical location of IP addresses, based on data from the Maxmind databases.
-This processor adds this information by default under the `geoip` field. The `geoip` processor can resolve both IPv4 and
-IPv6 addresses.
+The `geoip` processor adds information about the geographical location of an
+IPv4 or IPv6 address.
 
-The `ingest-geoip` module ships by default with the GeoLite2 City, GeoLite2 Country and GeoLite2 ASN GeoIP2 databases from Maxmind made available
-under the CCA-ShareAlike 4.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
+[[geoip-automatic-updates]]
+By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2
+ASN GeoIP2 databases from
+http://dev.maxmind.com/geoip/geoip2/geolite2/[MaxMind], shared under the
+CCA-ShareAlike 4.0 license. {es} automatically downloads updates for
+these databases from the Elastic GeoIP endpoint:
+https://geoip.elastic.co/v1/database. To get download statistics for these
+updates, use the <<geoip-stats-api,GeoIP stats API>>.
 
-The `geoip` processor can run with other city, country and ASN GeoIP2 databases
-from Maxmind. On {ess} deployments, custom database files must be uploaded using
-a {cloud}/ec-custom-bundles.html[custom bundle]. On self-managed deployments,
-custom database files must be copied into the `ingest-geoip` config
-directory located at `$ES_CONFIG/ingest-geoip`.
+If your cluster can't connect to the Elastic GeoIP endpoint or you want to
+manage your own updates, see <<manage-geoip-database-updates>>.
 
-Custom database files must be
-stored uncompressed and the extension must be `-City.mmdb`, `-Country.mmdb`, or
-`-ASN.mmdb` to indicate the type of the database. The
-`database_file` processor option is used to specify the filename of the custom
-database to use for the processor.
+If {es} can't connect to the endpoint for 30 days all updated databases will become
+invalid. {es} will stop enriching documents with geoip data and will add `tags: ["_geoip_expired_database"]`
+field instead.
 
 [[using-ingest-geoip]]
 ==== Using the `geoip` Processor in a Pipeline
@@ -32,7 +32,7 @@ database to use for the processor.
 |======
 | Name                   | Required  | Default                                                                            | Description
 | `field`                | yes       | -                                                                                  | The field to get the ip address from for the geographical lookup.
-| `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the Maxmind database.
+| `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the MaxMind database.
 | `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename referring to a database the module ships with (GeoLite2-City.mmdb, GeoLite2-Country.mmdb, or GeoLite2-ASN.mmdb) or a custom database in the `ingest-geoip` config directory.
 | `properties`           | no        | [`continent_name`, `country_iso_code`, `country_name`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
 | `ignore_missing`       | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
@@ -303,6 +303,82 @@ GET /my_ip_locations/_search
 // TESTRESPONSE[s/"took" : 3/"took" : $body.took/]
 ////
 
+[[manage-geoip-database-updates]]
+==== Manage your own GeoIP2 database updates
+
+If you can't <<geoip-automatic-updates,automatically update>> your GeoIP2
+databases from the Elastic endpoint, you have a few other options:
+
+* <<use-proxy-geoip-endpoint,Use a proxy endpoint>>
+* <<use-custom-geoip-endpoint,Use a custom endpoint>>
+* <<manually-update-geoip-databases,Manually update your GeoIP2 databases>>
+
+[[use-proxy-geoip-endpoint]]
+**Use a proxy endpoint**
+
+If you can't connect directly to the Elastic GeoIP endpoint, consider setting up
+a secure proxy. You can then specify the proxy endpoint URL in the
+<<ingest-geoip-downloader-endpoint,`ingest.geoip.downloader.endpoint`>> setting
+of each node’s `elasticsearch.yml` file.
+
+[[use-custom-geoip-endpoint]]
+**Use a custom endpoint**
+
+You can create a service that mimics the Elastic GeoIP endpoint. You can then
+get automatic updates from this service.
+
+. Download your `.mmdb` database files from the
+http://dev.maxmind.com/geoip/geoip2/geolite2[MaxMind site].
+
+. Copy your database files to a single directory.
+
+. From your {es} directory, run:
++
+[source,sh]
+----
+./bin/elasticsearch-geoip -s my/source/dir [-t target/directory]
+----
+
+. Serve the static database files from your directory. For example, you can use
+Docker to serve the files from an nginx server:
++
+[source,sh]
+----
+docker run -v my/source/dir:/usr/share/nginx/html:ro nginx
+----
+
+. Specify the service's endpoint URL in the
+<<ingest-geoip-downloader-endpoint,`ingest.geoip.downloader.endpoint`>> setting
+of each node’s `elasticsearch.yml` file.
++
+By default, {es} checks the endpoint for updates every three days. To use
+another polling interval, use the <<cluster-update-settings,update cluster
+settings API>> to set
+<<ingest-geoip-downloader-poll-interval,`ingest.geoip.downloader.poll.interval`>>.
+
+[[manually-update-geoip-databases]]
+**Manually update your GeoIP2 databases**
+
+. Use the <<cluster-update-settings,update cluster settings API>> to set
+`ingest.geoip.downloader.enabled` to `false`. This disables automatic updates
+that may overwrite your database changes. This also deletes all downloaded
+databases.
+
+. Download your `.mmdb` database files from the
+http://dev.maxmind.com/geoip/geoip2/geolite2[MaxMind site].
++
+You can also use custom city, country, and ASN `.mmdb` files. These files must
+be uncompressed and use the respective `-City.mmdb`, `-Country.mmdb`, or
+`-ASN.mmdb` extensions.
+
+. On {ess} deployments upload database using
+a {cloud}/ec-custom-bundles.html[custom bundle].
+
+. On self-managed deployments copy the database files to `$ES_CONFIG/ingest-geoip`.
+
+. In your `geoip` processors, configure the `database_file` parameter to use a
+custom database file.
+
 [[ingest-geoip-settings]]
 ===== Node Settings
 
@@ -313,3 +389,28 @@ The `geoip` processor supports the following setting:
     The maximum number of results that should be cached. Defaults to `1000`.
 
 Note that these settings are node settings and apply to all `geoip` processors, i.e. there is one cache for all defined `geoip` processors.
+
+[[geoip-cluster-settings]]
+===== Cluster settings
+
+[[ingest-geoip-downloader-enabled]]
+`ingest.geoip.downloader.enabled`::
+(<<dynamic-cluster-setting,Dynamic>>, Boolean)
+If `true`, {es} automatically downloads and manages updates for GeoIP2 databases
+from the `ingest.geoip.downloader.endpoint`. If `false`, {es} does not download
+updates and deletes all downloaded databases. Defaults to `true`.
+
+[[ingest-geoip-downloader-endpoint]]
+`ingest.geoip.downloader.endpoint`::
+(<<static-cluster-setting,Static>>, string)
+Endpoint URL used to download updates for GeoIP2 databases. Defaults to
+`https://geoip.elastic.co/v1/database`. {es} stores downloaded database files in
+each node's <<es-tmpdir,temporary directory>> at
+`$ES_TMPDIR/geoip-databases/<node_id>`.
+
+[[ingest-geoip-downloader-poll-interval]]
+`ingest.geoip.downloader.poll.interval`::
+(<<dynamic-cluster-setting,Dynamic>>, <<time-units,time value>>)
+How often {es} checks for GeoIP2 database updates at the
+`ingest.geoip.downloader.endpoint`. Must be greater than `1d` (one day). Defaults
+to `3d` (three days).

@@ -39,8 +39,10 @@ import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.RolloverStep;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -489,8 +491,58 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         try {
             IndexLifecycleTransition.validateTransition(indexMetadata, currentStepKey, nextStepKey, policyRegistry);
         } catch (Exception e) {
-            logger.error(e);
+            logger.error(e.getMessage(), e);
             fail("validateTransition should not throw exception on valid transitions");
+        }
+    }
+
+    public void testValidateTransitionToCachedStepMissingFromPolicy() {
+        LifecycleExecutionState.Builder executionState = LifecycleExecutionState.builder()
+            .setPhase("hot")
+            .setAction("rollover")
+            .setStep("check-rollover-ready")
+            .setPhaseDefinition("{\n" +
+                "        \"policy\" : \"my-policy\",\n" +
+                "        \"phase_definition\" : {\n" +
+                "          \"min_age\" : \"20m\",\n" +
+                "          \"actions\" : {\n" +
+                "            \"rollover\" : {\n" +
+                "              \"max_age\" : \"5s\"\n" +
+                "            },\n" +
+                "            \"set_priority\" : {\n" +
+                "              \"priority\" : 150\n" +
+                "            }\n" +
+                "          }\n" +
+                "        },\n" +
+                "        \"version\" : 1,\n" +
+                "        \"modified_date_in_millis\" : 1578521007076\n" +
+                "      }");
+
+        IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
+
+        Map<String, LifecycleAction> actions = new HashMap<>();
+        actions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
+        Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+        LifecyclePolicy policyWithoutRollover = new LifecyclePolicy("my-policy", phases);
+        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policyWithoutRollover, Collections.emptyMap(), 2L, 2L);
+
+        ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+                .put(meta, false)
+                .build())
+            .build();
+        try (Client client = new NoOpClient(getTestName())) {
+            Step.StepKey currentStepKey = new Step.StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
+            Step.StepKey nextStepKey = new Step.StepKey("hot", RolloverAction.NAME, RolloverStep.NAME);
+            Step currentStep = new WaitForRolloverReadyStep(currentStepKey, nextStepKey, client, null, null, null, 1L);
+            try {
+                IndexLifecycleTransition.validateTransition(meta, currentStepKey, nextStepKey, createOneStepPolicyStepRegistry("my-policy",
+                    currentStep));
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+                fail("validateTransition should not throw exception on valid transitions");
+            }
         }
     }
 
@@ -831,7 +883,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             try (Client client = new NoOpClient(getTestName())) {
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(meta,
                     LifecycleExecutionState.fromIndexMetadata(meta), System::currentTimeMillis, currentPolicy, updatedPolicyMetadata,
-                    client);
+                    client, null);
 
                 Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
                 assertThat(newState.getAction(), is(hotPhaseCompleteStepKey.getAction()));
@@ -855,7 +907,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             try (Client client = new NoOpClient(getTestName())) {
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(meta,
                     LifecycleExecutionState.fromIndexMetadata(meta), System::currentTimeMillis, currentPolicy, updatedPolicyMetadata,
-                    client);
+                    client, null);
 
                 Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
                 // the state was still moved into the next action, even if the updated policy still contained the action the index was

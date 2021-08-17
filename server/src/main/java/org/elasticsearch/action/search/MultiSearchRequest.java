@@ -53,7 +53,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
         " Specifying types in search requests is deprecated.";
-
+    public static final String FIRST_LINE_EMPTY_DEPRECATION_MESSAGE =
+        "support for empty first line before any action metadata in msearch API is deprecated " +
+            "and will be removed in the next major version";
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
@@ -185,6 +187,13 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (nextMarker == -1) {
                 break;
             }
+            // support first line with \n
+            if (restApiVersion == RestApiVersion.V_7 && nextMarker == 0) {
+                deprecationLogger.compatibleApiWarning("msearch_first_line_empty", FIRST_LINE_EMPTY_DEPRECATION_MESSAGE);
+                from = nextMarker + 1;
+                continue;
+            }
+
             SearchRequest searchRequest = new SearchRequest();
             if (indices != null) {
                 searchRequest.indices(indices);
@@ -205,7 +214,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // now parse the action
             if (nextMarker - from > 0) {
                 try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
-                     XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
+                     XContentParser parser = xContent
+                         .createParserForCompatibility(registry, LoggingDeprecationHandler.INSTANCE, stream, restApiVersion)) {
                     Map<String, Object> source = parser.map();
                     Object expandWildcards = null;
                     Object ignoreUnavailable = null;
@@ -260,7 +270,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             }
             BytesReference bytes = data.slice(from, nextMarker - from);
             try (InputStream stream = bytes.streamInput();
-                 XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
+                 XContentParser parser = xContent
+                     .createParserForCompatibility(registry, LoggingDeprecationHandler.INSTANCE, stream, restApiVersion)) {
                 consumer.accept(searchRequest, parser);
             }
             // move pointers

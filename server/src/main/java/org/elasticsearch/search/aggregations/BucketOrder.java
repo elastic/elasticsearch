@@ -127,6 +127,11 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
     public abstract Comparator<Bucket> comparator();
 
     /**
+     * Build a comparator for {@link DelayedBucket}, a wrapper that delays bucket reduction.
+     */
+    abstract Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator();
+
+    /**
      * @return unique internal ID used for reading/writing this order from/to a stream.
      * @see InternalOrder.Streams
      */

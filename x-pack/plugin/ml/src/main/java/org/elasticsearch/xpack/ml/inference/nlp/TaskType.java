@@ -7,35 +7,43 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SentimentAnalysisConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
-import java.io.IOException;
 import java.util.Locale;
 
 public enum TaskType {
 
-    TOKEN_CLASSIFICATION {
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
-            return new NerProcessor(tokenizer);
+    NER {
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, NlpConfig config) {
+            return new NerProcessor(tokenizer, (NerConfig) config);
         }
     },
     SENTIMENT_ANALYSIS {
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
-            return new SentimentAnalysisProcessor(tokenizer);
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, NlpConfig config) {
+            return new SentimentAnalysisProcessor(tokenizer, (SentimentAnalysisConfig) config);
         }
     },
     FILL_MASK {
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
-            return new FillMaskProcessor(tokenizer);
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, NlpConfig config) {
+            return new FillMaskProcessor(tokenizer, (FillMaskConfig) config);
         }
     },
     BERT_PASS_THROUGH {
-        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
-            return new PassThroughProcessor(tokenizer);
+        @Override
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer, NlpConfig config) {
+            return new PassThroughProcessor(tokenizer, (BertPassThroughConfig) config);
         }
     };
 
-    public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+    public NlpTask.Processor createProcessor(BertTokenizer tokenizer, NlpConfig config) {
         throw new UnsupportedOperationException("json request must be specialised for task type [" + this.name() + "]");
     }
 

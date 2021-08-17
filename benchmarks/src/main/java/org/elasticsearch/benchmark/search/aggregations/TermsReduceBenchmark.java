@@ -154,7 +154,7 @@ public class TermsReduceBenchmark {
                 true,
                 0,
                 buckets,
-                0
+                null
             );
         }
 

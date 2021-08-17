@@ -125,7 +125,7 @@ public class InboundHandlerTests extends ESTestCase {
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
         OutboundMessage.Request request = new OutboundMessage.Request(threadPool.getThreadContext(),
-            new TestRequest(requestValue), version, action, requestId, false, false);
+            new TestRequest(requestValue), version, action, requestId, false, null);
 
         BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);

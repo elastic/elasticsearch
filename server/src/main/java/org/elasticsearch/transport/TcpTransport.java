@@ -140,7 +140,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
-                TransportRequestOptions.EMPTY, v, false, true));
+                TransportRequestOptions.EMPTY, v, null, true));
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, handshaker, keepAlive,
             requestHandlers, responseHandlers);
@@ -183,7 +183,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
         private final Version version;
-        private final boolean compress;
+        private final Compression.Enabled compress;
+        private final Compression.Scheme compressionScheme;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
         NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
@@ -198,6 +199,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
             version = handshakeVersion;
             compress = connectionProfile.getCompressionEnabled();
+            compressionScheme = connectionProfile.getCompressionScheme();
         }
 
         @Override
@@ -242,7 +244,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
+            // We compress if total transport compression is enabled or if indexing_data transport compression
+            // is enabled and the request is a RawIndexingDataTransportRequest which indicates it should be
+            // compressed.
+            final boolean shouldCompress = compress == Compression.Enabled.TRUE ||
+                (compress == Compression.Enabled.INDEXING_DATA
+                    && request instanceof RawIndexingDataTransportRequest
+                    && ((RawIndexingDataTransportRequest) request).isRawIndexingData());
+            final Compression.Scheme schemeToUse = shouldCompress ? compressionScheme : null;
+            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), schemeToUse, false);
         }
 
         @Override

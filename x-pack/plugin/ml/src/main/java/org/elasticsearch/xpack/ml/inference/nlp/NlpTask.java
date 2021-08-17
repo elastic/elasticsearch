@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -16,20 +18,24 @@ import java.io.IOException;
 
 public class NlpTask {
 
-    private final TaskType taskType;
+    private final NlpConfig config;
     private final BertTokenizer tokenizer;
 
-    public static NlpTask fromConfig(NlpTaskConfig config) {
-        return new NlpTask(config.getTaskType(), config.buildTokenizer());
+    public NlpTask(NlpConfig config, Vocabulary vocabulary) {
+        this.config = config;
+        this.tokenizer = BertTokenizer.builder(vocabulary.get())
+            .setWithSpecialTokens(config.getTokenizationParams().withSpecialTokens())
+            .setDoLowerCase(config.getTokenizationParams().doLowerCase())
+            .build();
     }
 
-    private NlpTask(TaskType taskType, BertTokenizer tokenizer) {
-        this.taskType = taskType;
-        this.tokenizer = tokenizer;
-    }
-
-    public Processor createProcessor() throws IOException {
-        return taskType.createProcessor(tokenizer);
+    /**
+     * Create and validate the NLP Processor
+     * @return
+     * @throws ValidationException if the validation fails
+     */
+    public Processor createProcessor() throws ValidationException {
+        return TaskType.fromString(config.getName()).createProcessor(tokenizer, config);
     }
 
     public interface RequestBuilder {
@@ -42,7 +48,7 @@ public class NlpTask {
 
     public interface Processor {
         /**
-         * Validate the task input.
+         * Validate the task input string.
          * Throws an exception if the inputs fail validation
          *
          * @param inputs Text to validate

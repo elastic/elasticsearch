@@ -29,7 +29,7 @@ import java.util.function.Function;
 /**
  * Abstract base class for building queries based on script fields.
  */
-abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> extends Query {
+public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> extends Query {
     /**
      * We don't have the infrastructure to estimate the match cost of a script
      * so we just use a big number.
@@ -99,12 +99,12 @@ abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> extends Q
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), script, fieldName);
+        return Objects.hash(classHash(), script, fieldName);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
+        if (sameClassAs(obj) == false) {
             return false;
         }
         AbstractScriptFieldQuery<?> other = (AbstractScriptFieldQuery<?>) obj;

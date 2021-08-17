@@ -38,7 +38,7 @@ public class ShrinkAction implements LifecycleAction {
 
     public static final String NAME = "shrink";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
-    private static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
+    public static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
@@ -89,11 +89,11 @@ public class ShrinkAction implements LifecycleAction {
         }
     }
 
-    Integer getNumberOfShards() {
+    public Integer getNumberOfShards() {
         return numberOfShards;
     }
 
-    ByteSizeValue getMaxPrimaryShardSize() {
+    public ByteSizeValue getMaxPrimaryShardSize() {
         return maxPrimaryShardSize;
     }
 
@@ -137,6 +137,7 @@ public class ShrinkAction implements LifecycleAction {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
+        StepKey checkTargetShardsCountKey = new StepKey(phase, NAME, CheckTargetShardsCountStep.NAME);
         StepKey cleanupShrinkIndexKey = new StepKey(phase, NAME, CleanupShrinkIndexStep.NAME);
         StepKey generateShrinkIndexNameKey = new StepKey(phase, NAME, GenerateUniqueIndexNameStep.NAME);
         StepKey setSingleNodeKey = new StepKey(phase, NAME, SetSingleNodeAllocateStep.NAME);
@@ -167,7 +168,9 @@ public class ShrinkAction implements LifecycleAction {
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             waitForNoFollowerStepKey);
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, cleanupShrinkIndexKey, client);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client);
+        CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(checkTargetShardsCountKey,
+            cleanupShrinkIndexKey, numberOfShards);
         // we generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
         // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and he haven't generated a
         // shrink index name)
@@ -211,9 +214,9 @@ public class ShrinkAction implements LifecycleAction {
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
         ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, nextStepKey);
         return Arrays.asList(conditionalSkipShrinkStep, checkNotWriteIndexStep, waitForNoFollowersStep, readOnlyStep,
-            cleanupShrinkIndexStep, generateUniqueIndexNameStep, setSingleNodeStep, checkShrinkReadyStep, shrink, allocated,
-            copyMetadata, isDataStreamBranchingStep, aliasSwapAndDelete, waitOnShrinkTakeover, replaceDataStreamBackingIndex,
-            deleteSourceIndexStep);
+            checkTargetShardsCountStep, cleanupShrinkIndexStep, generateUniqueIndexNameStep, setSingleNodeStep, checkShrinkReadyStep,
+            shrink, allocated, copyMetadata, isDataStreamBranchingStep, aliasSwapAndDelete, waitOnShrinkTakeover,
+            replaceDataStreamBackingIndex, deleteSourceIndexStep);
     }
 
     @Override

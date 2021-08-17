@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -35,6 +37,7 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCRUD() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         String type = randomFrom("RESTART", "REMOVE");
 
@@ -60,11 +63,87 @@ public class NodeShutdownIT extends ESRestTestCase {
         assertNoShuttingDownNodes(nodeIdToShutdown);
     }
 
+    public void testPutShutdownIsIdempotentForRestart() throws Exception {
+        checkPutShutdownIdempotency("RESTART");
+    }
+
+    public void testPutShutdownIsIdempotentForRemove() throws Exception {
+        checkPutShutdownIdempotency("REMOVE");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void checkPutShutdownIdempotency(String type) throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
+        String nodeIdToShutdown = getRandomNodeId();
+
+        // PUT the shutdown once
+        putNodeShutdown(nodeIdToShutdown, type);
+
+        // now PUT it again, the same and we shouldn't get an error
+        String newReason = "this reason is different";
+
+        // Put a shutdown request
+        Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + newReason + "\"}");
+        assertOK(client().performRequest(putShutdown));
+
+        // Ensure we can read it back and it has the new reason
+        {
+            Request getShutdownStatus = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
+            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+            assertThat(nodesArray, hasSize(1));
+            assertThat(nodesArray.get(0).get("node_id"), equalTo(nodeIdToShutdown));
+            assertThat(nodesArray.get(0).get("type"), equalTo(type));
+            assertThat(nodesArray.get(0).get("reason"), equalTo(newReason));
+        }
+    }
+
+
+    public void testPutShutdownCanChangeTypeFromRestartToRemove() throws Exception {
+        checkTypeChange("RESTART", "REMOVE");
+    }
+
+    public void testPutShutdownCanChangeTypeFromRemoveToRestart() throws Exception {
+        checkTypeChange("REMOVE", "RESTART");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void checkTypeChange(String fromType, String toType) throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
+        String nodeIdToShutdown = getRandomNodeId();
+        String type = fromType;
+
+        // PUT the shutdown once
+        putNodeShutdown(nodeIdToShutdown, type);
+
+        // now PUT it again, the same and we shouldn't get an error
+        String newReason = "this reason is different";
+        String newType = toType;
+
+        // Put a shutdown request
+        Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        putShutdown.setJsonEntity("{\"type\":  \"" + newType + "\", \"reason\":  \"" + newReason + "\"}");
+        assertOK(client().performRequest(putShutdown));
+
+        // Ensure we can read it back and it has the new reason
+        {
+            Request getShutdownStatus = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
+            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+            assertThat(nodesArray, hasSize(1));
+            assertThat(nodesArray.get(0).get("node_id"), equalTo(nodeIdToShutdown));
+            assertThat(nodesArray.get(0).get("type"), equalTo(newType));
+            assertThat(nodesArray.get(0).get("reason"), equalTo(newReason));
+        }
+    }
+
     /**
      * A very basic smoke test to make sure the allocation decider is working.
      */
     @SuppressWarnings("unchecked")
     public void testAllocationPreventedForRemoval() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
@@ -111,6 +190,7 @@ public class NodeShutdownIT extends ESRestTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testShardsMoveOffRemovingNode() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
 
         final String indexName = "test-idx";
@@ -162,6 +242,7 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     public void testShardsCanBeAllocatedAfterShutdownDeleted() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
@@ -184,6 +265,7 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     public void testStalledShardMigrationProperlyDetected() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         int numberOfShards = randomIntBetween(1,5);
 
@@ -210,7 +292,10 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(numberOfShards));
             assertThat(
                 ObjectPath.eval("nodes.0.shard_migration.explanation", status),
-                allOf(containsString(indexName), containsString("cannot move, see Cluster Allocation Explain API for details"))
+                allOf(
+                    containsString(indexName),
+                    containsString("cannot move, use the Cluster Allocation Explain API on this shard for details")
+                )
             );
         }
 
@@ -227,6 +312,16 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
                         assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
         });
+    }
+
+    /**
+     * Ensures that attempting to delete the status of a node that is not registered for shutdown gives a 404 response code.
+     */
+    public void testDeleteNodeNotRegisteredForShutdown() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
+        Request deleteReq = new Request("DELETE", "_nodes/this-node-doesnt-exist/shutdown");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(deleteReq));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(404));
     }
 
     @SuppressWarnings("unchecked")

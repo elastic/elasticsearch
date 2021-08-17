@@ -37,14 +37,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -72,6 +73,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -163,6 +165,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    @SuppressWarnings("cast")
     protected RepositoryData getRepositoryData(String repository) {
         return getRepositoryData((Repository) getRepositoryOnMaster(repository));
     }
@@ -224,6 +227,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockAndFailOnWriteSnapFiles();
     }
 
+    public static void blockMasterOnShardLevelSnapshotFile(final String repositoryName, String indexId) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockAndOnWriteShardLevelSnapFiles(indexId);
+    }
+
     @SuppressWarnings("unchecked")
     public static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
         return ((T) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repositoryName));
@@ -249,6 +256,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static void blockDataNode(String repository, String nodeName) {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).blockOnDataFiles();
+    }
+
+    public static void blockAndFailDataNode(String repository, String nodeName) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, nodeName).blockAndFailOnDataFiles();
     }
 
     public static void blockAllDataNodes(String repository) {
@@ -327,6 +338,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         if (rarely()) {
             settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
         }
+        if (randomBoolean()) {
+            settings.put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), randomBoolean());
+        }
         return settings;
     }
 
@@ -371,6 +385,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                         downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
                 StandardOpenOption.TRUNCATE_EXISTING);
         final SnapshotInfo downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(
+                repoName,
                 JsonXContent.jsonXContent.createParser(
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -380,7 +395,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         PlainActionFuture.get(f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.run(f, () ->
                 BlobStoreRepository.SNAPSHOT_FORMAT.write(downgradedSnapshotInfo,
                         blobStoreRepository.blobStore().blobContainer(blobStoreRepository.basePath()), snapshotInfo.snapshotId().getUUID(),
-                        randomBoolean(), internalCluster().getCurrentMasterNodeInstance(BigArrays.class)))));
+                        randomBoolean()))));
         return oldVersionSnapshot;
     }
 
@@ -458,7 +473,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID(random()));
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
         final SnapshotInfo snapshotInfo = new SnapshotInfo(
-            snapshotId,
+            new Snapshot(repoName, snapshotId),
             Collections.emptyList(),
             Collections.emptyList(),
             Collections.emptyList(),
@@ -474,9 +489,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             SnapshotState.FAILED,
             Collections.emptyMap()
         );
-        PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
+        PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(f -> repo.finalizeSnapshot(new FinalizeSnapshotContext(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
-                SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));
+                SnapshotsService.OLD_SNAPSHOT_FORMAT, f)));
     }
 
     protected void awaitNDeletionsInProgress(int count) throws Exception {
@@ -624,7 +639,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected SnapshotInfo getSnapshot(String repository, String snapshot) {
         final List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots(repository).setSnapshots(snapshot)
-                .get().getSnapshots(repository);
+                .get().getSnapshots();
         assertThat(snapshotInfos, hasSize(1));
         return snapshotInfos.get(0);
     }
@@ -654,7 +669,21 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         for (int i = 0; i < count; i++) {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);
-            client().admin().cluster().prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute(snapshotsListener);
+            final Map<String, Object> userMetadata = randomUserMetadata();
+            clusterAdmin()
+                    .prepareCreateSnapshot(repoName, snapshot)
+                    .setWaitForCompletion(true)
+                    .setUserMetadata(userMetadata)
+                    .execute(snapshotsListener.delegateFailure((l, response) -> {
+                        final SnapshotInfo snapshotInfoInResponse = response.getSnapshotInfo();
+                        assertEquals(userMetadata, snapshotInfoInResponse.userMetadata());
+                        clusterAdmin().prepareGetSnapshots(repoName)
+                                .setSnapshots(snapshot)
+                                .execute(l.delegateFailure((ll, getResponse) -> {
+                                    assertEquals(snapshotInfoInResponse, getResponse.getSnapshots().get(0));
+                                    ll.onResponse(response);
+                                }));
+                    }));
         }
         for (CreateSnapshotResponse snapshotResponse : allSnapshotsDone.get()) {
             assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
@@ -707,5 +736,35 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         for (int i = 0; i < snapshotInfos.size() - 1; i++) {
             orderAssertion.accept(snapshotInfos.get(i), snapshotInfos.get(i + 1));
         }
+    }
+
+    /**
+     * Randomly either generates some random snapshot user metadata or returns {@code null}.
+     *
+     * @return random snapshot user metadata or {@code null}
+     */
+    @Nullable
+    public static Map<String, Object> randomUserMetadata() {
+        if (randomBoolean()) {
+            return null;
+        }
+
+        Map<String, Object> metadata = new HashMap<>();
+        long fields = randomLongBetween(0, 4);
+        for (int i = 0; i < fields; i++) {
+            if (randomBoolean()) {
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2, 10)),
+                        randomAlphaOfLengthBetween(5, 5));
+            } else {
+                Map<String, Object> nested = new HashMap<>();
+                long nestedFields = randomLongBetween(0, 4);
+                for (int j = 0; j < nestedFields; j++) {
+                    nested.put(randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2, 10)),
+                            randomAlphaOfLengthBetween(5, 5));
+                }
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2, 10)), nested);
+            }
+        }
+        return metadata;
     }
 }

@@ -11,6 +11,9 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.core.Nullable;
+
+import java.util.Map;
 
 /**
  * Create snapshot request builder
@@ -122,6 +125,17 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
      */
     public CreateSnapshotRequestBuilder setFeatureStates(String... featureStates) {
         request.featureStates(featureStates);
+        return this;
+    }
+
+    /**
+     * Provide a map of user metadata that should be included in the snapshot metadata.
+     *
+     * @param metadata user metadata map
+     * @return this builder
+     */
+    public CreateSnapshotRequestBuilder setUserMetadata(@Nullable Map<String, Object> metadata) {
+        request.userMetadata(metadata);
         return this;
     }
 }

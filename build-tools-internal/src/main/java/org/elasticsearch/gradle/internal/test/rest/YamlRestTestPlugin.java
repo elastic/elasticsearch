@@ -9,20 +9,15 @@
 package org.elasticsearch.gradle.internal.test.rest;
 
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
 import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.createTestCluster;
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTask;
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupDependencies;
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTestDependenciesDefaults;
 
 /**
  * Apply this plugin to run the YAML based REST tests.
@@ -33,24 +28,19 @@ public class YamlRestTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-
-        project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
-        project.getPluginManager().apply(TestClustersPlugin.class);
         project.getPluginManager().apply(RestTestBasePlugin.class);
         project.getPluginManager().apply(RestResourcesPlugin.class);
+
+        ElasticsearchJavaPlugin.configureConfigurations(project);
 
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        // create the test cluster container
-        createTestCluster(project, yamlTestSourceSet);
-
-        // setup the yamlRestTest task
-        Provider<RestIntegTestTask> yamlRestTestTask = registerTask(project, yamlTestSourceSet);
+        registerTestTask(project, yamlTestSourceSet);
 
         // setup the dependencies
-        setupDependencies(project, yamlTestSourceSet);
+        setupTestDependenciesDefaults(project, yamlTestSourceSet);
 
         // setup the copy for the rest resources
         project.getTasks().withType(CopyRestApiTask.class).configureEach(copyRestApiTask -> {
@@ -81,10 +71,6 @@ public class YamlRestTestPlugin implements Plugin<Project> {
                     .flatMap(CopyRestTestsTask::getOutputResourceDir)
             );
 
-        // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlTestSourceSet);
-
-        // wire this task into check
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(yamlRestTestTask));
     }
 }

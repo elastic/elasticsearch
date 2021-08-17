@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +35,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        public static Request parseRequest(String jobId, XContentParser parser) {
+        public static Request parseRequest(String jobId, XContentParser parser, IndicesOptions indicesOptions) {
             Job.Builder jobBuilder = Job.STRICT_PARSER.apply(parser, null);
             if (jobBuilder.getId() == null) {
                 jobBuilder.setId(jobId);
@@ -43,7 +44,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(),
                         jobBuilder.getId(), jobId));
             }
-
+            jobBuilder.setDatafeedIndicesOptionsIfRequired(indicesOptions);
             return new Request(jobBuilder);
         }
 

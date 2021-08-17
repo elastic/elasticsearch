@@ -48,7 +48,6 @@ tasks.named("dependenciesInfo").configure { enabled = false }
 tasks.named("dependenciesGraph").configure { it.enabled = false }
 
 //we aren't releasing this jar
-tasks.named("thirdPartyAudit").configure { enabled = false }
 tasks.named("test").configure { enabled = false }
 
 tasks.withType(LicenseHeadersTask.class).configureEach {

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -38,7 +40,8 @@ public class RestPutJobAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
-        PutJobAction.Request putJobRequest = PutJobAction.Request.parseRequest(jobId, parser);
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        PutJobAction.Request putJobRequest = PutJobAction.Request.parseRequest(jobId, parser, indicesOptions);
         putJobRequest.timeout(restRequest.paramAsTime("timeout", putJobRequest.timeout()));
         putJobRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", putJobRequest.masterNodeTimeout()));
 

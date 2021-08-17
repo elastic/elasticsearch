@@ -59,10 +59,9 @@ public class AbstractDistributionDownloadPluginTests extends GradleUnitTestCase 
         Version version,
         ElasticsearchDistributionType type,
         ElasticsearchDistribution.Platform platform,
-        BwcVersions bwcVersions,
-        boolean isInternal
+        BwcVersions bwcVersions
     ) {
-        Project project = createProject(bwcVersions, isInternal);
+        Project project = createProject(bwcVersions);
         Project archiveProject = ProjectBuilder.builder().withParent(bwcProject).withName(projectName).build();
         archiveProject.getConfigurations().create(config);
         archiveProject.getArtifacts().add(config, new File("doesnotmatter"));
@@ -94,9 +93,8 @@ public class AbstractDistributionDownloadPluginTests extends GradleUnitTestCase 
         }).maybeFreeze();
     }
 
-    protected Project createProject(BwcVersions bwcVersions, boolean isInternal) {
+    protected Project createProject(BwcVersions bwcVersions) {
         rootProject = ProjectBuilder.builder().build();
-        BuildParams.init(params -> params.setIsInternal(isInternal));
         Project distributionProject = ProjectBuilder.builder().withParent(rootProject).withName("distribution").build();
         archivesProject = ProjectBuilder.builder().withParent(distributionProject).withName("archives").build();
         packagesProject = ProjectBuilder.builder().withParent(distributionProject).withName("packages").build();

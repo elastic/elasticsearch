@@ -188,9 +188,9 @@ public class PhaseCacheManagementTests extends ESTestCase {
     }
 
     public void testReadStepKeys() {
-        assertNull(readStepKeys(REGISTRY, client, "{}", "phase"));
-        assertNull(readStepKeys(REGISTRY, client, "aoeu", "phase"));
-        assertNull(readStepKeys(REGISTRY, client, "", "phase"));
+        assertNull(readStepKeys(REGISTRY, client, "{}", "phase", null));
+        assertNull(readStepKeys(REGISTRY, client, "aoeu", "phase", null));
+        assertNull(readStepKeys(REGISTRY, client, "", "phase", null));
 
         assertThat(readStepKeys(REGISTRY, client, "{\n" +
                 "        \"policy\": \"my_lifecycle3\",\n" +
@@ -204,7 +204,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 "        },\n" +
                 "        \"version\": 3, \n" +
                 "        \"modified_date_in_millis\": 1539609701576 \n" +
-                "      }", "phase"),
+                "      }", "phase", null),
             contains(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverStep.NAME),
                 new Step.StepKey("phase", "rollover", WaitForActiveShardsStep.NAME),
@@ -226,7 +226,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 "        },\n" +
                 "        \"version\" : 1,\n" +
                 "        \"modified_date_in_millis\" : 1578521007076\n" +
-                "      }", "phase"),
+                "      }", "phase", null),
             contains(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverStep.NAME),
                 new Step.StepKey("phase", "rollover", WaitForActiveShardsStep.NAME),
@@ -236,12 +236,12 @@ public class PhaseCacheManagementTests extends ESTestCase {
 
         Map<String, LifecycleAction> actions = new HashMap<>();
         actions.put("forcemerge", new ForceMergeAction(5, null));
-        actions.put("allocate", new AllocateAction(1, null, null, null));
+        actions.put("allocate", new AllocateAction(1, 20, null, null, null));
         PhaseExecutionInfo pei = new PhaseExecutionInfo("policy", new Phase("wonky", TimeValue.ZERO, actions), 1, 1);
         String phaseDef = Strings.toString(pei);
         logger.info("--> phaseDef: {}", phaseDef);
 
-        assertThat(readStepKeys(REGISTRY, client, phaseDef, "phase"),
+        assertThat(readStepKeys(REGISTRY, client, phaseDef, "phase", null),
             contains(
                 new Step.StepKey("phase", "allocate", AllocateAction.NAME),
                 new Step.StepKey("phase", "allocate", AllocationRoutedStep.NAME),
@@ -290,7 +290,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertTrue(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+            assertTrue(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
         }
 
         // Failure case, can't update because the step we're currently on has been removed in the new policy
@@ -327,7 +327,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+            assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
         }
 
         // Failure case, can't update because the future step has been deleted
@@ -364,7 +364,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+            assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
         }
 
         // Failure case, index doesn't have enough info to check
@@ -399,7 +399,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+            assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
         }
 
         // Failure case, the phase JSON is unparseable
@@ -422,7 +422,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+            assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
         }
     }
 
@@ -456,7 +456,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
 
-        assertTrue(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+        assertTrue(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
@@ -465,7 +465,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             .build();
 
         logger.info("--> update for unchanged policy");
-        ClusterState updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata);
+        ClusterState updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);
 
         // No change, because the policies were identical
         assertThat(updatedState, equalTo(existingState));
@@ -479,7 +479,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
 
         logger.info("--> update with changed policy, but not configured in settings");
-        updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata);
+        updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);
 
         // No change, because the index doesn't have a lifecycle.name setting for this policy
         assertThat(updatedState, equalTo(existingState));
@@ -500,7 +500,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             .build();
 
         logger.info("--> update with changed policy and this index has the policy");
-        updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata);
+        updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);
 
         IndexMetadata newIdxMeta = updatedState.metadata().index(index);
         LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);

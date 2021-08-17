@@ -66,7 +66,7 @@ public class DotExpanderProcessorFactoryTests extends ESTestCase {
             Map<String, Object> config = new HashMap<>();
             config.put("field", field);
             Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
-            assertThat(e.getMessage(), equalTo("[field] field does not contain a dot"));
+            assertThat(e.getMessage(), equalTo("[field] field does not contain a dot and is not a wildcard"));
         }
 
         fields = new String[] {".a", "a.", "."};

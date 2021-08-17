@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_BYTE_IMPLICIT;
@@ -213,6 +214,21 @@ public final class PainlessLookupBuilder {
         return type == def.class || classesToPainlessClassBuilders.containsKey(type);
     }
 
+    private Class<?> loadClass(ClassLoader classLoader, String javaClassName, Supplier<String> errorMessage) {
+        try {
+            return Class.forName(javaClassName, true, classLoader);
+        } catch (ClassNotFoundException cnfe) {
+            try {
+                // Painless provides some api classes that are available only through the painless implementation.
+                return Class.forName(javaClassName);
+            } catch (ClassNotFoundException cnfe2) {
+                IllegalArgumentException iae = new IllegalArgumentException(errorMessage.get(), cnfe2);
+                cnfe2.addSuppressed(cnfe);
+                throw iae;
+            }
+        }
+    }
+
     public void addPainlessClass(ClassLoader classLoader, String javaClassName, boolean importClassName) {
         Objects.requireNonNull(classLoader);
         Objects.requireNonNull(javaClassName);
@@ -229,11 +245,7 @@ public final class PainlessLookupBuilder {
         else if ("float".equals(javaClassName))   clazz = float.class;
         else if ("double".equals(javaClassName))  clazz = double.class;
         else {
-            try {
-                clazz = Class.forName(javaClassName, true, classLoader);
-            } catch (ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException("class [" + javaClassName + "] not found", cnfe);
-            }
+            clazz = loadClass(classLoader, javaClassName, () -> "class [" + javaClassName + "] not found");
         }
 
         addPainlessClass(clazz, importClassName);
@@ -425,12 +437,9 @@ public final class PainlessLookupBuilder {
         Class<?> augmentedClass = null;
 
         if (augmentedCanonicalClassName != null) {
-            try {
-                augmentedClass = Class.forName(augmentedCanonicalClassName, true, classLoader);
-            } catch (ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException("augmented class [" + augmentedCanonicalClassName + "] not found for method " +
-                        "[[" + targetCanonicalClassName + "], [" + methodName + "], " + canonicalTypeNameParameters + "]", cnfe);
-            }
+            augmentedClass = loadClass(classLoader, augmentedCanonicalClassName,
+                () -> "augmented class [" + augmentedCanonicalClassName + "] not found for method " +
+                "[[" + targetCanonicalClassName + "], [" + methodName + "], " + canonicalTypeNameParameters + "]");
         }
 
         List<Class<?>> typeParameters = new ArrayList<>(canonicalTypeNameParameters.size());
@@ -735,14 +744,7 @@ public final class PainlessLookupBuilder {
         Objects.requireNonNull(returnCanonicalTypeName);
         Objects.requireNonNull(canonicalTypeNameParameters);
 
-        Class<?> targetClass;
-
-        try {
-            targetClass = Class.forName(targetJavaClassName, true, classLoader);
-        } catch (ClassNotFoundException cnfe) {
-            throw new IllegalArgumentException("class [" + targetJavaClassName + "] not found", cnfe);
-        }
-
+        Class<?> targetClass = loadClass(classLoader, targetJavaClassName, () -> "class [" + targetJavaClassName + "] not found");
         String targetCanonicalClassName = typeToCanonicalTypeName(targetClass);
 
         if (targetClass == null) {
@@ -888,14 +890,7 @@ public final class PainlessLookupBuilder {
         Objects.requireNonNull(returnCanonicalTypeName);
         Objects.requireNonNull(canonicalTypeNameParameters);
 
-        Class<?> targetClass;
-
-        try {
-            targetClass = Class.forName(targetJavaClassName, true, classLoader);
-        } catch (ClassNotFoundException cnfe) {
-            throw new IllegalArgumentException("class [" + targetJavaClassName + "] not found", cnfe);
-        }
-
+        Class<?> targetClass = loadClass(classLoader, targetJavaClassName, () -> "class [" + targetJavaClassName + "] not found");
         String targetCanonicalClassName = typeToCanonicalTypeName(targetClass);
         List<Class<?>> typeParameters = new ArrayList<>(canonicalTypeNameParameters.size());
 

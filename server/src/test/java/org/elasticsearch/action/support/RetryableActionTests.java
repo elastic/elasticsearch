@@ -98,6 +98,7 @@ public class RetryableActionTests extends ESTestCase {
         assertTrue(future.actionGet());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76165")
     public void testRetryableActionTimeout() {
         final AtomicInteger retryCount = new AtomicInteger();
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();

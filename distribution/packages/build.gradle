@@ -48,22 +48,18 @@ buildscript {
     maven { url 'https://jitpack.io' }
   }
 
-  // We rely on a patched version of the redline library used to build rpm packages
+  // We rely on a specific version of the redline library used to build rpm packages
   // to support sha256header in our elasticsearch RPMs
-  // TODO: Update / remove this dependency once https://github.com/craigwblake/redline/pull/157 got merged
-  // Be aware that it seems the redline project hasnt been active for a while
+  // TODO: Remove once https://github.com/nebula-plugins/gradle-ospackage-plugin/pull/402 got merged and released
   configurations.all {
     resolutionStrategy {
-        dependencySubstitution {
-          substitute module('org.redline-rpm:redline') using module('com.github.breskeby:redline:9c85270')
-        }
+      force 'org.redline-rpm:redline:1.2.10'
     }
   }
 
   dependencies {
     classpath "com.github.breskeby:gradle-ospackage-plugin:98455c1"
   }
-
 }
 
 apply plugin: "nebula.ospackage-base"
@@ -549,14 +545,17 @@ subprojects {
         assertLinesInFile(noticePath, noticeLines)
       }
     }
-    tasks.named("check").configure { dependsOn "checkNotice" }
 
-    tasks.register('checkLicenseMetadata', LoggedExec) {
+    def checkLicenseMetadataTaskProvider = tasks.register('checkLicenseMetadata', LoggedExec) {
       dependsOn buildDist, "checkExtraction"
     }
-    check.dependsOn checkLicenseMetadata
+    tasks.named("check").configure {
+      dependsOn "checkNotice"
+      dependsOn(checkLicenseMetadataTaskProvider)
+    }
+
     if (project.name.contains('deb')) {
-      checkLicenseMetadata { LoggedExec exec ->
+      checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
         onlyIf dpkgExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
         exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
@@ -592,7 +591,7 @@ subprojects {
       }
     } else {
       assert project.name.contains('rpm')
-      checkLicenseMetadata { LoggedExec exec ->
+      checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
         onlyIf rpmExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
         exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.get().outputs.files.singleFile}"

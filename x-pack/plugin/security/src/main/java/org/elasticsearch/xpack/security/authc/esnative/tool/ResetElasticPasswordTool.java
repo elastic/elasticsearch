@@ -95,7 +95,7 @@ public class ResetElasticPasswordTool extends BaseRunAsSuperuserCommand {
                 username,
                 password,
                 () -> requestBodySupplier(elasticPassword),
-                this::responseBuilder
+                CommandLineHttpClient::responseBuilder
             );
             final int responseStatus = httpResponse.getHttpStatus();
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {

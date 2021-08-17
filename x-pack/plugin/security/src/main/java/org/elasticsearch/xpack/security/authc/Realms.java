@@ -142,7 +142,7 @@ public class Realms implements Iterable<Realm> {
     }
 
     private static boolean checkLicense(Realm realm, XPackLicenseState licenseState) {
-        if (isBasicLicensedRealm(realm)) {
+        if (isBasicLicensedRealm(realm.type())) {
             return true;
         }
         if (InternalRealms.isStandardRealm(realm.type())) {
@@ -151,8 +151,18 @@ public class Realms implements Iterable<Realm> {
         return Security.ALL_REALMS_FEATURE.checkAndStartTracking(licenseState, realm.name());
     }
 
-    private static boolean isBasicLicensedRealm(Realm realm) {
-        return ReservedRealm.TYPE.equals(realm.type()) || InternalRealms.isBuiltinRealm(realm.type());
+    public static boolean isRealmTypeAvailable(XPackLicenseState licenseState, String type) {
+        if (Security.ALL_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
+            return true;
+        } else if (Security.STANDARD_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
+            return InternalRealms.isStandardRealm(type) || ReservedRealm.TYPE.equals(type);
+        } else {
+            return isBasicLicensedRealm(type);
+        }
+    }
+
+    private static boolean isBasicLicensedRealm(String type) {
+        return ReservedRealm.TYPE.equals(type) || InternalRealms.isBuiltinRealm(type);
     }
 
     public Realm realm(String name) {
@@ -384,15 +394,4 @@ public class Realms implements Iterable<Realm> {
         }
         return converted;
     }
-
-    public static boolean isRealmTypeAvailable(XPackLicenseState licenseState, String type) {
-        if (Security.ALL_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
-            return true;
-        } else if (Security.STANDARD_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
-            return InternalRealms.isStandardRealm(type) || ReservedRealm.TYPE.equals(type);
-        } else {
-            return InternalRealms.isBuiltinRealm(type);
-        }
-    }
-
 }

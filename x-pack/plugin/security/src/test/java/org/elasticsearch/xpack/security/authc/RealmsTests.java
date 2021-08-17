@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.License;
@@ -37,11 +38,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -119,6 +123,34 @@ public class RealmsTests extends ESTestCase {
         when(licenseState.isAllowed(Security.ALL_REALMS_FEATURE)).thenReturn(false);
         when(licenseState.isAllowed(Security.STANDARD_REALMS_FEATURE)).thenReturn(false);
         licenseStateListeners.forEach(LicenseStateListener::licenseStateChanged);
+    }
+
+    public void testRealmTypeAvailable() {
+        final Set<String> basicRealmTypes = Sets.newHashSet("file", "native", "reserved");
+        final Set<String> goldRealmTypes = Sets.newHashSet("ldap", "active_directory", "pki");
+
+        final Set<String> platinumRealmTypes = new HashSet<>(InternalRealms.getConfigurableRealmsTypes());
+        platinumRealmTypes.addAll(this.factories.keySet());
+        platinumRealmTypes.removeAll(basicRealmTypes);
+        platinumRealmTypes.removeAll(goldRealmTypes);
+
+        Consumer<String> checkAllowed = type -> assertThat("Type: " + type, Realms.isRealmTypeAvailable(licenseState, type), is(true));
+        Consumer<String> checkNotAllowed = type -> assertThat("Type: " + type, Realms.isRealmTypeAvailable(licenseState, type), is(false));
+
+        allowAllRealms();
+        platinumRealmTypes.forEach(checkAllowed);
+        goldRealmTypes.forEach(checkAllowed);
+        basicRealmTypes.forEach(checkAllowed);
+
+        allowOnlyStandardRealms();
+        platinumRealmTypes.forEach(checkNotAllowed);
+        goldRealmTypes.forEach(checkAllowed);
+        basicRealmTypes.forEach(checkAllowed);
+
+        allowOnlyNativeRealms();
+        platinumRealmTypes.forEach(checkNotAllowed);
+        goldRealmTypes.forEach(checkNotAllowed);
+        basicRealmTypes.forEach(checkAllowed);
     }
 
     public void testWithSettings() throws Exception {

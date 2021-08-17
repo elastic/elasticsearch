@@ -41,7 +41,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.tool.CommandLineHttpClient.createURL;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generateUsername;
 

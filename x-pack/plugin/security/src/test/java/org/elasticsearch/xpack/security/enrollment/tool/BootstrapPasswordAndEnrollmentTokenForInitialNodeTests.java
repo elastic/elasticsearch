@@ -19,6 +19,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.enrollment.EnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.enrollment.EnrollmentToken;
 import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
+import org.elasticsearch.xpack.security.tool.CommandUtils;
 import org.elasticsearch.xpack.security.tool.HttpResponse;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -56,11 +57,6 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
     protected Command newCommand() {
         return new BootstrapPasswordAndEnrollmentTokenForInitialNode(environment -> client, environment -> keyStoreWrapper,
             environment -> enrollmentTokenGenerator) {
-            @Override
-            protected char[] generatePassword(int passwordLength) {
-                String password = "Aljngvodjb94j8HSY803";
-                return password.toCharArray();
-            }
             @Override
             protected Environment readSecureSettings(Environment env, SecureString password) {
                 return new Environment(settings, tempDir);
@@ -123,13 +119,14 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
             .setSecureSettings(secureSettings)
             .put("path.home", tempDir)
             .build();
+        CommandUtils commandUtils = mock(CommandUtils.class);
     }
 
     public void testGenerateNewPasswordSuccess() throws Exception {
         terminal.addSecretInput("password");
         String includeNodeEnrollmentToken = randomBoolean() ? "--include-node-enrollment-token" : "";
         String output = execute(includeNodeEnrollmentToken);
-        assertThat(output, containsString("elastic user password: Aljngvodjb94j8HSY803"));
+        assertThat(output, containsString("elastic user password: "));
         assertThat(output, containsString("CA fingerprint: ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428" +
             "f8a91362d"));
         assertThat(output, containsString("Kibana enrollment token: eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyJbMTkyLjE2OC4wL" +

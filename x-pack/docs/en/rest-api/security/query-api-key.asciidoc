@@ -39,6 +39,18 @@ Note it only support a subset of the query types including
 <<query-dsl-match-all-query>>, <<query-dsl-bool-query>>,
 <<query-dsl-term-query>>, <<query-dsl-terms-query>>, <<query-dsl-ids-query>>,
 <<query-dsl-prefix-query>>, <<query-dsl-wildcard-query>>, <<query-dsl-range-query>>.
+All public information associated to an API key can be queried, including:
+
+* ID of the API key can be queried with the <<query-dsl-ids-query>>
+* `name` - Name of the API key
+* `creation` - Creation time of the API key
+* `expiration` - Expiration time of the API key
+* `invalidated` - Whether the API key is invalidated
+* `username` - Username of the API key owner
+* `realm` - Realm name of the API key owner
+* Any metadata fields, e.g. `metadata.my_field`. Since metadata is saved as the
+  <<flattened,flattened field type>>, all fields, including numerical ones,
+  behave essentially like keywords when it comes to query and sorting.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
@@ -62,7 +74,9 @@ also be applied to the `_doc` field, which is useful for tie-breaking.
 (Optional, array) <<search-after,Search after>> definition.
 
 NOTE: If the user only has `manage_own_api_key` privilege, this API returns
-only those API keys that are owned by the user.
+only those API keys that are owned by the user. On the other hand, if the user
+has `manage_api_key` or greater privilege (including `manage_security`), this
+API returns API keys regardless of their owners.
 
 [[security-api-query-api-key-response-body]]
 ==== {api-response-body-title}

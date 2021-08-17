@@ -17,13 +17,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
+import java.nio.file.Files;
+
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
 /**
  * This tool is not meant to be used in user facing CLI tools. It is called by the package installers only upon installation. It
  * <ul>
- *     <li>creates the elasticsearch.keystore</li>
  *     <li>generates a random strong password for the elastic user/li>
  *     <li>stores a salted hash of that password in the elasticsearch keystore, in the autoconfiguration.password_hash setting</li>
  * </ul>
@@ -31,7 +32,7 @@ import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePasswor
  *
  * There is currently no way to set the password of the elasticsearch keystore during package installation. This tool
  * is called by the package installer only on installation (not on upgrades) so we can be certain that the keystore
- * doesn't yet exist and we create it here with an empty password (obfuscated), retaining existing behavior
+ * has an empty password (obfuscated).
  *
  * The generated password is written to stdout upon success. Error messages are printed to stderr.
  */
@@ -48,14 +49,9 @@ public class AutoConfigGenerateElasticPasswordHash extends KeyStoreAwareCommand 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()));
-        final KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());
-        if (existingKeystore != null) {
-            terminal.errorPrintln("elasticsearch.keystore already exists");
-            return;
-        }
         try (
             SecureString elasticPassword = new SecureString(generatePassword(20));
-            KeyStoreWrapper nodeKeystore = KeyStoreWrapper.create();
+            KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> new SecureString(new char[0]))
         ) {
             nodeKeystore.setString(AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH.getKey(), hasher.hash(elasticPassword));
             nodeKeystore.save(env.configFile(), new char[0]);

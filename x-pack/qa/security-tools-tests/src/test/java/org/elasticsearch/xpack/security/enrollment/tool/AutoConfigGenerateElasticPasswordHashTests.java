@@ -65,6 +65,8 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
             .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name())
             .build();
         env = new Environment(AutoConfigGenerateElasticPasswordHashTests.this.settings, confDir);
+        KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        keystore.save(confDir, new char[0]);
     }
 
     @AfterClass
@@ -94,11 +96,14 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
             containsInAnyOrder(AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH.getKey(), "keystore.seed"));
     }
 
-    public void testWithExistingKeystore() throws Exception {
-        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
+    public void testExistingKeystoreWithWrongPassword() throws Exception {
+        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configFile());
+        assertNotNull(keyStoreWrapper);
+        keyStoreWrapper.decrypt(new char[0]);
+        // set a random password so that we fail to decrypt it in GenerateElasticPasswordHash#execute
         keyStoreWrapper.save(env.configFile(), randomAlphaOfLength(8).toCharArray());
         execute();
         assertThat(terminal.getOutput(), is(emptyString()));
-        assertThat(terminal.getErrorOutput(), containsString("elasticsearch.keystore already exists"));
+        assertThat(terminal.getErrorOutput(), containsString("Provided keystore password was incorrect"));
     }
 }

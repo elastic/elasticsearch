@@ -136,6 +136,7 @@ public class TransformIT extends TransformIntegTestCase {
             createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), indexName)
                 .setPivotConfig(createPivotConfig(groups, aggs))
                 .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
+                .setSettings(SettingsConfig.builder().setAlignCheckpoints(false).build())
                 .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
@@ -311,7 +312,8 @@ public class TransformIT extends TransformIntegTestCase {
 
         TransformStats stateAndStats = getTransformStats(config.getId()).getTransformsStats().get(0);
         assertThat(stateAndStats.getState(), equalTo(TransformStats.State.STOPPED));
-        assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), greaterThan(1000L));
+        // Despite indexing new documents into the source index, the number of documents in the destination index stays the same.
+        assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), equalTo(1000L));
 
         assertTrue(stopTransform(transformId).isAcknowledged());
         deleteTransform(config.getId());

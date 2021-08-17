@@ -12,7 +12,6 @@ import org.elasticsearch.script.FieldValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;

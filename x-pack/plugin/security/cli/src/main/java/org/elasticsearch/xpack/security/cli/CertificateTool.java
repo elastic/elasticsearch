@@ -34,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -373,13 +374,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             Path key = resolvePath(options, caKeyPathSpec);
             String password = caPasswordSpec.value(options);
 
-            final String resolvedCaCertPath = cert.toAbsolutePath().toString();
-            Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
-            if (certificates.length != 1) {
-                throw new IllegalArgumentException("expected a single certificate in file [" + resolvedCaCertPath + "] but found [" +
-                    certificates.length + "]");
-            }
-            X509Certificate caCert = (X509Certificate) certificates[0];
+            X509Certificate caCert = CertParsingUtils.readX509Certificate(cert);
             PrivateKey privateKey = readPrivateKey(key, getChars(password), terminal);
             return new CAInfo(caCert, privateKey);
         }

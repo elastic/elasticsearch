@@ -22,6 +22,8 @@ import java.util.Objects;
  */
 public class IndexFieldCapabilities implements Writeable {
 
+    private static final StringLiteralDeduplicator typeStringDeduplicator = new StringLiteralDeduplicator();
+
     private final String name;
     private final String type;
     private final boolean isMetadatafield;
@@ -51,7 +53,7 @@ public class IndexFieldCapabilities implements Writeable {
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.type = StringLiteralDeduplicator.INSTANCE.deduplicate(in.readString());
+        this.type = typeStringDeduplicator.deduplicate(in.readString());
         this.isMetadatafield = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();

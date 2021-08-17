@@ -12,7 +12,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +24,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
@@ -164,6 +170,18 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertOK(getServiceAccountResponse3);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse3,
             "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
+
+        final Request getServiceAccountRequestKibana = new Request("GET", "_security/service/elastic/kibana");
+        final Response getServiceAccountResponseKibana = client().performRequest(getServiceAccountRequestKibana);
+        assertOK(getServiceAccountResponseKibana);
+        assertServiceAccountRoleDescriptor(
+            getServiceAccountResponseKibana,
+            "elastic/kibana",
+            Strings.toString(
+                ReservedRolesStore.kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME)
+                    .toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS)
+            )
+        );
 
         final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");
         final Request getServiceAccountRequest4 = new Request("GET", requestPath);

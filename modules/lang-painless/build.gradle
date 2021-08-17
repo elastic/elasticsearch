@@ -26,6 +26,10 @@ testClusters.all {
 configurations {
   spi
   compileOnlyApi.extendsFrom(spi)
+  if (isEclipse) {
+    // Eclipse buildship doesn't know about compileOnlyApi
+    api.extendsFrom(spi)
+  }
 }
 
 dependencies {

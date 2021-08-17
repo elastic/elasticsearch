@@ -44,6 +44,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+
 abstract class CommandBuilder extends LogicalPlanBuilder {
 
     protected CommandBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
@@ -115,7 +117,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         }
         boolean graphViz = ctx.format != null && ctx.format.getType() == SqlBaseLexer.GRAPHVIZ;
         Explain.Format format = graphViz ? Explain.Format.GRAPHVIZ : Explain.Format.TEXT;
-        boolean verify = (ctx.verify != null ? Booleans.parseBoolean(ctx.verify.getText().toLowerCase(Locale.ROOT), true) : true);
+        boolean verify = (ctx.verify == null || Booleans.parseBoolean(ctx.verify.getText().toLowerCase(Locale.ROOT), true));
 
         return new Explain(source, plan(ctx.statement()), type, format, verify);
     }

@@ -82,9 +82,9 @@ public class ShutdownPlugin extends Plugin implements ActionPlugin {
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
 
-        ShutdownService shutdownService = new ShutdownService(clusterService);
+        NodeSeenService nodeSeenService = new NodeSeenService(clusterService);
 
-        return Collections.singletonList(shutdownService);
+        return Collections.singletonList(nodeSeenService);
     }
 
     @Override

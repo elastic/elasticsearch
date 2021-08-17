@@ -29,12 +29,12 @@ import java.util.stream.Collectors;
  *
  * Currently, this consists of keeping track of whether we've seen nodes which are marked for shutdown.
  */
-public class ShutdownService implements ClusterStateListener {
-    private static final Logger logger = LogManager.getLogger(ShutdownService.class);
+public class NodeSeenService implements ClusterStateListener {
+    private static final Logger logger = LogManager.getLogger(NodeSeenService.class);
 
     final ClusterService clusterService;
 
-    public ShutdownService(ClusterService clusterService) {
+    public NodeSeenService(ClusterService clusterService) {
         this.clusterService = clusterService;
         clusterService.addListener(this);
     }

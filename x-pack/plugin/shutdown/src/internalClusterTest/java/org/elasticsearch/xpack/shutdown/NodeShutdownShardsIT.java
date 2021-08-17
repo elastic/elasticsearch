@@ -67,7 +67,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
     /**
      * Similar to the previous test, but ensures that the status stays at `COMPLETE` when the node is offline when the shutdown is
-     * registered. This may happen if {@link ShutdownService} isn't working as expected.
+     * registered. This may happen if {@link NodeSeenService} isn't working as expected.
      */
     public void testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline() throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());

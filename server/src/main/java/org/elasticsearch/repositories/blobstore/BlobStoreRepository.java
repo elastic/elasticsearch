@@ -91,6 +91,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
@@ -1350,15 +1351,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void finalizeSnapshot(
-        final ShardGenerations shardGenerations,
-        final long repositoryStateId,
-        final Metadata clusterMetadata,
-        SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
-        Function<ClusterState, ClusterState> stateTransformer,
-        final ActionListener<RepositoryData> listener
-    ) {
+    public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
+        final long repositoryStateId = finalizeSnapshotContext.repositoryStateId();
+        final ShardGenerations shardGenerations = finalizeSnapshotContext.updatedShardGenerations();
+        final SnapshotInfo snapshotInfo = finalizeSnapshotContext.snapshotInfo();
         assert repositoryStateId > RepositoryData.UNKNOWN_REPO_GEN
             : "Must finalize based on a valid repository generation but received [" + repositoryStateId + "]";
         final Collection<IndexId> indices = shardGenerations.indices();
@@ -1367,8 +1363,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // directory if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
         // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened
         // when writing the index-${N} to each shard directory.
+        final Version repositoryMetaVersion = finalizeSnapshotContext.repositoryMetaVersion();
         final boolean writeShardGens = SnapshotsService.useShardGenerations(repositoryMetaVersion);
-        final Consumer<Exception> onUpdateFailure = e -> listener.onFailure(
+        final Consumer<Exception> onUpdateFailure = e -> finalizeSnapshotContext.onFailure(
             new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e)
         );
 
@@ -1381,7 +1378,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         repoDataListener.whenComplete(existingRepositoryData -> {
             final int existingSnapshotCount = existingRepositoryData.getSnapshotIds().size();
             if (existingSnapshotCount >= maxSnapshotCount) {
-                listener.onFailure(
+                finalizeSnapshotContext.onFailure(
                     new RepositoryException(
                         metadata.name(),
                         "Cannot add another snapshot to this repository as it "
@@ -1412,23 +1409,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     snapshotInfo.startTime(),
                     snapshotInfo.endTime()
                 );
-                final RepositoryData updatedRepositoryData = existingRepositoryData.addSnapshot(
-                    snapshotId,
-                    snapshotDetails,
-                    shardGenerations,
-                    indexMetas,
-                    indexMetaIdentifiers
-                );
                 writeIndexGen(
-                    updatedRepositoryData,
+                    existingRepositoryData.addSnapshot(snapshotId, snapshotDetails, shardGenerations, indexMetas, indexMetaIdentifiers),
                     repositoryStateId,
                     repositoryMetaVersion,
-                    stateTransformer,
+                    finalizeSnapshotContext::updatedClusterState,
                     ActionListener.wrap(newRepoData -> {
                         if (writeShardGens) {
-                            cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
+                            cleanupOldShardGens(existingRepositoryData, newRepoData);
                         }
-                        listener.onResponse(newRepoData);
+                        finalizeSnapshotContext.onResponse(Tuple.tuple(newRepoData, snapshotInfo));
                     }, onUpdateFailure)
                 );
             }, onUpdateFailure), 2 + indices.size());
@@ -1438,7 +1428,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // index or global metadata will be compatible with the segments written in this snapshot as well.
             // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
             // that decrements the generation it points at
-
+            final Metadata clusterMetadata = finalizeSnapshotContext.clusterMetadata();
             // Write Global MetaData
             executor.execute(
                 ActionRunnable.run(

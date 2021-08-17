@@ -427,7 +427,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         );
     }
 
-    SnapshotInfo(
+    public SnapshotInfo(
         Snapshot snapshot,
         List<String> indices,
         List<String> dataStreams,
@@ -457,7 +457,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         this.successfulShards = successfulShards;
         this.shardFailures = org.elasticsearch.core.List.copyOf(shardFailures);
         this.includeGlobalState = includeGlobalState;
-        this.userMetadata = userMetadata;
+        this.userMetadata = userMetadata == null ? null : org.elasticsearch.core.Map.copyOf(userMetadata);
+        ;
         this.indexSnapshotDetails = org.elasticsearch.core.Map.copyOf(indexSnapshotDetails);
     }
 

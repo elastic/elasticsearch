@@ -12,7 +12,6 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionResolution;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
@@ -48,6 +47,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -58,6 +58,10 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.eql.util.StringUtils.toLikePattern;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 
 public class ExpressionBuilder extends IdentifierBuilder {
@@ -69,11 +73,11 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     protected Expression expression(ParseTree ctx) {
-        return typedParsing(ctx, Expression.class);
+        return typedParsing(this, ctx, Expression.class);
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
-        return visitList(contexts, Expression.class);
+        return visitList(this, contexts, Expression.class);
     }
 
     @Override
@@ -84,7 +88,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public List<Attribute> visitJoinKeys(JoinKeysContext ctx) {
         try {
-            return ctx != null ? visitList(ctx.expression(), Attribute.class) : emptyList();
+            return ctx != null ? visitList(this, ctx.expression(), Attribute.class) : emptyList();
         } catch (ClassCastException ex) {
             Source source = source(ctx);
             throw new ParsingException(source, "Unsupported join key ", source.text());
@@ -173,12 +177,8 @@ public class ExpressionBuilder extends IdentifierBuilder {
                 return combineExpressions(predicate.constant(), c -> new InsensitiveWildcardEquals(source, expr, c, zoneId));
             case EqlBaseParser.LIKE:
             case EqlBaseParser.LIKE_INSENSITIVE:
-                return new Wildcard(
-                    source,
-                    expr,
-                    expressions(predicate.constant()),
-                    predicate.kind.getType() == EqlBaseParser.LIKE_INSENSITIVE
-                );
+                return combineExpressions(predicate.constant(), e -> new Like(source, expr,
+                    toLikePattern(e.fold().toString()), predicate.kind.getType() == EqlBaseParser.LIKE_INSENSITIVE));
             case EqlBaseParser.REGEX:
             case EqlBaseParser.REGEX_INSENSITIVE:
                 return new Match(
@@ -203,7 +203,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
         List<? extends ParserRuleContext> expressions,
         java.util.function.Function<Expression, Expression> mapper
     ) {
-        return Predicates.combineOr(expressions(expressions).stream().map(mapper::apply).collect(toList()));
+        return Predicates.combineOr(expressions(expressions).stream().map(mapper).collect(toList()));
     }
 
     @Override

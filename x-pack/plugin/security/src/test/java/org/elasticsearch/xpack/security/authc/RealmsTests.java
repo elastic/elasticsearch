@@ -13,8 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.junit.Before;
 
@@ -54,11 +54,12 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RealmsTests extends ESTestCase {
     private Map<String, Realm.Factory> factories;
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
     private ThreadContext threadContext;
     private ReservedRealm reservedRealm;
     private int randomRealmTypesCount;
@@ -74,7 +75,7 @@ public class RealmsTests extends ESTestCase {
             String name = "type_" + i;
             factories.put(name, config -> new DummyRealm(name, config));
         }
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         threadContext = new ThreadContext(Settings.EMPTY);
         reservedRealm = mock(ReservedRealm.class);
@@ -84,18 +85,18 @@ public class RealmsTests extends ESTestCase {
     }
 
     private void allowAllRealms() {
-        when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS)).thenReturn(true);
+        when(licenseState.isAllowed(Security.ALL_REALMS_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.STANDARD_REALMS_FEATURE)).thenReturn(true);
     }
 
     private void allowOnlyStandardRealms() {
-        when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(false);
-        when(licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS)).thenReturn(true);
+        when(licenseState.isAllowed(Security.ALL_REALMS_FEATURE)).thenReturn(false);
+        when(licenseState.isAllowed(Security.STANDARD_REALMS_FEATURE)).thenReturn(true);
     }
 
     private void allowOnlyNativeRealms() {
-        when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(false);
-        when(licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS)).thenReturn(false);
+        when(licenseState.isAllowed(Security.ALL_REALMS_FEATURE)).thenReturn(false);
+        when(licenseState.isAllowed(Security.STANDARD_REALMS_FEATURE)).thenReturn(false);
     }
 
     public void testWithSettings() throws Exception {
@@ -257,6 +258,9 @@ public class RealmsTests extends ESTestCase {
 
         assertThat(realms.getUnlicensedRealms(), empty());
         assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
+        for (i = 0; i < randomRealmTypesCount; i++) {
+            verify(licenseState).enableUsageTracking(Security.ALL_REALMS_FEATURE, "realm_" + i);
+        }
 
         allowOnlyNativeRealms();
 
@@ -282,9 +286,10 @@ public class RealmsTests extends ESTestCase {
     public void testUnlicensedWithInternalRealms() throws Exception {
         factories.put(LdapRealmSettings.LDAP_TYPE, config -> new DummyRealm(LdapRealmSettings.LDAP_TYPE, config));
         assertThat(factories.get("type_0"), notNullValue());
+        String ldapRealmName = randomAlphaOfLengthBetween(3, 8);
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.ldap.foo.order", "0")
+                .put("xpack.security.authc.realms.ldap." + ldapRealmName + ".order", "0")
                 .put("xpack.security.authc.realms.type_0.custom.order", "1");
         final boolean fileRealmDisabled = randomDisableRealm(builder, FileRealmSettings.TYPE);
         final boolean nativeRealmDisabled = randomDisableRealm(builder, NativeRealmSettings.TYPE);
@@ -305,6 +310,7 @@ public class RealmsTests extends ESTestCase {
 
         assertThat(realms.getUnlicensedRealms(), empty());
         assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
+        verify(licenseState).enableUsageTracking(Security.STANDARD_REALMS_FEATURE, ldapRealmName);
 
         allowOnlyStandardRealms();
         iter = realms.iterator();
@@ -331,7 +337,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.getUnlicensedRealms(), iterableWithSize(2));
         realm = realms.getUnlicensedRealms().get(0);
         assertThat(realm.type(), equalTo("ldap"));
-        assertThat(realm.name(), equalTo("foo"));
+        assertThat(realm.name(), equalTo(ldapRealmName));
         realm = realms.getUnlicensedRealms().get(1);
         assertThat(realm.type(), equalTo("type_0"));
         assertThat(realm.name(), equalTo("custom"));
@@ -366,6 +372,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.type(), is(type));
         assertThat(iter.hasNext(), is(false));
         assertThat(realms.getUnlicensedRealms(), empty());
+        verify(licenseState).enableUsageTracking(Security.STANDARD_REALMS_FEATURE, "foo");
 
         allowOnlyNativeRealms();
         iter = realms.iterator();
@@ -391,9 +398,10 @@ public class RealmsTests extends ESTestCase {
     public void testUnlicensedWithNonStandardRealms() throws Exception {
         final String selectedRealmType = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE, OpenIdConnectRealmSettings.TYPE);
         factories.put(selectedRealmType, config -> new DummyRealm(selectedRealmType, config));
+        String realmName = randomAlphaOfLengthBetween(3, 8);
         Settings.Builder builder = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms." + selectedRealmType + ".foo.order", "0");
+            .put("path.home", createTempDir())
+            .put("xpack.security.authc.realms." + selectedRealmType + "." + realmName + ".order", "0");
         final boolean fileRealmDisabled = randomDisableRealm(builder, FileRealmSettings.TYPE);
         final boolean nativeRealmDisabled = randomDisableRealm(builder, NativeRealmSettings.TYPE);
         Settings settings = builder.build();
@@ -408,6 +416,7 @@ public class RealmsTests extends ESTestCase {
         realm = iter.next();
         assertThat(realm.type(), is(selectedRealmType));
         assertThat(realms.getUnlicensedRealms(), empty());
+        verify(licenseState).enableUsageTracking(Security.ALL_REALMS_FEATURE, realmName);
 
         allowOnlyStandardRealms();
         iter = realms.iterator();
@@ -419,7 +428,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.getUnlicensedRealms(), iterableWithSize(1));
         realm = realms.getUnlicensedRealms().get(0);
         assertThat(realm.type(), equalTo(selectedRealmType));
-        assertThat(realm.name(), equalTo("foo"));
+        assertThat(realm.name(), equalTo(realmName));
 
         allowOnlyNativeRealms();
         iter = realms.iterator();
@@ -431,7 +440,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.getUnlicensedRealms(), iterableWithSize(1));
         realm = realms.getUnlicensedRealms().get(0);
         assertThat(realm.type(), equalTo(selectedRealmType));
-        assertThat(realm.name(), equalTo("foo"));
+        assertThat(realm.name(), equalTo(realmName));
     }
 
     public void testDisabledRealmsAreNotAdded() throws Exception {

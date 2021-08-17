@@ -38,16 +38,10 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.FilterScript;
-import org.elasticsearch.script.IngestScript;
-import org.elasticsearch.script.NumberSortScript;
-import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.StringSortScript;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -93,70 +87,28 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
      * under Painless' resources
      */
     static {
-        Map<ScriptContext<?>, List<Whitelist>> map = new HashMap<>();
+        whitelists = new HashMap<>();
 
-        // Moving Function Pipeline Agg
-        List<Whitelist> movFn = new ArrayList<>();
-        Whitelist movFnWhitelist = WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.aggs.movfn.txt");
-        movFn.add(movFnWhitelist);
-        map.put(MovingFunctionScript.CONTEXT, movFn);
+        for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
+            List<Whitelist> contextWhitelists = new ArrayList<>();
+            if (PainlessPlugin.class.getResourceAsStream("org.elasticsearch.script." + context.name.replace('-', '_') + ".txt") != null) {
+                contextWhitelists.add(
+                        WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class,
+                                "org.elasticsearch.script." + context.name.replace('-', '_') + ".txt")
+                );
+            }
 
-        // Functions used for scoring docs
-        List<Whitelist> scoreFn = new ArrayList<>();
-        Whitelist scoreFnWhitelist = WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.score.txt");
-        Whitelist scoreFieldWhitelist =
-            WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.score.txt");
-        scoreFn.add(scoreFnWhitelist);
-        scoreFn.add(scoreFieldWhitelist);
-        map.put(ScoreScript.CONTEXT, scoreFn);
-
-        // Functions available to ingest pipelines
-        List<Whitelist> ingest = new ArrayList<>();
-        Whitelist ingestWhitelist = WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.ingest.txt");
-        ingest.add(ingestWhitelist);
-        map.put(IngestScript.CONTEXT, ingest);
-
-        // Functions available to runtime fields
-
-        for (ScriptContext<?> scriptContext : ScriptModule.RUNTIME_FIELDS_CONTEXTS) {
-            map.put(scriptContext, getRuntimeFieldWhitelist(scriptContext.name));
+            whitelists.put(context, contextWhitelists);
         }
 
-        List<Whitelist> numSort = new ArrayList<>();
-        Whitelist numSortField =
-            WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.numbersort.txt");
-        numSort.add(numSortField);
-        map.put(NumberSortScript.CONTEXT, numSort);
-
-        List<Whitelist> strSort = new ArrayList<>();
-        Whitelist strSortField =
-            WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.stringsort.txt");
-        strSort.add(strSortField);
-        map.put(StringSortScript.CONTEXT, strSort);
-
-        List<Whitelist> filter = new ArrayList<>();
-        Whitelist filterWhitelist =
-            WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.fields.filter.txt");
-        filter.add(filterWhitelist);
-        map.put(FilterScript.CONTEXT, filter);
-
-        // Execute context gets everything
-        List<Whitelist> test = new ArrayList<>();
-        test.add(movFnWhitelist);
-        test.add(scoreFnWhitelist);
-        test.add(ingestWhitelist);
-        test.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.json.txt"));
-        map.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, test);
-
-        whitelists = map;
-    }
-
-    private static List<Whitelist> getRuntimeFieldWhitelist(String contextName) {
-        List<Whitelist> scriptField = new ArrayList<>();
-        Whitelist whitelist = WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class,
-            "org.elasticsearch.script." + contextName + ".txt");
-        scriptField.add(whitelist);
-        return scriptField;
+        List<Whitelist> testWhitelists = new ArrayList<>();
+        for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
+            if (ScriptModule.RUNTIME_FIELDS_CONTEXTS.contains(context) == false) {
+                testWhitelists.addAll(whitelists.get(context));
+            }
+        }
+        testWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.json.txt"));
+        whitelists.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, testWhitelists);
     }
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();
@@ -200,8 +152,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         loader.loadExtensions(PainlessExtension.class).stream()
             .flatMap(extension -> extension.getContextWhitelists().entrySet().stream())
             .forEach(entry -> {
-                List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(),
-                    c -> new ArrayList<>(BASE_WHITELISTS));
+                List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(), c -> new ArrayList<>());
                 existing.addAll(entry.getValue());
             });
     }

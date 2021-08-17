@@ -663,7 +663,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             logger.debug("Using default authentication failure handler");
             Supplier<Map<String, List<String>>> headersSupplier = () -> {
                 final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
-                realms.asList().stream().forEach((realm) -> {
+                realms.getActiveRealms().stream().forEach((realm) -> {
                     Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
                     realmFailureHeaders.entrySet().stream().forEach((e) -> {
                         String key = e.getKey();

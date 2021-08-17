@@ -35,9 +35,11 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -161,12 +163,12 @@ public final class BlobStoreTestUtil {
     private static void assertShardIndexGenerations(BlobContainer repoRoot, ShardGenerations shardGenerations) throws IOException {
         final BlobContainer indicesContainer = repoRoot.children().get("indices");
         for (IndexId index : shardGenerations.indices()) {
-            final List<String> gens = shardGenerations.getGens(index);
+            final List<ShardGeneration> gens = shardGenerations.getGens(index);
             if (gens.isEmpty() == false) {
                 final BlobContainer indexContainer = indicesContainer.children().get(index.getId());
                 final Map<String, BlobContainer> shardContainers = indexContainer.children();
                 for (int i = 0; i < gens.size(); i++) {
-                    final String generation = gens.get(i);
+                    final ShardGeneration generation = gens.get(i);
                     assertThat(generation, not(ShardGenerations.DELETED_SHARD_GEN));
                     if (generation != null && generation.equals(ShardGenerations.NEW_SHARD_GEN) == false) {
                         final String shardId = Integer.toString(i);
@@ -304,6 +306,10 @@ public final class BlobStoreTestUtil {
                             hasKey(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())));
                         assertThat(shardPathContents.keySet().stream()
                             .filter(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)).count(), lessThanOrEqualTo(2L));
+                        final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots = repository.getBlobStoreIndexShardSnapshots(
+                                indexId, shardId, repositoryData.shardGenerations().getShardGen(indexId, shardId));
+                        assertTrue(blobStoreIndexShardSnapshots.snapshots().stream()
+                                .anyMatch(snapshotFiles -> snapshotFiles.snapshot().equals(snapshotId.getName())));
                     }
                 }
             }

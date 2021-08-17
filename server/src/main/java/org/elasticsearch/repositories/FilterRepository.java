@@ -23,7 +23,6 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -75,24 +74,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void finalizeSnapshot(
-        ShardGenerations shardGenerations,
-        long repositoryStateId,
-        Metadata clusterMetadata,
-        SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
-        Function<ClusterState, ClusterState> stateTransformer,
-        ActionListener<RepositoryData> listener
-    ) {
-        in.finalizeSnapshot(
-            shardGenerations,
-            repositoryStateId,
-            clusterMetadata,
-            snapshotInfo,
-            repositoryMetaVersion,
-            stateTransformer,
-            listener
-        );
+    public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
+        in.finalizeSnapshot(finalizeSnapshotContext);
     }
 
     @Override
@@ -181,10 +164,15 @@ public class FilterRepository implements Repository {
         SnapshotId source,
         SnapshotId target,
         RepositoryShardId shardId,
-        String shardGeneration,
+        ShardGeneration shardGeneration,
         ActionListener<ShardSnapshotResult> listener
     ) {
         in.cloneShardSnapshot(source, target, shardId, shardGeneration, listener);
+    }
+
+    @Override
+    public void awaitIdle() {
+        in.awaitIdle();
     }
 
     @Override

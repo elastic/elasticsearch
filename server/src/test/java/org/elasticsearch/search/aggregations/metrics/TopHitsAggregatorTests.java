@@ -68,7 +68,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
 
     public void testNoResults() throws Exception {
         TopHits result = (TopHits) testCase(new MatchNoDocsQuery(), topHits("_name").sort("string", SortOrder.DESC));
-        SearchHits searchHits = ((TopHits) result).getHits();
+        SearchHits searchHits = result.getHits();
         assertEquals(0L, searchHits.getTotalHits().value);
         assertFalse(AggregationInspectionHelper.hasValue(((InternalTopHits)result)));
     }

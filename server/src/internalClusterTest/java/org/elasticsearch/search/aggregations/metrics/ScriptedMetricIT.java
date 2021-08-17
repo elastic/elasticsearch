@@ -86,10 +86,10 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                     aggScript(vars, state -> {
                         // Lazily populate state.list for tests without an init script
                         if (state.containsKey("list") == false) {
-                            state.put("list", new ArrayList());
+                            state.put("list", new ArrayList<>());
                         }
 
-                        ((List) state.get("list")).add(1);
+                        ((List<Object>) state.get("list")).add(1);
                     }));
 
             scripts.put("state[param1] = param2", vars ->
@@ -100,7 +100,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 ((Map<String, Object>) vars.get("vars")).put("multiplier", 3);
 
                 Map<String, Object> state = (Map<String, Object>) vars.get("state");
-                state.put("list", new ArrayList());
+                state.put("list", new ArrayList<>());
 
                 return state;
             });
@@ -109,10 +109,10 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                     aggScript(vars, state -> {
                         // Lazily populate state.list for tests without an init script
                         if (state.containsKey("list") == false) {
-                            state.put("list", new ArrayList());
+                            state.put("list", new ArrayList<>());
                         }
 
-                        ((List) state.get("list")).add(XContentMapValues.extractValue("vars.multiplier", vars));
+                        ((List<Object>) state.get("list")).add(XContentMapValues.extractValue("vars.multiplier", vars));
                     }));
 
             // Equivalent to:
@@ -128,12 +128,12 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             // return newaggregation"
             //
             scripts.put("sum state values as a new aggregation", vars -> {
-                List newAggregation = new ArrayList();
+                List<Integer> newAggregation = new ArrayList<>();
                 Map<String, Object> state = (Map<String, Object>) vars.get("state");
                 List<?> list = (List<?>) state.get("list");
 
                 if (list != null) {
-                    Integer sum = 0;
+                    int sum = 0;
                     for (Object s : list) {
                         sum += ((Number) s).intValue();
                     }
@@ -142,13 +142,9 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 return newAggregation;
             });
 
-            scripts.put("no-op aggregation", vars -> {
-                return (Map<String, Object>) vars.get("state");
-            });
+            scripts.put("no-op aggregation", vars -> vars.get("state"));
 
-            scripts.put("no-op list aggregation", vars -> {
-                return  (List<List<?>>) vars.get("states");
-            });
+            scripts.put("no-op list aggregation", vars -> vars.get("states"));
 
             // Equivalent to:
             //
@@ -165,8 +161,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             // return newaggregation"
             //
             scripts.put("sum all states (lists) values as a new aggregation", vars -> {
-                List newAggregation = new ArrayList();
-                Integer sum = 0;
+                List<Integer> newAggregation = new ArrayList<>();
+                int sum = 0;
 
                 List<List<?>> states = (List<List<?>>) vars.get("states");
                 for (List<?> list : states) {
@@ -181,8 +177,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             });
 
             scripts.put("sum all states' state.list values as a new aggregation", vars -> {
-                List newAggregation = new ArrayList();
-                Integer sum = 0;
+                List<Integer> newAggregation = new ArrayList<>();
+                int sum = 0;
 
                 List<Map<String, Object>> states = (List<Map<String, Object>>) vars.get("states");
 
@@ -218,8 +214,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             //
             scripts.put("multiplied sum all states (lists) values as a new aggregation", vars -> {
                 Integer multiplier = (Integer) vars.get("multiplier");
-                List newAggregation = new ArrayList();
-                Integer sum = 0;
+                List<Integer> newAggregation = new ArrayList<>();
+                int sum = 0;
 
                 List<List<?>> states = (List<List<?>>) vars.get("states");
                 for (List<?> list : states) {
@@ -253,8 +249,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             return scripts;
         }
 
-        @SuppressWarnings("unchecked")
         static Map<String, Object> aggScript(Map<String, Object> vars, Consumer<Map<String, Object>> fn) {
+            @SuppressWarnings("unchecked")
             Map<String, Object> aggState = (Map<String, Object>) vars.get("state");
             fn.accept(aggState);
             return aggState;
@@ -377,7 +373,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             if (map.size() == 1) {
                 assertThat(map.get("count"), notNullValue());
                 assertThat(map.get("count"), instanceOf(Number.class));
-                assertThat(map.get("count"), equalTo((Number) 1));
+                assertThat(map.get("count"), equalTo(1));
                 numShardsRun++;
             }
         }
@@ -431,7 +427,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 String stringValue = (String) entry.getKey();
                 assertThat(stringValue, equalTo("12"));
                 Number numberValue = (Number) entry.getValue();
-                assertThat(numberValue, equalTo((Number) 1));
+                assertThat(numberValue, equalTo(1));
                 numShardsRun++;
             }
         }
@@ -476,6 +472,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         for (Object object : aggregationList) {
             assertThat(object, notNullValue());
             assertThat(object, instanceOf(HashMap.class));
+            @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) object;
             assertThat(map, hasKey("list"));
             assertThat(map.get("list"), instanceOf(List.class));
@@ -484,7 +481,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(o, notNullValue());
                 assertThat(o, instanceOf(Number.class));
                 Number numberValue = (Number) o;
-                assertThat(numberValue, equalTo((Number) 3));
+                assertThat(numberValue, equalTo(3));
                 totalCount += numberValue.longValue();
             }
         }
@@ -698,8 +695,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertThat(object, instanceOf(Number.class));
         assertThat(((Number) object).longValue(), equalTo(numDocs * 3));
         assertThat(((InternalAggregation)global).getProperty("scripted"), sameInstance(scriptedMetricAggregation));
-        assertThat((List) ((InternalAggregation)global).getProperty("scripted.value"), sameInstance((List) aggregationList));
-        assertThat((List) ((InternalAggregation)scriptedMetricAggregation).getProperty("value"), sameInstance((List) aggregationList));
+        assertThat((List) ((InternalAggregation)global).getProperty("scripted.value"), sameInstance(aggregationList));
+        assertThat((List) ((InternalAggregation)scriptedMetricAggregation).getProperty("value"), sameInstance(aggregationList));
     }
 
     public void testMapCombineReduceWithParams() {

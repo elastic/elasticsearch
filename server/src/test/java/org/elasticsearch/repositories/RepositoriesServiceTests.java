@@ -38,7 +38,6 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -226,17 +225,8 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         }
 
-        @Override
-        public void finalizeSnapshot(
-            ShardGenerations shardGenerations,
-            long repositoryStateId,
-            Metadata clusterMetadata,
-            SnapshotInfo snapshotInfo,
-            Version repositoryMetaVersion,
-            Function<ClusterState, ClusterState> stateTransformer,
-            ActionListener<RepositoryData> listener
-        ) {
-            listener.onResponse(null);
+        public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+            finalizeSnapshotContext.onResponse(null);
         }
 
         @Override
@@ -316,11 +306,14 @@ public class RepositoriesServiceTests extends ESTestCase {
             SnapshotId source,
             SnapshotId target,
             RepositoryShardId shardId,
-            String shardGeneration,
+            ShardGeneration shardGeneration,
             ActionListener<ShardSnapshotResult> listener
         ) {
 
         }
+
+        @Override
+        public void awaitIdle() {}
 
         @Override
         public Lifecycle.State lifecycleState() {

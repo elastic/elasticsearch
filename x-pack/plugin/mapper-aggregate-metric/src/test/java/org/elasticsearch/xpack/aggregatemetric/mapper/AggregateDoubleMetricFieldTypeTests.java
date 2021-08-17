@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -24,6 +23,7 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -132,8 +132,8 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchExecutionContext.lookup(), ctx) {
+                    public ScoreScript newInstance(DocReader docReader) {
+                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchExecutionContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 Map<String, ScriptDocValues<?>> doc = getDoc();
@@ -142,7 +142,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                             }
                         };
                     }
-                }, 7f, "test", 0, Version.CURRENT)), equalTo(2));
+                }, searchExecutionContext.lookup(), 7f, "test", 0, Version.CURRENT)), equalTo(2));
             }
         }
     }

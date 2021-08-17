@@ -45,6 +45,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
@@ -224,13 +226,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // Abort all running shards for this snapshot
                 final Snapshot snapshot = entry.snapshot();
                 Map<ShardId, IndexShardSnapshotStatus> snapshotShards = shardSnapshots.getOrDefault(snapshot, emptyMap());
-                for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
-                    final IndexShardSnapshotStatus snapshotStatus = snapshotShards.get(shard.key);
+                for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardsByRepoShardId()) {
+                    final ShardId sid = entry.shardId(shard.key);
+                    final IndexShardSnapshotStatus snapshotStatus = snapshotShards.get(sid);
                     if (snapshotStatus == null) {
                         // due to CS batching we might have missed the INIT state and straight went into ABORTED
                         // notify master that abort has completed by moving to FAILED
                         if (shard.value.state() == ShardState.ABORTED && localNodeId.equals(shard.value.nodeId())) {
-                            notifyFailedSnapshotShard(snapshot, shard.key, shard.value.reason());
+                            notifyFailedSnapshotShard(snapshot, sid, shard.value.reason(), shard.value.generation());
                         }
                     } else {
                         snapshotStatus.abortIfNotCompleted("snapshot has been aborted");
@@ -263,7 +266,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     new ActionListener<ShardSnapshotResult>() {
                         @Override
                         public void onResponse(ShardSnapshotResult shardSnapshotResult) {
-                            final String newGeneration = shardSnapshotResult.getGeneration();
+                            final ShardGeneration newGeneration = shardSnapshotResult.getGeneration();
                             assert newGeneration != null;
                             assert newGeneration.equals(snapshotStatus.generation());
                             if (logger.isDebugEnabled()) {
@@ -291,7 +294,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                 logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
                             }
                             snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
-                            notifyFailedSnapshotShard(snapshot, shardId, failure);
+                            notifyFailedSnapshotShard(snapshot, shardId, failure, snapshotStatus.generation());
                         }
                     }
                 );
@@ -449,7 +452,12 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                     snapshot.snapshot(),
                                     shardId
                                 );
-                                notifyFailedSnapshotShard(snapshot.snapshot(), shardId, indexShardSnapshotStatus.getFailure());
+                                notifyFailedSnapshotShard(
+                                    snapshot.snapshot(),
+                                    shardId,
+                                    indexShardSnapshotStatus.getFailure(),
+                                    localShard.getValue().generation()
+                                );
                             }
                         }
                     }
@@ -466,11 +474,16 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     /** Notify the master node that the given shard failed to be snapshotted **/
-    private void notifyFailedSnapshotShard(final Snapshot snapshot, final ShardId shardId, final String failure) {
+    private void notifyFailedSnapshotShard(
+        final Snapshot snapshot,
+        final ShardId shardId,
+        final String failure,
+        final ShardGeneration generation
+    ) {
         sendSnapshotShardUpdate(
             snapshot,
             shardId,
-            new ShardSnapshotStatus(clusterService.localNode().getId(), ShardState.FAILED, failure, null)
+            new ShardSnapshotStatus(clusterService.localNode().getId(), ShardState.FAILED, failure, generation)
         );
     }
 

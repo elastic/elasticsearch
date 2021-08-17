@@ -14,6 +14,9 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.script.ClassPermission;
 
+import javax.management.MBeanPermission;
+import javax.management.MBeanServerPermission;
+import javax.management.ObjectName;
 import javax.security.auth.AuthPermission;
 import javax.security.auth.PrivateCredentialPermission;
 import javax.security.auth.kerberos.DelegationPermission;
@@ -128,7 +131,11 @@ public class PolicyUtil {
             new AuthPermission("getLoginConfiguration"),
             new AuthPermission("setLoginConfiguration"),
             new AuthPermission("createLoginConfiguration.*"),
-            new AuthPermission("refreshLoginConfiguration")
+            new AuthPermission("refreshLoginConfiguration"),
+            new MBeanPermission("*",  "*", ObjectName.WILDCARD,
+                "addNotificationListener,getAttribute,getDomains,getMBeanInfo,getObjectInstance,instantiate,invoke," +
+                "isInstanceOf,queryMBeans,queryNames,registerMBean,removeNotificationListener,setAttribute,unregisterMBean"),
+            new MBeanServerPermission("*")
         );
         // While it would be ideal to represent all allowed permissions with concrete instances so that we can
         // use the builtin implies method to match them against the parsed policy, this does not work in all
@@ -284,6 +291,19 @@ public class PolicyUtil {
                 URL url = jar.toRealPath().toUri().toURL();
                 if (jars.add(url) == false) {
                     throw new IllegalStateException("duplicate module/plugin: " + url);
+                }
+            }
+        }
+        // also add spi jars
+        // TODO: move this to a shared function, or fix plugin layout to have jar files in lib directory
+        Path spiDir = pluginRoot.resolve("spi");
+        if (Files.exists(spiDir)) {
+            try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(spiDir, "*.jar")) {
+                for (Path jar : jarStream) {
+                    URL url = jar.toRealPath().toUri().toURL();
+                    if (jars.add(url) == false) {
+                        throw new IllegalStateException("duplicate module/plugin: " + url);
+                    }
                 }
             }
         }

@@ -72,8 +72,7 @@ public class OutboundHandlerTests extends ESTestCase {
         String[] features = {feature1, feature2};
         StatsTracker statsTracker = new StatsTracker();
         compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
-        handler = new OutboundHandler("node", Version.CURRENT, features, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            compressionScheme);
+        handler = new OutboundHandler("node", Version.CURRENT, features, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
 
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
@@ -147,7 +146,11 @@ public class OutboundHandlerTests extends ESTestCase {
                 requestRef.set(request);
             }
         });
-        handler.sendRequest(node, channel, requestId, action, request, options, version, compress, isHandshake);
+        if (compress) {
+            handler.sendRequest(node, channel, requestId, action, request, options, version, compressionScheme, isHandshake);
+        } else {
+            handler.sendRequest(node, channel, requestId, action, request, options, version, null, isHandshake);
+        }
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();
@@ -210,7 +213,12 @@ public class OutboundHandlerTests extends ESTestCase {
                 responseRef.set(response);
             }
         });
-        handler.sendResponse(version, Collections.emptySet(), channel, requestId, action, response, compress, isHandshake);
+
+        if (compress) {
+            handler.sendResponse(version, Collections.emptySet(), channel, requestId, action, response, compressionScheme, isHandshake);
+        } else {
+            handler.sendResponse(version, Collections.emptySet(), channel, requestId, action, response, null, isHandshake);
+        }
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();

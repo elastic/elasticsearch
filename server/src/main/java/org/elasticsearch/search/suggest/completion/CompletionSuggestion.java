@@ -169,7 +169,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         }
     }
 
-    @Override
     public CompletionSuggestion reduce(List<Suggest.Suggestion<Entry>> toReduce) {
         if (toReduce.isEmpty()) {
             return null;

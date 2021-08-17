@@ -57,6 +57,10 @@ gradlePlugin {
             id = 'elasticsearch.reaper'
             implementationClass = 'org.elasticsearch.gradle.ReaperPlugin'
         }
+        testpermissions {
+            id = 'elasticsearch.test-gradle-policy'
+            implementationClass = 'org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin'
+        }
     }
 }
 

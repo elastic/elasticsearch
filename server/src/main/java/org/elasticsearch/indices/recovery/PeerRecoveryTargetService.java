@@ -25,15 +25,15 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
@@ -41,8 +41,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -78,6 +78,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
     public static class Actions {
         public static final String FILES_INFO = "internal:index/shard/recovery/filesInfo";
+        public static final String RESTORE_FILE_FROM_SNAPSHOT = "internal:index/shard/recovery/restore_file_from_snapshot";
         public static final String FILE_CHUNK = "internal:index/shard/recovery/file_chunk";
         public static final String CLEAN_FILES = "internal:index/shard/recovery/clean_files";
         public static final String TRANSLOG_OPS = "internal:index/shard/recovery/translog_ops";
@@ -92,19 +93,26 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;
+    private final SnapshotFilesProvider snapshotFilesProvider;
 
     private final RecoveriesCollection onGoingRecoveries;
 
-    public PeerRecoveryTargetService(ThreadPool threadPool, TransportService transportService,
-            RecoverySettings recoverySettings, ClusterService clusterService) {
+    public PeerRecoveryTargetService(ThreadPool threadPool,
+                                     TransportService transportService,
+                                     RecoverySettings recoverySettings,
+                                     ClusterService clusterService,
+                                     SnapshotFilesProvider snapshotFilesProvider) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
+        this.snapshotFilesProvider = snapshotFilesProvider;
         this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
 
         transportService.registerRequestHandler(Actions.FILES_INFO, ThreadPool.Names.GENERIC, RecoveryFilesInfoRequest::new,
             new FilesInfoRequestHandler());
+        transportService.registerRequestHandler(Actions.RESTORE_FILE_FROM_SNAPSHOT, ThreadPool.Names.GENERIC,
+            RecoverySnapshotFileRequest::new, new RestoreFileFromSnapshotTransportRequestHandler());
         transportService.registerRequestHandler(Actions.FILE_CHUNK, ThreadPool.Names.GENERIC, RecoveryFileChunkRequest::new,
             new FileChunkTransportRequestHandler());
         transportService.registerRequestHandler(Actions.CLEAN_FILES, ThreadPool.Names.GENERIC,
@@ -131,7 +139,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         // create a new recovery status, and process...
-        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
+        final long recoveryId =
+            onGoingRecoveries.startRecovery(indexShard, sourceNode, snapshotFilesProvider, listener, recoverySettings.activityTimeout());
         // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause
         // assertions to trip if we executed it on the same thread hence we fork off to the generic threadpool.
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
@@ -466,6 +475,22 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 }
                 recoveryTarget.writeFileChunk(request.metadata(), request.position(), request.content(), request.lastChunk(),
                     request.totalTranslogOps(), listener);
+            }
+        }
+    }
+
+    class RestoreFileFromSnapshotTransportRequestHandler implements TransportRequestHandler<RecoverySnapshotFileRequest> {
+        @Override
+        public void messageReceived(final RecoverySnapshotFileRequest request, TransportChannel channel, Task task) throws Exception {
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.getRecoveryId(), request.getShardId())) {
+                final RecoveryTarget recoveryTarget = recoveryRef.target();
+                final ActionListener<Void> listener =
+                    createOrFinishListener(recoveryRef, channel, Actions.RESTORE_FILE_FROM_SNAPSHOT, request);
+                if (listener == null) {
+                    return;
+                }
+
+                recoveryTarget.restoreFileFromSnapshot(request.getRepository(), request.getIndexId(), request.getFileInfo(), listener);
             }
         }
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -500,7 +501,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             snapshotIds,
             snapshotIds.values().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData::getSnapshotDetails)),
             repositoryData.getIndices().values().stream().collect(Collectors.toMap(Function.identity(), repositoryData::getSnapshots)),
-            ShardGenerations.builder().putAll(repositoryData.shardGenerations()).put(indexId, 0, "0").build(),
+            ShardGenerations.builder().putAll(repositoryData.shardGenerations()).put(indexId, 0, new ShardGeneration(0L)).build(),
             repositoryData.indexMetaDataGenerations(),
             repositoryData.getClusterUUID()
         );
@@ -523,6 +524,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
      * Tests that a shard snapshot with a corrupted shard index file can still be used for restore and incremental snapshots.
      */
     public void testSnapshotWithCorruptedShardIndexFile() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally corrupts the repository contents");
+
         final Client client = client();
         final Path repo = randomRepoPath();
         final String indexName = "test-idx";

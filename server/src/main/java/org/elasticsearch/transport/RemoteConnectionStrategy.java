@@ -121,12 +121,26 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        final Setting<Compression.Enabled> compressionSetting = RemoteClusterService.REMOTE_CLUSTER_COMPRESS
+            .getConcreteSettingForNamespace(clusterAlias);
+        final Setting<Compression.Scheme> compressionSchemeSetting = RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME
+            .getConcreteSettingForNamespace(clusterAlias);
+        boolean compressionSettingExists = compressionSetting.exists(settings);
+        final Compression.Scheme scheme;
+        if (compressionSettingExists) {
+            if (compressionSchemeSetting.exists(settings)) {
+                scheme = compressionSchemeSetting.get(settings);
+            } else {
+                scheme = Compression.Scheme.DEFLATE;
+            }
+        } else {
+            scheme = compressionSchemeSetting.get(settings);
+        }
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder()
             .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
-            .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-            .setCompressionScheme(RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME
-                .getConcreteSettingForNamespace(clusterAlias).get(settings))
+            .setCompressionEnabled(compressionSetting.get(settings))
+            .setCompressionScheme(scheme)
             .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE,
                 TransportRequestOptions.Type.RECOVERY, TransportRequestOptions.Type.PING)

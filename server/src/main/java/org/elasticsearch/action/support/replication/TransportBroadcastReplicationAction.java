@@ -38,6 +38,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Base class for requests that should be executed on all shards of an index or several indices.
  * This action sends shard requests to all primary shards of the indices and they are then replicated like write requests
  */
+@SuppressWarnings("rawtypes")
 public abstract class TransportBroadcastReplicationAction<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse,
         ShardRequest extends ReplicationRequest<ShardRequest>, ShardResponse extends ReplicationResponse>
         extends HandledTransportAction<Request, Response> {
@@ -101,6 +102,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         }
     }
 
+    @SuppressWarnings("unchecked")
     protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
         ShardRequest shardRequest = newShardRequest(request, shardId);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
@@ -129,7 +131,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
 
     protected abstract ShardRequest newShardRequest(Request request, ShardId shardId);
 
-    private void finishAndNotifyListener(ActionListener listener, CopyOnWriteArrayList<ShardResponse> shardsResponses) {
+    private void finishAndNotifyListener(ActionListener<Response> listener, CopyOnWriteArrayList<ShardResponse> shardsResponses) {
         logger.trace("{}: got all shard responses", actionName);
         int successfulShards = 0;
         int failedShards = 0;
@@ -155,6 +157,6 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         listener.onResponse(newResponse(successfulShards, failedShards, totalNumCopies, shardFailures));
     }
 
-    protected abstract BroadcastResponse newResponse(int successfulShards, int failedShards, int totalNumCopies,
+    protected abstract Response newResponse(int successfulShards, int failedShards, int totalNumCopies,
                                                      List<DefaultShardOperationFailedException> shardFailures);
 }

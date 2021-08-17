@@ -299,7 +299,7 @@ public abstract class AbstractInternalTerms<
         BucketOrder thisReduceOrder;
         List<B> result;
         if (reduceContext.isFinalReduce()) {
-            TopBucketBuilder<B> top = new TopBucketBuilder<>(getRequiredSize(), getOrder(), removed -> {
+            TopBucketBuilder<B> top = TopBucketBuilder.build(getRequiredSize(), getOrder(), removed -> {
                 otherDocCount[0] += removed.getDocCount();
             });
             thisReduceOrder = reduceBuckets(aggregations, reduceContext, bucket -> {

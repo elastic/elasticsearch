@@ -43,7 +43,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public static final Version PAGINATED_GET_SNAPSHOTS_VERSION = Version.V_7_14_0;
 
-    public static final Version NUMERIC_PAGINATION_VERSION = Version.V_8_0_0;
+    public static final Version NUMERIC_PAGINATION_VERSION = Version.V_7_15_0;
 
     public static final int NO_LIMIT = -1;
 

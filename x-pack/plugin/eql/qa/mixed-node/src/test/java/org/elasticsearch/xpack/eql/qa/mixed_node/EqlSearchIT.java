@@ -168,7 +168,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 multiValued ? new int[] {121, 122} : new int[] {121});
             assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "multiply",
                 "PROCESS where multiply(pid, 10) == 120",
-                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119});
+                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119, 120, 122});
             assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "number",
                 "PROCESS where number(command_line) + pid >= 360",
                 multiValued ? new int[] {122, 123} : new int[] {123});

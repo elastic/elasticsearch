@@ -174,6 +174,15 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("indices:admin/seq_no/renew_retention_lease[s]"), is(true));
         assertThat(predicate.test("indices:admin/settings/update"), is(true));
         assertThat(predicate.test("indices:admin/settings/foo"), is(false));
+        assertThat(predicate.test("cluster:admin/transform/stop"), is(true));
+        assertThat(predicate.test("cluster:admin/xpack/ml/data_frame/analytics/stop"), is(true));
+        assertThat(predicate.test("cluster:admin/xpack/ml/datafeed/stop"), is(true));
+        assertThat(predicate.test("cluster:admin/xpack/ml/job/close"), is(true));
+        assertThat(predicate.test("cluster:internal/xpack/ml/job/kill/process[n]"), is(true));
+        assertThat(predicate.test("cluster:internal/xpack/ml/reset_mode"), is(true));
+        assertThat(predicate.test("cluster:internal/xpack/transform/reset_mode"), is(true));
+        assertThat(predicate.test("indices:admin/data_stream/delete"), is(true));
+        assertThat(predicate.test("indices:admin/delete"), is(true));
     }
 
     public void testManageAutoscalingPrivilege() {

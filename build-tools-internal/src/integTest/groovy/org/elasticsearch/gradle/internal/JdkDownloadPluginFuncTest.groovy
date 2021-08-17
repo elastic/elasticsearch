@@ -21,7 +21,7 @@ import java.nio.file.Paths
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
-import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.VENDOR_ADOPTOPENJDK
+import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.VENDOR_ADOPTIUM
 import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.VENDOR_OPENJDK
 import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.VENDOR_AZUL
 
@@ -73,21 +73,21 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         where:
         platform  | arch      | jdkVendor           | jdkVersion           | expectedJavaBin          | suffix
-        "linux"   | "x64"     | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION    | "bin/java"               | ""
+        "linux"   | "x64"     | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | "bin/java"               | ""
         "linux"   | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "bin/java"               | ""
         "linux"   | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "bin/java"               | "(old version)"
-        "windows" | "x64"     | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION    | "bin/java"               | ""
+        "windows" | "x64"     | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | "bin/java"               | ""
         "windows" | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "bin/java"               | ""
         "windows" | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "bin/java"               | "(old version)"
-        "darwin"  | "x64"     | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION    | "Contents/Home/bin/java" | ""
+        "darwin"  | "x64"     | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | "Contents/Home/bin/java" | ""
         "darwin"  | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "Contents/Home/bin/java" | ""
         "darwin"  | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "Contents/Home/bin/java" | "(old version)"
         "mac"     | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "Contents/Home/bin/java" | ""
         "mac"     | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "Contents/Home/bin/java" | "(old version)"
         "darwin"  | "aarch64" | VENDOR_AZUL         | AZUL_AARCH_VERSION   | "Contents/Home/bin/java" | ""
         "linux"   | "aarch64" | VENDOR_AZUL         | AZUL_AARCH_VERSION   | "bin/java"               | ""
-        "linux"   | "aarch64" | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION_11 | "bin/java"               | "(jdk 11)"
-        "linux"   | "aarch64" | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION_15 | "bin/java"               | "(jdk 15)"
+        "linux"   | "aarch64" | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION_11 | "bin/java"               | "(jdk 11)"
+        "linux"   | "aarch64" | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION_15 | "bin/java"               | "(jdk 15)"
     }
 
     def "transforms are reused across projects"() {
@@ -136,14 +136,14 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         where:
         platform | jdkVendor           | jdkVersion        | expectedJavaBin
-        "linux"  | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION | "bin/java"
+        "linux"  | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION | "bin/java"
     }
 
     @Unroll
     def "transforms of type #transformType are kept across builds"() {
         given:
-        def mockRepoUrl = urlPath(VENDOR_ADOPTOPENJDK, ADOPT_JDK_VERSION, platform)
-        def mockedContent = filebytes(VENDOR_ADOPTOPENJDK, platform)
+        def mockRepoUrl = urlPath(VENDOR_ADOPTIUM, ADOPT_JDK_VERSION, platform)
+        def mockedContent = filebytes(VENDOR_ADOPTIUM, platform)
         buildFile.text = """
             plugins {
              id 'elasticsearch.jdk-download'
@@ -153,7 +153,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
             jdks {
               myJdk {
-                vendor = '$VENDOR_ADOPTOPENJDK'
+                vendor = '$VENDOR_ADOPTIUM'
                 version = '$ADOPT_JDK_VERSION'
                 platform = "$platform"
                 architecture = "x64"
@@ -170,7 +170,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         when:
         def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
-            buildFile << repositoryMockSetup(server, VENDOR_ADOPTOPENJDK, ADOPT_JDK_VERSION)
+            buildFile << repositoryMockSetup(server, VENDOR_ADOPTIUM, ADOPT_JDK_VERSION)
 
             def commonGradleUserHome = testProjectDir.newFolder().toString()
             // initial run
@@ -203,9 +203,9 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                                   final String version,
                                   final String platform,
                                   final String arch = 'x64') {
-        if (vendor.equals(VENDOR_ADOPTOPENJDK)) {
+        if (vendor.equals(VENDOR_ADOPTIUM)) {
             final String module = isMac(platform) ? "mac" : platform;
-            return "/jdk-" + version + "/" + module + "/${arch}/jdk/hotspot/normal/adoptopenjdk";
+            return "/jdk-" + version + "/" + module + "/${arch}/jdk/hotspot/normal/adoptium";
         } else if (vendor.equals(VENDOR_OPENJDK)) {
             final String effectivePlatform = isMac(platform) ? "osx" : platform;
             final boolean isOld = version.equals(OPENJDK_VERSION_OLD);
@@ -221,8 +221,8 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
     private static byte[] filebytes(final String vendor, final String platform) throws IOException {
         final String effectivePlatform = isMac(platform) ? "osx" : platform;
-        if (vendor.equals(VENDOR_ADOPTOPENJDK)) {
-            return JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_adoptopenjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
+        if (vendor.equals(VENDOR_ADOPTIUM)) {
+            return JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_adoptium_" + effectivePlatform + "." + extension(platform)).getBytes()
         } else if (vendor.equals(VENDOR_OPENJDK)) {
             JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_openjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
         } else if (vendor.equals(VENDOR_AZUL)) {

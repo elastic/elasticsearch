@@ -40,7 +40,8 @@ public class EnrollmentBaseRestHandlerTests extends ESTestCase {
         final EnrollmentBaseRestHandler handler = buildHandler(settings);
         Exception ex = handler.checkFeatureAvailable(new FakeRestRequest());
         assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(ex.getMessage(), Matchers.containsString("Enrollment mode [xpack.security.enrollment.enabled] is not configured"));
+        assertThat(ex.getMessage(), Matchers.containsString("Enrollment mode is not enabled. Set [xpack.security.enrollment.enabled] " +
+            "to true, in order to use this API."));
         assertThat(((ElasticsearchSecurityException)ex).status(), Matchers.equalTo(RestStatus.FORBIDDEN));
     }
 

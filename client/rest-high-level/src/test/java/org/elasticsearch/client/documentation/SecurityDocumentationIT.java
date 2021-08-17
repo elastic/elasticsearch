@@ -2563,13 +2563,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testQueryApiKey() throws IOException, ExecutionException, InterruptedException, TimeoutException {
         RestHighLevelClient client = highLevelClient();
-        final CreateApiKeyRequest createApiKeyRequest1 = new CreateApiKeyRequest("key-10000", List.of(),
+        final CreateApiKeyRequest createApiKeyRequest1 = new CreateApiKeyRequest("key-10000", org.elasticsearch.core.List.of(),
             randomBoolean() ? TimeValue.timeValueHours(24) : null,
-            RefreshPolicy.WAIT_UNTIL, Map.of("environment", "east-production"));
+            RefreshPolicy.WAIT_UNTIL, org.elasticsearch.core.Map.of("environment", "east-production"));
         final CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest1, RequestOptions.DEFAULT);
-        final CreateApiKeyRequest createApiKeyRequest2 = new CreateApiKeyRequest("key-20000", List.of(),
+        final CreateApiKeyRequest createApiKeyRequest2 = new CreateApiKeyRequest("key-20000", org.elasticsearch.core.List.of(),
             randomBoolean() ? TimeValue.timeValueHours(24) : null,
-            RefreshPolicy.WAIT_UNTIL, Map.of("environment", "east-staging"));
+            RefreshPolicy.WAIT_UNTIL, org.elasticsearch.core.Map.of("environment", "east-staging"));
         final CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest2, RequestOptions.DEFAULT);
 
         {
@@ -2583,10 +2583,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
             assertThat(queryApiKeyResponse.getCount(), equalTo(2));
-            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of("key-10000", "key-20000")));
-            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toSet()),
+                equalTo(org.elasticsearch.core.Set.of("key-10000", "key-20000")));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toSet()),
+                equalTo(org.elasticsearch.core.Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
         }
 
         {
@@ -2609,7 +2609,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest()
                 .from(1)
                 .size(100)
-                .fieldSortBuilders(List.of(new FieldSortBuilder("name").order(SortOrder.DESC)));
+                .fieldSortBuilders(org.elasticsearch.core.List.of(new FieldSortBuilder("name").order(SortOrder.DESC)));
             // end::query-api-key-from-size-sort-request
 
             QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
@@ -2632,7 +2632,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::query-api-key-search-after-request
             QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest()
-                .fieldSortBuilders(List.of(new FieldSortBuilder("name")))
+                .fieldSortBuilders(org.elasticsearch.core.List.of(new FieldSortBuilder("name")))
                 .searchAfterBuilder(new SearchAfterBuilder().setSortValues(new String[] {"key-10000"}));
             // end::query-api-key-search-after-request
 
@@ -2679,10 +2679,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(queryApiKeyResponse.getCount(), equalTo(2));
             assertThat(queryApiKeyResponse.getApiKeys(), is(notNullValue()));
             assertThat(queryApiKeyResponse.getApiKeys().size(), is(2));
-            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of("key-10000", "key-20000")));
-            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toSet()),
+                equalTo(org.elasticsearch.core.Set.of("key-10000", "key-20000")));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toSet()),
+                equalTo(org.elasticsearch.core.Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
         }
     }
 

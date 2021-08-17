@@ -58,15 +58,15 @@ public class QueryApiKeyRequestTests extends ESTestCase {
     public void testValidation() {
         final QueryApiKeyRequest request1 = new QueryApiKeyRequest(null, randomIntBetween(0, 100), randomIntBetween(0, 100), null, null);
         final Optional<ValidationException> validationException1 = request1.validate();
-        assertThat(validationException1.isEmpty(), is(true));
+        assertThat(validationException1.isPresent(), is(false));
 
         final QueryApiKeyRequest request2 = new QueryApiKeyRequest(null, randomIntBetween(-100, -1), randomIntBetween(0, 100), null, null);
         final Optional<ValidationException> validationException2 = request2.validate();
-        assertThat(validationException2.orElseThrow().getMessage(), containsString("from must be non-negative"));
+        assertThat(validationException2.get().getMessage(), containsString("from must be non-negative"));
 
         final QueryApiKeyRequest request3 = new QueryApiKeyRequest(null, randomIntBetween(0, 100), randomIntBetween(-100, -1), null, null);
         final Optional<ValidationException> validationException3 = request3.validate();
-        assertThat(validationException3.orElseThrow().getMessage(), containsString("size must be non-negative"));
+        assertThat(validationException3.get().getMessage(), containsString("size must be non-negative"));
     }
 
     private QueryApiKeyRequest mutateInstance(QueryApiKeyRequest request) {

@@ -34,7 +34,7 @@ public class QueryApiKeyResponseTests
                 .mapToObj(i -> new org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse.Item(
                     randomApiKeyInfo(),
                     randSortValues(nSortValues)))
-                .collect(Collectors.toUnmodifiableList()));
+                .collect(Collectors.toList()));
     }
 
     @Override

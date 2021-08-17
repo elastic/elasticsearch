@@ -47,7 +47,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 <<search-after,`search_after`>> parameter.
 
 `size`::
-(Optional, integer) The number of hits to return. Needs to be non-negative.
+(Optional, integer) The number of hits to return. Must not be negative.
 +
 By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the

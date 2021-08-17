@@ -30,10 +30,8 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
@@ -56,7 +54,7 @@ public class ShardSnapshotsService {
         this.clusterService = clusterService;
     }
 
-    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<List<ShardSnapshot>> listener) {
+    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
         assert shardId != null : "SharId was null but a value was expected";
 
         final RepositoriesMetadata currentReposMetadata = clusterService.state()
@@ -72,7 +70,7 @@ public class ShardSnapshotsService {
         if (repositories.isEmpty() || masterSupportsFetchingLatestSnapshots() == false) {
             logger.debug("Unable to use snapshots during peer recovery use_for_peer_recovery_repositories=[{}]," +
                 " masterSupportsFetchingLatestSnapshots=[{}]", repositories, masterSupportsFetchingLatestSnapshots());
-            listener.onResponse(Collections.emptyList());
+            listener.onResponse(Optional.empty());
             return;
         }
 
@@ -85,43 +83,33 @@ public class ShardSnapshotsService {
         );
     }
 
-    private List<ShardSnapshot> fetchSnapshotFiles(GetShardSnapshotResponse shardSnapshotResponse) {
+    private Optional<ShardSnapshot> fetchSnapshotFiles(GetShardSnapshotResponse shardSnapshotResponse) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
 
-        if (shardSnapshotResponse.getRepositoryShardSnapshots().isEmpty()) {
-            return Collections.emptyList();
+        final Optional<ShardSnapshotInfo> latestShardSnapshotOpt = shardSnapshotResponse.getLatestShardSnapshot();
+        if (latestShardSnapshotOpt.isEmpty()) {
+            return Optional.empty();
         }
 
-        Collection<ShardSnapshotInfo> shardSnapshots = shardSnapshotResponse.getRepositoryShardSnapshots().values();
-        List<ShardSnapshot> shardSnapshotData = new ArrayList<>(shardSnapshots.size());
-        for (ShardSnapshotInfo shardSnapshot : shardSnapshots) {
-            final List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = getSnapshotFileList(shardSnapshot);
-            if (snapshotFiles.isEmpty() == false) {
-                shardSnapshotData.add(new ShardSnapshot(shardSnapshot, snapshotFiles));
-            }
-        }
-        return shardSnapshotData;
-    }
-
-    private List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFileList(ShardSnapshotInfo shardSnapshotInfo) {
+        final ShardSnapshotInfo latestShardSnapshot = latestShardSnapshotOpt.get();
         try {
-            final Snapshot snapshot = shardSnapshotInfo.getSnapshot();
+            final Snapshot snapshot = latestShardSnapshot.getSnapshot();
 
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
             if (repository instanceof BlobStoreRepository == false) {
-                return Collections.emptyList();
+                return Optional.empty();
             }
 
             BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-            BlobContainer blobContainer = blobStoreRepository.shardContainer(shardSnapshotInfo.getIndexId(),
-                shardSnapshotInfo.getShardId().getId());
+            BlobContainer blobContainer = blobStoreRepository.shardContainer(latestShardSnapshot.getIndexId(),
+                latestShardSnapshot.getShardId().getId());
             BlobStoreIndexShardSnapshot blobStoreIndexShardSnapshot =
                 blobStoreRepository.loadShardSnapshot(blobContainer, snapshot.getSnapshotId());
 
-            return blobStoreIndexShardSnapshot.indexFiles();
+            return Optional.of(new ShardSnapshot(latestShardSnapshot, blobStoreIndexShardSnapshot.indexFiles()));
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("Unable to fetch shard snapshot files for {}", shardSnapshotInfo), e);
-            return Collections.emptyList();
+            logger.warn(new ParameterizedMessage("Unable to fetch shard snapshot files for {}", latestShardSnapshot), e);
+            return Optional.empty();
         }
     }
 

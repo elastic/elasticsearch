@@ -80,7 +80,7 @@ class PEMKeyConfig extends KeyConfig {
     private Certificate[] getCertificateChain(@Nullable Environment environment) throws CertificateException, IOException {
         final Path certificate = CertParsingUtils.resolvePath(certPath, environment);
         try {
-            return CertParsingUtils.readCertificates(Collections.singletonList(certificate));
+            return CertParsingUtils.readX509Certificates(Collections.singletonList(certificate));
         } catch (FileNotFoundException | NoSuchFileException fileException) {
             throw missingKeyConfigFile(fileException, CERTIFICATE_FILE, certificate);
         } catch (AccessDeniedException accessException) {

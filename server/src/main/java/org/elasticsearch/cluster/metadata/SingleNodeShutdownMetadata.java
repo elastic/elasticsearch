@@ -10,13 +10,16 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -35,6 +38,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
     public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
+    public static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
 
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
@@ -42,7 +46,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             (String) a[0],
             Type.valueOf((String) a[1]),
             (String) a[2],
-            (long) a[3]
+            (long) a[3],
+            (TimeValue) a[4]
         )
     );
 
@@ -51,16 +56,24 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), ALLOCATION_DELAY_FIELD.getPreferredName()), ALLOCATION_DELAY_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
     }
 
     public static SingleNodeShutdownMetadata parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
+    public static final TimeValue DEFAULT_RESTART_SHARD_ALLOCATION_DELAY = TimeValue.timeValueMinutes(5);
+
     private final String nodeId;
     private final Type type;
     private final String reason;
     private final long startedAtMillis;
+    @Nullable private final TimeValue allocationDelay;
 
     /**
      * @param nodeId The node ID that this shutdown metadata refers to.
@@ -72,12 +85,17 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         String nodeId,
         Type type,
         String reason,
-        long startedAtMillis
+        long startedAtMillis,
+        @Nullable TimeValue allocationDelay
     ) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
         this.startedAtMillis = startedAtMillis;
+        if (allocationDelay != null && Type.RESTART.equals(type) == false) {
+            throw new IllegalArgumentException("shard allocation delay is only valid for RESTART-type shutdowns");
+        }
+        this.allocationDelay = allocationDelay;
     }
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
@@ -85,6 +103,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         this.type = in.readEnum(Type.class);
         this.reason = in.readString();
         this.startedAtMillis = in.readVLong();
+        this.allocationDelay = in.readOptionalTimeValue();
     }
 
     /**
@@ -115,12 +134,27 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         return startedAtMillis;
     }
 
+    /**
+     * @return The amount of time shard reallocation should be delayed for shards on this node, so that they will not be automatically
+     * reassigned while the node is restarting. Will be {@code null} for non-restart shutdowns.
+     */
+    @Nullable
+    public TimeValue getAllocationDelay() {
+        if (allocationDelay != null) {
+            return allocationDelay;
+        } else if (Type.RESTART.equals(type)) {
+            return DEFAULT_RESTART_SHARD_ALLOCATION_DELAY;
+        }
+        return null;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
         out.writeEnum(type);
         out.writeString(reason);
         out.writeVLong(startedAtMillis);
+        out.writeOptionalTimeValue(allocationDelay);
     }
 
     @Override
@@ -131,6 +165,9 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
             builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtMillis);
+            if (allocationDelay != null) {
+                builder.field(ALLOCATION_DELAY_FIELD.getPreferredName(), allocationDelay.getStringRep());
+            }
         }
         builder.endObject();
 
@@ -145,7 +182,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         return getStartedAtMillis() == that.getStartedAtMillis()
             && getNodeId().equals(that.getNodeId())
             && getType() == that.getType()
-            && getReason().equals(that.getReason());
+            && getReason().equals(that.getReason())
+            && Objects.equals(allocationDelay, that.allocationDelay);
     }
 
     @Override
@@ -154,7 +192,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             getNodeId(),
             getType(),
             getReason(),
-            getStartedAtMillis()
+            getStartedAtMillis(),
+            allocationDelay
         );
     }
 
@@ -178,6 +217,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         private Type type;
         private String reason;
         private long startedAtMillis = -1;
+        private TimeValue allocationDelay;
 
         private Builder() {}
 
@@ -217,15 +257,25 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             return this;
         }
 
+        /**
+         * @param allocationDelay The amount of time shard reallocation should be delayed while this node is offline.
+         * @return This builder.
+         */
+        public Builder setAllocationDelay(TimeValue allocationDelay) {
+            this.allocationDelay = allocationDelay;
+            return this;
+        }
+
         public SingleNodeShutdownMetadata build() {
             if (startedAtMillis == -1) {
                 throw new IllegalArgumentException("start timestamp must be set");
             }
+
             return new SingleNodeShutdownMetadata(
                 nodeId,
                 type,
                 reason,
-                startedAtMillis
+                startedAtMillis, allocationDelay
             );
         }
     }

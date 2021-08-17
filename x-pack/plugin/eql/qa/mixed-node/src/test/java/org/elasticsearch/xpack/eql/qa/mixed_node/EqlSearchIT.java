@@ -117,7 +117,7 @@ public class EqlSearchIT extends ESRestTestCase {
             .stream()
             .map(FunctionDefinition::name)
             .collect(Collectors.toSet());
-        // each function has a query and a query results associated to it
+        // each function has a query and query results associated to it
         Set<String> testedFunctions = new HashSet<>();
         // TODO: remove the 8.0.0 version check after code reaches 7.x as well
         boolean multiValued = newNodes.get(0).getVersion() != Version.V_8_0_0
@@ -316,14 +316,8 @@ public class EqlSearchIT extends ESRestTestCase {
 
     private void assertMultiValueFunctionQuery(Set<String> availableFunctions, Set<String> testedFunctions, Request request,
         RestClient client, String functionName, String query, int[] ids) throws IOException {
-        // trivial checks on the validity of functions being used
-        assertTrue("Function [" + functionName + "] not found in the list of functions " + availableFunctions,
-            availableFunctions.contains(functionName));
-        assertTrue("Function [" + functionName + "] not found in query [" + query + "].",
-            query.contains(functionName + "(") || query.contains(functionName + "~("));
-
         List<Object> eventIds = new ArrayList<>();
-        for(int id : ids) {
+        for (int id : ids) {
             eventIds.add(String.valueOf(id));
         }
         request.setJsonEntity("{\"query\":\"" + query + "\"}");

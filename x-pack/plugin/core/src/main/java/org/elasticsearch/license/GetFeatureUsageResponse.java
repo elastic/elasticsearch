@@ -33,7 +33,8 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
         final String context;
         final String licenseLevel;
 
-        public FeatureUsageInfo(@Nullable String family, String name, ZonedDateTime lastUsedTime, @Nullable String context, String licenseLevel) {
+        public FeatureUsageInfo(@Nullable String family, String name, ZonedDateTime lastUsedTime,
+                                @Nullable String context, String licenseLevel) {
             this.family = family;
             this.name = Objects.requireNonNull(name, "Feature name may not be null");
             this.lastUsedTime = Objects.requireNonNull(lastUsedTime, "Last used time may not be null");

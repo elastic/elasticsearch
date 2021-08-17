@@ -17,9 +17,12 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.BinaryComparisonCaseInsensitiveFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseInsensitiveScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
@@ -69,8 +72,22 @@ final class QueryTranslator {
         for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
             translation = translator.translate(e, handler);
             if (translation != null) {
-                return translation;
+                break;
             }
+        }
+        if (translation != null) {
+            if (translation instanceof ScriptQuery) {
+                // check the operators and the expressions involved in these operations so that all can be used
+                // in a doc-values multi-valued context
+                boolean multiValuedIncompatible = e.anyMatch(exp -> {
+                    return false == (exp instanceof Literal || exp instanceof FieldAttribute || exp instanceof Function);
+                });
+                if (multiValuedIncompatible == false) {
+                    ScriptQuery query = (ScriptQuery) translation;
+                    return new MultiValueAwareScriptQuery(query.source(), Scripts.multiValueDocValuesRewrite(query.script()));
+                }
+            }
+            return translation;
         }
 
         throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);

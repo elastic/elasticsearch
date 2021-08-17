@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -155,11 +154,9 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices.build()))
             .build();
 
-        final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
             @Override
-            public void onResponse(Boolean aBoolean) {
-                conditionMetHolder.set(aBoolean);
+            public void onResponse(Void unused) {
             }
 
             @Override
@@ -167,8 +164,6 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
                 fail("onFailure should not be called in this test, called with exception: " + e.getMessage());
             }
         });
-
-        assertTrue(conditionMetHolder.get());
     }
 
     public void testPerformActionIsCompleteForUnAckedRequests() throws Exception {

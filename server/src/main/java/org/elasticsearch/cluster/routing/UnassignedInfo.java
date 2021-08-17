@@ -47,7 +47,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * The version that the {@code lastAllocatedNode} field was added in. Used to adapt streaming of this class as appropriate for the
      * version of the node sending/receiving it. Should be removed once wire compatibility with this version is no longer necessary.
      */
-    private static final Version VERSION_LAST_ALLOCATED_NODE_ADDED = Version.V_8_0_0;
+    private static final Version VERSION_LAST_ALLOCATED_NODE_ADDED = Version.V_7_15_0;
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 

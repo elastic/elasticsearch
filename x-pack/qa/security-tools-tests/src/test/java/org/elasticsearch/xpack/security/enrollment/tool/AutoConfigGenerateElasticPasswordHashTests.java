@@ -101,7 +101,7 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
         assertNotNull(keyStoreWrapper);
         keyStoreWrapper.decrypt(new char[0]);
         // set a random password so that we fail to decrypt it in GenerateElasticPasswordHash#execute
-        keyStoreWrapper.save(env.configFile(), randomAlphaOfLength(8).toCharArray());
+        keyStoreWrapper.save(env.configFile(), randomAlphaOfLength(16).toCharArray());
         execute();
         assertThat(terminal.getOutput(), is(emptyString()));
         assertThat(terminal.getErrorOutput(), containsString("Provided keystore password was incorrect"));

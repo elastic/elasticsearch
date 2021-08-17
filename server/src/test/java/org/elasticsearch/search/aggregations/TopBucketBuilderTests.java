@@ -111,7 +111,7 @@ public class TopBucketBuilderTests extends ESTestCase {
         );
 
         for (int i = 0; i < count; i++) {
-            builder.add(new DelayedBucket<>(mockReduce(context), context, List.of(bucket(i))));
+            builder.add(new DelayedBucket<>(mockReduce(context), context, org.elasticsearch.core.List.of(bucket(i))));
         }
 
         List<InternalBucket> top = builder.build();

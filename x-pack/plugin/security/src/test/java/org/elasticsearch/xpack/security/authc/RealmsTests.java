@@ -437,9 +437,9 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(false));
         assertThat(realms.getUnlicensedRealms(), empty());
 
-        // during init
+        // during init only
         verify(licenseState, times(1)).addListener(Mockito.any(LicenseStateListener.class));
-        // each time the license changes ...
+        // each time the license state changes
         verify(licenseState, times(1)).copyCurrentLicenseState();
         verify(licenseState, times(1)).getOperationMode();
 

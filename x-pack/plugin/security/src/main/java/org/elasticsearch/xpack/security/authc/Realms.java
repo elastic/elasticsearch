@@ -57,7 +57,7 @@ public class Realms implements Iterable<Realm> {
     private final ThreadContext threadContext;
     private final ReservedRealm reservedRealm;
 
-    // All realms that were explicitly configured in the settings, some of these may not be enabled due to licensing
+    // All realms that were configured from the node settings, some of these may not be enabled due to licensing
     private final List<Realm> allConfiguredRealms;
 
     // the realms in current use. This list will change dynamically as the license changes
@@ -109,7 +109,7 @@ public class Realms implements Iterable<Realm> {
 
     @Override
     public Iterator<Realm> iterator() {
-        return asList().iterator();
+        return getActiveRealms().iterator();
     }
 
     /**
@@ -129,7 +129,7 @@ public class Realms implements Iterable<Realm> {
         return StreamSupport.stream(this.spliterator(), false);
     }
 
-    public List<Realm> asList() {
+    public List<Realm> getActiveRealms() {
         assert activeRealms != null : "Active realms not configured";
         return activeRealms;
     }
@@ -225,7 +225,7 @@ public class Realms implements Iterable<Realm> {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         Map<String, Object> realmMap = new HashMap<>();
         final AtomicBoolean failed = new AtomicBoolean(false);
-        final List<Realm> realmList = asList().stream()
+        final List<Realm> realmList = getActiveRealms().stream()
             .filter(r -> ReservedRealm.TYPE.equals(r.type()) == false)
             .collect(Collectors.toList());
         final Set<String> realmTypes = realmList.stream().map(Realm::type).collect(Collectors.toSet());

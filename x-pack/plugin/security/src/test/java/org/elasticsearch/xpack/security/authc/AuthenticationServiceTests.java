@@ -237,7 +237,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // Needed because this is calculated in the constructor, which means the override doesn't get called correctly
         realms.recomputeActiveRealms();
-        assertThat(realms.asList(), contains(firstRealm, secondRealm));
+        assertThat(realms.getActiveRealms(), contains(firstRealm, secondRealm));
 
         auditTrail = mock(AuditTrail.class);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
@@ -333,7 +333,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             ));
 
             Mockito.doReturn(List.of(secondRealm)).when(realms).getUnlicensedRealms();
-            Mockito.doReturn(List.of(firstRealm)).when(realms).asList();
+            Mockito.doReturn(List.of(firstRealm)).when(realms).getActiveRealms();
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
             if (requestIdAlreadyPresent) {
@@ -398,7 +398,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
         verify(realms, atLeastOnce()).recomputeActiveRealms();
         verify(realms, atLeastOnce()).calculateLicensedRealms(any(XPackLicenseState.class));
-        verify(realms, atLeastOnce()).asList();
+        verify(realms, atLeastOnce()).getActiveRealms();
         // ^^ We don't care how many times these methods are called, we just check it here so that we can verify no more interactions below.
         verifyNoMoreInteractions(realms);
     }

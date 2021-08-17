@@ -18,11 +18,11 @@ import java.util.stream.Collectors;
 
 public class UnsignedLongFieldTests extends ESTestCase {
     static final BigInteger[] VALUES = {
-            BigInteger.valueOf(0L),
-            new BigInteger("18446744073709551615"), // 2^64 - 1
-            new BigInteger("9223372036854775807"),  // 2^63 - 1
-            new BigInteger("9223372036854775808"),  // 2^63
-            new BigInteger("9223372036854775809"),  // 2^63 + 1
+        BigInteger.valueOf(0L),
+        new BigInteger("18446744073709551615"), // 2^64 - 1
+        new BigInteger("9223372036854775807"),  // 2^63 - 1
+        new BigInteger("9223372036854775808"),  // 2^63
+        new BigInteger("9223372036854775809"),  // 2^63 + 1
     };
 
     UnsignedLongField FIELD = new UnsignedLongField("test", new FieldValues<Long>() {
@@ -60,7 +60,7 @@ public class UnsignedLongFieldTests extends ESTestCase {
     });
 
     public void testLongValues() {
-        long[] expected = {0L, -1L, 9223372036854775807L, -9223372036854775808L, -9223372036854775807L};
+        long[] expected = { 0L, -1L, 9223372036854775807L, -9223372036854775808L, -9223372036854775807L };
         List<Long> asLong = Arrays.stream(expected).boxed().collect(Collectors.toList());
         assertEquals(asLong, FIELD.convert(Field.Long).getValues());
     }

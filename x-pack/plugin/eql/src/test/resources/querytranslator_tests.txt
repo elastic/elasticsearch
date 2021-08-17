@@ -463,49 +463,6 @@ process where serial_event_id == number("0x32", 16);
 ;
 
 
-wildcardFunctionSingleArgument
-process where wildcard(process_path, "*\\red_ttp\\wininit.*")
-;
-"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","boost":1.0}}
-;
-
-wildcardFunctionTwoArguments
-process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*")
-;
-"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","boost":1.0}}
-"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*","boost":1.0}}
-;
-
-wildcardFunctionThreeArguments
-process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def*")
-;
-"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","boost":1.0}}
-"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*","boost":1.0}}
-"wildcard":{"process_path":{"wildcard":"*def*","boost":1.0}}
-;
-
-wildcardFunctionSingleArgument-insensitive
-process where wildcard~(process_path, "*\\red_ttp\\wininit.*")
-;
-"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}
-;
-
-wildcardFunctionTwoArguments-insensitive
-process where wildcard~(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*")
-;
-"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}
-"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*","case_insensitive":true,"boost":1.0}}
-;
-
-wildcardFunctionThreeArguments-insensitive
-process where wildcard~(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def*")
-;
-"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}
-"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*","case_insensitive":true,"boost":1.0}}
-"wildcard":{"process_path":{"wildcard":"*def*","case_insensitive":true,"boost":1.0}}
-;
-
-
 addOperator
 process where serial_event_id + 2 == -2147483647
 ;

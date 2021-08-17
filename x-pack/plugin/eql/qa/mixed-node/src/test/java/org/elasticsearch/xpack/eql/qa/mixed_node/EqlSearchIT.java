@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.eql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -119,13 +118,10 @@ public class EqlSearchIT extends ESRestTestCase {
             .collect(Collectors.toSet());
         // each function has a query and query results associated to it
         Set<String> testedFunctions = new HashSet<>();
-        // TODO: remove the 8.0.0 version check after code reaches 7.x as well
-        boolean multiValued = newNodes.get(0).getVersion() != Version.V_8_0_0
-            && nodes.getBWCVersion().onOrAfter(RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
+        boolean multiValued = nodes.getBWCVersion().onOrAfter(RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
         try (
-            // TODO: use newNodes (instead of bwcNodes) after code reaches 7.x as well
             RestClient client = buildClient(restClientSettings(),
-                bwcNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
+                newNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
         ) {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._id";
@@ -150,7 +146,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 "PROCESS where length(file_name) >= 3 and length(file_name) == 1",
                 multiValued ? new int[] {116} : new int[] {});
             assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "startswith",
-                "PROCESS where string(startswith~(file_name, \\\"F\\\")) : \\\"true\\\"",
+                "PROCESS where string(startswith(file_name, \\\"f\\\")) : \\\"true\\\"",
                 multiValued ? new int[] {116, 117, 120, 121} : new int[] {116, 120, 121});
             assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "string",
                 "PROCESS where string(concat(file_name, process_name) == \\\"foo\\\") : \\\"true\\\"",
@@ -172,13 +168,19 @@ public class EqlSearchIT extends ESRestTestCase {
                 multiValued ? new int[] {121, 122} : new int[] {121});
             assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "multiply",
                 "PROCESS where multiply(pid, 10) == 120",
-                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119, 120, 122});
+                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119});
             assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "number",
                 "PROCESS where number(command_line) + pid >= 360",
                 multiValued ? new int[] {122, 123} : new int[] {123});
             assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "subtract",
                 "PROCESS where subtract(pid, 1) == 0",
                 multiValued ? new int[] {120, 121, 122} : new int[] {120, 121, 122});
+            // this test is not entirely accurate, as it doesn't use a Painless script to generate a query, but it seems there is a bug
+            // in earlier versions (tested with 7.10.0) where an incorrect query DSL is generated for the original eql query
+            // PROCESS where string(wildcard(process_name, \\\"*d*\\\") : \\\"true\\\")
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "wildcard",
+                "PROCESS where wildcard(process_name, \\\"*d*\\\")",
+                multiValued ? new int[] {120, 121} : new int[] {120, 121});
         }
 
         // check that ALL functions from the function registry have a test query. We don't want to miss any of the functions, since this

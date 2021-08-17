@@ -17,7 +17,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.Converters;
 import org.elasticsearch.script.Field;
 import org.elasticsearch.script.FieldValues;
 import org.elasticsearch.script.InvalidConversion;
@@ -676,12 +675,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public long getLongValue() {
-            return Long.parseLong(Converters.trimNumber(get(0)));
+            return Long.parseLong(get(0));
         }
 
         @Override
         public double getDoubleValue() {
-            return Double.parseDouble(Converters.trimNumber(get(0)));
+            return Double.parseDouble(get(0));
         }
 
         @Override

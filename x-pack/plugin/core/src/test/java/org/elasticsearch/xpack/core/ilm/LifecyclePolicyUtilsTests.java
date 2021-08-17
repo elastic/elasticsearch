@@ -92,7 +92,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                         new ComposableIndexTemplateMetadata(Collections.singletonMap("mytemplate",
                             new ComposableIndexTemplate(Collections.singletonList("myds"),
                                 new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null),
-                                null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(false)))))
+                                null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(false, null)))))
                     .build())
                 .build();
             assertThat(LifecyclePolicyUtils.calculateUsage(iner, state, "mypolicy"),
@@ -133,7 +133,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                         new ComposableIndexTemplateMetadata(Collections.singletonMap("mytemplate",
                             new ComposableIndexTemplate(Collections.singletonList("myds"),
                                 new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null),
-                                null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(false)))))
+                                null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(false, null)))))
                     .build())
                 .build();
             assertThat(LifecyclePolicyUtils.calculateUsage(iner, state, "mypolicy"),

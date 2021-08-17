@@ -1232,6 +1232,14 @@ public class MetadataIndexTemplateService {
                     for (CompressedXContent mapping : mappings) {
                         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
                     }
+                    if (mapperService.documentMapper().routingFieldMapper().required()) {
+                        if (template.getDataStreamTemplate().getAllowCustomRouting() == null
+                            || template.getDataStreamTemplate().getAllowCustomRouting() == false) {
+                            throw new IllegalArgumentException(
+                                "allow_custom_routing within data_stream field must be true when custom routing is enabled"
+                            );
+                        }
+                    }
 
                     if (template.getDataStreamTemplate() != null) {
                         validateTimestampFieldMapping(mapperService.mappingLookup());

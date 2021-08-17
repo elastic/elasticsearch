@@ -258,28 +258,33 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
         private static final ParseField HIDDEN = new ParseField("hidden");
+        private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0]));
+            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0], (Boolean)a[1]));
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         }
 
         private final boolean hidden;
+        private final Boolean allowCustomRouting;
 
         public DataStreamTemplate() {
-            this(false);
+            this(false, null);
         }
 
-        public DataStreamTemplate(boolean hidden) {
+        public DataStreamTemplate(boolean hidden, Boolean allowCustomRouting) {
             this.hidden = hidden;
+            this.allowCustomRouting = allowCustomRouting;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
+            allowCustomRouting = in.readOptionalBoolean();
         }
 
         public String getTimestampField() {
@@ -298,15 +303,23 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return hidden;
         }
 
+        public Boolean getAllowCustomRouting() {
+            return allowCustomRouting;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
+            out.writeOptionalBoolean(allowCustomRouting);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("hidden", hidden);
+            if (allowCustomRouting != null) {
+                builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
+            }
             builder.endObject();
             return builder;
         }
@@ -316,12 +329,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden;
+            return hidden == that.hidden && Objects.equals(this.allowCustomRouting, that.allowCustomRouting);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden);
+            return Objects.hash(hidden, allowCustomRouting);
         }
     }
 

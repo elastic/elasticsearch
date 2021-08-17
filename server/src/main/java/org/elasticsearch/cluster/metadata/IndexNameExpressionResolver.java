@@ -673,7 +673,28 @@ public class IndexNameExpressionResolver {
                         }
                     }
                 }
-            } else {
+            } else if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
+                if (dataStream.getIndices() != null) {
+                    for (IndexMetadata indexMetadata : dataStream.getIndices()) {
+                        String concreteIndex = indexMetadata.getIndex().getName();
+                        if (norouting.contains(concreteIndex) == false) {
+                            norouting.add(concreteIndex);
+                            if (paramRouting != null) {
+                                Set<String> r = new HashSet<>(paramRouting);
+                                if (routings == null) {
+                                    routings = new HashMap<>();
+                                }
+                                routings.put(concreteIndex, r);
+                            } else {
+                                if (routings != null) {
+                                    routings.remove(concreteIndex);
+                                }
+                            }
+                        }
+                    }
+                }
+            }  else {
                 // Index
                 if (norouting.contains(expression) == false) {
                     norouting.add(expression);

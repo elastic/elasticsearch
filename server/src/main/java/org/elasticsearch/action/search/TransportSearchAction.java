@@ -585,33 +585,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return remoteShardIterators;
     }
 
-    private void addBackingIndexRoutingInfo(Index[] allConcreteIndices, OriginalIndices localIndices, Map<String, Set<String>> routingMap,
-        ClusterState clusterState, SearchTimeProvider timeProvider) {
-        if (allConcreteIndices == null || routingMap == null || routingMap.size() == 0 || localIndices == null
-            || localIndices.indices() == null) {
-            return;
-        }
-        long count = Arrays.stream(allConcreteIndices).map(Index::getName).filter(t -> routingMap.containsKey(t) == false).count();
-        if (count == 0) {
-            return;
-        }
-        for (String index : localIndices.indices()) {
-            Set<String> routingSet = routingMap.get(index);
-            if (routingSet != null && routingSet.size() > 0) {
-                Index[] resolvedIndexList = resolveLocalIndices(
-                    new OriginalIndices(new String[] {index}, localIndices.indicesOptions()), clusterState,
-                    timeProvider);
-                if (resolvedIndexList != null) {
-                    for (Index resolvedIndex : resolvedIndexList) {
-                        Set<String> current = routingMap.computeIfAbsent(resolvedIndex.getName(),
-                            t -> new HashSet<>());
-                        current.addAll(routingSet);
-                    }
-                }
-            }
-        }
-    }
-
     private Index[] resolveLocalIndices(OriginalIndices localIndices,
                                 ClusterState clusterState,
                                 SearchTimeProvider timeProvider) {
@@ -647,7 +620,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final Index[] indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
             Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(),
                 searchRequest.indices());
-            addBackingIndexRoutingInfo(indices, localIndices, routingMap, clusterState, timeProvider);
             routingMap = routingMap == null ? Collections.emptyMap() : Collections.unmodifiableMap(routingMap);
             concreteLocalIndices = new String[indices.length];
             for (int i = 0; i < indices.length; i++) {

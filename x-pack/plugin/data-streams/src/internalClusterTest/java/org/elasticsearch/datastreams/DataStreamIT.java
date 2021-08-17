@@ -1599,7 +1599,7 @@ public class DataStreamIT extends ESIntegTestCase {
         ComposableIndexTemplate template = new ComposableIndexTemplate(List.of("logs"), new Template(
             Settings.builder().put("index.number_of_shards", "3")
                 .put("index.routing_partition_size", "2").build(), null, null), null, null, null,
-            null, new ComposableIndexTemplate.DataStreamTemplate());
+            null, new ComposableIndexTemplate.DataStreamTemplate(false, true));
         ComposableIndexTemplate finalTemplate = template;
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutComposableIndexTemplateAction.INSTANCE,
@@ -1617,10 +1617,30 @@ public class DataStreamIT extends ESIntegTestCase {
             + "        \"required\": true\n"
             + "      }\n"
             + "    }"), null), null, null, null,
-            null, new ComposableIndexTemplate.DataStreamTemplate());
+            null, new ComposableIndexTemplate.DataStreamTemplate(false, true));
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)).actionGet();
+
+        /**
+         * routing enable with allow custom routing false
+         */
+          template = new ComposableIndexTemplate(List.of("logs"), new Template(
+            Settings.builder().put("index.number_of_shards", "3")
+                .put("index.routing_partition_size", "2").build(), new CompressedXContent("{\n"
+            + "      \"_routing\": {\n"
+            + "        \"required\": true\n"
+            + "      }\n"
+            + "    }"), null), null, null, null,
+            null, new ComposableIndexTemplate.DataStreamTemplate(false, null));
+        ComposableIndexTemplate finalTemplate1 = template;
+        e = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE,
+                new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(finalTemplate1)).actionGet());
+          actualException = (Exception)e.getCause();
+        assertTrue(Throwables.getRootCause(actualException).getMessage()
+            .contains("allow_custom_routing within data_stream field must be true when custom routing is enabled"));
     }
+
 
     public void testSearchWithRouting() throws IOException, ExecutionException, InterruptedException {
         /**
@@ -1633,7 +1653,7 @@ public class DataStreamIT extends ESIntegTestCase {
             + "        \"required\": true\n"
             + "      }\n"
             + "    }"), null), null, null, null,
-            null, new ComposableIndexTemplate.DataStreamTemplate());
+            null, new ComposableIndexTemplate.DataStreamTemplate(false, true));
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)).actionGet();
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("my-logs");

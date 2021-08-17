@@ -42,8 +42,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.StreamSupport;
 
 public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAction {
@@ -105,8 +103,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         int totalShardCount = 0;
         long totalByteCount = 0;
         long docCount = 0;
-        final AtomicInteger primaryShardCount = new AtomicInteger(0);
-        final AtomicLong primaryByteCount = new AtomicLong(0);
+        int primaryShardCount = 0;
+        long primaryByteCount = 0L;
         final TDigestState valueSketch = new TDigestState(1000);
     }
 
@@ -183,9 +181,9 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                     StoreStats primaryStoreStats = shardStat.getPrimary().getStore();
                     if (primaryStoreStats != null) {
                         // if primaryStoreStats is null, it means there is no primary on the node in question
-                        accumulator.primaryShardCount.incrementAndGet();
+                        accumulator.primaryShardCount++;
                         long primarySize = primaryStoreStats.getSizeInBytes();
-                        accumulator.primaryByteCount.addAndGet(primarySize);
+                        accumulator.primaryByteCount += primarySize;
                         accumulator.valueSketch.add(primarySize);
                     }
                 }
@@ -197,8 +195,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         long primaryShardSizeMedian = (long) accumulator.valueSketch.quantile(0.5);
         long primaryShardSizeMAD = computeMedianAbsoluteDeviation(accumulator.valueSketch);
         return new DataTiersFeatureSetUsage.TierSpecificStats(accumulator.nodeCount, accumulator.indexNames.size(),
-            accumulator.totalShardCount, accumulator.primaryShardCount.get(), accumulator.docCount,
-            accumulator.totalByteCount, accumulator.primaryByteCount.get(), primaryShardSizeMedian, primaryShardSizeMAD);
+            accumulator.totalShardCount, accumulator.primaryShardCount, accumulator.docCount,
+            accumulator.totalByteCount, accumulator.primaryByteCount, primaryShardSizeMedian, primaryShardSizeMAD);
     }
 
     // Visible for testing

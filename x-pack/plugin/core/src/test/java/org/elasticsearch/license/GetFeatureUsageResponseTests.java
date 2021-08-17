@@ -8,8 +8,8 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesReferenceStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.license.GetFeatureUsageResponse.FeatureUsageInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -32,7 +32,7 @@ public class GetFeatureUsageResponseTests extends ESTestCase {
         output.setVersion(version);
         originalResponse.writeTo(output);
 
-        BytesReferenceStreamInput input = new BytesReferenceStreamInput(output.bytes());
+        StreamInput input = output.bytes().streamInput();
         input.setVersion(version);
         GetFeatureUsageResponse finalResponse = new GetFeatureUsageResponse(input);
         assertThat(finalResponse.getFeatures(), hasSize(1));

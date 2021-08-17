@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.core.Map;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -22,7 +23,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -96,7 +96,7 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testMetadataAvailable() throws Exception {
-        List<Map<String, Object>> values = new ArrayList<>();
+        List<java.util.Map<String, Object>> values = new ArrayList<>();
         values.add(new HashMap<>());
         values.add(new HashMap<>());
         IngestDocument ingestDocument = new IngestDocument(
@@ -121,13 +121,13 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testRestOfTheDocumentIsAvailable() throws Exception {
-        List<Map<String, Object>> values = new ArrayList<>();
+        List<java.util.Map<String, Object>> values = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
-            Map<String, Object> object = new HashMap<>();
+            java.util.Map<String, Object> object = new HashMap<>();
             object.put("field", "value");
             values.add(object);
         }
-        Map<String, Object> document = new HashMap<>();
+        java.util.Map<String, Object> document = new HashMap<>();
         document.put("values", values);
         document.put("flat_values", new ArrayList<>());
         document.put("other", "value");
@@ -220,7 +220,7 @@ public class ForEachProcessorTests extends ESTestCase {
         values.add("please");
         values.add("change");
         values.add("me");
-        Map<String, Object> source = new HashMap<>();
+        java.util.Map<String, Object> source = new HashMap<>();
         source.put("_value", "new_value");
         source.put("values", values);
         IngestDocument ingestDocument = new IngestDocument(
@@ -239,11 +239,11 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testNestedForEach() throws Exception {
-        List<Map<String, Object>> values = new ArrayList<>();
+        List<java.util.Map<String, Object>> values = new ArrayList<>();
         List<Object> innerValues = new ArrayList<>();
         innerValues.add("abc");
         innerValues.add("def");
-        Map<String, Object> value = new HashMap<>();
+        java.util.Map<String, Object> value = new HashMap<>();
         value.put("values2", innerValues);
         values.add(value);
 
@@ -276,12 +276,12 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testNestedForEachWithMapIteration() throws Exception {
-        Map<String, Object> innerMap1 = Map.of("foo1", 1, "bar1", 2, "baz1", 3);
-        Map<String, Object> innerMap2 = Map.of("foo2", 4, "bar2", 5, "baz2", 6);
-        Map<String, Object> innerMap3 = Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42);
+        java.util.Map<String, Object> innerMap1 = Map.of("foo1", 1, "bar1", 2, "baz1", 3);
+        java.util.Map<String, Object> innerMap2 = Map.of("foo2", 4, "bar2", 5, "baz2", 6);
+        java.util.Map<String, Object> innerMap3 = Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42);
 
-        Map<String, Object> outerMap = Map.of("foo", innerMap1, "bar", innerMap2, "baz", innerMap3);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", outerMap));
+        java.util.Map<String, Object> outerMap = Map.of("foo", innerMap1, "bar", innerMap2, "baz", innerMap3);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, Map.of("field", outerMap));
 
         List<String> visitedKeys = new ArrayList<>();
         List<Object> visitedValues = new ArrayList<>();
@@ -314,7 +314,7 @@ public class ForEachProcessorTests extends ESTestCase {
             arrayContainingInAnyOrder("foo1", "bar1", "baz1", "foo2", "bar2", "baz2", "foo3", "bar3", "baz3", "otherKey")
         );
         assertThat(visitedValues.toArray(), arrayContainingInAnyOrder(1, 2, 3, 4, 5, 6, 7, 8, 9, 42));
-        assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
+        assertThat(ingestDocument.getFieldValue("field", java.util.Map.class).entrySet().toArray(),
             arrayContainingInAnyOrder(
                 Map.entry("foo", Map.of("foo1", 1, "bar2", 2, "baz1", 6)),
                 Map.entry("bar", Map.of("foo2", 4, "bar2", 5, "baz2", 12)),
@@ -336,7 +336,7 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testAppendingToTheSameField() {
-        Map<String, Object> source = Collections.singletonMap("field", Arrays.asList("a", "b"));
+        java.util.Map<String, Object> source = Collections.singletonMap("field", Arrays.asList("a", "b"));
         IngestDocument originalIngestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, source);
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(id->id.appendFieldValue("field", "a"));
@@ -348,7 +348,7 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testRemovingFromTheSameField() {
-        Map<String, Object> source = Collections.singletonMap("field", Arrays.asList("a", "b"));
+        java.util.Map<String, Object> source = Collections.singletonMap("field", Arrays.asList("a", "b"));
         IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", "_type", null, null, null, source);
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(id -> id.removeField("field.0"));
@@ -360,8 +360,8 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testMapIteration() {
-        Map<String, Object> mapValue = Map.of("foo", 1, "bar", 2, "baz", 3);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", mapValue));
+        java.util.Map<String, Object> mapValue = Map.of("foo", 1, "bar", 2, "baz", 3);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, Map.of("field", mapValue));
 
         List<String> encounteredKeys = new ArrayList<>();
         List<Object> encounteredValues = new ArrayList<>();
@@ -382,13 +382,13 @@ public class ForEachProcessorTests extends ESTestCase {
         assertThat(testProcessor.getInvokedCounter(), equalTo(3));
         assertThat(encounteredKeys.toArray(), arrayContainingInAnyOrder("foo", "bar", "baz"));
         assertThat(encounteredValues.toArray(), arrayContainingInAnyOrder(1, 2, 3));
-        assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
+        assertThat(ingestDocument.getFieldValue("field", java.util.Map.class).entrySet().toArray(),
             arrayContainingInAnyOrder(Map.entry("foo", 1), Map.entry("bar2", 2), Map.entry("baz", 33)));
     }
 
     public void testRemovalOfMapKey() {
-        Map<String, Object> mapValue = Map.of("foo", 1, "bar", 2, "baz", 3);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", mapValue));
+        java.util.Map<String, Object> mapValue = Map.of("foo", 1, "bar", 2, "baz", 3);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, Map.of("field", mapValue));
 
         List<String> encounteredKeys = new ArrayList<>();
         List<Object> encounteredValues = new ArrayList<>();
@@ -405,17 +405,17 @@ public class ForEachProcessorTests extends ESTestCase {
         assertThat(testProcessor.getInvokedCounter(), equalTo(3));
         assertThat(encounteredKeys.toArray(), arrayContainingInAnyOrder("foo", "bar", "baz"));
         assertThat(encounteredValues.toArray(), arrayContainingInAnyOrder(1, 2, 3));
-        assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
+        assertThat(ingestDocument.getFieldValue("field", java.util.Map.class).entrySet().toArray(),
             arrayContainingInAnyOrder(Map.entry("foo", 1), Map.entry("baz", 3)));
     }
 
     public void testMapIterationWithAsyncProcessor() throws Exception {
-        Map<String, Object> innerMap1 = Map.of("foo1", 1, "bar1", 2, "baz1", 3);
-        Map<String, Object> innerMap2 = Map.of("foo2", 4, "bar2", 5, "baz2", 6);
-        Map<String, Object> innerMap3 = Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42);
+        java.util.Map<String, Object> innerMap1 = Map.of("foo1", 1, "bar1", 2, "baz1", 3);
+        java.util.Map<String, Object> innerMap2 = Map.of("foo2", 4, "bar2", 5, "baz2", 6);
+        java.util.Map<String, Object> innerMap3 = Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42);
 
-        Map<String, Object> outerMap = Map.of("foo", innerMap1, "bar", innerMap2, "baz", innerMap3);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", outerMap));
+        java.util.Map<String, Object> outerMap = Map.of("foo", innerMap1, "bar", innerMap2, "baz", innerMap3);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null, Map.of("field", outerMap));
 
         List<String> visitedKeys = new ArrayList<>();
         List<Object> visitedValues = new ArrayList<>();
@@ -449,7 +449,7 @@ public class ForEachProcessorTests extends ESTestCase {
                 arrayContainingInAnyOrder("foo1", "bar1", "baz1", "foo2", "bar2", "baz2", "foo3", "bar3", "baz3", "otherKey")
             );
             assertThat(visitedValues.toArray(), arrayContainingInAnyOrder(1, 2, 3, 4, 5, 6, 7, 8, 9, 42));
-            assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
+            assertThat(ingestDocument.getFieldValue("field", java.util.Map.class).entrySet().toArray(),
                 arrayContainingInAnyOrder(
                     Map.entry("foo", Map.of("foo1", 1, "bar2", 2, "baz1", 6)),
                     Map.entry("bar", Map.of("foo2", 4, "bar2", 5, "baz2", 12)),

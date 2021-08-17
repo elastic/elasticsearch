@@ -46,7 +46,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            this.getTestName()
+            this.getTestName(),
+            null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
@@ -82,7 +83,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                 PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
                     nodeToRestartId,
                     SingleNodeShutdownMetadata.Type.REMOVE,
-                    "testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline"
+                    "testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline",
+                    null
                 );
                 AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
                 assertTrue(putShutdownResponse.isAcknowledged());
@@ -118,7 +120,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            this.getTestName()
+            this.getTestName(),
+            null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());

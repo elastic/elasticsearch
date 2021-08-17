@@ -10,10 +10,18 @@
 
 # API
 class org.elasticsearch.script.Field {
+  org.elasticsearch.script.Converter BigInteger
+  org.elasticsearch.script.Converter Long
   String getName()
   boolean isEmpty()
   List getValues()
   def getValue(def)
+  double getDouble(double)
+  long getLong(long)
+  org.elasticsearch.script.Field as(org.elasticsearch.script.Converter)
+}
+
+class org.elasticsearch.script.Converter {
 }
 
 class org.elasticsearch.script.DocBasedScript {

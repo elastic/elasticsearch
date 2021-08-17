@@ -51,6 +51,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
@@ -88,6 +90,7 @@ import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -145,6 +148,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -215,18 +219,25 @@ public class AuthenticationServiceTests extends ESTestCase {
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .build();
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.ALL_REALMS_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.STANDARD_REALMS_FEATURE)).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.getOperationMode()).thenReturn(randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM));
+
         ReservedRealm reservedRealm = mock(ReservedRealm.class);
         when(reservedRealm.type()).thenReturn("reserved");
         when(reservedRealm.name()).thenReturn("reserved_realm");
         realms = spy(new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings),
             Map.of(FileRealmSettings.TYPE, config -> mock(FileRealm.class), NativeRealmSettings.TYPE, config -> mock(NativeRealm.class)),
             licenseState, threadContext, reservedRealm, Arrays.asList(firstRealm, secondRealm),
-            Collections.singletonList(firstRealm)));
+            Arrays.asList(firstRealm)));
+
+        // Needed because this is calculated in the constructor, which means the override doesn't get called correctly
+        realms.recomputeActiveRealms();
+        assertThat(realms.getActiveRealms(), contains(firstRealm, secondRealm));
 
         auditTrail = mock(AuditTrail.class);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
@@ -322,7 +333,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             ));
 
             Mockito.doReturn(List.of(secondRealm)).when(realms).getUnlicensedRealms();
-            Mockito.doReturn(List.of(firstRealm)).when(realms).asList();
+            Mockito.doReturn(List.of(firstRealm)).when(realms).getActiveRealms();
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
             if (requestIdAlreadyPresent) {
@@ -385,7 +396,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
         assertTrue(completed.get());
         verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
-        verify(realms).asList();
+        verify(realms, atLeastOnce()).recomputeActiveRealms();
+        verify(realms, atLeastOnce()).calculateLicensedRealms(any(XPackLicenseState.class));
+        verify(realms, atLeastOnce()).getActiveRealms();
+        // ^^ We don't care how many times these methods are called, we just check it here so that we can verify no more interactions below.
         verifyNoMoreInteractions(realms);
     }
 
@@ -444,8 +458,8 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
         verify(firstRealm, times(2)).name(); // used above one time
-        verify(secondRealm, times(2)).name();
-        verify(secondRealm, times(2)).type(); // used to create realm ref
+        verify(secondRealm, Mockito.atLeast(2)).name(); // also used in license tracking
+        verify(secondRealm, Mockito.atLeast(2)).type(); // used to create realm ref, and license tracking
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
         verify(firstRealm).supports(token);
@@ -569,8 +583,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
         verify(auditTrail, times(2)).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
         verify(firstRealm, times(3)).name(); // used above one time
-        verify(secondRealm, times(2)).name();
-        verify(secondRealm, times(2)).type(); // used to create realm ref
+        verify(secondRealm, Mockito.atLeast(2)).name();
+        verify(secondRealm, Mockito.atLeast(2)).type(); // used to create realm ref
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
         verify(firstRealm, times(2)).supports(token);
@@ -633,8 +647,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(result.v1(), is(authentication));
         assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.REALM));
         verifyZeroInteractions(auditTrail);
-        verifyZeroInteractions(firstRealm);
-        verifyZeroInteractions(secondRealm);
+        verifyZeroInteractions(firstRealm, secondRealm);
         verifyZeroInteractions(operatorPrivilegesService);
     }
 
@@ -913,7 +926,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     verifyZeroInteractions(operatorPrivilegesService);
                 }, this::logAndFail));
             assertTrue(completed.compareAndSet(true, false));
-            verifyZeroInteractions(firstRealm);
+            verifyNoMoreInteractions(firstRealm);
             reset(firstRealm);
         } finally {
             terminate(threadPool1);
@@ -961,7 +974,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     verifyZeroInteractions(operatorPrivilegesService);
                 }, this::logAndFail));
             assertTrue(completed.get());
-            verifyZeroInteractions(firstRealm);
+            verifyNoMoreInteractions(firstRealm);
         } finally {
             terminate(threadPool2);
         }
@@ -2095,12 +2108,40 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     static class TestRealms extends Realms {
 
-        TestRealms(Settings settings, Environment env, Map<String, Factory> factories, XPackLicenseState licenseState,
-                   ThreadContext threadContext, ReservedRealm reservedRealm, List<Realm> realms, List<Realm> internalRealms)
-                throws Exception {
+        private final List<Realm> allRealms;
+        private final List<Realm> internalRealms;
+
+        TestRealms(
+            Settings settings,
+            Environment env,
+            Map<String, Factory> factories,
+            XPackLicenseState licenseState,
+            ThreadContext threadContext,
+            ReservedRealm reservedRealm,
+            List<Realm> realms,
+            List<Realm> internalRealms
+        ) throws Exception {
             super(settings, env, factories, licenseState, threadContext, reservedRealm);
-            this.realms = realms;
-            this.standardRealmsOnly = internalRealms;
+            this.allRealms = realms;
+            this.internalRealms = internalRealms;
+        }
+
+        @Override
+        protected List<Realm> calculateLicensedRealms(XPackLicenseState licenseState) {
+            if (allRealms == null) {
+                // This can happen because the realms are recalculated during construction
+                return super.calculateLicensedRealms(licenseState);
+            }
+            if (Security.STANDARD_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
+                return allRealms;
+            } else {
+                return internalRealms;
+            }
+        }
+
+        // Make public for testing
+        public void recomputeActiveRealms() {
+            super.recomputeActiveRealms();
         }
     }
 

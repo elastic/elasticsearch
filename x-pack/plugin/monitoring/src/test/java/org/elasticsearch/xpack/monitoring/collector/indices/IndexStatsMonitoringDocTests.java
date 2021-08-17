@@ -47,6 +47,7 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToJson;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
+import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -424,8 +425,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                 --unassignedTotal;
                 --unassignedPrimaries;
 
-                final UnassignedInfo unassignedInfo =
-                        new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), randomAlphaOfLength(3));
+                final UnassignedInfo unassignedInfo = randomUnassignedInfo(randomAlphaOfLength(3));
                 final String nodeId;
                 final ShardRoutingState state;
 

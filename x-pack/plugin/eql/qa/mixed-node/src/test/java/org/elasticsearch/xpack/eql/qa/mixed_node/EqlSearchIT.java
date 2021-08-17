@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -17,8 +18,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
+import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.junit.After;
 import org.junit.Before;
 
@@ -26,8 +30,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
@@ -92,6 +99,91 @@ public class EqlSearchIT extends ESRestTestCase {
 
     public void testSequencesWithRequestToUpgradedNodes() throws Exception {
         assertSequncesQueryOnNodes(newNodes);
+    }
+
+    /**
+     * Requests are sent to the new (upgraded) version nodes of the cluster. The request should be redirected to the old nodes at this point
+     * if their version is lower than {@code org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION}
+     * version.
+     */
+    public void testMultiValueFields() throws Exception {
+        final String bulkEntries = readResource(EqlSearchIT.class.getResourceAsStream("/eql_data.json"));
+        Request bulkRequst = new Request("POST", index + "/_bulk?refresh");
+        bulkRequst.setJsonEntity(bulkEntries);
+        assertOK(client().performRequest(bulkRequst));
+
+        // build a set of functions names to check if all functions are tested with multi-value fields
+        final Set<String> availableFunctions = new EqlFunctionRegistry().listFunctions()
+            .stream()
+            .map(FunctionDefinition::name)
+            .collect(Collectors.toSet());
+        // each function has a query and query results associated to it
+        Set<String> testedFunctions = new HashSet<>();
+        // TODO: remove the 8.0.0 version check after code reaches 7.x as well
+        boolean multiValued = newNodes.get(0).getVersion() != Version.V_8_0_0
+            && nodes.getBWCVersion().onOrAfter(RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
+        try (
+            // TODO: use newNodes (instead of bwcNodes) after code reaches 7.x as well
+            RestClient client = buildClient(restClientSettings(),
+                bwcNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
+        ) {
+            // filter only the relevant bits of the response
+            String filterPath = "filter_path=hits.events._id";
+            Request request = new Request("POST", index + "/_eql/search?" + filterPath);
+
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "between",
+                "PROCESS where between(process_name, \\\"w\\\", \\\"s\\\") : \\\"indow\\\"",
+                multiValued ? new int[] {120, 121} : new int[] {121});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "cidrmatch",
+                "PROCESS where string(cidrmatch(source_address, \\\"10.6.48.157/24\\\")) : \\\"true\\\"",
+                multiValued ? new int[] {121, 122} : new int[] {122});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "concat",
+                "PROCESS where concat(file_name, process_name) == \\\"foo\\\" or add(pid, ppid) > 100",
+                multiValued ? new int[] {116, 117, 120, 121, 122} : new int[] {120, 121});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "endswith",
+                "PROCESS where string(endswith(process_name, \\\"s\\\")) : \\\"true\\\"",
+                multiValued ? new int[] {120, 121} : new int[] {121});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "indexof",
+                "PROCESS where indexof(file_name, \\\"x\\\", 2) > 0",
+                multiValued ? new int[] {116, 117} : new int[] {117});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "length",
+                "PROCESS where length(file_name) >= 3 and length(file_name) == 1",
+                multiValued ? new int[] {116} : new int[] {});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "startswith",
+                "PROCESS where string(startswith~(file_name, \\\"F\\\")) : \\\"true\\\"",
+                multiValued ? new int[] {116, 117, 120, 121} : new int[] {116, 120, 121});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "string",
+                "PROCESS where string(concat(file_name, process_name) == \\\"foo\\\") : \\\"true\\\"",
+                multiValued ? new int[] {116, 120} : new int[] {120});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "stringcontains",
+                "PROCESS where string(stringcontains(file_name, \\\"txt\\\")) : \\\"true\\\"",
+                multiValued ? new int[] {117} : new int[] {});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "substring",
+                "PROCESS where substring(file_name, -4) : \\\".txt\\\"",
+                multiValued ? new int[] {117} : new int[] {});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "add",
+                "PROCESS where add(pid, 1) == 2",
+                multiValued ? new int[] {120, 121, 122} : new int[] {120, 121, 122});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "divide",
+                "PROCESS where divide(pid, 12) == 1",
+                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "modulo",
+                "PROCESS where modulo(ppid, 10) == 0",
+                multiValued ? new int[] {121, 122} : new int[] {121});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "multiply",
+                "PROCESS where multiply(pid, 10) == 120",
+                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119, 120, 122});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "number",
+                "PROCESS where number(command_line) + pid >= 360",
+                multiValued ? new int[] {122, 123} : new int[] {123});
+            assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "subtract",
+                "PROCESS where subtract(pid, 1) == 0",
+                multiValued ? new int[] {120, 121, 122} : new int[] {120, 121, 122});
+        }
+
+        // check that ALL functions from the function registry have a test query. We don't want to miss any of the functions, since this
+        // is about painless scripting
+        assertTrue(testedFunctions.containsAll(availableFunctions));
     }
 
     private void assertEventsQueryOnNodes(List<TestNode> nodesList) throws Exception {
@@ -222,11 +314,45 @@ public class EqlSearchIT extends ESRestTestCase {
         return expectedResponse;
     }
 
+    private void assertMultiValueFunctionQuery(Set<String> availableFunctions, Set<String> testedFunctions, Request request,
+        RestClient client, String functionName, String query, int[] ids) throws IOException {
+        List<Object> eventIds = new ArrayList<>();
+        for (int id : ids) {
+            eventIds.add(String.valueOf(id));
+        }
+        request.setJsonEntity("{\"query\":\"" + query + "\"}");
+        assertResponse(query, eventIds, runEql(client, request));
+        testedFunctions.add(functionName);
+    }
+
     private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
         if (false == expected.equals(actual)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertResponse(String query, List<Object> expected, Map<String, Object> actual) {
+        List<Map<String, Object>> events = new ArrayList<>();
+        Map<String, Object> hits = (Map<String, Object>) actual.get("hits");
+        if (hits == null || hits.isEmpty()) {
+            if (expected.isEmpty()) {
+                return;
+            }
+            fail("For query [" + query + "]\nResponse does not match: the returned list of resuts is empty.\nExpected " + expected);
+        } else {
+            events = (List<Map<String, Object>>) hits.get("events");
+        }
+
+        List<Object> actualList = new ArrayList<>();
+        events.stream().forEach(m -> actualList.add(m.get("_id")));
+
+        if (false == expected.equals(actualList)) {
+            NotEqualMessageBuilder message = new NotEqualMessageBuilder();
+            message.compareLists(actualList, expected);
+            fail("For query [" + query + "]\nResponse does not match:\n" + message.toString());
         }
     }
 

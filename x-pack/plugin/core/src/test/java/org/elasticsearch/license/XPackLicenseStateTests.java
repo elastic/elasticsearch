@@ -444,7 +444,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testLastUsedMomentaryFeature() {
-        LicensedFeature.Momentary goldFeature = LicensedFeature.momentary("goldFeature", GOLD);
+        LicensedFeature.Momentary goldFeature = LicensedFeature.momentary("family", "goldFeature", GOLD);
         AtomicInteger currentTime = new AtomicInteger(100); // non zero start time
         XPackLicenseState licenseState = new XPackLicenseState(currentTime::get);
         Map<XPackLicenseState.FeatureUsage, Long> lastUsed = licenseState.getLastUsed();
@@ -459,7 +459,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat("feature.check tracks usage", lastUsed, aMapWithSize(1));
 
         XPackLicenseState.FeatureUsage usage = Iterables.get(lastUsed.keySet(), 0);
-        assertThat(usage.featureName(), equalTo("goldFeature"));
+        assertThat(usage.feature().name, equalTo("goldFeature"));
         assertThat(usage.contextName(), nullValue());
         assertThat(lastUsed.get(usage), equalTo(100L));
 
@@ -471,7 +471,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testLastUsedPersistentFeature() {
-        LicensedFeature.Persistent goldFeature = LicensedFeature.persistent("goldFeature", GOLD);
+        LicensedFeature.Persistent goldFeature = LicensedFeature.persistent("family", "goldFeature", GOLD);
         AtomicInteger currentTime = new AtomicInteger(100); // non zero start time
         XPackLicenseState licenseState = new XPackLicenseState(currentTime::get);
         Map<XPackLicenseState.FeatureUsage, Long> lastUsed = licenseState.getLastUsed();
@@ -487,7 +487,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(lastUsed, aMapWithSize(1));
 
         XPackLicenseState.FeatureUsage usage = Iterables.get(lastUsed.keySet(), 0);
-        assertThat(usage.featureName(), equalTo("goldFeature"));
+        assertThat(usage.feature().name, equalTo("goldFeature"));
         assertThat(usage.contextName(), equalTo("somecontext"));
         assertThat(lastUsed.get(usage), equalTo(200L));
 

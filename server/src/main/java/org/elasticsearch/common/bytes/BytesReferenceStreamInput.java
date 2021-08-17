@@ -21,7 +21,7 @@ import java.io.IOException;
  * generic stream access to {@link BytesReference} instances without materializing the
  * underlying bytes.
  */
-class BytesReferenceStreamInput extends StreamInput {
+public class BytesReferenceStreamInput extends StreamInput {
 
     protected final BytesReference bytesReference;
     private BytesRefIterator iterator;
@@ -31,7 +31,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     private int mark = 0;
 
-    BytesReferenceStreamInput(BytesReference bytesReference) throws IOException {
+    public BytesReferenceStreamInput(BytesReference bytesReference) throws IOException {
         this.bytesReference = bytesReference;
         this.iterator = bytesReference.iterator();
         this.slice = iterator.next();

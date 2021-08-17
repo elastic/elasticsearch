@@ -157,7 +157,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
 
             // Verify that OpenSAML things the XML representation is the same as our input
             final java.security.cert.X509Certificate javaCert = KeyInfoSupport.getCertificate(xmlCert);
-            assertThat(CertParsingUtils.readCertificates(Collections.singletonList(certPath)), arrayContaining(javaCert));
+            assertThat(CertParsingUtils.readX509Certificates(Collections.singletonList(certPath)), arrayContaining(javaCert));
         } else {
             assertThat(spDescriptor.getKeyDescriptors(), iterableWithSize(0));
         }

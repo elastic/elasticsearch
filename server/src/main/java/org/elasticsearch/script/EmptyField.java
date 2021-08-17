@@ -30,7 +30,7 @@ public class EmptyField<T> extends Field<T> {
     }
 
     @Override
-    public <CT, CF extends Field<CT>> Field<CT> as(Converter<CT, CF> converter) {
+    public <CT, CF extends Field<CT>> Field<CT> convert(Converter<CT, CF> converter) {
         // new object created to ensure EmptyField<CT>
         return new EmptyField<>(name);
     }

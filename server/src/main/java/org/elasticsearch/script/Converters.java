@@ -8,7 +8,10 @@
 
 package org.elasticsearch.script;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
+
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,7 +34,7 @@ public class Converters {
      * Longs and Doubles are wrapped as BigIntegers.
      * Strings are parsed as either Longs or Doubles and wrapped in a BigInteger.
      */
-    public static final Converter<BigInteger, BigIntegerField> BIGINTEGER;
+    static final Converter<BigInteger, BigIntegerField> BIGINTEGER;
 
     /**
      * Convert to a {@link LongField} from Double, String, DateMillis, DateNanos, BigInteger or Boolean Fields.
@@ -42,7 +45,7 @@ public class Converters {
      * {@link BigInteger#longValue()} is used for the BigInteger conversion.
      * Boolean is {@code 1L} if {@code true}, {@code 0L} if {@code false}.
      */
-    public static final Converter<Long, LongField> LONG;
+    static final Converter<Long, LongField> LONG;
 
     static {
         BIGINTEGER = new Converter<>() {
@@ -81,8 +84,8 @@ public class Converters {
             }
 
             @Override
-            public Class<java.math.BigInteger> getTargetClass() {
-                return java.math.BigInteger.class;
+            public Class<BigInteger> getTargetClass() {
+                return BigInteger.class;
             }
         };
 
@@ -131,56 +134,63 @@ public class Converters {
     // No instances, please
     private Converters() {}
 
-    public static BigIntegerField LongToBigInteger(LongField sourceField) {
+    static BigIntegerField LongToBigInteger(LongField sourceField) {
         FieldValues<Long> fv = sourceField.getFieldValues();
         return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<>(fv) {
             @Override
-            public List<java.math.BigInteger> getValues() {
-                return values.getValues().stream().map(java.math.BigInteger::valueOf).collect(Collectors.toList());
+            public List<BigInteger> getValues() {
+                return values.getValues().stream().map(BigInteger::valueOf).collect(Collectors.toList());
             }
 
             @Override
-            public java.math.BigInteger getNonPrimitiveValue() {
-                return java.math.BigInteger.valueOf(values.getLongValue());
+            public BigInteger getNonPrimitiveValue() {
+                return BigInteger.valueOf(values.getLongValue());
             }
         });
     }
 
-    public static BigIntegerField DoubleToBigInteger(DoubleField sourceField) {
+    static BigIntegerField DoubleToBigInteger(DoubleField sourceField) {
         FieldValues<Double> fv = sourceField.getFieldValues();
         return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<>(fv) {
             @Override
-            public List<java.math.BigInteger> getValues() {
+            public List<BigInteger> getValues() {
                 return values.getValues().stream().map(
-                    dbl -> java.math.BigInteger.valueOf(dbl.longValue())
+                    dbl -> BigInteger.valueOf(dbl.longValue())
                 ).collect(Collectors.toList());
             }
 
             @Override
-            public java.math.BigInteger getNonPrimitiveValue() {
-                return java.math.BigInteger.valueOf(values.getLongValue());
+            public BigInteger getNonPrimitiveValue() {
+                return BigInteger.valueOf(values.getLongValue());
             }
         });
     }
 
-    public static BigIntegerField StringToBigInteger(StringField sourceField) {
+    static BigIntegerField StringToBigInteger(StringField sourceField) {
         FieldValues<String> fv = sourceField.getFieldValues();
         return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<BigInteger, String>(fv) {
-
-            @Override
-            public List<java.math.BigInteger> getValues() {
-                // TODO(stu): this may throw
-                return values.getValues().stream().map(BigInteger::new).collect(Collectors.toList());
+            protected BigInteger parseNumber(String str) {
+                try {
+                    return new BigInteger(str);
+                } catch (NumberFormatException e) {
+                    return new BigDecimal(str).toBigInteger();
+                }
             }
 
             @Override
-            public java.math.BigInteger getNonPrimitiveValue() {
-                return new BigInteger(values.getNonPrimitiveValue());
+            public List<BigInteger> getValues() {
+                // TODO(stu): this may throw
+                return values.getValues().stream().map(this::parseNumber).collect(Collectors.toList());
+            }
+
+            @Override
+            public BigInteger getNonPrimitiveValue() {
+                return parseNumber(values.getNonPrimitiveValue());
             }
         });
     }
 
-    public static LongField BigIntegerToLong(BigIntegerField sourceField) {
+    static LongField BigIntegerToLong(BigIntegerField sourceField) {
         FieldValues<BigInteger> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, BigInteger>(fv) {
             @Override
@@ -195,7 +205,7 @@ public class Converters {
         });
     }
 
-    public static LongField BooleanToLong(BooleanField sourceField) {
+    static LongField BooleanToLong(BooleanField sourceField) {
         FieldValues<Boolean> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, Boolean>(fv) {
             @Override
@@ -210,7 +220,7 @@ public class Converters {
         });
     }
 
-    public static LongField DateMillisToLong(DateMillisField sourceField) {
+    static LongField DateMillisToLong(DateMillisField sourceField) {
         FieldValues<JodaCompatibleZonedDateTime> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, JodaCompatibleZonedDateTime>(fv) {
             @Override
@@ -225,11 +235,11 @@ public class Converters {
         });
     }
 
-    public static LongField DateNanosToLong(DateNanosField sourceField) {
+    static LongField DateNanosToLong(DateNanosField sourceField) {
         FieldValues<JodaCompatibleZonedDateTime> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, JodaCompatibleZonedDateTime>(fv) {
             protected long nanoLong(JodaCompatibleZonedDateTime dt) {
-                return ChronoUnit.NANOS.between(java.time.Instant.EPOCH, dt.toInstant());
+                return ChronoUnit.NANOS.between(Instant.EPOCH, dt.toInstant());
             }
 
             @Override
@@ -239,12 +249,12 @@ public class Converters {
 
             @Override
             public Long getNonPrimitiveValue() {
-                return ChronoUnit.NANOS.between(java.time.Instant.EPOCH, values.getNonPrimitiveValue().toInstant());
+                return ChronoUnit.NANOS.between(Instant.EPOCH, values.getNonPrimitiveValue().toInstant());
             }
         });
     }
 
-    public static LongField DoubleToLong(DoubleField sourceField) {
+    static LongField DoubleToLong(DoubleField sourceField) {
         FieldValues<Double> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, Double>(fv) {
             @Override
@@ -259,32 +269,27 @@ public class Converters {
         });
     }
 
-    public static LongField StringToLong(StringField sourceField) {
+    static LongField StringToLong(StringField sourceField) {
         FieldValues<String> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, String>(fv) {
-            protected long parseNumber(String str) {
-                return Long.parseLong(str);
-            }
-
             @Override
             public List<Long> getValues() {
-                return values.getValues().stream().map(this::parseNumber).collect(Collectors.toList());
+                return values.getValues().stream().map(Long::parseLong).collect(Collectors.toList());
             }
 
             @Override
             public Long getNonPrimitiveValue() {
-                return parseNumber(values.getNonPrimitiveValue());
+                return Long.parseLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public long getLongValue() {
-                return parseNumber(values.getNonPrimitiveValue());
+                return Long.parseLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public double getDoubleValue() {
-                String str = values.getNonPrimitiveValue();
-                return Double.parseDouble(str);
+                return getLongValue();
             }
         });
     }

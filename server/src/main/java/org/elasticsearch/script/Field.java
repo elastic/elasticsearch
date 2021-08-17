@@ -57,17 +57,23 @@ public abstract class Field<T> {
     /**
      * Convert this {@code Field} into another {@code Field} type using a {@link Converter} of the target type.
      *
-     * As this is called from user scripts, {@code as} may be called to convert a field into it's same type, if
-     * so {@code this} is cast via that converters {@link Converter#getFieldClass()}.
+     * As this is called from user scripts, {@code as} may be called to convert a field into its same type, if
+     * so {@code this} is cast via converters {@link Converter#getFieldClass()}.
      *
-     * Extensions outside the core package should override this method to implement their own conversions, calling
-     * this method as a fallback.
      */
-    public <CT, CF extends Field<CT>> Field<CT> as(Converter<CT, CF> converter) {
+    public final <CT, CF extends Field<CT>> Field<CT> as(Converter<CT, CF> converter) {
         if (converter.getFieldClass().isInstance(this)) {
             return converter.getFieldClass().cast(this);
         }
 
+        return convert(converter);
+    }
+
+    /**
+     * Extensions outside the core package should override this method to implement their own conversions, calling
+     * the superclass of this method as a fallback.
+     */
+    protected <CT, CF extends Field<CT>> Field<CT> convert(Converter<CT, CF> converter) {
         return converter.convert(this);
     }
 

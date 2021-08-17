@@ -25,11 +25,7 @@ public class UnsignedLongField extends Field.LongField {
 
     // UnsignedLongFields must define their own conversions as they are in x-pack
     @Override
-    public <CT, CF extends Field<CT>> Field<CT> as(Converter<CT, CF> converter) {
-        if (converter.getFieldClass().isInstance(this)) {
-            return converter.getFieldClass().cast(this);
-        }
-
+    public <CT, CF extends Field<CT>> Field<CT> convert(Converter<CT, CF> converter) {
         if (converter.getTargetClass() == BigInteger.class) {
             BigIntegerField bigIntegerField = UnsignedLongToBigInteger(this);
             return converter.getFieldClass().cast(bigIntegerField);
@@ -38,7 +34,7 @@ public class UnsignedLongField extends Field.LongField {
         return super.as(converter);
     }
 
-    public static BigIntegerField UnsignedLongToBigInteger(UnsignedLongField sourceField) {
+    static BigIntegerField UnsignedLongToBigInteger(UnsignedLongField sourceField) {
         FieldValues<Long> fv = sourceField.getFieldValues();
         return new BigIntegerField(sourceField.getName(), new Converters.DelegatingFieldValues<java.math.BigInteger, Long>(fv) {
             protected BigInteger toBigInteger(long formatted) {
@@ -53,21 +49,6 @@ public class UnsignedLongField extends Field.LongField {
             @Override
             public BigInteger getNonPrimitiveValue() {
                 return toBigInteger(values.getLongValue());
-            }
-        });
-    }
-
-    public static UnsignedLongField BigIntegerToUnsignedLong(BigIntegerField sourceField) {
-        FieldValues<BigInteger> fv = sourceField.getFieldValues();
-        return new UnsignedLongField(sourceField.getName(), new Converters.DelegatingFieldValues<>(fv) {
-            @Override
-            public List<Long> getValues() {
-                return values.getValues().stream().map(java.math.BigInteger::longValue).collect(Collectors.toList());
-            }
-
-            @Override
-            public Long getNonPrimitiveValue() {
-                return values.getLongValue();
             }
         });
     }

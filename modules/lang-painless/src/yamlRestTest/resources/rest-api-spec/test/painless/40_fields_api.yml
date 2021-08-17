@@ -555,6 +555,6 @@ setup:
   - match: { hits.hits.4._id: d5 }
   - match: { hits.hits.4.fields.str.0: 10 }
   - match: { hits.hits.5._id: d6 }
-  - match: { hits.hits.5.fields.str.0: 10 }
+  - match: { hits.hits.5.fields.str.0: 100000000000000000000000000000000000000000 }
   - match: { hits.hits.6._id: d7 }
-  - match: { hits.hits.6.fields.str.0: 10 }
+  - match: { hits.hits.6.fields.str.0: 18446744073709551618 }

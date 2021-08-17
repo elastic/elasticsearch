@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
@@ -26,8 +27,13 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -495,6 +501,67 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
                     "as it offers superior or equivalent performance to [simplefs].", false, null)
+        ));
+    }
+
+    public void testCheckGeoShapeMappings() throws Exception {
+        Map<String, Object> emptyMappingMap = Collections.emptyMap();
+        MappingMetadata mappingMetadata = new MappingMetadata("", emptyMappingMap);
+        Settings.Builder settings = settings(Version.CURRENT);
+        IndexMetadata indexMetadata =
+            IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        assertTrue(issues.isEmpty());
+
+        Map<String, Object> okGeoMappingMap = Collections.singletonMap("properties", Collections.singletonMap("location",
+            Collections.singletonMap("type", "geo_shape")));
+        mappingMetadata = new MappingMetadata("", okGeoMappingMap);
+        IndexMetadata indexMetadata2 =
+            IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
+        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata2));
+        assertTrue(issues.isEmpty());
+
+        Map<String, String> deprecatedPropertiesMap = Stream.of(new String[][] {
+            { "type", "geo_shape" },
+            { "strategy", "recursive" },
+            { "points_only", "true" }
+        }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
+        Map<String, Object> deprecatedGeoMappingMap = Collections.singletonMap("properties", Collections.singletonMap("location",
+            deprecatedPropertiesMap));
+        mappingMetadata = new MappingMetadata("", deprecatedGeoMappingMap);
+        IndexMetadata indexMetadata3 =
+            IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
+        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata3));
+        assertEquals(1, issues.size());
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "[geo_shape parameter [points_only] in field [location] is deprecated and will be removed in a future version; geo_shape " +
+                    "parameter [strategy] in field [location] is deprecated and will be removed in a future version]",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html",
+                "mappings for index test contains deprecated properties. [geo_shape parameter [points_only] in field [location] is " +
+                    "deprecated and will be removed in a future version; geo_shape parameter [strategy] in field [location] is deprecated" +
+                    " and will be removed in a future version]", false, null)
+        ));
+
+        Map<String, Object> nestedProperties = Stream.of(new Object[][] {
+            { "type", "nested" },
+            { "properties", Collections.singletonMap("location", deprecatedPropertiesMap) },
+        }).collect(Collectors.toMap(data -> (String) data[0], data -> (Object) data[1]));
+        Map<String, Object> nestedDeprecatedGeoMappingMap = Collections.singletonMap("properties",
+            Collections.singletonMap("nested_field", nestedProperties));
+        mappingMetadata = new MappingMetadata("", nestedDeprecatedGeoMappingMap);
+        IndexMetadata indexMetadata4 =
+            IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
+        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata4));
+        assertEquals(1, issues.size());
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "[geo_shape parameter [points_only] in field [location] is deprecated and will be removed in a future version; geo_shape " +
+                    "parameter [strategy] in field [location] is deprecated and will be removed in a future version]",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html",
+                "mappings for index test contains deprecated properties. [geo_shape parameter [points_only] in field [location] is " +
+                    "deprecated and will be removed in a future version; geo_shape parameter [strategy] in field [location] is deprecated" +
+                    " and will be removed in a future version]", false, null)
         ));
     }
 }

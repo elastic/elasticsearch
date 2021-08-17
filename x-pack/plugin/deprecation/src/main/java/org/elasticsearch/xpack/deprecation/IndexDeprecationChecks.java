@@ -14,11 +14,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 
 /**
@@ -316,5 +319,38 @@ public class IndexDeprecationChecks {
                     "as it offers superior or equivalent performance to [simplefs].", false, null);
         }
         return null;
+    }
+
+    protected static boolean isGeoShapeFieldWithDeprecatedParam(Map<?, ?> property) {
+        return LegacyGeoShapeFieldMapper.CONTENT_TYPE.equals(property.get("type")) &&
+            LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS.stream().anyMatch(deprecatedParameter ->
+                property.containsKey(deprecatedParameter)
+            );
+    }
+
+    protected static String formatDeprecatedGeoShapeParamMessage(String type, Map.Entry<?, ?> entry) {
+        String fieldName = entry.getKey().toString();
+        Map<?, ?> value = (Map<?, ?>) entry.getValue();
+        return LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS.stream()
+            .filter(deprecatedParameter -> value.containsKey(deprecatedParameter))
+            .map(deprecatedParameter -> String.format(Locale.ROOT, "%s parameter [%s] in field [%s] is deprecated and will be removed in " +
+                "a future version", type, deprecatedParameter, fieldName))
+            .collect(Collectors.joining("; "));
+    }
+
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkGeoShapeMappings(IndexMetadata indexMetadata) {
+        Map<String, Object> sourceAsMap = indexMetadata.mapping().getSourceAsMap();
+        List<String> messages = findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE, sourceAsMap,
+            IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
+            IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
+        if (messages.isEmpty()) {
+            return null;
+        } else {
+            String message = messages.stream().collect(Collectors.joining("; "));
+            String details = "mappings for index " + indexMetadata.getIndex().getName() + " contains deprecated properties. " + message;
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+        }
     }
 }

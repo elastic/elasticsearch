@@ -67,14 +67,14 @@ CPU usage could increase.
 Prior to 8.0, the `transport.compression_scheme` setting defaulted to `deflate`. Starting in
 8.0,  `transport.compress_scheme` defaults to `lz4`.
 
-Prior to 8.0, the `cluster.remote.cluster_name.transport.compression_scheme` setting
-defaulted to `deflate` when `cluster.remote.cluster_name.transport.compress` was
-explicitly configured. Starting in 8.0,
-`cluster.remote.cluster_name.transport.compression_scheme` will fallback to
+Prior to 8.0, the `cluster.remote.<cluster_alias>.transport.compression_scheme`
+setting defaulted to `deflate` when `cluster.remote.<cluster_alias>.transport.compress`
+was explicitly configured. Starting in 8.0,
+`cluster.remote.<cluster_alias>.transport.compression_scheme` will fallback to
 `transport.compression_scheme` by default.
 
 *Impact* +
-This configuration means that transport compression will produce somewhat worse
+This configuration means that transport compression will produce somewhat lower
 compression ratios in exchange for lower CPU load.
 ====
 // end::notable-breaking-changes[]

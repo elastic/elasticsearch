@@ -67,7 +67,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         } else if (change.equals(compressionScheme)) {
             newBuilder.put(
                 RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace("cluster-alias").getKey(),
-                Compression.Scheme.LZ4
+                Compression.Scheme.DEFLATE
             );
         } else {
             throw new AssertionError("Unexpected option: " + change);

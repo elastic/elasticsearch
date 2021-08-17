@@ -36,71 +36,51 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class CreateEnrollmentToken {
+public class EnrollmentTokenGenerator {
     protected static final String ENROLL_API_KEY_EXPIRATION = "30m";
 
-    private static final Logger logger = LogManager.getLogger(CreateEnrollmentToken.class);
+    private static final Logger logger = LogManager.getLogger(EnrollmentTokenGenerator.class);
     private final Environment environment;
     private final SSLService sslService;
     private final CommandLineHttpClient client;
     private final URL defaultUrl;
 
-    public CreateEnrollmentToken(Environment environment) throws MalformedURLException {
+    public EnrollmentTokenGenerator(Environment environment) throws MalformedURLException {
         this(environment, new CommandLineHttpClient(environment));
     }
 
     // protected for testing
-    protected CreateEnrollmentToken(Environment environment, CommandLineHttpClient client) throws MalformedURLException {
+    protected EnrollmentTokenGenerator(Environment environment, CommandLineHttpClient client) throws MalformedURLException {
         this.environment = environment;
         this.sslService = new SSLService(environment);
         this.client = client;
         this.defaultUrl = new URL(client.getDefaultURL());
     }
 
-    public String createNodeEnrollmentToken(String user, SecureString password) throws Exception {
+    public EnrollmentToken createNodeEnrollmentToken(String user, SecureString password) throws Exception {
         return this.create(user, password, NodeEnrollmentAction.NAME);
     }
 
-    public String createKibanaEnrollmentToken(String user, SecureString password) throws Exception {
+    public EnrollmentToken createKibanaEnrollmentToken(String user, SecureString password) throws Exception {
         return this.create(user, password, KibanaEnrollmentAction.NAME);
     }
 
-    protected String create(String user, SecureString password, String action) throws Exception {
+    protected EnrollmentToken create(String user, SecureString password, String action) throws Exception {
         if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {
             throw new IllegalStateException("[xpack.security.enrollment.enabled] must be set to `true` to create an enrollment token");
         }
         final String fingerprint = getCaFingerprint();
         final String apiKey = getApiKeyCredentials(user, password, action);
         final Tuple<List<String>, String> httpInfo = getNodeInfo(user, password);
-
-        try {
-            final XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.startObject();
-            builder.field("ver", httpInfo.v2());
-            builder.startArray("adr");
-            for (String bound_address : httpInfo.v1()) {
-                builder.value(bound_address);
-            }
-            builder.endArray();
-            builder.field("fgr", fingerprint);
-            builder.field("key", apiKey);
-            builder.endObject();
-            final String jsonString = Strings.toString(builder);
-            return Base64.getUrlEncoder().encodeToString(jsonString.getBytes(StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            logger.error(("Error generating enrollment token"), e);
-            throw new IllegalStateException("Error generating enrollment token: " + e.getMessage());
-        }
+        return new EnrollmentToken(apiKey, fingerprint, httpInfo.v2(), httpInfo.v1());
     }
 
     private HttpResponse.HttpResponseBuilder responseBuilder(InputStream is) throws IOException {

@@ -47,6 +47,11 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
     private Environment env;
 
     @BeforeClass
+    public static void muteInFips() {
+        assumeFalse("Can't run in a FIPS JVM, uses keystore that is not password protected", inFipsJvm());
+    }
+
+    @BeforeClass
     public static void setupJimfs() {
         Configuration conf = Configuration.unix().toBuilder().setAttributeViews("posix").build();
         jimfs = Jimfs.newFileSystem(conf);

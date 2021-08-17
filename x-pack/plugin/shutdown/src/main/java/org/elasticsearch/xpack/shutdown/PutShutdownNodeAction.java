@@ -47,7 +47,12 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
             "put_node_shutdown_request",
             false,
-            (a, nodeId) -> new Request(nodeId, SingleNodeShutdownMetadata.Type.parse((String) a[0]), (String) a[1], (TimeValue) a[2])
+            (a, nodeId) -> new Request(
+                nodeId,
+                SingleNodeShutdownMetadata.Type.parse((String) a[0]),
+                (String) a[1],
+                a[2] != null ? TimeValue.parseTimeValue((String) a[2], "put-shutdown-node-request-" + nodeId) : null
+            )
         );
 
         static {

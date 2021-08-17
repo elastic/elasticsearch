@@ -113,6 +113,9 @@ public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
             builder.field(SingleNodeShutdownMetadata.NODE_ID_FIELD.getPreferredName(), metadata.getNodeId());
             builder.field(SingleNodeShutdownMetadata.TYPE_FIELD.getPreferredName(), metadata.getType());
             builder.field(SingleNodeShutdownMetadata.REASON_FIELD.getPreferredName(), metadata.getReason());
+            if (metadata.getAllocationDelay() != null) {
+                builder.field(SingleNodeShutdownMetadata.ALLOCATION_DELAY_FIELD.getPreferredName(), metadata.getAllocationDelay());
+            }
             builder.timeField(
                 SingleNodeShutdownMetadata.STARTED_AT_MILLIS_FIELD.getPreferredName(),
                 SingleNodeShutdownMetadata.STARTED_AT_READABLE_FIELD,

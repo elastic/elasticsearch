@@ -51,7 +51,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
                 nodeId,
                 SingleNodeShutdownMetadata.Type.parse((String) a[0]),
                 (String) a[1],
-                a[2] != null ? TimeValue.parseTimeValue((String) a[2], "put-shutdown-node-request-" + nodeId) : null
+                a[2] == null ? null : TimeValue.parseTimeValue((String) a[2], "put-shutdown-node-request-" + nodeId)
             )
         );
 

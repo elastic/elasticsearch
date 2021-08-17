@@ -19,12 +19,11 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentRequest;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
 
-public class RestKibanaEnrollAction extends SecurityBaseRestHandler {
+public class RestKibanaEnrollAction extends EnrollmentBaseRestHandler {
 
     /**
      * @param settings the node's settings

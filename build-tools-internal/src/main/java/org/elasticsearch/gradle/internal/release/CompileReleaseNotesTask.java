@@ -30,6 +30,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+/**
+ * Concatenates together all releases notes for individual patch versions into
+ * a single document for a minor series.
+ */
 public class CompileReleaseNotesTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(CompileReleaseNotesTask.class);
 
@@ -67,8 +71,8 @@ public class CompileReleaseNotesTask extends DefaultTask {
         LOGGER.info("Concatenating files to " + output.getAbsolutePath());
 
         try (FileWriter writer = new FileWriter(output)) {
-
             List<File> sortedFiles = this.inputFiles.getFiles().stream()
+                // Omit any files for prerelease versions e.g. `-alpha1`, `-beta2, `-rc3`
                 .filter(f -> f.getName().contains("-") == false)
                 .sorted(Comparator.comparing(f -> Version.fromString(f.getName().replaceFirst("\\.asciidoc$", ""))))
                 .collect(Collectors.toList());

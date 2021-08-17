@@ -69,14 +69,14 @@ public class ReleaseNotesIndexUpdater {
             existingVersions.add(insertionIndex, versionString);
         }
 
-        final String includeString = version.getMajor() + "." + version.getMinor();
+        final String majorMinorString = version.getMajor() + "." + version.getMinor();
 
-        if (existingIncludes.contains(includeString) == false) {
+        if (existingIncludes.contains(majorMinorString) == false) {
             int insertionIndex = existingIncludes.size() - 1;
             while (insertionIndex > 0 && Version.fromString(ensurePatchVersion(existingIncludes.get(insertionIndex))).before(version)) {
                 insertionIndex -= 1;
             }
-            existingIncludes.add(insertionIndex, includeString);
+            existingIncludes.add(insertionIndex, majorMinorString);
         }
 
         final Map<String, Object> bindings = new HashMap<>();

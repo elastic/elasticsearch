@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
@@ -20,6 +21,8 @@ import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.internal.logging.text.StyledTextOutput;
+import org.gradle.internal.logging.text.StyledTextOutputFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,8 +47,10 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseHighlightsFile;
     private final RegularFileProperty breakingChangesFile;
 
+    private final StyledTextOutput errorOutput;
+
     @Inject
-    public GenerateReleaseNotesTask(ObjectFactory objectFactory) {
+    public GenerateReleaseNotesTask(ObjectFactory objectFactory, StyledTextOutputFactory styledTextOutputFactory) {
         changelogs = objectFactory.fileCollection();
 
         releaseNotesIndexTemplate = objectFactory.fileProperty();
@@ -57,6 +62,10 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         releaseNotesFile = objectFactory.fileProperty();
         releaseHighlightsFile = objectFactory.fileProperty();
         breakingChangesFile = objectFactory.fileProperty();
+
+        // It's questionable to be using Gradle internals for printing in color, but there's no official API for it,
+        // and we need to draw some things to the user's attention.
+        errorOutput = styledTextOutputFactory.create("release-notes");
     }
 
     @TaskAction
@@ -71,19 +80,41 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         LOGGER.info("Generating release notes...");
         ReleaseNotesGenerator.update(this.releaseNotesTemplate.get().getAsFile(), this.releaseNotesFile.get().getAsFile(), entries);
 
-        LOGGER.info("Generating release highlights...");
-        ReleaseHighlightsGenerator.update(
-            this.releaseHighlightsTemplate.get().getAsFile(),
-            this.releaseHighlightsFile.get().getAsFile(),
-            entries
-        );
+        if (VersionProperties.getElasticsearchVersion().getRevision() > 0) {
+            if (entries.stream().anyMatch(e -> e.getHighlight() != null)) {
+                String message = ("WARNING: There are YAML files with release highlights, but %s is not the "
+                    + "first version in the minor series. If this is actually correct, please update %s manually.%n").formatted(
+                    VersionProperties.getElasticsearchVersion(),
+                    this.breakingChangesFile.get().getAsFile()
+                );
+                this.errorOutput.style(StyledTextOutput.Style.Failure).text(message);
+            }
+        } else {
+            LOGGER.info("Generating release highlights...");
+            ReleaseHighlightsGenerator.update(
+                this.releaseHighlightsTemplate.get().getAsFile(),
+                this.releaseHighlightsFile.get().getAsFile(),
+                entries
+            );
+        }
 
-        LOGGER.info("Generating breaking changes / deprecations notes...");
-        BreakingChangesGenerator.update(
-            this.breakingChangesTemplate.get().getAsFile(),
-            this.breakingChangesFile.get().getAsFile(),
-            entries
-        );
+        if (VersionProperties.getElasticsearchVersion().getRevision() > 0) {
+            if (entries.stream().anyMatch(e -> e.getBreaking() != null || e.getDeprecation() != null)) {
+                String message = ("WARNING: There are YAML files with breaking changes or deprecations, but %s is not the "
+                    + "first version in the minor series. If this is actually correct, please update %s manually.%n").formatted(
+                        VersionProperties.getElasticsearchVersion(),
+                        this.breakingChangesFile.get().getAsFile()
+                    );
+                this.errorOutput.style(StyledTextOutput.Style.Failure).text(message);
+            }
+        } else {
+            LOGGER.info("Generating breaking changes / deprecations notes...");
+            BreakingChangesGenerator.update(
+                this.breakingChangesTemplate.get().getAsFile(),
+                this.breakingChangesFile.get().getAsFile(),
+                entries
+            );
+        }
     }
 
     @InputFiles

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 
 import java.io.IOException;
@@ -78,11 +79,16 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
     }
 
     private SingleNodeShutdownMetadata randomNodeShutdownInfo() {
-        return SingleNodeShutdownMetadata.builder().setNodeId(randomAlphaOfLength(5))
-            .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
+        final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
+        final SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()
+            .setNodeId(randomAlphaOfLength(5))
+            .setType(type)
             .setReason(randomAlphaOfLength(5))
-            .setStartedAtMillis(randomNonNegativeLong())
-            .build();
+            .setStartedAtMillis(randomNonNegativeLong());
+        if (type.equals(SingleNodeShutdownMetadata.Type.RESTART) && randomBoolean()) {
+            builder.setAllocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
+        }
+        return builder.build();
     }
 
     @Override

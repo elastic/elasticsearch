@@ -108,19 +108,27 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-        .field("id", id)
-        .field("name", name)
-        .field("creation", creation.toEpochMilli());
+        builder.startObject();
+        innerToXContent(builder, params);
+        return builder.endObject();
+    }
+
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder
+            .field("id", id)
+            .field("name", name)
+            .field("creation", creation.toEpochMilli());
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());
         }
-        builder.field("invalidated", invalidated)
-        .field("username", username)
-        .field("realm", realm)
-        .field("metadata", (metadata == null ? Map.of() : metadata));
-        return builder.endObject();
+        builder
+            .field("invalidated", invalidated)
+            .field("username", username)
+            .field("realm", realm)
+            .field("metadata", (metadata == null ? Map.of() : metadata));
+        return builder;
     }
+
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

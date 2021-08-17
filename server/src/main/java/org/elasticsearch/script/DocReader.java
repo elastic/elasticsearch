@@ -35,8 +35,4 @@ public interface DocReader {
 
     /** Old-style doc['field'] access */
     Map<String, ScriptDocValues<?>> doc();
-
-    /** Base document-id of the current reader, used as seed for RandomScore */
-    // should be replaced
-    int getDocBase();
 }

@@ -143,7 +143,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
         refresh();
 
-        final SortBuilder sort;
+        final SortBuilder<?> sort;
         if (randomBoolean()) {
             if (randomBoolean()) {
                 sort = SortBuilders.fieldSort("field1").missing(1);
@@ -175,10 +175,10 @@ public class DuelScrollIT extends ESIntegTestCase {
 
         final int numDocs;
         final int scrollRequestSize;
-        final SortBuilder sort;
+        final SortBuilder<?> sort;
         final SearchType searchType;
 
-        TestContext(int numDocs, int scrollRequestSize, SortBuilder sort, SearchType searchType) {
+        TestContext(int numDocs, int scrollRequestSize, SortBuilder<?> sort, SearchType searchType) {
             this.numDocs = numDocs;
             this.scrollRequestSize = scrollRequestSize;
             this.sort = sort;

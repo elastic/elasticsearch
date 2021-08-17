@@ -54,6 +54,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -300,7 +301,6 @@ import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.security.support.SecurityStatusChangeListener;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -348,6 +348,20 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin, SearchPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
+
+    // TODO: ip filtering does not actually track license usage yet
+    public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
+        LicensedFeature.momentaryLenient("security_ip_filtering", License.OperationMode.GOLD);
+    public static final LicensedFeature.Momentary AUDITING_FEATURE =
+        LicensedFeature.momentaryLenient("security_auditing", License.OperationMode.GOLD);
+
+    // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
+    // Standard realms (LDAP, AD, PKI, etc) are Gold+
+    // SSO realms are Platinum+
+    public static final LicensedFeature.Persistent STANDARD_REALMS_FEATURE =
+        LicensedFeature.persistentLenient("security_standard_realms", License.OperationMode.GOLD);
+    public static final LicensedFeature.Persistent ALL_REALMS_FEATURE =
+        LicensedFeature.persistentLenient("security_all_realms", License.OperationMode.PLATINUM);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -433,6 +447,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                         ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                         NamedXContentRegistry xContentRegistry, Environment environment,
                                         IndexNameExpressionResolver expressionResolver) throws Exception {
+        logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
         }
@@ -527,7 +542,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             rolesProviders.addAll(extension.getRolesProviders(extensionComponents));
         }
 
-        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, getLicenseState(), securityIndex.get(),
+        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(),
             clusterService, cacheInvalidatorRegistry, threadPool);
         components.add(apiKeyService);
 
@@ -554,7 +569,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
-        getLicenseState().addListener(new SecurityStatusChangeListener(getLicenseState()));
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
         final OperatorPrivilegesService operatorPrivilegesService;
@@ -601,7 +615,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         components.add(ipFilter.get());
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
-                authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
+                authzService, getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
         securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, auditTrailService, getLicenseState(),
             threadPool, securityContext.get(), destructiveOperations));
@@ -649,7 +663,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             logger.debug("Using default authentication failure handler");
             Supplier<Map<String, List<String>>> headersSupplier = () -> {
                 final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
-                realms.asList().stream().forEach((realm) -> {
+                realms.getActiveRealms().stream().forEach((realm) -> {
                     Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
                     realmFailureHeaders.entrySet().stream().forEach((e) -> {
                         String key = e.getKey();
@@ -838,10 +852,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                  * overwrite the query cache implementation to prevent data leakage to unauthorized users.
                  */
                 module.forceQueryCacheProvider(
-                        (settings, cache) -> {
+                        (indexSettings, cache) -> {
                             final OptOutQueryCache queryCache =
-                                    new OptOutQueryCache(settings, cache, threadContext.get(), getLicenseState());
-                            queryCache.listenForLicenseStateChanges();
+                                    new OptOutQueryCache(indexSettings, cache, threadContext.get());
+
                             return queryCache;
                         });
             }
@@ -850,7 +864,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             // attaches information to the scroll context so that we can validate the user that created the scroll against
             // the user that is executing a scroll operation
             module.addSearchOperationListener(
-                    new SecuritySearchOperationListener(securityContext.get(), getLicenseState(), auditTrailService.get()));
+                    new SecuritySearchOperationListener(securityContext.get(), auditTrailService.get()));
         }
     }
 
@@ -986,7 +1000,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Collections.singletonMap(SetSecurityUserProcessor.TYPE,
-            new SetSecurityUserProcessor.Factory(securityContext::get, this::getLicenseState));
+            new SetSecurityUserProcessor.Factory(securityContext::get, settings));
     }
 
     /**
@@ -1152,7 +1166,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         } else {
             extractClientCertificate = false;
         }
-        return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), secondayAuthc.get(),
+        return handler -> new SecurityRestFilter(settings, threadContext, authcService.get(), secondayAuthc.get(),
             handler, extractClientCertificate);
     }
 
@@ -1185,9 +1199,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (enabled) {
             return index -> {
                 XPackLicenseState licenseState = getLicenseState();
-                if (licenseState.isSecurityEnabled() == false) {
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
-                }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(
                         AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 if (indicesAccessControl == null) {

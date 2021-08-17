@@ -259,7 +259,7 @@ public class IndexActionTests extends ESTestCase {
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
         IndexResponse indexResponse = new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", 1, 1, 1, true);
-        BulkItemResponse response = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, indexResponse);
+        BulkItemResponse response = BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, indexResponse);
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{response}, 1);
         listener.onResponse(bulkResponse);
         when(client.bulk(captor.capture())).thenReturn(listener);
@@ -361,14 +361,14 @@ public class IndexActionTests extends ESTestCase {
         PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
         BulkItemResponse.Failure failure = new BulkItemResponse.Failure("test-index", "anything",
                 new ElasticsearchException("anything"));
-        BulkItemResponse firstResponse = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, failure);
+        BulkItemResponse firstResponse = BulkItemResponse.failure(0, DocWriteRequest.OpType.INDEX, failure);
         BulkItemResponse secondResponse;
         if (isPartialFailure) {
             ShardId shardId = new ShardId(new Index("foo", "bar"), 0);
             IndexResponse indexResponse = new IndexResponse(shardId, "whatever", 1, 1, 1, true);
-            secondResponse = new BulkItemResponse(1, DocWriteRequest.OpType.INDEX, indexResponse);
+            secondResponse = BulkItemResponse.success(1, DocWriteRequest.OpType.INDEX, indexResponse);
         } else {
-            secondResponse = new BulkItemResponse(1, DocWriteRequest.OpType.INDEX, failure);
+            secondResponse = BulkItemResponse.failure(1, DocWriteRequest.OpType.INDEX, failure);
         }
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{firstResponse, secondResponse}, 1);
         listener.onResponse(bulkResponse);

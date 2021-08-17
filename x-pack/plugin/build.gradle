@@ -110,6 +110,9 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceKeyInDo("rollup.start_job", "xpack-rollup.start_job")
   task.replaceKeyInDo("rollup.stop_job", "xpack-rollup.stop_job")
   task.addAllowedWarningRegex(".*_xpack/rollup.* is deprecated.*")
+
+  task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates", "Test get SSL certificates")
+  task.addAllowedWarningRegexForTest(".*_xpack/ssl.* is deprecated.*", "Test get SSL certificates")
 })
 def v7compatibilityNotSupportedTests = {
   return [
@@ -150,7 +153,8 @@ def v7compatibilityNotSupportedTests = {
 
     // a type field was added to cat.ml_trained_models #73660, this is a backwards compatible change.
     // still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)
-    'ml/trained_model_cat_apis/Test cat trained models'
+    'ml/trained_model_cat_apis/Test cat trained models',
+    'service_accounts/10_basic/Test get service accounts', //#76449, will remove upon backport
   ]
 }
 

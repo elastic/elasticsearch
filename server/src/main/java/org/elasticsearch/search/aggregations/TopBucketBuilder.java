@@ -26,6 +26,13 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
      * The number of buckets required before we switch to the
      * {@link BufferingTopBucketBuilder}. If we need fewer buckets we use
      * {@link PriorityQueueTopBucketBuilder}.
+     * <p>
+     * The value we picked for this boundary is fairly arbitrary, but it
+     * is important that its bigger than the default size of the terms
+     * aggregation. It's basically the amount of memory you are willing to
+     * waste when reduce small terms aggregations so it shouldn't be too
+     * large either. The value we have, {@code 1024}, preallocates about
+     * 32k for the priority queue.
      */
     static final int USE_BUFFERING_BUILDER = 1024;
 

@@ -93,8 +93,8 @@ dependencies {
 
 jdks {
   legacy {
-    vendor = 'adoptopenjdk'
-    version = '8u242+b08'
+    vendor = 'adoptium'
+    version = '8u302+b08'
     platform = OS.current().name().toLowerCase()
     architecture = Architecture.current().name().toLowerCase()
   }

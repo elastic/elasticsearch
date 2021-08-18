@@ -36,25 +36,46 @@ You can optionally filter the results with a query.
 
 You can specify the following parameters in the request body:
 
-
 `query`::
 (Optional, string) A <<query-dsl,query>> to filter which API keys to return.
 The query supports a subset of query types, including
 <<query-dsl-match-all-query,`match_all`>>, <<query-dsl-bool-query,`bool`>>,
 <<query-dsl-term-query,`term`>>, <<query-dsl-terms-query,`terms`>>, <<query-dsl-ids-query,`ids`>>,
 <<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>, and <<query-dsl-range-query,`range`>>.
-All public information associated to an API key can be queried, including:
++
+You can query all public information associated with an API key, including the
+following values.
++
+.Valid values for `query`
+[%collapsible%open]
+====
+`id`:: 
+ID of the API key. 
 
-* ID of the API key can be queried with the <<query-dsl-ids-query>>
-* `name` - Name of the API key
-* `creation` - Creation time of the API key
-* `expiration` - Expiration time of the API key
-* `invalidated` - Whether the API key is invalidated
-* `username` - Username of the API key owner
-* `realm` - Realm name of the API key owner
-* Any metadata fields, e.g. `metadata.my_field`. Since metadata is saved as the
-  <<flattened,flattened field type>>, all fields, including numerical ones,
-  behave essentially like keywords when it comes to query and sorting.
+`name`::
+Name of the API key.
+
+`creation`::
+Creation time of the API key in milliseconds.
+
+`expiration`::
+Expiration time of the API key in milliseconds.
+
+`invalidated`::
+Indicates whether the API key is invalidated. If `true`, the key is invalidated.
+Defaults to `false`.
+
+`username`::
+Username of the API key owner.
+
+`realm`::
+Realm name of the API key owner.
+
+`metadata`::
+Metadata field associated with the API key, such as `metadata.my_field`. Because
+metadata is saved as a <<flattened,flattened>> field type, all fields act like
+`keyword` fields when querying and sorting.
+====
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
@@ -95,30 +116,32 @@ A list of API key information.
 [[security-api-query-api-key-example]]
 ==== {api-examples-title}
 
-The following example list all API keys (assuming user has the `manage_api_key` privilege):
+The following example lists all API keys, assuming the user has the
+`manage_api_key` privilege:
 
 [source,console]
-------------------------------------------------------------
+----
 GET /_security/_query/api_key
-------------------------------------------------------------
+----
 
-A successful call returns a JSON structure that contains the information of one or more API keys that were retrieved.
+A successful call returns a JSON structure that contains the information
+retrieved from one or more API keys:
 
 [source,js]
---------------------------------------------------
+----
 {
   "total": 3,
   "count": 3,
   "api_keys": [ <1>
     {
-      "id": "nkvrGXsB8w290t56q3Rg", <2>
-      "name": "my-api-key-1", <3>
-      "creation": 1628227480421, <4>
-      "expiration": 1629091480421, <5>
-      "invalidated": false, <6>
-      "username": "elastic", <7>
-      "realm": "reserved", <8>
-      "metadata": { <9>
+      "id": "nkvrGXsB8w290t56q3Rg",
+      "name": "my-api-key-1",
+      "creation": 1628227480421, 
+      "expiration": 1629091480421,
+      "invalidated": false, 
+      "username": "elastic",
+      "realm": "reserved",
+      "metadata": {
         "letter": "a"
       }
     },
@@ -136,50 +159,40 @@ A successful call returns a JSON structure that contains the information of one 
     }
   ]
 }
---------------------------------------------------
+----
 // NOTCONSOLE
 
-<1> The list of API keys that were retrieved for this request.
-<2> Id for the API key
-<3> Name of the API key
-<4> Creation time for the API key in milliseconds
-<5> Optional expiration time for the API key in milliseconds
-<6> Invalidation status for the API key. If the key has been invalidated, it has
-a value of `true`. Otherwise, it is `false`.
-<7> Principal for which this API key was created
-<8> Realm name of the principal for which this API key was created
-<9> Metadata of the API key
-
+<1> The list of API keys that were retrieved for this request
 
 If you create an API key as follows:
 
 [source,console]
-------------------------------------------------------------
+----
 POST /_security/api_key
 {
   "name": "application-key-1",
   "metadata": { "application": "my-application"}
 }
-------------------------------------------------------------
+----
 
 A successful call returns a JSON structure that provides
 API key information. For example:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   "id": "VuaCfGcBCdbkQm-e5aOx",
   "name": "application-key-1",
   "api_key": "ui2lp2axTNmsyakw9tvNnw"
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
 
-You can use the following example to retrieve the API key by ID:
+You can use the returned information to retrieve the API key by ID:
 
 [source,console]
---------------------------------------------------
+----
 GET /_security/_query/api_key
 {
   "query": {
@@ -190,14 +203,14 @@ GET /_security/_query/api_key
     }
   }
 }
---------------------------------------------------
+----
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TEST[continued]
 
 You can also retrieve the API key by name:
 
 [source,console]
---------------------------------------------------
+----
 GET /_security/_query/api_key
 {
   "query": {
@@ -208,14 +221,14 @@ GET /_security/_query/api_key
     }
   }
 }
---------------------------------------------------
+----
 // TEST[continued]
 
-You can use bool query to issue complex logical conditions and use
-`from`, `size`, `sort` to help paginate the result.
+Use a `bool` query to issue complex logical conditions and use
+`from`, `size`, `sort` to help paginate the result:
 
 [source,js]
---------------------------------------------------
+----
 {
   "query": {
     "bool": {
@@ -259,22 +272,22 @@ You can use bool query to issue complex logical conditions and use
     "name"
   ]
 }
---------------------------------------------------
+----
 // NOTCONSOLE
 
 <1> The API key name must begin with `app1-key-`
 <2> The API key must still be valid
 <3> The API key name must not be `app1-key-01`
-<4> The API key must be owned by username of the <<query-dsl-wildcard-query,wildcard>> pattern `org-*-user`
-<5> The API key must have the metadata field `environment` that has the value of `production`.
+<4> The API key must be owned by a username of the <<query-dsl-wildcard-query,wildcard>> pattern `org-*-user`
+<5> The API key must have the metadata field `environment` that has the value of `production`
 <6> The offset to begin the search result is the 20th (zero-based index) API key
 <7> The page size of the response is 10 API keys
-<8> The result is first sorted by `creation` date in descending order, then by name in ascending order.
+<8> The result is first sorted by `creation` date in descending order, then by name in ascending order
 
 The response contains a list of matched API keys along with their sort values:
 
 [source,js]
---------------------------------------------------
+----
 {
   "total": 100,
   "count": 10,
@@ -289,9 +302,9 @@ The response contains a list of matched API keys along with their sort values:
       "metadata": {
         "environment": "production"
       },
-      "_sort": [  <1>
-        "2021-08-18T01:29:14.811Z",  <2>
-        "app1-key-79"  <3>
+      "_sort": [ 
+        "2021-08-18T01:29:14.811Z",  <1>
+        "app1-key-79"  <2>
       ]
     },
     {
@@ -312,10 +325,8 @@ The response contains a list of matched API keys along with their sort values:
     ...
   ]
 }
---------------------------------------------------
+----
 // NOTCONSOLE
 
-<1> Sort values associated to the API key
-<2> The first sort value is creation time and it is displayed in `date_time` <<mapping-date-format,format>>
-as requested in the request
-<3> The second sort value is API key name
+<1> The first sort value is creation time, which is displayed in `date_time` <<mapping-date-format,format>> as defined in the request
+<2> The second sort value is the API key name

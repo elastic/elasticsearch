@@ -444,7 +444,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
 
     public static final LicensedFeature.Persistent ML_JOBS_FEATURE =
-        LicensedFeature.persistent("machine-learning-job", License.OperationMode.PLATINUM);
+        LicensedFeature.persistent("machine-learning-anomaly-detection-job", License.OperationMode.PLATINUM);
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {

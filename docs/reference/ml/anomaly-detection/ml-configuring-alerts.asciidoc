@@ -17,9 +17,9 @@ The following {ml} alerts are available:
 
 * {anomaly-detect-cap} alert: checks if the {anomaly-job} results contain
   anomalies that match the rule conditions.
-* {anomaly-job-cap} job health: monitors the job health and alerts if an 
-  operational issue occured that may prevent the job from detectiong anomalies. 
-  Recommended to use for jobs with critical importance.
+* {anomaly-job-cap} health: monitors the job health and alerts if an operational 
+  issue occured that may prevent the job from detectiong anomalies. Recommended 
+  to use for jobs with critical importance.
 
 
 [[creating-ml-rules]]

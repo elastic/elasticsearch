@@ -330,7 +330,8 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .sort("collate", SortOrder.ASC)
-                .sort("id", SortOrder.ASC) // secondary sort should kick in on docs 1 and 3 because same value collate value
+                // secondary sort should kick in on docs 1 and 3 because same value collate value
+                .sort("id", SortOrder.ASC)
             );
 
         SearchResponse response = client().search(request).actionGet();

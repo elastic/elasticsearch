@@ -339,7 +339,7 @@ public class TransformIT extends TransformIntegTestCase {
                 .setPivotConfig(createPivotConfig(groups, aggs))
                 .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
                 // set requests per second and page size low enough to fail the test if update does not succeed,
-                .setSettings(SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10).build())
+                .setSettings(SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10).setAlignCheckpoints(false).build())
                 .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());

@@ -58,7 +58,7 @@ public class NodeSeenService implements ClusterStateListener {
             .filter(singleNodeShutdownMetadata -> singleNodeShutdownMetadata.getNodeSeen() == false)
             .map(SingleNodeShutdownMetadata::getNodeId)
             .filter(nodeId -> event.state().nodes().nodeExists(nodeId))
-            .collect(Collectors.toUnmodifiableSet());
+            .collect(Collectors.toSet());
 
         if (nodesNotPreviouslySeen.isEmpty() == false) {
             clusterService.submitStateUpdateTask("shutdown-seen-nodes-updater", new ClusterStateUpdateTask() {
@@ -76,7 +76,7 @@ public class NodeSeenService implements ClusterStateListener {
                             }
                             return singleNodeShutdownMetadata;
                         })
-                        .collect(Collectors.toUnmodifiableMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
+                        .collect(Collectors.toMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
 
                     final NodesShutdownMetadata newNodesMetadata = new NodesShutdownMetadata(newShutdownMetadataMap);
                     if (newNodesMetadata.equals(currentShutdownMetadata)) {

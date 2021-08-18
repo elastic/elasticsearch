@@ -41,7 +41,7 @@ alert changes to `OK`. For more details, refer to the documentation of
 Select the rule type you want to create under the {ml} section and continue to 
 configure it depending on whether it is an 
 <<creating-anomaly-alert-rules, {anomaly-detect} alert>> or an 
-<<creating-anomaly-job-health-rules, {anomaly-job} health>>.
+<<creating-anomaly-jobs-health-rules, {anomaly-job} health>>.
 
 [role="screenshot"]
 image::images/ml-rule.jpg["Creating a new machine learning rule"]

@@ -129,10 +129,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            false,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.COMPLETE, 0, nullValue());
@@ -158,10 +159,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.RESTART,
-            allocationDeciders,
+            randomBoolean(), // Whether the node has been seen doesn't matter, restart-type shutdowns should always say COMPLETE here.
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(
@@ -193,10 +195,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            true,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.COMPLETE, 0, nullValue());
@@ -237,10 +240,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            true,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.IN_PROGRESS, 2, nullValue());
@@ -288,10 +292,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            true,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.IN_PROGRESS, 1, nullValue());
@@ -323,10 +328,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            true,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(
@@ -354,10 +360,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            true,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(
@@ -429,10 +436,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             bogusNodeId,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            false,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.NOT_STARTED, 0, is("node is not currently part of the cluster"));

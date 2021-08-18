@@ -67,8 +67,8 @@ import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertWi
 public class DistroTestPlugin implements Plugin<Project> {
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
     private static final String SYSTEM_JDK_VENDOR = "openjdk";
-    private static final String GRADLE_JDK_VERSION = "16.0.1+9";
-    private static final String GRADLE_JDK_VENDOR = "adoptopenjdk";
+    private static final String GRADLE_JDK_VERSION = "16.0.2+7";
+    private static final String GRADLE_JDK_VENDOR = "adoptium";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String EXAMPLE_PLUGIN_CONFIGURATION = "examplePlugin";

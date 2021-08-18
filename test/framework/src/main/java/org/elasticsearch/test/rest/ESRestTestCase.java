@@ -740,21 +740,19 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     protected void deleteAllNodeShutdownMetadata() throws IOException {
-        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
-        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
-        if (statusResponse.containsKey("_nodes") && statusResponse.containsKey("cluster_name")) {
-            // If the response contains these two keys, the feature flag isn't enabled on this cluster, so skip out now.
-            // We can't check the system property directly because it only gets set for the cluster under test's JVM, not for the test
-            // runner's JVM.
+        if (hasXPack() == false || minimumNodeVersion().before(Version.V_7_15_0)) {
+            // Node shutdown APIs are only present in xpack
             return;
         }
-            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-            List<String> nodeIds = nodesArray.stream()
-                .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
-                .collect(Collectors.toUnmodifiableList());
-            for (String nodeId : nodeIds) {
-                Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
-                assertOK(adminClient().performRequest(deleteRequest));
+        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
+        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
+        List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+        List<String> nodeIds = nodesArray.stream()
+            .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
+            .collect(Collectors.toUnmodifiableList());
+        for (String nodeId : nodeIds) {
+            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
+            assertOK(adminClient().performRequest(deleteRequest));
         }
     }
 
@@ -1779,9 +1777,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index \\[(.+)\\] matches multiple legacy " +
         "templates \\[(.+)\\], composable templates will only match a single template$");
 
-    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index template \\[(.+)\\] has index patterns " +
-        "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this template \\[(.+)\\] will " +
-        "take precedence during new index creation$");
+    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile(
+        "^index template \\[(.+)\\] has index patterns "
+            + "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this "
+            + "template \\[(.+)\\] will take precedence during new index creation$"
+    );
 
     protected static void useIgnoreMultipleMatchingTemplatesWarningsHandler(Request request) throws IOException {
         RequestOptions.Builder options = request.getOptions().toBuilder();

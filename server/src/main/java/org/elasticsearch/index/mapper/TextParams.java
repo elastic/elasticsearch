@@ -98,8 +98,9 @@ public final class TextParams {
     }
 
     public static Parameter<Boolean> norms(boolean defaultValue, Function<FieldMapper, Boolean> initializer) {
+        // norms can be updated from 'true' to 'false' but not vv
         return Parameter.boolParam("norms", true, initializer, defaultValue)
-            .setMergeValidator((o, n, c) -> o == n || (o && n == false));  // norms can be updated from 'true' to 'false' but not vv
+            .setMergeValidator((o, n, c) -> o == n || (o && n == false));
     }
 
     public static Parameter<SimilarityProvider> similarity(Function<FieldMapper, SimilarityProvider> init) {

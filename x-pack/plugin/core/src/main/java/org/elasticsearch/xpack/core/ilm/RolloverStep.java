@@ -41,12 +41,12 @@ public class RolloverStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
+                              ClusterStateObserver observer, ActionListener<Void> listener) {
         String indexName = indexMetadata.getIndex().getName();
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
         if (indexingComplete) {
             logger.trace(indexMetadata.getIndex() + " has lifecycle complete set, skipping " + RolloverStep.NAME);
-            listener.onResponse(true);
+            listener.onResponse(null);
             return;
         }
         IndexAbstraction indexAbstraction = currentClusterState.metadata().getIndicesLookup().get(indexName);
@@ -58,7 +58,7 @@ public class RolloverStep extends AsyncActionStep {
             if (dataStream.getWriteIndex().getIndex().equals(indexMetadata.getIndex()) == false) {
                 logger.warn("index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
                     indexName, dataStream.getName(), LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
-                listener.onResponse(true);
+                listener.onResponse(null);
                 return;
             }
             rolloverTarget = dataStream.getName();
@@ -75,7 +75,7 @@ public class RolloverStep extends AsyncActionStep {
             if (indexMetadata.getRolloverInfos().get(rolloverAlias) != null) {
                 logger.info("index [{}] was already rolled over for alias [{}], not attempting to roll over again",
                     indexName, rolloverAlias);
-                listener.onResponse(true);
+                listener.onResponse(null);
                 return;
             }
 
@@ -98,7 +98,7 @@ public class RolloverStep extends AsyncActionStep {
             ActionListener.wrap(response -> {
                 assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";
                 if (response.isRolledOver()) {
-                    listener.onResponse(true);
+                    listener.onResponse(null);
                 } else {
                     listener.onFailure(new IllegalStateException("unexepected exception on unconditional rollover"));
                 }

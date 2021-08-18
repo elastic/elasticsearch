@@ -45,9 +45,9 @@ public class RestrictedTrustManagerTests extends ESTestCase {
     @Before
     public void readCertificates() throws GeneralSecurityException, IOException {
 
-        Certificate[] caCert
-                = CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt")));
+        Certificate[] caCert = CertParsingUtils.readX509Certificates(
+            Collections.singletonList(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt"))
+        );
         baseTrustManager = CertParsingUtils.trustManager(caCert);
         certificates = new HashMap<>();
         Files.walkFileTree(getDataPath

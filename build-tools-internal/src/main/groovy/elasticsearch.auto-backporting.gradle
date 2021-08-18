@@ -12,7 +12,7 @@ import org.elasticsearch.gradle.internal.rewrite.RewritePlugin
 allprojects {
     apply plugin: 'elasticsearch.rewrite'
     rewrite {
-        rewriteVersion = "7.10.0"
+        rewriteVersion = "7.11.0"
         activeRecipe("org.elasticsearch.java.backport.ListOfBackport",
                 "org.elasticsearch.java.backport.MapOfBackport",
                 "org.elasticsearch.java.backport.SetOfBackport")
@@ -36,7 +36,7 @@ allprojects {
 
     dependencies {
         rewrite "org.openrewrite:rewrite-java-11"
-        rewrite "com.breskeby.rewrite:java-recipes:1.0.0"
+        rewrite "org.openrewrite:rewrite-java"
     }
 
     if (gradle.getStartParameter().getTaskNames().any { it.endsWith(RewritePlugin.REWRITE_TASKNAME) }) {

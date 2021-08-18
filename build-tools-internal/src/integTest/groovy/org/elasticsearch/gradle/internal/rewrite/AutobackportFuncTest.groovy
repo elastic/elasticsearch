@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal.rewrite;
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import spock.lang.IgnoreRest;
 
 class AutobackportFuncTest extends AbstractGradleFuncTest {
 
@@ -60,7 +59,7 @@ class SomeClass {
           id 'elasticsearch.rewrite'
         }
         rewrite {
-            rewriteVersion = "7.10.0"
+            rewriteVersion = "7.11.0"
             activeRecipe("org.elasticsearch.java.backport.ListOfBackport",
                     "org.elasticsearch.java.backport.MapOfBackport",
                     "org.elasticsearch.java.backport.SetOfBackport")

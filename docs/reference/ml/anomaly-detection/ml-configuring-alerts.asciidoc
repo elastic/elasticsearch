@@ -5,38 +5,54 @@
 beta::[]
 
 {kib} {alert-features} include support for {ml} rules, which run scheduled 
-checks on an {anomaly-job} or a group of jobs to detect anomalies with certain 
-conditions. If an anomaly meets the conditions, an alert is created and the 
-associated action is triggered. For example, you can create a rule to check an 
-{anomaly-job} every fifteen minutes for critical anomalies and to notify you in 
-an email. To learn more about {kib} {alert-features}, refer to 
+checks on an {anomaly-job} or a group of jobs to detect anomalies or check the 
+health of the job with certain conditions. If a rule meets the conditions, an 
+alert is created and the associated action is triggered. For example, you can 
+create a rule to check an {anomaly-job} every fifteen minutes for critical 
+anomalies and to notify you in an email. To learn more about {kib} 
+{alert-features}, refer to 
 {kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting].
 
+The following {ml} alerts are available:
 
-[[creating-anomaly-alert-rules]]
+* {anomaly-detect-cap} alert: checks if the {anomaly-job} results contain
+  anomalies that match the rule conditions.
+* {anomaly-job-cap} job health: monitors the job health and alerts if an 
+  operational issue occured that may prevent the job from detectiong anomalies. 
+  Recommended to use for jobs with critical importance.
+
+
+[[creating-ml-rules]]
 == Creating a rule
 
 You can create {ml} rules in the {anomaly-job} wizard after you start the job, 
 from the job list, or under **{stack-manage-app} > {alerts-ui}**. On the *Create 
-rule* window, select *{anomaly-detect-cap} alert* under the {ml} section, then 
-give a name to the rule and optionally provide tags.
-
-Specify the time interval for the rule to check detected anomalies. It is 
-recommended to select an interval that is close to the bucket span of the 
+rule* window, give a name to the rule and optionally provide tags. Specify the 
+time interval for the rule to check detected anomalies or job health changes. It 
+is recommended to select an interval that is close to the bucket span of the 
 associated job. You can also select a notification option by using the _Notify_ 
-selector. An alert remains active as long as anomalies are found for a 
-particular {anomaly-job} during the check interval. When there is no anomaly 
-found in the next interval, the `Recovered` action group is invoked and the 
+selector. An alert remains active as long as the configured conditions are met 
+for the {anomaly-job} during the check interval. When there is no matching 
+condition in the next interval, the `Recovered` action group is invoked and the 
 status of the alert changes to `OK`. For more details, refer to the 
 documentation of 
 {kibana-ref}/create-and-manage-rules.html#defining-rules-general-details[general rule details].
-  
+Finally, select the rule type you want to create under the {ml} section and 
+continue to configure it depending on whether it is an 
+<<creating-anomaly-alert-rules, {anomaly-detect} alert>> or an 
+<<creating-anomaly-job-health-rules, {anomaly-job} health>>.
+
 [role="screenshot"]
-image::images/ml-anomaly-alert-type.jpg["Creating a rule for an anomaly detection alert"]
-  
-Select the {anomaly-job} or the group of {anomaly-jobs} that is checked against 
-the rule. If you assign additional jobs to the group, the new jobs are 
-automatically checked the next time the conditions are checked.
+image::images/ml-rule.jpg["Creating a new machine learning rule"]
+
+
+[[creating-anomaly-alert-rules]]
+=== {anomaly-detect-cap} alert
+
+If you chose to create an {anomaly-detect} alert, select the {anomaly-job} or 
+the group of {anomaly-jobs} that is checked against the rule. If you assign 
+additional jobs to the group, the new jobs are automatically checked the next 
+time the conditions are checked.
 
 You can select the result type of the {anomaly-job} that is checked against the 
 rule. In particular, you can create rules based on bucket, record, or influencer 
@@ -72,14 +88,55 @@ the sample results by providing a valid interval for your data. The generated
 preview contains the number of potentially created alerts during the relative 
 time range you defined.
 
+As the last step in the rule creation process, 
+<<defining-actions, define the actions>> to take in case the configured criteria 
+are met.
+
+
+[[creating-anomaly-job-health-rules]]
+=== {anomaly-job-cap} health
+
+If you chose to create an {anomaly-detect} alert, select the {anomaly-job} or 
+the group of {anomaly-jobs} that is checked against the rule. If you assign 
+additional jobs to the group, the new jobs are automatically checked the next 
+time the conditions are checked. You can optionally select jobs or job groups 
+that you want to exclude.
+
+Enable the health check types that you want to apply to the job. The following 
+health checkers are available:
+
+* *Datafeed is not started*: notifies if the corresponding {dfeed} of the job is 
+  not started but the job is in an opened state. Check the job on the 
+  *Job managament* page and start its {dfeed} manually.
+* *Model memory limit reached*: notfies if the model memory status of the job 
+  reaches the soft or hard model memory limit. Optimize your job by following 
+  <<detector-configuration, these guide lines>> or consider 
+  <<set-model-memory-limit, amending the model memory limit>>. 
+* *Data delay has occurred*: notifies when the job missed to analyzed data. 
+  You can define the threshold for the amount of missing documents you get 
+  alerted on by setting _Number of documents_. You can control the lookback 
+  interval for checking delayed data with _Time interval_. Refer to the 
+  <<ml-delayed-data-detection>> page to see what to do about delayed data.
+* *Errors in job messages*: notifies when the job messages contain error 
+  messages. Check the error messages of the job to identify the issue and take 
+  action if it is necessary. As numerous different error messages might emerge 
+  based on the corresponding issue, it is not possible to recommend a single 
+  action to take in this case.
+
+[role="screenshot"]
+image::images/ml-health-check-config.jpg["Selecting health checkers"]
+
+As the last step in the rule creation process, 
+<<defining-actions, define the actions>> to take in case the configured criteria 
+are met.
+  
 
 [[defining-actions]]
 == Defining actions
 
-As a next step, connect your rule to actions that use supported built-in 
-integrations by selecting a connector type. Connectors are {kib} services or 
-third-party integrations that perform an action when the rule conditions are 
-met.
+Connect your rule to actions that use supported built-in integrations by 
+selecting a connector type. Connectors are {kib} services or third-party 
+integrations that perform an action when the rule conditions are met.
 
 [role="screenshot"]
 image::images/ml-anomaly-alert-actions.jpg["Selecting connector type"]
@@ -88,7 +145,8 @@ For example, you can choose _Slack_ as a connector type and configure it to send
 a message to a channel you selected. You can also create an index connector that 
 writes the JSON object you configure to a specific index. It's also possible to 
 customize the notification messages. A list of variables is available to include 
-in the message, like job ID, anomaly score, time, or top influencers.
+in the message, like job ID, anomaly score, time, top influencers, {dfeed} ID, 
+memory status and so on based on the selected alert type.
 
 [role="screenshot"]
 image::images/ml-anomaly-alert-messages.jpg["Customizing your message"]

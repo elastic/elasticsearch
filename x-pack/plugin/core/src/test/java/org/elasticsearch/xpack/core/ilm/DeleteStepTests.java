@@ -141,9 +141,17 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
                     fail("unexpected listener callback");
                 }
             }));
-        assertThat(illegalStateException.getMessage(),
-            is("index [" + indexName + "] is the write index for data stream [" + dataStreamName + "]. stopping execution of lifecycle" +
-                " [test-ilm-policy] as a data stream's write index cannot be deleted. manually rolling over the index will resume the " +
-                "execution of the policy as the index will not be the data stream's write index anymore"));
+        assertThat(
+            illegalStateException.getMessage(),
+            is(
+                "index ["
+                    + indexName
+                    + "] is the write index for data stream ["
+                    + dataStreamName
+                    + "]. stopping execution of lifecycle [test-ilm-policy] as a data stream's write index cannot be deleted. "
+                    + "manually rolling over the index will resume the execution of the policy as the index will not be the "
+                    + "data stream's write index anymore"
+            )
+        );
     }
 }

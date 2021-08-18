@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.ssl;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -21,14 +21,10 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.RestrictedTrustManager;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
@@ -39,6 +35,9 @@ import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
@@ -79,7 +78,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         X509Certificate caCert = CertParsingUtils.readX509Certificates(Collections.singletonList(caCertPath))[0];
         Path caKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.key").toURI());
-        PrivateKey caKey = PemUtils.readPrivateKey(caKeyPath, ""::toCharArray);
+        PrivateKey caKey = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(caKeyPath, ""::toCharArray);
         ca = new CertificateInfo(caKey, caKeyPath, caCert, caCertPath);
 
         Path trustedCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
@@ -87,7 +86,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         X509Certificate trustedX509Certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(trustedCertPath))[0];
         Path trustedKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.key").toURI());
-        PrivateKey trustedKey = PemUtils.readPrivateKey(trustedKeyPath, ""::toCharArray);
+        PrivateKey trustedKey = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(trustedKeyPath, ""::toCharArray);
         trustedCert = new CertificateInfo(trustedKey, trustedKeyPath, trustedX509Certificate, trustedCertPath);
 
         Path untrustedCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
@@ -95,7 +94,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         X509Certificate untrustedX509Certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(untrustedCertPath))[0];
         Path untrustedKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/untrusted.key").toURI());
-        PrivateKey untrustedKey = PemUtils.readPrivateKey(untrustedKeyPath, ""::toCharArray);
+        PrivateKey untrustedKey = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(untrustedKeyPath, ""::toCharArray);
         untrustedCert = new CertificateInfo(untrustedKey, untrustedKeyPath, untrustedX509Certificate, untrustedCertPath);
 
         nodeSSL = Settings.builder()
@@ -223,7 +222,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {

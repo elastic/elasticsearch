@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
-import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
@@ -19,13 +18,12 @@ import java.io.IOException;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
-
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -37,7 +35,8 @@ import static org.hamcrest.Matchers.is;
 
 public class SSLDriverTests extends ESTestCase {
 
-    private final IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n), () -> {});
+    private final IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n), () -> {
+    });
 
     private final InboundChannelBuffer networkReadBuffer = new InboundChannelBuffer(pageAllocator);
     private final InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
@@ -76,7 +75,8 @@ public class SSLDriverTests extends ESTestCase {
         handshake(clientDriver, serverDriver);
 
         ByteBuffer[] buffers = {ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8))};
-        serverDriver.write(new FlushOperation(buffers, (v, e) -> {}));
+        serverDriver.write(new FlushOperation(buffers, (v, e) -> {
+        }));
 
         expectThrows(SSLException.class, serverDriver::close);
         assertEquals(0, openPages.get());
@@ -200,7 +200,8 @@ public class SSLDriverTests extends ESTestCase {
             if (false == inFipsJvm() && false == serverDriver.getOutboundBuffer().hasEncryptedBytesToFlush()) {
                 serverDriver.getSSLEngine().closeInbound();
                 serverDriver.getSSLEngine().closeOutbound();
-                serverDriver.close();;
+                serverDriver.close();
+                ;
                 assertTrue(serverDriver.isClosed());
                 clientDriver.close();
                 assertTrue(clientDriver.isClosed());
@@ -322,15 +323,13 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     private SSLContext getSSLContext() throws Exception {
-        String certPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt";
-        String keyPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem";
+        final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt");
+        final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem");
         SSLContext sslContext;
-        TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readX509Certificates(Collections.singletonList(getDataPath
-            (certPath))));
-        KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readX509Certificates(Collections.singletonList(getDataPath
-            (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
+        TrustManager tm = CertParsingUtils.getTrustManagerFromPEM(List.of(certPath));
+        KeyManager km = CertParsingUtils.getKeyManagerFromPEM(certPath, keyPath, "testclient".toCharArray());
         sslContext = SSLContext.getInstance(inFipsJvm() ? "TLSv1.2" : randomFrom("TLSv1.2", "TLSv1.3"));
-        sslContext.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
+        sslContext.init(new KeyManager[]{km}, new TrustManager[]{tm}, new SecureRandom());
         return sslContext;
     }
 
@@ -415,7 +414,8 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     private void sendAppData(SSLDriver sendDriver, ByteBuffer[] message) throws IOException {
-        FlushOperation flushOperation = new FlushOperation(message, (r, l) -> {});
+        FlushOperation flushOperation = new FlushOperation(message, (r, l) -> {
+        });
 
         while (flushOperation.isFullyFlushed() == false) {
             sendDriver.write(flushOperation);
@@ -428,7 +428,7 @@ public class SSLDriverTests extends ESTestCase {
         int bytesToCopy = Arrays.stream(writeBuffers).mapToInt(Buffer::remaining).sum();
         networkReadBuffer.ensureCapacity(bytesToCopy + networkReadBuffer.getIndex());
         ByteBuffer[] byteBuffers = networkReadBuffer.sliceBuffersFrom(0);
-        assert  writeBuffers.length > 0 : "No write buffers";
+        assert writeBuffers.length > 0 : "No write buffers";
 
         int r = 0;
         while (flushOperation.isFullyFlushed() == false) {

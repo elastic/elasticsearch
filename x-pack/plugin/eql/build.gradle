@@ -57,6 +57,12 @@ dependencies {
 String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/xpack/eql/parser'
 
+spotless {
+  java {
+    targetExclude "${outputPath}/*.java"
+  }
+}
+
 tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {
     include '*.tokens'

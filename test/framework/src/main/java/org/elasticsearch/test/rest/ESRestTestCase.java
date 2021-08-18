@@ -1704,9 +1704,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index \\[(.+)\\] matches multiple legacy " +
         "templates \\[(.+)\\], composable templates will only match a single template$");
 
-    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index template \\[(.+)\\] has index patterns " +
-        "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this template \\[(.+)\\] will " +
-        "take precedence during new index creation$");
+    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile(
+        "^index template \\[(.+)\\] has index patterns "
+            + "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this "
+            + "template \\[(.+)\\] will take precedence during new index creation$"
+    );
 
     protected static void useIgnoreMultipleMatchingTemplatesWarningsHandler(Request request) throws IOException {
         RequestOptions.Builder options = request.getOptions().toBuilder();

@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class NlpTask {
 
@@ -57,5 +61,18 @@ public class NlpTask {
 
         RequestBuilder getRequestBuilder();
         ResultProcessor getResultProcessor();
+    }
+
+    public static String extractInput(TrainedModelInput input, Map<String, Object> doc) {
+        assert input.getFieldNames().size() == 1;
+        String inputField = input.getFieldNames().get(0);
+        Object inputValue = XContentMapValues.extractValue(inputField, doc);
+        if (inputValue == null) {
+            throw ExceptionsHelper.badRequestException("no value could be found for input field [{}]", inputField);
+        }
+        if (inputValue instanceof String) {
+            return (String) inputValue;
+        }
+        throw ExceptionsHelper.badRequestException("input value [{}] for field [{}] is not a string", inputValue, inputField);
     }
 }

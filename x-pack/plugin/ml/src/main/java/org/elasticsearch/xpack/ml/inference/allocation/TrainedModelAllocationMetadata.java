@@ -75,6 +75,10 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
         return modelRoutingEntries.get(modelId);
     }
 
+    public boolean isAllocated(String modelId) {
+        return modelRoutingEntries.containsKey(modelId);
+    }
+
     public Map<String, TrainedModelAllocation> modelAllocations() {
         return Collections.unmodifiableMap(modelRoutingEntries);
     }

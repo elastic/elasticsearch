@@ -87,6 +87,11 @@ public class BertPassThroughConfig implements NlpConfig {
     }
 
     @Override
+    public boolean isAllocateOnly() {
+        return true;
+    }
+
+    @Override
     public String getName() {
         return NAME;
     }

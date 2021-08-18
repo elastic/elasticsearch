@@ -23,8 +23,9 @@ public enum DockerBase {
     // Base image with extras for Cloud
     CLOUD("centos:8", "-cloud"),
 
-    // Based on CLOUD above, with more extras
-    CLOUD_ESS("centos:8", "-cloud-ess");
+    // Based on CLOUD above, with more extras. We don't set a base image because
+    // we programmatically extend from the Cloud image.
+    CLOUD_ESS(null, "-cloud-ess");
 
     private final String image;
     private final String suffix;

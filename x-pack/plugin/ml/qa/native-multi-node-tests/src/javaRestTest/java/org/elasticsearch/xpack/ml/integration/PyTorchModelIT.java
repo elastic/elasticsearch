@@ -91,6 +91,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private static final String MODEL_INDEX = "model_store";
+    private static final String VOCAB_INDEX = "vocab_store";
     private static final String MODEL_ID ="simple_model_to_evaluate";
     static final String BASE_64_ENCODED_MODEL =
         "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWlpaWlpaWlpaWoACY19fdG9yY2hfXwp" +
@@ -122,9 +123,9 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     public void testEvaluate() throws Exception {
         createModelStoreIndex();
-        putTaskConfig();
+        putVocabulary();
         putModelDefinition();
-        refreshModelStoreIndex();
+        refreshModelStoreAndVocabIndex();
         createTrainedModel();
         startDeployment();
         CountDownLatch latch = new CountDownLatch(10);
@@ -189,11 +190,9 @@ public class PyTorchModelIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    private void putTaskConfig() throws IOException {
-        Request request = new Request("PUT", "/" + MODEL_INDEX + "/_doc/" + MODEL_ID + "_task_config");
+    private void putVocabulary() throws IOException {
+        Request request = new Request("PUT", "/" + VOCAB_INDEX + "/_doc/test_vocab");
         request.setJsonEntity("{  " +
-                "\"task_type\": \"bert_pass_through\",\n" +
-                "\"with_special_tokens\": false," +
                 "\"vocab\": [\"these\", \"are\", \"my\", \"words\"]\n" +
             "}");
         client().performRequest(request);
@@ -205,16 +204,18 @@ public class PyTorchModelIT extends ESRestTestCase {
             "    \"description\": \"simple model for testing\",\n" +
             "    \"model_type\": \"pytorch\",\n" +
             "    \"inference_config\": {\n" +
-            "        \"classification\": {\n" +
-            "            \"num_top_classes\": 1\n" +
+            "        \"bert_pass_through\": {\n" +
+            "            \"vocabulary\": {\n" +
+            "              \"index\": \"" + VOCAB_INDEX + "\",\n" +
+            "              \"id\": \"test_vocab\"\n" +
+            "            },\n" +
+            "            \"tokenization_params\": {" +
+            "              \"with_special_tokens\": false\n" +
+            "            }\n" +
             "        }\n" +
-            "    },\n" +
-            "    \"input\": {\n" +
-            "        \"field_names\": [\"text_field\"]\n" +
             "    },\n" +
             "    \"location\": {\n" +
             "        \"index\": {\n" +
-            "            \"model_id\": \"" + MODEL_ID + "\",\n" +
             "            \"name\": \"" + MODEL_INDEX + "\"\n" +
             "        }\n" +
             "    }" +
@@ -222,8 +223,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    private void refreshModelStoreIndex() throws IOException {
-        Request request = new Request("POST", "/" + MODEL_INDEX + "/_refresh");
+    private void refreshModelStoreAndVocabIndex() throws IOException {
+        Request request = new Request("POST", "/" + MODEL_INDEX + "," + VOCAB_INDEX + "/_refresh");
         client().performRequest(request);
     }
 
@@ -241,7 +242,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     private Response infer(String input) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_infer");
         request.setJsonEntity("{  " +
-            "\"input\": \"" + input + "\"\n" +
+            "\"docs\": [{\"input\":\"" + input + "\"}]\n" +
             "}");
         return client().performRequest(request);
     }

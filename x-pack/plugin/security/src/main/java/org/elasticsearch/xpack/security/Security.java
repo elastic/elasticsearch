@@ -54,6 +54,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -347,6 +348,20 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin, SearchPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
+
+    // TODO: ip filtering does not actually track license usage yet
+    public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
+        LicensedFeature.momentaryLenient("security_ip_filtering", License.OperationMode.GOLD);
+    public static final LicensedFeature.Momentary AUDITING_FEATURE =
+        LicensedFeature.momentaryLenient("security_auditing", License.OperationMode.GOLD);
+
+    // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
+    // Standard realms (LDAP, AD, PKI, etc) are Gold+
+    // SSO realms are Platinum+
+    public static final LicensedFeature.Persistent STANDARD_REALMS_FEATURE =
+        LicensedFeature.persistentLenient("security_standard_realms", License.OperationMode.GOLD);
+    public static final LicensedFeature.Persistent ALL_REALMS_FEATURE =
+        LicensedFeature.persistentLenient("security_all_realms", License.OperationMode.PLATINUM);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -649,7 +664,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             logger.debug("Using default authentication failure handler");
             Supplier<Map<String, List<String>>> headersSupplier = () -> {
                 final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
-                realms.asList().stream().forEach((realm) -> {
+                realms.getActiveRealms().stream().forEach((realm) -> {
                     Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
                     realmFailureHeaders.entrySet().stream().forEach((e) -> {
                         String key = e.getKey();

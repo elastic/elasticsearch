@@ -302,6 +302,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                 new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76633")
     public void testExecuteAllocateUnassigned() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> includes = AllocateActionTests.randomAllocationRoutingMap(1, 5);

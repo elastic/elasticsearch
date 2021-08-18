@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -237,14 +238,16 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.args("--build-cache");
             }
-            c.doLast(task -> {
-                if (expectedOutputFile.exists() == false) {
-                    throw new InvalidUserDataException(
-                        "Building " + bwcVersion.get() + " didn't generate expected artifact " + expectedOutputFile
-                    );
+            c.doLast(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    if (expectedOutputFile.exists() == false) {
+                        throw new InvalidUserDataException(
+                                "Building " + bwcVersion.get() + " didn't generate expected artifact " + expectedOutputFile
+                        );
+                    }
                 }
             });
-
         });
         bwcTaskProvider.configure(t -> t.dependsOn(bwcTaskName));
     }

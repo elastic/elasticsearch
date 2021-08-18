@@ -8,13 +8,11 @@
 package org.elasticsearch.xpack.eql.util;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -30,7 +28,7 @@ public class RemoteClusterRegistry {
 
     public Set<String> versionIncompatibleClusters(String indexPattern) {
         Set<String> incompatibleClusters = new TreeSet<>();
-        for (String clusterAlias: indicesPerRemoteCluster(indexPattern).keySet()) {
+        for (String clusterAlias: clusterAliases(Strings.splitStringByCommaToArray(indexPattern), true)) {
             Version clusterVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
             if (clusterVersion.equals(Version.CURRENT) == false) { // TODO: should newer clusters be eventually allowed?
                 incompatibleClusters.add(clusterAlias);
@@ -39,10 +37,11 @@ public class RemoteClusterRegistry {
         return incompatibleClusters;
     }
 
-    private Map<String, OriginalIndices> indicesPerRemoteCluster(String indexPattern) {
-        Map<String, OriginalIndices> indicesMap = remoteClusterService.groupIndices(indicesOptions,
-            Strings.splitStringByCommaToArray(indexPattern));
-        indicesMap.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        return indicesMap;
+    public Set<String> clusterAliases(String[] indices, boolean discardLocal) {
+        Set<String> clusters = remoteClusterService.groupIndices(indicesOptions, indices).keySet();
+        if (discardLocal) {
+            clusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        }
+        return clusters;
     }
 }

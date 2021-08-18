@@ -66,7 +66,7 @@ public class TrainedModelAllocationMetadataTests extends AbstractSerializingTest
             assertUnchanged(builder, b -> b.addNewAllocation(randomParams(randomExistingModel)));
         }
 
-        builder.addNewAllocation(new StartTrainedModelDeploymentAction.TaskParams(newModel, "test-index", randomNonNegativeLong()));
+        builder.addNewAllocation(new StartTrainedModelDeploymentAction.TaskParams(newModel, randomNonNegativeLong()));
         assertThat(builder.isChanged(), is(true));
     }
 
@@ -93,6 +93,15 @@ public class TrainedModelAllocationMetadataTests extends AbstractSerializingTest
         assertThat(builder.isChanged(), is(true));
     }
 
+    public void testIsAllocated() {
+        String allocatedModelId = "test_model_id";
+        TrainedModelAllocationMetadata metadata = TrainedModelAllocationMetadata.Builder.empty()
+            .addNewAllocation(randomParams(allocatedModelId))
+            .build();
+        assertThat(metadata.isAllocated(allocatedModelId), is(true));
+        assertThat(metadata.isAllocated("unknown_model_id"), is(false));
+    }
+
     private static TrainedModelAllocationMetadata.Builder assertUnchanged(
         TrainedModelAllocationMetadata.Builder builder,
         Function<TrainedModelAllocationMetadata.Builder, TrainedModelAllocationMetadata.Builder> function
@@ -103,6 +112,6 @@ public class TrainedModelAllocationMetadataTests extends AbstractSerializingTest
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams randomParams(String modelId) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, "test-index", randomNonNegativeLong());
+        return new StartTrainedModelDeploymentAction.TaskParams(modelId, randomNonNegativeLong());
     }
 }

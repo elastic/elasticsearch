@@ -88,7 +88,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
                                 .addNewAllocation(
-                                    new StartTrainedModelDeploymentAction.TaskParams("model1", "any-index", MODEL_MEMORY_REQUIREMENT)
+                                    new StartTrainedModelDeploymentAction.TaskParams("model1", MODEL_MEMORY_REQUIREMENT)
                                 )
                                 .addNode("model1", "_node_id4")
                                 .addFailedNode("model1", "_node_id2", "test")

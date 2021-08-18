@@ -472,9 +472,14 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                                 () -> searchAndReduce(newIndexSearcher(indexReader),
                                 // match root document only
                                 new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType));
-                            assertThat(e.getMessage(), equalTo("RareTerms agg [terms] is the child of the nested agg [nested], " +
-                                "and also has a scoring child agg [top_hits].  This combination is not supported because it requires " +
-                                "executing in [depth_first] mode, which the RareTerms agg cannot do."));
+                            assertThat(
+                                e.getMessage(),
+                                equalTo(
+                                    "RareTerms agg [terms] is the child of the nested agg [nested], and also has a scoring "
+                                        + "child agg [top_hits].  This combination is not supported because it requires "
+                                        + "executing in [depth_first] mode, which the RareTerms agg cannot do."
+                                )
+                            );
                         } else {
                             InternalNested result = searchAndReduce(newIndexSearcher(indexReader),
                                 // match root document only

@@ -602,7 +602,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, password.toCharArray());
         keyStore.setKeyEntry("testnode_ec", PemUtils.readPrivateKey(keyPath, password::toCharArray), password.toCharArray(),
-            CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
+            CertParsingUtils.readX509Certificates(Collections.singletonList(certPath)));
         final SSLContext sslContext = new SSLContextBuilder()
             .loadKeyMaterial(keyStore, password.toCharArray())
             .build();
@@ -635,7 +635,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         KeyManagementException, IOException, CertificateException {
         KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
         trustStore.load(null, null);
-        for (Certificate cert : CertParsingUtils.readCertificates(trustedCertificatePaths)) {
+        for (Certificate cert : CertParsingUtils.readX509Certificates(trustedCertificatePaths)) {
             trustStore.setCertificateEntry(cert.toString(), cert);
         }
         final SSLContext sslContext = new SSLContextBuilder()

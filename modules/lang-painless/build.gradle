@@ -26,6 +26,10 @@ testClusters.all {
 configurations {
   spi
   compileOnlyApi.extendsFrom(spi)
+  if (isEclipse) {
+    // Eclipse buildship doesn't know about compileOnlyApi
+    api.extendsFrom(spi)
+  }
 }
 
 dependencies {
@@ -63,7 +67,7 @@ tasks.named("yamlRestCompatTest").configure {
  * Painless plugin */
 tasks.register("apiJavadoc", Javadoc) {
   source = sourceSets.main.allJava
-  classpath = sourceSets.main.runtimeClasspath + configurations.spi.classpath
+  classpath = sourceSets.main.compileClasspath + sourceSets.main.output
   include '**/org/elasticsearch/painless/api/'
   destinationDir = new File(docsDir, 'apiJavadoc')
 }
@@ -74,6 +78,9 @@ tasks.register("apiJavadocJar", Jar) {
 }
 
 tasks.named("assemble").configure {
+  dependsOn "apiJavadocJar"
+}
+tasks.named("check").configure {
   dependsOn "apiJavadocJar"
 }
 
@@ -160,7 +167,15 @@ dependencies {
 }
 
 String grammarPath = 'src/main/antlr'
+// TODO: we shouldn't be generating files into the main source directory. Then we wouldn't
+// need to customize the spotless config below.
 String outputPath = 'src/main/java/org/elasticsearch/painless/antlr'
+
+spotless {
+  java {
+    targetExclude "${outputPath}/*.java"
+  }
+}
 
 tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {

@@ -71,7 +71,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState clusterState,
-                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
+                              ClusterStateObserver observer, ActionListener<Void> listener) {
         // These allocation deciders were chosen because these are the conditions that can prevent
         // allocation long-term, and that we can inspect in advance. Most other allocation deciders
         // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
@@ -114,7 +114,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                         .masterNodeTimeout(TimeValue.MAX_VALUE)
                         .settings(settings);
                 getClient().admin().indices().updateSettings(updateSettingsRequest,
-                        ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+                        ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure));
             } else {
                 // No nodes currently match the allocation rules, so report this as an error and we'll retry
                 logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);

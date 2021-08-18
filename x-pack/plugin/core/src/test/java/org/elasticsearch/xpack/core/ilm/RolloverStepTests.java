@@ -82,7 +82,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         assertEquals(0, request.getConditions().size());
     }
 
-    public void testPerformAction() {
+    public void testPerformAction() throws Exception {
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = getIndexMetadata(alias);
 
@@ -96,14 +96,14 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                     .put(indexMetadata, true)
             )
             .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionOnDataStream() {
+    public void testPerformActionOnDataStream() throws Exception {
         String dataStreamName = "test-datastream";
         IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .settings(settings(Version.CURRENT))
@@ -123,14 +123,14 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                     .put(indexMetadata, true)
             )
             .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
-    public void testSkipRolloverIfDataStreamIsAlreadyRolledOver() {
+    public void testSkipRolloverIfDataStreamIsAlreadyRolledOver() throws Exception {
         String dataStreamName = "test-datastream";
         IndexMetadata firstGenerationIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .settings(settings(Version.CURRENT))
@@ -149,7 +149,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                         List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
             )
             .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(firstGenerationIndex, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(firstGenerationIndex, clusterState, null, f));
 
         verifyZeroInteractions(client);
         verifyZeroInteractions(adminClient);
@@ -167,7 +167,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionWithIndexingComplete() {
+    public void testPerformActionWithIndexingComplete() throws Exception {
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetadata.builder(alias))
@@ -184,10 +184,10 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                     .put(indexMetadata, true)
             )
             .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
     }
 
-    public void testPerformActionSkipsRolloverForAlreadyRolledIndex() {
+    public void testPerformActionSkipsRolloverForAlreadyRolledIndex() throws Exception {
         String rolloverAlias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetadata.builder(rolloverAlias))
@@ -205,7 +205,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                     .put(indexMetadata, true)
             )
             .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(indicesClient, Mockito.never()).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -231,7 +231,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                     .put(indexMetadata, true)
             )
             .build();
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
             f -> step.performAction(indexMetadata, clusterState, null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();
@@ -253,7 +253,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             )
             .build();
         Exception e = expectThrows(IllegalArgumentException.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
         assertThat(e.getMessage(), Matchers.is(String.format(Locale.ROOT,
             "setting [%s] for index [%s] is empty or not defined, it must be set to the name of the alias pointing to the group of " +
                 "indices being rolled over", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, indexMetadata.getIndex().getName())));
@@ -273,7 +273,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             )
             .build();
         Exception e = expectThrows(IllegalArgumentException.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
         assertThat(e.getMessage(), Matchers.is(String.format(Locale.ROOT,
             "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias,
             indexMetadata.getIndex().getName())));

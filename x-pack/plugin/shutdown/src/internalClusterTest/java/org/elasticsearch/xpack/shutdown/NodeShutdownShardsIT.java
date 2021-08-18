@@ -24,7 +24,7 @@ import java.util.Collection;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.COMPLETE;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 public class NodeShutdownShardsIT extends ESIntegTestCase {
 
     @Override
@@ -142,6 +142,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .filter(node -> node.getName().equals(nodeName))
             .map(DiscoveryNode::getId)
             .findFirst()
-            .orElseThrow();
+            .orElseThrow(() -> new AssertionError("requested node name [" + nodeName + "] not found"));
     }
 }

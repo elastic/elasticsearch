@@ -201,49 +201,52 @@ def projectPathsToExclude = [
 
 subprojects {
   plugins.withType(ElasticsearchJavaPlugin).whenPluginAdded {
-    if (projectPathsToExclude.contains(project.path) == false) {
-      project.apply plugin: "com.diffplug.spotless"
+    project.apply plugin: "com.diffplug.spotless"
 
-      spotless {
-        java {
-          if (project.path == ':server') {
-            target 'src/*/java/org/elasticsearch/action/admin/cluster/repositories/**/*.java',
-                   'src/*/java/org/elasticsearch/action/admin/cluster/snapshots/**/*.java',
-                   'src/*/java/org/elasticsearch/index/snapshots/**/*.java',
-                   'src/*/java/org/elasticsearch/repositories/**/*.java',
-                   'src/*/java/org/elasticsearch/snapshots/**/*.java'
+    spotless {
+      java {
+        if (project.path == ':server') {
+          target 'src/*/java/org/elasticsearch/action/admin/cluster/repositories/**/*.java',
+                 'src/*/java/org/elasticsearch/action/admin/cluster/snapshots/**/*.java',
+                 'src/*/java/org/elasticsearch/index/snapshots/**/*.java',
+                 'src/*/java/org/elasticsearch/repositories/**/*.java',
+                 'src/*/java/org/elasticsearch/snapshots/**/*.java'
 
-            targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
-          } else {
-            // Normally this isn't necessary, but we have Java sources in
-            // non-standard places
-            target 'src/**/*.java'
-          }
+          targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
+        } else {
+          // Normally this isn't necessary, but we have Java sources in
+          // non-standard places
+          target 'src/**/*.java'
+        }
 
-          toggleOffOn('@formatter:off', '@formatter:on') // use `@formatter:off` and `@formatter:on` to toggle formatting - ONLY IF STRICTLY NECESSARY
-          removeUnusedImports()
-          importOrderFile rootProject.file('build-tools-internal/elastic.importorder')
-          eclipse().configFile rootProject.file('build-tools-internal/formatterConfig.xml')
-          trimTrailingWhitespace()
+        toggleOffOn('@formatter:off', '@formatter:on') // use `@formatter:off` and `@formatter:on` to toggle formatting - ONLY IF STRICTLY NECESSARY
+        removeUnusedImports()
+        importOrderFile rootProject.file('build-tools-internal/elastic.importorder')
+        eclipse().configFile rootProject.file('build-tools-internal/formatterConfig.xml')
+        trimTrailingWhitespace()
 
-          // Sometimes Spotless will report a "misbehaving rule which can't make up its
-          // mind" and will recommend enabling the `paddedCell()` setting. If you
-          // enabled this setting and run the format check again,
-          // Spotless will write files to
-          // `$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
-          // different copies of the formatted files, so that you can see how they
-          // differ and infer what is the problem.
+        // Sometimes Spotless will report a "misbehaving rule which can't make up its
+        // mind" and will recommend enabling the `paddedCell()` setting. If you
+        // enabled this setting and run the format check again,
+        // Spotless will write files to
+        // `$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
+        // different copies of the formatted files, so that you can see how they
+        // differ and infer what is the problem.
 
-          // The `paddedCell()` option is disabled for normal operation so that any
-          // misbehaviour is detected, and not just suppressed. You can enabled the
-          // option from the command line by running Gradle with `-Dspotless.paddedcell`.
-          if (System.getProperty('spotless.paddedcell') != null) {
-            paddedCell()
-          }
+        // The `paddedCell()` option is disabled for normal operation so that any
+        // misbehaviour is detected, and not just suppressed. You can enabled the
+        // option from the command line by running Gradle with `-Dspotless.paddedcell`.
+        if (providers.systemProperty('spotless.paddedcell').forUseAtConfigurationTime().isPresent()) {
+          paddedCell()
         }
       }
-
-      tasks.named("precommit").configure { dependsOn 'spotlessJavaCheck' }
     }
+
+    if (projectPathsToExclude.contains(project.path)) {
+      tasks.named('spotlessJavaCheck').configure { enabled = false }
+      tasks.named('spotlessApply').configure { enabled = false }
+    }
+
+    tasks.named("precommit").configure { dependsOn 'spotlessJavaCheck' }
   }
 }

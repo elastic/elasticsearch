@@ -234,9 +234,10 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             mutateUnit = randomValueOtherThan(instanceUnit, () -> randomFrom(ByteSizeUnit.values()));
             final long newUnitBytes = mutateUnit.toBytes(1);
             /*
-             * If size is zero we can not reuse zero because zero with any unit will be equal to zero with any other unit so in this case we
-             * need to randomize a new size. Additionally, if the size unit pair is such that the representation would be such that the
-             * number of represented bytes would exceed Long.Max_VALUE, we have to randomize a new size too.
+             * If size is zero we can not reuse zero because zero with any unit will be equal to zero with any other
+             * unit so in this case we need to randomize a new size. Additionally, if the size unit pair is such that
+             * the representation would be such that the number of represented bytes would exceed Long.Max_VALUE, we
+             * have to randomize a new size too.
              */
             if (instanceSize == 0 || instanceSize >= Long.MAX_VALUE / newUnitBytes) {
                 mutateSize = randomValueOtherThanMany(

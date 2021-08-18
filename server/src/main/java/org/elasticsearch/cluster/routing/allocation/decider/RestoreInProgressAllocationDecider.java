@@ -52,10 +52,16 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
                 }
             }
         }
-        return allocation.decision(Decision.NO, NAME, "shard has failed to be restored from the snapshot [%s] because of [%s] - " +
-            "manually close or delete the index [%s] in order to retry to restore the snapshot again or use the reroute API to force the " +
-            "allocation of an empty primary shard",
-            source.snapshot(), shardRouting.unassignedInfo().getDetails(), shardRouting.getIndexName());
+        return allocation.decision(
+            Decision.NO,
+            NAME,
+            "shard has failed to be restored from the snapshot [%s] because of [%s] - manually close or delete the index [%s] "
+                + "in order to retry to restore the snapshot again or use the reroute API to force the "
+                + "allocation of an empty primary shard",
+            source.snapshot(),
+            shardRouting.unassignedInfo().getDetails(),
+            shardRouting.getIndexName()
+        );
     }
 
     @Override

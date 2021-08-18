@@ -109,7 +109,6 @@ def projectPathsToExclude = [
   ':test:logger-usage',
   ':x-pack:license-tools',
   ':x-pack:plugin',
-  ':x-pack:plugin:analytics',
   ':x-pack:plugin:async-search',
   ':x-pack:plugin:async-search:qa',
   ':x-pack:plugin:async-search:qa:security',

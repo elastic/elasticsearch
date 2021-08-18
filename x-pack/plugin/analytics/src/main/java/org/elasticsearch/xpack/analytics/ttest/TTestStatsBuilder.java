@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.analytics.ttest;
 
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 public class TTestStatsBuilder implements Releasable {

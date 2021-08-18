@@ -73,21 +73,21 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         where:
         platform  | arch      | jdkVendor           | jdkVersion           | expectedJavaBin          | suffix
-        "linux"   | "x64"     | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | "bin/java"               | ""
+        "linux"   | "x64"     | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION    | "bin/java"               | ""
         "linux"   | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "bin/java"               | ""
         "linux"   | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "bin/java"               | "(old version)"
-        "windows" | "x64"     | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | "bin/java"               | ""
+        "windows" | "x64"     | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION    | "bin/java"               | ""
         "windows" | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "bin/java"               | ""
         "windows" | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "bin/java"               | "(old version)"
-        "darwin"  | "x64"     | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | "Contents/Home/bin/java" | ""
+        "darwin"  | "x64"     | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION    | "Contents/Home/bin/java" | ""
         "darwin"  | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "Contents/Home/bin/java" | ""
         "darwin"  | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "Contents/Home/bin/java" | "(old version)"
         "mac"     | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "Contents/Home/bin/java" | ""
         "mac"     | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "Contents/Home/bin/java" | "(old version)"
         "darwin"  | "aarch64" | VENDOR_AZUL         | AZUL_AARCH_VERSION   | "Contents/Home/bin/java" | ""
         "linux"   | "aarch64" | VENDOR_AZUL         | AZUL_AARCH_VERSION   | "bin/java"               | ""
-        "linux"   | "aarch64" | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION_11 | "bin/java"               | "(jdk 11)"
-        "linux"   | "aarch64" | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION_15 | "bin/java"               | "(jdk 15)"
+        "linux"   | "aarch64" | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION_11 | "bin/java"               | "(jdk 11)"
+        "linux"   | "aarch64" | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION_15 | "bin/java"               | "(jdk 15)"
     }
 
     def "transforms are reused across projects"() {

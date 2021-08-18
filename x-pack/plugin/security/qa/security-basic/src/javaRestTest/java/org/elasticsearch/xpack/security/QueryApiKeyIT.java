@@ -270,12 +270,11 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 apiKeyInfos.stream().map(m -> (long) m.get("creation")).collect(Collectors.toUnmodifiableList()),
                 equalTo(apiKeyInfos.stream().map(m -> (long) extractSortValues(m).get(0)).collect(Collectors.toUnmodifiableList())));
         }
-        // Call distinct in case that paging with search_after returns duplicates
         assertThat(
-            apiKeyInfos.stream().map(m -> (String) m.get("id")).distinct().collect(Collectors.toUnmodifiableList()),
+            apiKeyInfos.stream().map(m -> (String) m.get("id")).collect(Collectors.toUnmodifiableList()),
             equalTo(apiKeyIds.subList(from, total)));
         assertThat(
-            apiKeyInfos.stream().map(m -> (String) m.get("name")).distinct().collect(Collectors.toUnmodifiableList()),
+            apiKeyInfos.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableList()),
             equalTo(apiKeyNames.subList(from, total)));
 
         // size can be zero, but total should still reflect the number of keys matched

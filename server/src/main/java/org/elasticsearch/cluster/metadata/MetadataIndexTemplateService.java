@@ -1232,7 +1232,9 @@ public class MetadataIndexTemplateService {
                     for (CompressedXContent mapping : mappings) {
                         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
                     }
-                    if (mapperService.documentMapper().routingFieldMapper().required()) {
+                    if (mapperService.documentMapper() != null
+                        && mapperService.documentMapper().routingFieldMapper() != null
+                        && mapperService.documentMapper().routingFieldMapper().required()) {
                         if (template.getDataStreamTemplate().getAllowCustomRouting() == null
                             || template.getDataStreamTemplate().getAllowCustomRouting() == false) {
                             throw new IllegalArgumentException(

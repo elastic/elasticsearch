@@ -36,7 +36,7 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
   }
 
 
-  if (repositoryPlugins.includes(project.name)) {
+  if (repositoryPlugins.contains(project.name)) {
     parent.artifacts.add('repositoryPlugins', tasks.named('bundlePlugin'))
   } else {
     parent.artifacts.add('nonRepositoryPlugins', tasks.named('bundlePlugin'))

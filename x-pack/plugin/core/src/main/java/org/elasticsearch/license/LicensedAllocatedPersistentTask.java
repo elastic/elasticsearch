@@ -62,8 +62,8 @@ public class LicensedAllocatedPersistentTask extends AllocatedPersistentTask {
         doMarkAsFailed(e);
     }
 
-    protected boolean doMarkAsFailed(Exception e) {
-        return super.markAsFailed(e);
+    protected void doMarkAsFailed(Exception e) {
+        super.markAsFailed(e);
     }
 
     @Override
@@ -72,13 +72,13 @@ public class LicensedAllocatedPersistentTask extends AllocatedPersistentTask {
         doMarkAsLocallyAborted(localAbortReason);
     }
 
-    protected boolean doMarkAsLocallyAborted(String localAbortReason) {
-        return super.markAsLocallyAborted(localAbortReason);
+    protected void doMarkAsLocallyAborted(String localAbortReason) {
+        super.markAsLocallyAborted(localAbortReason);
     }
 
-    // this is only overridden so that tests can run it
+    // this is made public for tests, and final to ensure it is not overridden with something that may throw
     @Override
-    protected void init(PersistentTasksService persistentTasksService, TaskManager taskManager,
+    public final void init(PersistentTasksService persistentTasksService, TaskManager taskManager,
                         String persistentTaskId, long allocationId) {
         super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
     }

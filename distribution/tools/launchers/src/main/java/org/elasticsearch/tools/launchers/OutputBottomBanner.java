@@ -11,7 +11,6 @@ package org.elasticsearch.tools.launchers;
 import org.elasticsearch.tools.java_version_checker.SuppressForbidden;
 import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiConsole;
-import org.fusesource.jansi.AnsiPrintStream;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -47,6 +46,7 @@ final class OutputBottomBanner {
             throw new IllegalArgumentException("expected two arguments, but provided " + Arrays.toString(args));
         }
         // TODO validate args
+        // TODO timer arg
         final String bannerEndMarker = args[0];
         final String bannerFileName = args[1];
         final AtomicReference<Banner> bannerReference = new AtomicReference<>();
@@ -98,33 +98,32 @@ final class OutputBottomBanner {
                 }
             }
             Banner banner = bannerReference.get();
+
+            // TODO multiline
+            // TODO timer
+
+            // bolded and separated by empty lines
+            final String richBanner = ansi().newline().bold().a(banner.getBannerText()).boldOff().newline().toString();
             // print banner
-            //System.out.printf(Locale.ROOT, "%s%n", banner.banner);
-            //AnsiConsole.out().println(ansi().saveCursorPosition());
-            //System.out.printf(Locale.ROOT, "%s", ansi().saveCursorPosition().toString());
-            AnsiConsole.out().printf(Locale.ROOT, "%s", ansi().bold().a(banner.getBannerText()).boldOff().newline());
-            //System.out.printf(Locale.ROOT, "%s", ansi().bold().a(banner.banner).boldOff().newline().toString());
+            AnsiConsole.out().printf(Locale.ROOT, "%s", richBanner);
             // we can block indefinitely for input lines since the banner has already been printed
+            int terminalWidth = -1;
+            String bannerClearCommand = "";
             while ((line = reader.readLine()) != null) {
                 // clear banner
-                //System.out.printf(Locale.ROOT, "%s", ansi().cursorUpLine(banner.lineCount + 1).eraseScreen(Ansi.Erase.FORWARD));
-                //System.out.printf(Locale.ROOT, "\u001b[%dF\u001b[J", banner.lineCount);
-                //AnsiConsole.out().println(ansi().restoreCursorPosition());
-                AnsiConsole.out().printf(Locale.ROOT, "%s",
-                        ansi().cursorUpLine(banner.getLineCount(AnsiConsole.getTerminalWidth())).eraseScreen(Ansi.Erase.FORWARD));
-                //System.out.printf(Locale.ROOT, "%s", ansi().restoreCursorPosition().toString());
-                // line overwrites banner
-                AnsiConsole.out().printf(Locale.ROOT, "%s", ansi().a(line).newline());
-                //System.out.printf(Locale.ROOT, "%s%n", line);
+                if (terminalWidth != AnsiConsole.getTerminalWidth()) {
+                    terminalWidth =  AnsiConsole.getTerminalWidth();
+                    bannerClearCommand = ansi().cursorUpLine(banner.getLineCount(terminalWidth)).eraseScreen(Ansi.Erase.FORWARD).toString();
+                }
+                AnsiConsole.out().printf(Locale.ROOT, "%s", bannerClearCommand);
+                // forwarded line replaces banner
+                AnsiConsole.out().printf(Locale.ROOT, "%s%n", line);
                 // append another banner
-                //AnsiConsole.out().println(ansi().saveCursorPosition());
-                //AnsiConsole.out().println(ansi().bold().a(banner.banner).boldOff());
-                //AnsiConsole.out().printf(Locale.ROOT, "%s", ansi().bold().a(banner.banner).boldOff().newline());
-                AnsiConsole.out().printf(Locale.ROOT, "%s", ansi().bold().a(banner.getBannerText()).boldOff().newline());
-                //System.out.printf(Locale.ROOT, "%s", ansi().bold().a(banner.banner).boldOff().newline().toString());
-                //System.out.printf(Locale.ROOT, "%s%n", banner.banner);
+                AnsiConsole.out().printf(Locale.ROOT, "%s", richBanner);
             }
         } catch (InterruptedException e) {
+            // TODO what happens if I terminate the program??
+            bannerThread.interrupt();
             Thread.currentThread().interrupt();
         }
     }

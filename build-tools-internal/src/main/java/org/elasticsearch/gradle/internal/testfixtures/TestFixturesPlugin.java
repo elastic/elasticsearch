@@ -78,11 +78,14 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
             TaskProvider<Task> preProcessFixture = project.getTasks().register("preProcessFixture", t -> {
                 t.getOutputs().dir(testfixturesDir);
-                t.doFirst(t2 -> {
-                    try {
-                        Files.createDirectories(testfixturesDir.toPath());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+                t.doFirst(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        try {
+                            Files.createDirectories(testfixturesDir.toPath());
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
                     }
                 });
             });

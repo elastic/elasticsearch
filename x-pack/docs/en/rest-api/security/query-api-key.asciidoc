@@ -51,8 +51,8 @@ following values.
 .Valid values for `query`
 [%collapsible%open]
 ====
-`id`:: 
-ID of the API key. 
+`id`::
+ID of the API key. Note `id` must be queried with the <<query-dsl-ids-query,`ids`>> query.
 
 `name`::
 Name of the API key.
@@ -75,7 +75,7 @@ Realm name of the API key owner.
 
 `metadata`::
 Metadata field associated with the API key, such as `metadata.my_field`. Because
-metadata is saved as a <<flattened,flattened>> field type, all fields act like
+metadata is stored as a <<flattened,flattened>> field type, all fields act like
 `keyword` fields when querying and sorting.
 ====
 
@@ -86,7 +86,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 <<search-after,`search_after`>> parameter.
 
 `size`::
-(Optional, integer) The number of hits to return. Must not be negative.
+(Optional, integer) The number of hits to return. Must not be negative and defaults to `10`.
 +
 By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the
@@ -94,8 +94,8 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 
 `sort`::
 (Optional, object) <<sort-search-results,Sort definition>>. Other than `id`,
-all fields of an API key are eligible for sorting. In addition, sort can
-also be applied to the `_doc` field, which is useful for tie-breaking.
+all public fields of an API key are eligible for sorting. In addition, sort can
+also be applied to the `_doc` field to sort by index order.
 
 `search_after`::
 (Optional, array) <<search-after,Search after>> definition.
@@ -138,9 +138,9 @@ retrieved from one or more API keys:
     {
       "id": "nkvrGXsB8w290t56q3Rg",
       "name": "my-api-key-1",
-      "creation": 1628227480421, 
+      "creation": 1628227480421,
       "expiration": 1629091480421,
-      "invalidated": false, 
+      "invalidated": false,
       "username": "elastic",
       "realm": "reserved",
       "metadata": {
@@ -304,7 +304,7 @@ The response contains a list of matched API keys along with their sort values:
       "metadata": {
         "environment": "production"
       },
-      "_sort": [ 
+      "_sort": [
         "2021-08-18T01:29:14.811Z",  <1>
         "app1-key-79"  <2>
       ]

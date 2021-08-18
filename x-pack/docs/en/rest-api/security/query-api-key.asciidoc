@@ -1,0 +1,6 @@
+[role="xpack"]
+[[security-api-query-api-key]]
+=== Query API key information API
+
+coming::[7.15.0]
+

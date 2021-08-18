@@ -42,7 +42,7 @@ import java.io.OutputStream;
  * the need to allocate two new byte arrays everytime a new stream is created. For the Elasticsearch use case,
  * a single thread should fully compress the stream in one go to avoid memory corruption.
  *
- * Additionally, it does not checksum (or write a check) for the data compressed. We do no read the checksum
+ * Additionally, it does not checksum (or write a check) for the data compressed. We do not read the checksum
  * when decompressing in Elasticsearch.
  *
  * Streaming LZ4 (not compatible with the LZ4 Frame format).

@@ -255,7 +255,7 @@ You can use bool query to issue complex logical conditions and use
   "from": 20, <6>
   "size": 10, <7>
   "sort": [ <8>
-    "creation": { "order": "desc" },
+    { "creation": { "order": "desc", "format": "date_time" } },
     "name"
   ]
 }
@@ -270,3 +270,52 @@ You can use bool query to issue complex logical conditions and use
 <6> The offset to begin the search result is the 20th (zero-based index) API key
 <7> The page size of the response is 10 API keys
 <8> The result is first sorted by `creation` date in descending order, then by name in ascending order.
+
+The response contains a list of matched API keys along with their sort values:
+
+[source,js]
+--------------------------------------------------
+{
+  "total": 100,
+  "count": 10,
+  "api_keys": [
+    {
+      "id": "CLXgVnsBOGkf8IyjcXU7",
+      "name": "app1-key-79",
+      "creation": 1629250154811,
+      "invalidated": false,
+      "username": "org-admin-user",
+      "realm": "native1",
+      "metadata": {
+        "environment": "production"
+      },
+      "_sort": [  <1>
+        "2021-08-18T01:29:14.811Z",  <2>
+        "app1-key-79"  <3>
+      ]
+    },
+    {
+      "id": "BrXgVnsBOGkf8IyjbXVB",
+      "name": "app1-key-78",
+      "creation": 1629250153794,
+      "invalidated": false,
+      "username": "org-admin-user",
+      "realm": "native1",
+      "metadata": {
+        "environment": "production"
+      },
+      "_sort": [
+        "2021-08-18T01:29:13.794Z",
+        "app1-key-78"
+      ]
+    },
+    ...
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> Sort values associated to the API key
+<2> The first sort value is creation time and it is displayed in `date_time` <<mapping-date-forma,format>>
+as requested in the request
+<3> The second sort value is API key name

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -36,9 +35,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class MlNodeShutdownIT extends BaseMlIntegTestCase {
 
     public void testJobsVacateShuttingDownNode() throws Exception {
-
-        // TODO: delete this condition when the shutdown API is always available
-        assumeTrue("shutdown API is behind a snapshot-only feature flag", Build.CURRENT.isSnapshot());
 
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster();
@@ -104,9 +100,6 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
     }
 
     public void testCloseJobVacatingShuttingDownNode() throws Exception {
-
-        // TODO: delete this condition when the shutdown API is always available
-        assumeTrue("shutdown API is behind a snapshot-only feature flag", Build.CURRENT.isSnapshot());
 
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster();

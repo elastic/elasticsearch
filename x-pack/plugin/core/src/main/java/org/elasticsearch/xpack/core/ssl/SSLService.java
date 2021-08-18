@@ -645,7 +645,6 @@ public class SSLService {
             .map(cert -> new CertificateInfo(
                 cert.getPath(), cert.getFormat(), cert.getAlias(), cert.hasPrivateKey(), cert.getCertificate()
             ))
-
             .collect(Sets.toUnmodifiableSortedSet());
     }
 

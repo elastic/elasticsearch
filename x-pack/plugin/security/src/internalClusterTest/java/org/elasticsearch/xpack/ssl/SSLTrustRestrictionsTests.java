@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ssl;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.PathUtils;
@@ -78,7 +79,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         X509Certificate caCert = CertParsingUtils.readX509Certificates(Collections.singletonList(caCertPath))[0];
         Path caKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.key").toURI());
-        PrivateKey caKey = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(caKeyPath, ""::toCharArray);
+        PrivateKey caKey = PemUtils.readPrivateKey(caKeyPath, ""::toCharArray);
         ca = new CertificateInfo(caKey, caKeyPath, caCert, caCertPath);
 
         Path trustedCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
@@ -86,7 +87,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         X509Certificate trustedX509Certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(trustedCertPath))[0];
         Path trustedKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.key").toURI());
-        PrivateKey trustedKey = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(trustedKeyPath, ""::toCharArray);
+        PrivateKey trustedKey = PemUtils.readPrivateKey(trustedKeyPath, ""::toCharArray);
         trustedCert = new CertificateInfo(trustedKey, trustedKeyPath, trustedX509Certificate, trustedCertPath);
 
         Path untrustedCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
@@ -94,7 +95,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         X509Certificate untrustedX509Certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(untrustedCertPath))[0];
         Path untrustedKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/untrusted.key").toURI());
-        PrivateKey untrustedKey = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(untrustedKeyPath, ""::toCharArray);
+        PrivateKey untrustedKey = PemUtils.readPrivateKey(untrustedKeyPath, ""::toCharArray);
         untrustedCert = new CertificateInfo(untrustedKey, untrustedKeyPath, untrustedX509Certificate, untrustedCertPath);
 
         nodeSSL = Settings.builder()

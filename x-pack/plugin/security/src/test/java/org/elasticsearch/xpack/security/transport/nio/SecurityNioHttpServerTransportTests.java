@@ -205,5 +205,4 @@ public class SecurityNioHttpServerTransportTests extends AbstractHttpServerTrans
             xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService, nioGroupFactory,
             randomClusterSettings());
     }
-
 }

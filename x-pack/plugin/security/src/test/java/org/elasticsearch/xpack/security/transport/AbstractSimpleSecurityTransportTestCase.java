@@ -344,7 +344,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
 
         // test profile required client authentication
-        value = randomCapitalization(SslClientAuthenticationMode.REQUIRED);;
+        value = randomCapitalization(SslClientAuthenticationMode.REQUIRED);
         settings = Settings.builder()
             .put("transport.profiles.client.port", "8000-9000")
             .put("transport.profiles.client.xpack.security.ssl.enabled", true)

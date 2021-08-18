@@ -35,8 +35,7 @@ import static org.hamcrest.Matchers.is;
 
 public class SSLDriverTests extends ESTestCase {
 
-    private final IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n), () -> {
-    });
+    private final IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n), () -> {});
 
     private final InboundChannelBuffer networkReadBuffer = new InboundChannelBuffer(pageAllocator);
     private final InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
@@ -75,8 +74,7 @@ public class SSLDriverTests extends ESTestCase {
         handshake(clientDriver, serverDriver);
 
         ByteBuffer[] buffers = {ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8))};
-        serverDriver.write(new FlushOperation(buffers, (v, e) -> {
-        }));
+        serverDriver.write(new FlushOperation(buffers, (v, e) -> {}));
 
         expectThrows(SSLException.class, serverDriver::close);
         assertEquals(0, openPages.get());
@@ -201,7 +199,6 @@ public class SSLDriverTests extends ESTestCase {
                 serverDriver.getSSLEngine().closeInbound();
                 serverDriver.getSSLEngine().closeOutbound();
                 serverDriver.close();
-                ;
                 assertTrue(serverDriver.isClosed());
                 clientDriver.close();
                 assertTrue(clientDriver.isClosed());
@@ -414,8 +411,7 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     private void sendAppData(SSLDriver sendDriver, ByteBuffer[] message) throws IOException {
-        FlushOperation flushOperation = new FlushOperation(message, (r, l) -> {
-        });
+        FlushOperation flushOperation = new FlushOperation(message, (r, l) -> {});
 
         while (flushOperation.isFullyFlushed() == false) {
             sendDriver.write(flushOperation);

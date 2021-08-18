@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -418,7 +419,7 @@ public class SamlRealmTests extends SamlTestCase {
         final Path dir = createTempDir("encryption");
         final Path encryptionKeyPath = getDataPath("encryption.key");
         final Path destEncryptionKeyPath = dir.resolve("encryption.key");
-        final PrivateKey encryptionKey = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(encryptionKeyPath, "encryption"::toCharArray);
+        final PrivateKey encryptionKey = PemUtils.readPrivateKey(encryptionKeyPath, "encryption"::toCharArray);
         final Path encryptionCertPath = getDataPath("encryption.crt");
         final Path destEncryptionCertPath = dir.resolve("encryption.crt");
         final X509Certificate encryptionCert = CertParsingUtils.readX509Certificates(Collections.singletonList(encryptionCertPath))[0];

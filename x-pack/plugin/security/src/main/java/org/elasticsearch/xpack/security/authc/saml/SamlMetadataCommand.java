@@ -42,6 +42,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
@@ -325,14 +326,14 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
     private static PrivateKey readSigningKey(Path path, char[] password, Terminal terminal) throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
-            return org.elasticsearch.common.ssl.PemUtils.readPrivateKey(path, () -> {
-                    if (password != null) {
-                        return password;
-                    }
-                    char[] promptedValue = terminal.readSecret("Enter password for the signing key (" + path.getFileName() + ") : ");
-                    passwordReference.set(promptedValue);
-                    return promptedValue;
-                });
+            return PemUtils.readPrivateKey(path, () -> {
+                if (password != null) {
+                    return password;
+                }
+                char[] promptedValue = terminal.readSecret("Enter password for the signing key (" + path.getFileName() + ") : ");
+                passwordReference.set(promptedValue);
+                return promptedValue;
+            });
         } finally {
             if (passwordReference.get() != null) {
                 Arrays.fill(passwordReference.get(), (char) 0);

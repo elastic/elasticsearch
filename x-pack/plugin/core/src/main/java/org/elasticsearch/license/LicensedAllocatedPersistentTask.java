@@ -37,27 +37,43 @@ public class LicensedAllocatedPersistentTask extends AllocatedPersistentTask {
     }
 
     @Override
-    protected boolean markAsCancelled() {
+    protected final boolean markAsCancelled() {
         stopTracking();
+        return doMarkAsCancelled();
+    }
+
+    protected boolean doMarkAsCancelled() {
         return super.markAsCancelled();
     }
 
     @Override
-    public void markAsCompleted() {
+    public final void markAsCompleted() {
         stopTracking();
         super.markAsCompleted();
     }
 
-    @Override
-    public void markAsFailed(Exception e) {
-        stopTracking();
-        super.markAsFailed(e);
+    protected void doMarkAsCompleted() {
+        super.markAsCompleted();
     }
 
     @Override
-    public void markAsLocallyAborted(String localAbortReason) {
+    public final void markAsFailed(Exception e) {
         stopTracking();
-        super.markAsLocallyAborted(localAbortReason);
+        doMarkAsFailed(e);
+    }
+
+    protected boolean doMarkAsFailed(Exception e) {
+        return super.markAsFailed(e);
+    }
+
+    @Override
+    public final void markAsLocallyAborted(String localAbortReason) {
+        stopTracking();
+        doMarkAsLocallyAborted(localAbortReason);
+    }
+
+    protected boolean doMarkAsLocallyAborted(String localAbortReason) {
+        return super.markAsLocallyAborted(localAbortReason);
     }
 
     // this is only overridden so that tests can run it

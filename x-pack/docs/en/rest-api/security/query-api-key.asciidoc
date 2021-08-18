@@ -32,7 +32,7 @@ Use this API to retrieve the API keys created with the
 You can optionally filter the results with a query.
 
 [[security-api-query-api-key-request-body]]
-==== {api-path-parms-title}
+==== {api-request-body-title}
 
 You can specify the following parameters in the request body:
 

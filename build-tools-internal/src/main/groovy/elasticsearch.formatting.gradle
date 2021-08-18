@@ -208,6 +208,7 @@ subprojects {
                  'src/*/java/org/elasticsearch/action/admin/cluster/snapshots/**/*.java',
                  'src/*/java/org/elasticsearch/index/snapshots/**/*.java',
                  'src/*/java/org/elasticsearch/repositories/**/*.java',
+                 'src/*/java/org/elasticsearch/search/aggregations/**/*.java',
                  'src/*/java/org/elasticsearch/snapshots/**/*.java'
 
           targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'

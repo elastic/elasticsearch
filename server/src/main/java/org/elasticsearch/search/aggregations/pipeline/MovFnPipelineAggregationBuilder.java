@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
@@ -43,12 +43,18 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
     private int shift;
 
     public static final ConstructingObjectParser<MovFnPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
-            NAME, false,
-            (args, name) -> new MovFnPipelineAggregationBuilder(name, (String) args[0], (Script) args[1], (int)args[2]));
+        NAME,
+        false,
+        (args, name) -> new MovFnPipelineAggregationBuilder(name, (String) args[0], (Script) args[1], (int) args[2])
+    );
     static {
         PARSER.declareString(constructorArg(), BUCKETS_PATH_FIELD);
-        PARSER.declareField(constructorArg(),
-            (p, c) -> Script.parse(p), Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> Script.parse(p),
+            Script.SCRIPT_PARSE_FIELD,
+            ObjectParser.ValueType.OBJECT_OR_STRING
+        );
         PARSER.declareInt(constructorArg(), WINDOW);
 
         PARSER.declareInt(MovFnPipelineAggregationBuilder::setShift, SHIFT);
@@ -61,9 +67,8 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         }, GAP_POLICY, ObjectParser.ValueType.STRING);
     };
 
-
     public MovFnPipelineAggregationBuilder(String name, String bucketsPath, Script script, int window) {
-        super(name, NAME, new String[]{bucketsPath});
+        super(name, NAME, new String[] { bucketsPath });
         this.bucketsPathString = bucketsPath;
         this.script = script;
         if (window <= 0) {

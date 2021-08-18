@@ -25,7 +25,11 @@ import java.util.stream.Stream;
 public class InternalStats extends InternalNumericMetricsAggregation.MultiValue implements Stats {
     enum Metrics {
 
-        count, sum, min, max, avg;
+        count,
+        sum,
+        min,
+        max,
+        avg;
 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
@@ -41,8 +45,15 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     protected final double max;
     protected final double sum;
 
-    public InternalStats(String name, long count, double sum, double min, double max, DocValueFormat formatter,
-                         Map<String, Object> metadata) {
+    public InternalStats(
+        String name,
+        long count,
+        double sum,
+        double min,
+        double max,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.count = count;
         this.sum = sum;
@@ -73,8 +84,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         writeOtherStatsTo(out);
     }
 
-    protected void writeOtherStatsTo(StreamOutput out) throws IOException {
-    }
+    protected void writeOtherStatsTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -130,11 +140,16 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     public double value(String name) {
         Metrics metrics = Metrics.valueOf(name);
         switch (metrics) {
-            case min: return this.min;
-            case max: return this.max;
-            case avg: return this.getAvg();
-            case count: return this.count;
-            case sum: return this.sum;
+            case min:
+                return this.min;
+            case max:
+                return this.max;
+            case avg:
+                return this.getAvg();
+            case count:
+                return this.count;
+            case sum:
+                return this.sum;
             default:
                 throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         }
@@ -216,9 +231,9 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         if (super.equals(obj) == false) return false;
 
         InternalStats other = (InternalStats) obj;
-        return count == other.count &&
-            Double.compare(min, other.min) == 0 &&
-            Double.compare(max, other.max) == 0 &&
-            Double.compare(sum, other.sum) == 0;
+        return count == other.count
+            && Double.compare(min, other.min) == 0
+            && Double.compare(max, other.max) == 0
+            && Double.compare(sum, other.sum) == 0;
     }
 }

@@ -25,20 +25,26 @@ import java.util.Map;
 class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final MetricAggregatorSupplier aggregatorSupplier;
 
-    AvgAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
-                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                         Map<String, Object> metadata, MetricAggregatorSupplier aggregatorSupplier) throws IOException {
+    AvgAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        MetricAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
     }
-
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             AvgAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             AvgAggregator::new,
-                true);
+            true
+        );
     }
 
     @Override
@@ -47,11 +53,8 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return aggregatorSupplier.build(name, config, context, parent, metadata);
     }
 }

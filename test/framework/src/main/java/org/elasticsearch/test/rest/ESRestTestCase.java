@@ -763,23 +763,19 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     protected void deleteAllNodeShutdownMetadata() throws IOException {
-        if (minimumNodeVersion().onOrAfter(Version.V_7_15_0)) {
-            Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
-            Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
-            if (statusResponse.containsKey("_nodes") && statusResponse.containsKey("cluster_name")) {
-                // If the response contains these two keys, the feature flag isn't enabled on this cluster, so skip out now.
-                // We can't check the system property directly because it only gets set for the cluster under test's JVM, not for the test
-                // runner's JVM.
-                return;
-            }
-            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-            List<String> nodeIds = nodesArray.stream()
-                .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
-                .collect(Collectors.toList());
-            for (String nodeId : nodeIds) {
-                Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
-                assertOK(adminClient().performRequest(deleteRequest));
-            }
+        if (hasXPack() == false || minimumNodeVersion().before(Version.V_7_15_0)) {
+            // Node shutdown APIs are only present in xpack
+            return;
+        }
+        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
+        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
+        List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+        List<String> nodeIds = nodesArray.stream()
+            .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
+            .collect(Collectors.toUnmodifiableList());
+        for (String nodeId : nodeIds) {
+            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
+            assertOK(adminClient().performRequest(deleteRequest));
         }
     }
 

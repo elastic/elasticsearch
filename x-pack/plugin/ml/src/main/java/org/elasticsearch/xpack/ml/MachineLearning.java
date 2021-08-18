@@ -53,6 +53,8 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -440,6 +442,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // This is for performance testing.  It's not exposed to the end user.
     // Recompile if you want to compare performance with C++ tokenization.
     public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
+
+    public static final LicensedFeature.Persistent ML_JOBS_FEATURE =
+        LicensedFeature.persistent("machine-learning-job", License.OperationMode.PLATINUM);
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
@@ -942,7 +947,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     datafeedConfigProvider.get(),
                     memoryTracker.get(),
                     client,
-                    expressionResolver),
+                    expressionResolver,
+                    getLicenseState()),
                 new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver),
                 new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings,
                     client,

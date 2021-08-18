@@ -67,8 +67,8 @@ public class RolloverStep extends AsyncActionStep {
 
             if (Strings.isNullOrEmpty(rolloverAlias)) {
                 listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
-                    "setting [%s] for index [%s] is empty or not defined, it must be set to the name of the alias pointing to the group " +
-                        "of indices being rolled over", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, indexName)));
+                    "setting [%s] for index [%s] is empty or not defined, it must be set to the name of the alias " +
+                        "pointing to the group of indices being rolled over", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, indexName)));
                 return;
             }
 

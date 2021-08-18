@@ -242,7 +242,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     private Response infer(String input) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_infer");
         request.setJsonEntity("{  " +
-            "\"input\": \"" + input + "\"\n" +
+            "\"docs\": [{\"input\":\"" + input + "\"}]\n" +
             "}");
         return client().performRequest(request);
     }

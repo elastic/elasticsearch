@@ -43,7 +43,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
         }
 
         public FeatureUsageInfo(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
                 this.family = in.readOptionalString();
             } else {
                 this.family = null;
@@ -60,7 +60,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
                 out.writeOptionalString(this.family);
             }
             out.writeString(name);

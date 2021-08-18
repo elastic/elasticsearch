@@ -19,11 +19,12 @@ in a <<paginate-search-results,paginated>> fashion.
 [[security-api-query-api-key-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_own_api_key` cluster privilege.
-* If the user only has the `manage_own_api_key` privilege, this API returns
-those API keys that are owned by the user. On the other hand, if the user
-has the `manage_api_key` or greater privileges (including `manage_security`), this
-API returns API keys regardless of their owners.
+* To use this API, you must have at least the `manage_own_api_key` cluster
+privilege.
+* If you have only the `manage_own_api_key` privilege, this API returns only
+the API keys that you own. If you have the `manage_api_key` or greater
+privileges (including `manage_security`), this API returns all API keys
+regardless of ownership.
 
 [[security-api-query-api-key-desc]]
 ==== {api-description-title}
@@ -117,7 +118,7 @@ A list of API key information.
 [[security-api-query-api-key-example]]
 ==== {api-examples-title}
 
-The following example lists all API keys, assuming the user has the
+The following request lists all API keys, assuming you have the
 `manage_api_key` privilege:
 
 [source,console]
@@ -165,7 +166,7 @@ retrieved from one or more API keys:
 
 <1> The list of API keys that were retrieved for this request
 
-If you create an API key as follows:
+If you create an API key with the following details:
 
 [source,console]
 ----
@@ -190,7 +191,7 @@ API key information. For example:
 // TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
 
-You can use the returned information to retrieve the API key by ID:
+Use the information from the response to retrieve the API key by ID:
 
 [source,console]
 ----

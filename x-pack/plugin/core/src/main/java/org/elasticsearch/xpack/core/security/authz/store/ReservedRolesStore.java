@@ -37,8 +37,9 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
-    public static final String LEGACY_ALERTS_INDEX = ".siem-signals*";
-    public static final String ALERTS_INDEX = ".alerts*";
+    public static final String ALERTS_LEGACY_INDEX = ".siem-signals*";
+    public static final String ALERTS_BACKING_INDEX = ".internal.alerts*";
+    public static final String ALERTS_INDEX_ALIAS = ".alerts*";
 
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor("superuser",
             new String[] { "all" },
@@ -422,15 +423,20 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet*")
                     .privileges("all").build(),
-                // Legacy "Alerts as data" index. Kibana user will create this index.
-                // Kibana user will read / write to these indices
+                // Legacy "Alerts as data" used in Security Solution.
+                // Kibana user creates these indices; reads / writes to them.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.LEGACY_ALERTS_INDEX)
+                    .indices(ReservedRolesStore.ALERTS_LEGACY_INDEX)
                     .privileges("all").build(),
-                // "Alerts as data" index. Kibana user will create this index.
-                // Kibana user will read / write to these indices
+                // "Alerts as data" internal backing indices used in Security Solution, Observability, etc.
+                // Kibana system user creates these indices; reads / writes to them via the aliases (see below).
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ALERTS_INDEX)
+                    .indices(ReservedRolesStore.ALERTS_BACKING_INDEX)
+                    .privileges("all").build(),
+                // "Alerts as data" public index aliases used in Security Solution, Observability, etc.
+                // Kibana system user uses them to read / write alerts.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ALERTS_INDEX_ALIAS)
                     .privileges("all").build(),
                 // Endpoint / Fleet policy responses. Kibana requires read access to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder()

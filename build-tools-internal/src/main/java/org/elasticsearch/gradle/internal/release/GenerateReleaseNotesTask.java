@@ -8,8 +8,10 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
@@ -23,9 +25,16 @@ import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.internal.logging.text.StyledTextOutput;
 import org.gradle.internal.logging.text.StyledTextOutputFactory;
+import org.gradle.process.ExecOperations;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -48,9 +57,14 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty breakingChangesFile;
 
     private final StyledTextOutput errorOutput;
+    private final ExecOperations execOperations;
 
     @Inject
-    public GenerateReleaseNotesTask(ObjectFactory objectFactory, StyledTextOutputFactory styledTextOutputFactory) {
+    public GenerateReleaseNotesTask(
+        ObjectFactory objectFactory,
+        StyledTextOutputFactory styledTextOutputFactory,
+        ExecOperations execOperations
+    ) {
         changelogs = objectFactory.fileCollection();
 
         releaseNotesIndexTemplate = objectFactory.fileProperty();
@@ -66,13 +80,26 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         // It's questionable to be using Gradle internals for printing in color, but there's no official API for it,
         // and we need to draw some things to the user's attention.
         errorOutput = styledTextOutputFactory.create("release-notes");
+
+        this.execOperations = execOperations;
     }
 
     @TaskAction
     public void executeTask() throws IOException {
         LOGGER.info("Finding changelog files...");
 
-        final List<ChangelogEntry> entries = this.changelogs.getFiles().stream().map(ChangelogEntry::parse).collect(Collectors.toList());
+        final Version elasticsearchVersion = VersionProperties.getElasticsearchVersion();
+
+        final Set<String> filesToIgnore = getFilesToIgnore(elasticsearchVersion);
+        if (filesToIgnore.isEmpty() == false) {
+            LOGGER.info("Ignoring " + filesToIgnore.size() + " changelog file(s) from previous releases");
+        }
+
+        final List<ChangelogEntry> entries = this.changelogs.getFiles()
+            .stream()
+            .filter(file -> filesToIgnore.contains(file.getName()) == false)
+            .map(ChangelogEntry::parse)
+            .collect(Collectors.toList());
 
         LOGGER.info("Updating release notes index...");
         ReleaseNotesIndexUpdater.update(this.releaseNotesIndexTemplate.get().getAsFile(), this.releaseNotesIndexFile.get().getAsFile());
@@ -84,9 +111,9 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             if (entries.stream().anyMatch(e -> e.getHighlight() != null)) {
                 String message = ("WARNING: There are YAML files with release highlights, but %s is not the "
                     + "first version in the minor series. If this is actually correct, please update %s manually.%n").formatted(
-                    VersionProperties.getElasticsearchVersion(),
-                    this.breakingChangesFile.get().getAsFile()
-                );
+                        VersionProperties.getElasticsearchVersion(),
+                        this.breakingChangesFile.get().getAsFile()
+                    );
                 this.errorOutput.style(StyledTextOutput.Style.Failure).text(message);
             }
         } else {
@@ -115,6 +142,48 @@ public class GenerateReleaseNotesTask extends DefaultTask {
                 entries
             );
         }
+    }
+
+    private Set<String> getFilesToIgnore(Version version) {
+        if (VersionProperties.isElasticsearchSnapshot()
+            || version.getQualifier() == null
+            || version.getQualifier().equals("alpha1")) {
+            return Collections.emptySet();
+        }
+
+        // We need to ensure the tags are up-to-date. Find the correct remote to use
+        String upstream = runCommand("git", "remote", "-v").lines()
+            .filter(line -> line.contains("(fetch)") && line.contains("elastic/elasticsearch"))
+            .map(line -> line.split("\\s+", 2)[0])
+            .findFirst()
+            .orElseThrow(
+                () -> new GradleException(
+                    "I need to ensure the git tags are up-to-date, but I couldn't find a git remote for [elastic/elasticsearch]"
+                )
+            );
+
+        // Now update
+        runCommand("git", "fetch", upstream);
+        runCommand("git", "fetch", "--tags", upstream);
+
+        QualifiedVersion qualifiedVersion = QualifiedVersion.of(VersionProperties.getElasticsearch());
+
+        // Find all prerelease tags for this release, using a wildcard tag pattern.
+        // Although `Version.toString()` only prints `major.minor.revision`, let's not rely on that in case the `toString()`
+        // logic ever changes and the behaviour here subtly breaks.
+        String tagWildcard = "v%d.%d.%d-*".formatted(version.getMajor(), version.getMinor(), version.getRevision());
+
+        final QualifiedVersion tag = runCommand("git", "tag", "-l", tagWildcard).lines()
+            .map(QualifiedVersion::of)
+            .filter(each -> each.isBefore(qualifiedVersion))
+            .max(Comparator.naturalOrder())
+            .orElseThrow(
+                () -> new GradleException("Failed to find a prerelease tag prior to [v" + qualifiedVersion + "]")
+            );
+
+        return runCommand("git", "ls-tree", "--name-only", "-r", tag.toString(), "docs/changelog").lines()
+            .map(line -> Path.of(line).getFileName().toString())
+            .collect(Collectors.toSet());
     }
 
     @InputFiles
@@ -196,5 +265,17 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     public void setBreakingChangesFile(RegularFile file) {
         this.breakingChangesFile.set(file);
+    }
+
+    private String runCommand(String... args) {
+        final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        execOperations.exec(spec -> {
+            // The redundant cast is to silence a compiler warning.
+            spec.setCommandLine((Object[]) args);
+            spec.setStandardOutput(stdout);
+        });
+
+        return stdout.toString(StandardCharsets.UTF_8);
     }
 }

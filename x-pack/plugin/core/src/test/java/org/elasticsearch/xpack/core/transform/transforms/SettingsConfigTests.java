@@ -33,12 +33,13 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         return new SettingsConfig(
             randomBoolean() ? null : randomIntBetween(10, 10_000),
             randomBoolean() ? null : randomFloat(),
+            randomBoolean() ? null : randomIntBetween(0, 1),
             randomBoolean() ? null : randomIntBetween(0, 1)
         );
     }
 
     public static SettingsConfig randomNonEmptySettingsConfig() {
-        return new SettingsConfig(randomIntBetween(10, 10_000), randomFloat(), randomIntBetween(0, 1));
+        return new SettingsConfig(randomIntBetween(10, 10_000), randomFloat(), randomIntBetween(0, 1), randomIntBetween(0, 1));
     }
 
     @Before
@@ -78,6 +79,9 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         assertThat(fromString("{\"dates_as_epoch_millis\" : null}").getDatesAsEpochMillisForUpdate(), equalTo(-1));
         assertNull(fromString("{}").getDatesAsEpochMillisForUpdate());
+
+        assertThat(fromString("{\"interim_results\" : null}").getInterimResultsForUpdate(), equalTo(-1));
+        assertNull(fromString("{}").getInterimResultsForUpdate());
     }
 
     public void testUpdateUsingBuilder() throws IOException {

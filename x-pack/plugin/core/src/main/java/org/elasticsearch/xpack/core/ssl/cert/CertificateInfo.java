@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.security.cert.X509Certificate;
@@ -70,7 +71,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalString(this.path);
         } else {
-            out.writeString(this.path);
+            out.writeString(this.path == null ? "" : this.path);
         }
         out.writeString(format);
         out.writeOptionalString(alias);
@@ -80,6 +81,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         out.writeLong(expiry.toInstant().toEpochMilli());
     }
 
+    @Nullable
     public String path() {
         return path;
     }
@@ -147,7 +149,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
 
     @Override
     public int hashCode() {
-        int result = path.hashCode();
+        int result = Objects.hashCode(path);
         result = 31 * result + (alias != null ? alias.hashCode() : 0);
         result = 31 * result + (serialNumber != null ? serialNumber.hashCode() : 0);
         return result;

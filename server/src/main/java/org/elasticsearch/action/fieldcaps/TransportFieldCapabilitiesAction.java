@@ -136,7 +136,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 List<FieldCapabilitiesFailure> failures = indexFailures.values();
                 if (indexResponses.size() > 0) {
                     if (request.isMergeResults()) {
-                        listener.onResponse(merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures)));
+                        // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
+                        // on a transport thread in case of large numbers of indices and/or fields
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(
+                            ActionRunnable.supply(
+                                listener,
+                                () -> merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures)))
+                        );
                     } else {
                         listener.onResponse(new FieldCapabilitiesResponse(indexResponses, new ArrayList<>(failures)));
                     }

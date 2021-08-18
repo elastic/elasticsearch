@@ -163,12 +163,7 @@ public class FeatureFactory {
 
         @Override
         public org.locationtech.jts.geom.Geometry visit(Polygon polygon) throws RuntimeException {
-            final org.locationtech.jts.geom.Polygon jtsPolygon = buildPolygon(polygon);
-            if (jtsPolygon.contains(tile)) {
-                // shortcut, we return the tile
-                return tile;
-            }
-            return TopologyPreservingSimplifier.simplify(jtsPolygon, pixelPrecision);
+            return simplifyGeometry(buildPolygon(polygon));
         }
 
         @Override
@@ -176,13 +171,21 @@ public class FeatureFactory {
             final org.locationtech.jts.geom.Polygon[] polygons = new org.locationtech.jts.geom.Polygon[multiPolygon.size()];
             for (int i = 0; i < multiPolygon.size(); i++) {
                 final org.locationtech.jts.geom.Polygon jtsPolygon = buildPolygon(multiPolygon.get(i));
-                if (jtsPolygon.contains(tile)) {
-                    // shortcut, we return the tile
-                    return tile;
-                }
                 polygons[i] = jtsPolygon;
             }
-            return TopologyPreservingSimplifier.simplify(geomFactory.createMultiPolygon(polygons), pixelPrecision);
+            return simplifyGeometry(geomFactory.createMultiPolygon(polygons));
+        }
+
+        private org.locationtech.jts.geom.Geometry simplifyGeometry(org.locationtech.jts.geom.Geometry geometry) {
+            if (geometry.isValid() == false) {
+                // we only simplify the geometry if it is valid, otherwise algorithm might fail.
+                return geometry;
+            }
+            if (geometry.contains(tile)) {
+                // shortcut, we return the tile
+                return tile;
+            }
+            return TopologyPreservingSimplifier.simplify(geometry, pixelPrecision);
         }
 
         private org.locationtech.jts.geom.Polygon buildPolygon(Polygon polygon) {

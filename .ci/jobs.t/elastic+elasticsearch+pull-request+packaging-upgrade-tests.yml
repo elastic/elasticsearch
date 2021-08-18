@@ -1,0 +1,53 @@
+---
+- job:
+    name: "elastic+elasticsearch+pull-request+packaging-upgrade-tests"
+    display-name: "elastic / elasticsearch - pull request packaging-upgrade-tests"
+    description: "Testing of Elasticsearch pull requests - packaging-upgrade-tests"
+    project-type: matrix
+    node: master
+    child-workspace: "/dev/shm/elastic+elasticsearch+pull-request+packaging-upgrade-tests"
+    scm:
+      - git:
+          refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
+          branches:
+            - "${ghprbActualCommit}"
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+elasticsearch-ci/packaging-upgrade-tests.*'
+          github-hooks: true
+          status-context: elasticsearch-ci/packaging-upgrade-tests
+          cancel-builds-on-update: true
+          black-list-target-branches:
+            - 6.8
+          excluded-regions:
+            - ^docs/.*
+          white-list-labels:
+            - ':Delivery/Packaging'
+          black-list-labels:
+            - '>test-mute'
+    axes:
+      - axis:
+          type: label-expression
+          name: os
+          values:
+            - centos-8-packaging
+            - ubuntu-20.04-packaging
+      - axis:
+          type: yaml
+          filename: ".ci/bwcVersions"
+          name: "BWC_VERSION"
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA8_HOME=$HOME/.java/java8
+            JAVA11_HOME=$HOME/.java/java11
+            JAVA15_HOME=$HOME/.java/openjdk15
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          ./.ci/os.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$BWC_VERSION

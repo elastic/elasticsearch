@@ -120,7 +120,7 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
         final List<Path> resolvedPaths = trustedCertPaths.stream().map(p -> getDataPath(p)).collect(Collectors.toList());
         TrustManager tm = CertParsingUtils.getTrustManagerFromPEM(resolvedPaths);
         KeyManager km = CertParsingUtils.getKeyManagerFromPEM(getDataPath(certPath), getDataPath(keyPath), password.toCharArray());
-        context.init(new KeyManager[]{km}, new TrustManager[]{tm}, new SecureRandom());
+        context.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
         return context;
     }
 

@@ -114,6 +114,9 @@ public class SslSettingsLoaderTests extends ESTestCase {
 
         assertThat(keyStore.getDependentFiles(), contains(path));
         assertThat(keyStore.hasKeyMaterial(), is(true));
+
+        assumeFalse("Cannot create Key Manager from a PKCS#12 file in FIPS", inFipsJvm());
+
         assertThat(keyStore.createKeyManager(), notNullValue());
         assertThat(keyStore.getKeys(false), hasSize(3)); // testnode_ec, testnode_rsa, testnode_dsa
         assertThat(keyStore.getKeys(true), hasSize(2)); // testnode_rsa, testnode_dsa

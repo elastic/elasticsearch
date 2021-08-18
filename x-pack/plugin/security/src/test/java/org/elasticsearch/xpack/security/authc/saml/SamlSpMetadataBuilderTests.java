@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
@@ -19,12 +18,10 @@ import org.w3c.dom.Element;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,18 +41,9 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         this.certificate = CertParsingUtils.readX509Certificate(certPath);
         final Path threeCertsPath = getDataPath("saml-three-certs.crt");
-        final List<Certificate> threeCerts = PemUtils.readCertificates(Collections.singletonList(threeCertsPath));
-        if (threeCerts.size() != 3) {
+        this.threeCertificates = CertParsingUtils.readX509Certificates(Collections.singletonList(threeCertsPath));
+        if (threeCertificates.length != 3) {
             fail("Expected exactly 3 certificate in " + certPath);
-        }
-        List<Class<?>> notX509Certificates = threeCerts.stream()
-            .filter(cert -> (cert instanceof X509Certificate) == false)
-            .map(cert -> cert.getClass())
-            .collect(Collectors.toList());
-        if (notX509Certificates.isEmpty() == false) {
-            fail("Expected exactly X509Certificates, but found " + notX509Certificates);
-        } else {
-            this.threeCertificates = threeCerts.toArray(X509Certificate[]::new);
         }
     }
 

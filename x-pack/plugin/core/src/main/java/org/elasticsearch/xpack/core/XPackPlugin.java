@@ -165,7 +165,7 @@ public class XPackPlugin extends XPackClientPlugin
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
 
-        setLicenseState(new XPackLicenseState(settings, () -> getEpochMillisSupplier().getAsLong()));
+        setLicenseState(new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong()));
 
         this.licensing = new Licensing(settings);
     }
@@ -273,7 +273,7 @@ public class XPackPlugin extends XPackClientPlugin
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-        setLicenseService(new LicenseService(settings, clusterService, getClock(),
+        setLicenseService(new LicenseService(settings, threadPool, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);

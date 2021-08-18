@@ -46,7 +46,7 @@ public class SearchAfterSortedDocQuery extends Query {
         this.sort = Objects.requireNonNull(sort);
         this.after = after;
         int numFields = sort.getSort().length;
-        this.fieldComparators = new FieldComparator[numFields];
+        this.fieldComparators = new FieldComparator<?>[numFields];
         this.reverseMuls = new int[numFields];
         for (int i = 0; i < numFields; i++) {
             SortField sortField = sort.getSort()[i];

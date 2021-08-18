@@ -45,8 +45,8 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listTestClusters";
     private static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
-    private static final String LEGACY_JAVA_VENDOR = "adoptopenjdk";
-    private static final String LEGACY_JAVA_VERSION = "8u242+b08";
+    private static final String LEGACY_JAVA_VENDOR = "adoptium";
+    private static final String LEGACY_JAVA_VERSION = "8u302+b08";
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
     private final ProviderFactory providerFactory;
     private Provider<File> runtimeJavaProvider;

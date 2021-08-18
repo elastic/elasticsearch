@@ -28,13 +28,6 @@ import static org.elasticsearch.gradle.internal.rewrite.rules.FullQualifiedChang
 public class FixFullQualifiedReferenceRecipe extends Recipe {
 
     @Option(
-            displayName = "method name",
-            description = "The name of the method we want to change the origin.",
-            example = "of"
-    )
-    private String originMethod;
-
-    @Option(
             displayName = "Fully-qualified target type name",
             description = "A fully-qualified class name we want to fix.",
             example = "org.elasticsearch.core.List"

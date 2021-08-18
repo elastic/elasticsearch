@@ -8,7 +8,8 @@
 
 package org.elasticsearch.gradle.internal.rewrite;
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest;
+import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import spock.lang.IgnoreRest;
 
 class AutobackportFuncTest extends AbstractGradleFuncTest {
 
@@ -32,6 +33,7 @@ class AutobackportFuncTest extends AbstractGradleFuncTest {
         }
         """
     }
+
     def "can run rewrite to backport java util methods"() {
         when:
         setupRewriteYamlConfig()
@@ -67,17 +69,16 @@ class SomeClass {
         
         repositories {
             mavenCentral()
-            maven { url 'https://jitpack.io' }
         }
         
         dependencies {
             rewrite "org.openrewrite:rewrite-java-11"
-            rewrite "com.github.breskeby:java-recipes:0dde6854d5"
+            rewrite "org.openrewrite:rewrite-java"
         }
         """
 
         then:
-        gradleRunner("rewrite").build()
+        gradleRunner("rewrite", '--stacktrace').build()
 
         sourceFile.text == """
 package org.acme;
@@ -136,12 +137,12 @@ class SomeClass {
         
         dependencies {
             rewrite "org.openrewrite:rewrite-java-11"
-            rewrite "com.breskeby.rewrite:java-recipes:1.0.0"
+            rewrite "org.openrewrite:rewrite-java"
         }
         """
 
         then:
-        gradleRunner("rewrite").build()
+        gradleRunner("rewrite", '--stacktrace').build()
 
         sourceFile.text == """
 package org.acme;
@@ -199,12 +200,13 @@ class SomeClass {
         
         dependencies {
             rewrite "org.openrewrite:rewrite-java-11"
-            rewrite "com.github.breskeby:java-recipes:1.0"
+            rewrite "org.openrewrite:rewrite-java"
         }
+
         """
 
         then:
-        gradleRunner("rewrite").build()
+        gradleRunner("rewrite", '--stacktrace').build()
 
         sourceFile.text == """
 package org.acme;
@@ -229,7 +231,7 @@ description: Java 8 does not support the `java.util.List#of(..)`.
 tags:
   - backport
 recipeList:
-  - com.breskeby.rewrite.java.backport.ChangeMethodOwnerRecipe:
+  - org.elasticsearch.gradle.internal.rewrite.rules.ChangeMethodOwnerRecipe:
       originFullQualifiedClassname: java.util.List
       targetFullQualifiedClassname: org.elasticsearch.core.List
       methodName: of
@@ -241,7 +243,7 @@ description: Java 8 does not support the `java.util.Map#of(..)`.
 tags:
   - backport
 recipeList:
-  - com.breskeby.rewrite.java.backport.ChangeMethodOwnerRecipe:
+  - org.elasticsearch.gradle.internal.rewrite.rules.ChangeMethodOwnerRecipe:
       originFullQualifiedClassname: java.util.Map
       targetFullQualifiedClassname: org.elasticsearch.core.Map
       methodName: of
@@ -253,7 +255,7 @@ description: Java 8 does not support the `java.util.Set#of(..)`.
 tags:
   - backport
 recipeList:
-  - com.breskeby.rewrite.java.backport.ChangeMethodOwnerRecipe:
+  - org.elasticsearch.gradle.internal.rewrite.rules.ChangeMethodOwnerRecipe:
       originFullQualifiedClassname: java.util.Set
       targetFullQualifiedClassname: org.elasticsearch.core.Set
       methodName: of

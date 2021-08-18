@@ -91,7 +91,7 @@ public abstract class RewriteTask extends DefaultTask {
             spec.getForkOptions().jvmArgs("--add-exports");
             spec.getForkOptions().jvmArgs("jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED");
             spec.getForkOptions().workingDir(getProject().getProjectDir());
-            spec.getForkOptions().setMaxHeapSize(getMaxHeapSize().get());
+            spec.getForkOptions().setMaxHeapSize(getMaxHeapSize().convention("1g").get());
         });
 
         List<File> javaPaths = getSourceFiles().getFiles()

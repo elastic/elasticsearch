@@ -5,7 +5,7 @@ description: Java 8 does not support the `java.util.List#of(..)`.
 tags:
   - backport
 recipeList:
-  - com.breskeby.rewrite.java.backport.ChangeMethodOwnerRecipe:
+  - org.elasticsearch.gradle.internal.rewrite.rules.ChangeMethodOwnerRecipe:
       originFullQualifiedClassname: java.util.List
       targetFullQualifiedClassname: org.elasticsearch.core.List
       methodName: of
@@ -17,7 +17,7 @@ description: Java 8 does not support the `java.util.Map#of(..)`.
 tags:
   - backport
 recipeList:
-  - com.breskeby.rewrite.java.backport.ChangeMethodOwnerRecipe:
+  - org.elasticsearch.gradle.internal.rewrite.rules.ChangeMethodOwnerRecipe:
       originFullQualifiedClassname: java.util.Map
       targetFullQualifiedClassname: org.elasticsearch.core.Map
       methodName: of
@@ -29,7 +29,7 @@ description: Java 8 does not support the `java.util.Set#of(..)`.
 tags:
   - backport
 recipeList:
-  - com.breskeby.rewrite.java.backport.ChangeMethodOwnerRecipe:
+  - org.elasticsearch.gradle.internal.rewrite.rules.ChangeMethodOwnerRecipe:
       originFullQualifiedClassname: java.util.Set
       targetFullQualifiedClassname: org.elasticsearch.core.Set
       methodName: of

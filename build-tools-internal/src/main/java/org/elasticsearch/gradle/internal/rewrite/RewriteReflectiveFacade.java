@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.rewrite;
 import javax.annotation.Nullable;
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
@@ -550,6 +551,15 @@ public class RewriteReflectiveFacade {
         public RewriteReflectiveFacade.JavaParserBuilder classpath(Collection<Path> classpath) {
             try {
                 real.getClass().getMethod("classpath", Collection.class).invoke(real, classpath);
+                return this;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public RewriteReflectiveFacade.JavaParserBuilder charset(Charset charset) {
+            try {
+                real.getClass().getMethod("charset", Charset.class).invoke(real, charset);
                 return this;
             } catch (Exception e) {
                 throw new RuntimeException(e);

@@ -16,6 +16,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -119,6 +120,7 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
                                 .relaxedClassTypeMatching(true)
                                 .styles(styles)
                                 .classpath(dependencyPaths)
+                                .charset(Charset.forName("UTF-8"))
                                 .logCompilationWarningsAndErrors(false)
                                 .build()
                                 .parse(javaPaths, getParameters().getProjectDirectory().get().getAsFile().toPath(), ctx)
@@ -132,12 +134,14 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
 
     protected RewriteReflectiveFacade.Environment environment() {
         Properties properties = new Properties();
-        RewriteReflectiveFacade.EnvironmentBuilder env = rewrite.environmentBuilder(properties).scanRuntimeClasspath().scanUserHome();
+        RewriteReflectiveFacade.EnvironmentBuilder env =
+                rewrite.environmentBuilder(properties).scanRuntimeClasspath().scanUserHome();
         File rewriteConfig = getParameters().getConfigFile().getAsFile().getOrNull();
         if(rewriteConfig != null){
             if (rewriteConfig.exists()) {
                 try (FileInputStream is = new FileInputStream(rewriteConfig)) {
-                    RewriteReflectiveFacade.YamlResourceLoader resourceLoader = rewrite.yamlResourceLoader(is, rewriteConfig.toURI(), properties);
+                    RewriteReflectiveFacade.YamlResourceLoader resourceLoader =
+                            rewrite.yamlResourceLoader(is, rewriteConfig.toURI(), properties);
                     env.load(resourceLoader);
                 } catch (IOException e) {
                     throw new RuntimeException("Unable to load rewrite configuration", e);

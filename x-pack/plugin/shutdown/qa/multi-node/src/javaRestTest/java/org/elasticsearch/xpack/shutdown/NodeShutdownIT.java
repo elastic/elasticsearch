@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -26,6 +27,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -34,15 +36,22 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class NodeShutdownIT extends ESRestTestCase {
 
+    public void testRestartCRUD() throws Exception {
+        checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue());
+    }
+
+    public void testRemoveCRUD() throws Exception {
+        checkCRUD(randomFrom("remove", "REMOVE"), null);
+    }
+
     @SuppressWarnings("unchecked")
-    public void testCRUD() throws Exception {
+    public void checkCRUD(String type, String allocationDelay) throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
-        String type = randomFrom("RESTART", "REMOVE");
 
         // Ensure if we do a GET before the cluster metadata is set up, we don't get an error
         assertNoShuttingDownNodes(nodeIdToShutdown);
 
-        putNodeShutdown(nodeIdToShutdown, type);
+        putNodeShutdown(nodeIdToShutdown, type, allocationDelay);
 
         // Ensure we can read it back
         {
@@ -51,8 +60,9 @@ public class NodeShutdownIT extends ESRestTestCase {
             List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
             assertThat(nodesArray, hasSize(1));
             assertThat(nodesArray.get(0).get("node_id"), equalTo(nodeIdToShutdown));
-            assertThat(nodesArray.get(0).get("type"), equalTo(type));
+            assertThat((String) nodesArray.get(0).get("type"), equalToIgnoringCase(type));
             assertThat(nodesArray.get(0).get("reason"), equalTo(this.getTestName()));
+            assertThat(nodesArray.get(0).get("allocation_delay"), equalTo(allocationDelay));
         }
 
         // Delete it and make sure it's deleted
@@ -354,11 +364,23 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     private void putNodeShutdown(String nodeIdToShutdown, String type) throws IOException {
+        putNodeShutdown(nodeIdToShutdown, type, null);
+    }
+
+    private void putNodeShutdown(String nodeIdToShutdown, String type, @Nullable String allocationDelay) throws IOException {
         String reason = this.getTestName();
 
         // Put a shutdown request
         Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
-        putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + reason + "\"}");
+        if (type.equalsIgnoreCase("restart") && allocationDelay != null) {
+            putShutdown.setJsonEntity(
+                "{\"type\":  \"" + type + "\", \"reason\":  \"" + reason + "\", \"allocation_delay\": \"" + allocationDelay + "\"}"
+            );
+
+        } else {
+            assertNull("allocation delay parameter is only valid for RESTART-type shutdowns", allocationDelay);
+            putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + reason + "\"}");
+        }
         assertOK(client().performRequest(putShutdown));
     }
 

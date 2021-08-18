@@ -64,7 +64,7 @@ public class EmailSslTests extends ESTestCase {
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, keystorePassword);
         keyStore.setKeyEntry("test-smtp", PemUtils.readPrivateKey(keyPath, keystorePassword::clone), keystorePassword,
-            CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
+                CertParsingUtils.readX509Certificates(Collections.singletonList(certPath)));
         final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, keystorePassword).build();
         server = EmailServer.localhost(logger, sslContext);
     }

@@ -462,7 +462,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
 
     private SSLContext getClientSslContext() throws Exception {
         final Path pem = getDataPath("/idp-browser.pem");
-        final Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(pem));
+        final Certificate[] certificates = CertParsingUtils.readX509Certificates(Collections.singletonList(pem));
         final X509ExtendedTrustManager trustManager = CertParsingUtils.trustManager(certificates);
         SSLContext context = SSLContext.getInstance("TLS");
         context.init(new KeyManager[0], new TrustManager[] { trustManager }, new SecureRandom());

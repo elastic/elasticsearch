@@ -67,7 +67,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         assertFalse(createRandomInstance().indexSurvives());
     }
 
-    public void testDeleted() {
+    public void testDeleted() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
@@ -85,7 +85,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).build()
         ).build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -111,7 +111,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).build()
         ).build();
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
             f -> step.performAction(indexMetadata, clusterState, null, f))));
     }
 
@@ -132,7 +132,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
             () -> createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new ActionListener<>() {
                 @Override
-                public void onResponse(Boolean complete) {
+                public void onResponse(Void complete) {
                     fail("unexpected listener callback");
                 }
 

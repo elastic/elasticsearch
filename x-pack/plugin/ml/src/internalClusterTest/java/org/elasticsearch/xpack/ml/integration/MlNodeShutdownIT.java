@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.unit.ByteSizeValue;

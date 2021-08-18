@@ -325,9 +325,9 @@ public class SSLDriverTests extends ESTestCase {
         String certPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt";
         String keyPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem";
         SSLContext sslContext;
-        TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
+        TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readX509Certificates(Collections.singletonList(getDataPath
             (certPath))));
-        KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
+        KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readX509Certificates(Collections.singletonList(getDataPath
             (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
         sslContext = SSLContext.getInstance(inFipsJvm() ? "TLSv1.2" : randomFrom("TLSv1.2", "TLSv1.3"));
         sslContext.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());

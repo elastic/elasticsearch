@@ -78,9 +78,15 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         });
 
         // Call the shutdown API for the chosen node.
-        client().execute(PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), randomFrom(SingleNodeShutdownMetadata.Type.values()), "just testing"))
-            .actionGet();
+        client().execute(
+            PutShutdownNodeAction.INSTANCE,
+            new PutShutdownNodeAction.Request(
+                nodeIdToShutdown.get(),
+                randomFrom(SingleNodeShutdownMetadata.Type.values()),
+                "just testing",
+                null
+            )
+        ).actionGet();
 
         // Wait for the desired end state of all 6 jobs running on nodes that are not shutting down.
         assertBusy(() -> {
@@ -145,8 +151,15 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         });
 
         // Call the shutdown API for the chosen node.
-        client().execute(PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), randomFrom(SingleNodeShutdownMetadata.Type.values()), "just testing"))
+        client().execute(
+            PutShutdownNodeAction.INSTANCE,
+            new PutShutdownNodeAction.Request(
+                nodeIdToShutdown.get(),
+                randomFrom(SingleNodeShutdownMetadata.Type.values()),
+                "just testing",
+                null
+            )
+        )
             .actionGet();
 
         if (randomBoolean()) {

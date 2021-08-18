@@ -115,4 +115,9 @@ public class FillMaskConfig implements NlpConfig {
     public TokenizationParams getTokenizationParams() {
         return tokenizationParams;
     }
+
+    @Override
+    public boolean isAllocateOnly() {
+        return true;
+    }
 }

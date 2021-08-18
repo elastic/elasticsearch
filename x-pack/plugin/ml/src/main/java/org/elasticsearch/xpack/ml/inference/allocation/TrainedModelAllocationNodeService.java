@@ -225,8 +225,9 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         );
     }
 
-    public void infer(TrainedModelDeploymentTask task, String input, TimeValue timeout, ActionListener<InferenceResults> listener) {
-        deploymentManager.infer(task, input, timeout, listener);
+    public void infer(TrainedModelDeploymentTask task, Map<String, Object> doc, TimeValue timeout,
+                      ActionListener<InferenceResults> listener) {
+        deploymentManager.infer(task, doc, timeout, listener);
     }
 
     private TaskAwareRequest taskAwareRequest(StartTrainedModelDeploymentAction.TaskParams params) {

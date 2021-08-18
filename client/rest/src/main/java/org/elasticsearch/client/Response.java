@@ -121,6 +121,7 @@ public class Response {
      * Length of RFC 1123 format (with quotes and leading space), used in
      * matchWarningHeaderPatternByPrefix(String).
      */
+    // @formatter:off
     private static final int WARNING_HEADER_DATE_LENGTH = 0
             + 1
             + 1
@@ -131,6 +132,7 @@ public class Response {
             + 2 + 1 + 2 + 1 + 2 + 1
             + 3
             + 1;
+    // @formatter:on
 
     /**
      * Tests if a string matches the RFC 7234 specification for warning headers.

@@ -133,4 +133,9 @@ public class NerConfig implements NlpConfig {
     public List<String> getClassificationLabels() {
         return classificationLabels;
     }
+
+    @Override
+    public boolean isAllocateOnly() {
+        return true;
+    }
 }

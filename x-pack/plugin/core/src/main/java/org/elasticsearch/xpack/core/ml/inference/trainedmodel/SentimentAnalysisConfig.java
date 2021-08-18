@@ -132,4 +132,9 @@ public class SentimentAnalysisConfig implements NlpConfig {
     public List<String> getClassificationLabels() {
         return classificationLabels;
     }
+
+    @Override
+    public boolean isAllocateOnly() {
+        return true;
+    }
 }

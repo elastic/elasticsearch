@@ -59,7 +59,6 @@ def projectPathsToExclude = [
   ':libs:elasticsearch-secure-sm',
   ':libs:elasticsearch-ssl-config',
   ':libs:elasticsearch-x-content',
-  ':modules:aggs-matrix-stats',
   ':modules:analysis-common',
   ':modules:ingest-common',
   ':modules:ingest-geoip',

@@ -350,17 +350,18 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 resetSuccess -> finalListener.onResponse(success),
                 resetFailure -> {
                     logger.error("failed to disable reset mode after otherwise successful transform reset", resetFailure);
-                    finalListener.onFailure(
+                    finalListener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.failure(this.getFeatureName(),
                         new ElasticsearchStatusException(
                             TransformMessages.getMessage(FAILED_TO_UNSET_RESET_MODE, "a successful feature reset"),
                             RestStatus.INTERNAL_SERVER_ERROR,
                             resetFailure
                         )
-                    );
+                    ));
                 })
             ),
             failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(false), ActionListener.wrap(
-                resetSuccess -> finalListener.onFailure(failure),
+                resetSuccess -> finalListener.onResponse(
+                    ResetFeatureStateResponse.ResetFeatureStateStatus.failure(this.getFeatureName(), failure)),
                 resetFailure -> {
                     logger.error(
                         TransformMessages.getMessage(FAILED_TO_UNSET_RESET_MODE, "a failed feature reset"),
@@ -371,7 +372,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                     );
                     ex.addSuppressed(resetFailure);
                     failure.addSuppressed(ex);
-                    finalListener.onFailure(failure);
+                    finalListener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.failure(this.getFeatureName(), failure));
                 })
             )
         );

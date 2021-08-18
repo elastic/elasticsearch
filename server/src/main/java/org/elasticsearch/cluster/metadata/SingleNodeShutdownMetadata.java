@@ -39,6 +39,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     public static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
     public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
     public static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
+    public static final ParseField NODE_SEEN_FIELD = new ParseField("node_seen");
 
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
@@ -47,7 +48,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             Type.valueOf((String) a[1]),
             (String) a[2],
             (long) a[3],
-            (TimeValue) a[4]
+            (boolean) a[4],
+            (TimeValue) a[5]
         )
     );
 
@@ -56,6 +58,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), NODE_SEEN_FIELD);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), ALLOCATION_DELAY_FIELD.getPreferredName()), ALLOCATION_DELAY_FIELD,
@@ -73,6 +76,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     private final Type type;
     private final String reason;
     private final long startedAtMillis;
+    private final boolean nodeSeen;
     @Nullable private final TimeValue allocationDelay;
 
     /**
@@ -86,12 +90,14 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         Type type,
         String reason,
         long startedAtMillis,
+        boolean nodeSeen,
         @Nullable TimeValue allocationDelay
     ) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
         this.startedAtMillis = startedAtMillis;
+        this.nodeSeen = nodeSeen;
         if (allocationDelay != null && Type.RESTART.equals(type) == false) {
             throw new IllegalArgumentException("shard allocation delay is only valid for RESTART-type shutdowns");
         }
@@ -103,6 +109,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         this.type = in.readEnum(Type.class);
         this.reason = in.readString();
         this.startedAtMillis = in.readVLong();
+        this.nodeSeen = in.readBoolean();
         this.allocationDelay = in.readOptionalTimeValue();
     }
 
@@ -135,6 +142,13 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     }
 
     /**
+     * @return A boolean indicated whether this node has been seen in the cluster since the shutdown was registered.
+     */
+    public boolean getNodeSeen() {
+        return nodeSeen;
+    }
+
+    /**
      * @return The amount of time shard reallocation should be delayed for shards on this node, so that they will not be automatically
      * reassigned while the node is restarting. Will be {@code null} for non-restart shutdowns.
      */
@@ -154,6 +168,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         out.writeEnum(type);
         out.writeString(reason);
         out.writeVLong(startedAtMillis);
+        out.writeBoolean(nodeSeen);
         out.writeOptionalTimeValue(allocationDelay);
     }
 
@@ -165,6 +180,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
             builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtMillis);
+            builder.field(NODE_SEEN_FIELD.getPreferredName(), nodeSeen);
             if (allocationDelay != null) {
                 builder.field(ALLOCATION_DELAY_FIELD.getPreferredName(), allocationDelay.getStringRep());
             }
@@ -183,6 +199,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             && getNodeId().equals(that.getNodeId())
             && getType() == that.getType()
             && getReason().equals(that.getReason())
+            && getNodeSeen() == that.getNodeSeen()
             && Objects.equals(allocationDelay, that.allocationDelay);
     }
 
@@ -193,6 +210,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             getType(),
             getReason(),
             getStartedAtMillis(),
+            getNodeSeen(),
             allocationDelay
         );
     }
@@ -209,7 +227,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             .setNodeId(original.getNodeId())
             .setType(original.getType())
             .setReason(original.getReason())
-            .setStartedAtMillis(original.getStartedAtMillis());
+            .setStartedAtMillis(original.getStartedAtMillis())
+            .setNodeSeen(original.getNodeSeen());
     }
 
     public static class Builder {
@@ -217,6 +236,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         private Type type;
         private String reason;
         private long startedAtMillis = -1;
+        private boolean nodeSeen = false;
         private TimeValue allocationDelay;
 
         private Builder() {}
@@ -258,6 +278,15 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         }
 
         /**
+         * @param nodeSeen Whether or not the node has been seen since the shutdown was registered.
+         * @return This builder.
+         */
+        public Builder setNodeSeen(boolean nodeSeen) {
+            this.nodeSeen = nodeSeen;
+            return this;
+        }
+
+        /**
          * @param allocationDelay The amount of time shard reallocation should be delayed while this node is offline.
          * @return This builder.
          */
@@ -275,7 +304,9 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
                 nodeId,
                 type,
                 reason,
-                startedAtMillis, allocationDelay
+                startedAtMillis,
+                nodeSeen,
+                allocationDelay
             );
         }
     }

@@ -77,11 +77,14 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     );
                 }
 
+                final boolean nodeSeen = currentState.getNodes().nodeExists(request.getNodeId());
+
                 SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
                     .setNodeId(request.getNodeId())
                     .setType(request.getType())
                     .setReason(request.getReason())
                     .setStartedAtMillis(System.currentTimeMillis())
+                    .setNodeSeen(nodeSeen)
                     .setAllocationDelay(request.getAllocationDelay())
                     .build();
 

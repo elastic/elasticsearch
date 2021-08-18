@@ -42,27 +42,9 @@ import java.util.regex.Pattern
  *    dpkg -c path/to/elasticsearch.deb
  */
 
-buildscript {
-  repositories {
-    mavenCentral()
-    maven { url 'https://jitpack.io' }
-  }
-
-  // We rely on a specific version of the redline library used to build rpm packages
-  // to support sha256header in our elasticsearch RPMs
-  // TODO: Remove once https://github.com/nebula-plugins/gradle-ospackage-plugin/pull/402 got merged and released
-  configurations.all {
-    resolutionStrategy {
-      force 'org.redline-rpm:redline:1.2.10'
-    }
-  }
-
-  dependencies {
-    classpath "com.github.breskeby:gradle-ospackage-plugin:98455c1"
-  }
+plugins {
+  id "nebula.ospackage-base" version "8.6.1"
 }
-
-apply plugin: "nebula.ospackage-base"
 
 void addProcessFilesTask(String type, boolean oss, boolean jdk) {
   String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"

@@ -218,9 +218,9 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
     private static ClusterState update(
         ClusterState currentState,
         TrainedModelAllocationMetadata.Builder modelAllocations,
-        boolean isChanged
+        boolean force
     ) {
-        if (isChanged || modelAllocations.isChanged()) {
+        if (force || modelAllocations.isChanged()) {
             return ClusterState.builder(currentState)
                 .metadata(
                     Metadata.builder(currentState.metadata()).putCustom(TrainedModelAllocationMetadata.NAME, modelAllocations.build())

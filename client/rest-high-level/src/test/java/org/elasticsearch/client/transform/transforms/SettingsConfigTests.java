@@ -73,7 +73,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("docs_per_second", "not_set"));
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
-        assertThat(settingsAsMap.getOrDefault("interim_results", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("align_checkpoints", "not_set"), equalTo("not_set"));
 
         config = fromString("{\"dates_as_epoch_millis\" : null}");
         assertFalse(config.getDatesAsEpochMillis());
@@ -82,16 +82,16 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"));
-        assertThat(settingsAsMap.getOrDefault("interim_results", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("align_checkpoints", "not_set"), equalTo("not_set"));
 
-        config = fromString("{\"interim_results\" : null}");
-        assertFalse(config.getInterimResults());
+        config = fromString("{\"align_checkpoints\" : null}");
+        assertFalse(config.getAlignCheckpoints());
 
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
-        assertNull(settingsAsMap.getOrDefault("interim_results", "not_set"));
+        assertNull(settingsAsMap.getOrDefault("align_checkpoints", "not_set"));
     }
 
     public void testExplicitNullOnWriteBuilder() throws IOException {
@@ -103,12 +103,12 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertNull(settingsAsMap.getOrDefault("max_page_search_size", "not_set"));
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
-        assertThat(settingsAsMap.getOrDefault("interim_results", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("align_checkpoints", "not_set"), equalTo("not_set"));
 
         SettingsConfig emptyConfig = new SettingsConfig.Builder().build();
         assertNull(emptyConfig.getMaxPageSearchSize());
         assertNull(emptyConfig.getDatesAsEpochMillis());
-        assertNull(emptyConfig.getInterimResults());
+        assertNull(emptyConfig.getAlignCheckpoints());
 
         settingsAsMap = xContentToMap(emptyConfig);
         assertTrue(settingsAsMap.isEmpty());
@@ -120,7 +120,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("docs_per_second", "not_set"));
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
-        assertThat(settingsAsMap.getOrDefault("interim_results", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("align_checkpoints", "not_set"), equalTo("not_set"));
 
         config = new SettingsConfig.Builder().setDatesAsEpochMillis(null).build();
         // returns false, however it's `null` as in "use default", checked next
@@ -130,17 +130,17 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"));
-        assertThat(settingsAsMap.getOrDefault("interim_results", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("align_checkpoints", "not_set"), equalTo("not_set"));
 
-        config = new SettingsConfig.Builder().setInterimResults(null).build();
+        config = new SettingsConfig.Builder().setAlignCheckpoints(null).build();
         // returns false, however it's `null` as in "use default", checked next
-        assertFalse(config.getInterimResults());
+        assertFalse(config.getAlignCheckpoints());
 
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
         assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
-        assertNull(settingsAsMap.getOrDefault("interim_results", "not_set"));
+        assertNull(settingsAsMap.getOrDefault("align_checkpoints", "not_set"));
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

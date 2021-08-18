@@ -39,6 +39,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   numberOfNodes = 2
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.enrollment.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
 

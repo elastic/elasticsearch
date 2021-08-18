@@ -73,6 +73,13 @@ ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasti
 
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
+  exec > >("$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.OutputBottomBanner "EOF" \
+    <(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.BootstrapPasswordAndEnrollmentTokenForInitialNode \
+    ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
+    ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+    "$(dirname "$0")/elasticsearch-cli" \
+    "$@" \
+    <<<"$KEYSTORE_PASSWORD"))
   exec \
     "$JAVA" \
     "$XSHARE" \

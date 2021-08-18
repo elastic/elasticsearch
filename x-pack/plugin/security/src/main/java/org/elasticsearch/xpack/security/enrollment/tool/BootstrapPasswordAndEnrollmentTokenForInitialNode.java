@@ -85,17 +85,19 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         final SecureString bootstrapPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(secureEnvironment.settings());
         try {
             String output;
-            client.checkClusterHealthWithRetriesWaitingForCluster(ElasticUser.NAME, bootstrapPassword, 15);
+            client.checkClusterHealthWithRetriesWaitingForCluster(ElasticUser.NAME, bootstrapPassword, 30);
             final EnrollmentToken kibanaToken = enrollmentTokenGenerator.createKibanaEnrollmentToken(ElasticUser.NAME, bootstrapPassword);
-            output = "Kibana enrollment token: " + kibanaToken.getEncoded() + System.lineSeparator();
+            output = "Security is enabled and has been automatically configured:" + System.lineSeparator();
+            output += "Kibana enrollment token: " + kibanaToken.getEncoded() + System.lineSeparator();
             output += "CA fingerprint: " + kibanaToken.getFingerprint() + System.lineSeparator();
             if (options.has(includeNodeEnrollmentToken)) {
                 final EnrollmentToken nodeToken = enrollmentTokenGenerator.createNodeEnrollmentToken(ElasticUser.NAME, bootstrapPassword);
                 output += "Node enrollment token: " + nodeToken.getEncoded() + System.lineSeparator();
             }
             if (ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.exists(secureEnvironment.settings()) == false) {
-                output += "elastic user password: " + setElasticUserPassword(client, bootstrapPassword);
+                output += "elastic user password: " + setElasticUserPassword(client, bootstrapPassword) + System.lineSeparator();
             }
+            output += "EOF";
             terminal.println(output);
         } catch (Exception e) {
             throw new UserException(ExitCodes.UNAVAILABLE, null);

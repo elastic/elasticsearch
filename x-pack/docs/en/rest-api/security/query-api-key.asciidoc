@@ -6,7 +6,7 @@
 ++++
 
 Retrieves information for API keys with <<query-dsl,Query DSL>>
-in a <<paginate-search-results,pagniated>> fashion.
+in a <<paginate-search-results,paginated>> fashion.
 
 [[security-api-query-api-key-request]]
 ==== {api-request-title}
@@ -23,22 +23,22 @@ in a <<paginate-search-results,pagniated>> fashion.
 [[security-api-query-api-key-desc]]
 ==== {api-description-title}
 
-The information for the API keys created by
-<<security-api-create-api-key,create API Key>> can be retrieved using this API in
-a paginated manner and optionally filtered with a query.
+Use this API to retrieve the API keys created with the
+<<security-api-create-api-key,create API key API>> in a paginated manner.
+You can optionally filter the results with a query.
 
 [[security-api-query-api-key-request-body]]
-==== {api-path-body-title}
+==== {api-path-parms-title}
 
-The following parameters can be specified in the body of a request and
-pertain to retrieving api keys:
+You can specify the following parameters in the request body:
+
 
 `query`::
-(Optional, string) A <<query-dsl,query>> to filter API keys to be returned.
-Note it only support a subset of the query types including
-<<query-dsl-match-all-query>>, <<query-dsl-bool-query>>,
-<<query-dsl-term-query>>, <<query-dsl-terms-query>>, <<query-dsl-ids-query>>,
-<<query-dsl-prefix-query>>, <<query-dsl-wildcard-query>>, <<query-dsl-range-query>>.
+(Optional, string) A <<query-dsl,query>> to filter which API keys to return.
+The query supports a subset of query types, including
+<<query-dsl-match-all-query,`match_all`>>, <<query-dsl-bool-query,`bool`>>,
+<<query-dsl-term-query,`term`>>, <<query-dsl-terms-query,`terms`>>, <<query-dsl-ids-query,`ids`>>,
+<<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>, and <<query-dsl-range-query,`range`>>.
 All public information associated to an API key can be queried, including:
 
 * ID of the API key can be queried with the <<query-dsl-ids-query>>

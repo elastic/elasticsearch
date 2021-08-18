@@ -316,6 +316,6 @@ The response contains a list of matched API keys along with their sort values:
 // NOTCONSOLE
 
 <1> Sort values associated to the API key
-<2> The first sort value is creation time and it is displayed in `date_time` <<mapping-date-forma,format>>
+<2> The first sort value is creation time and it is displayed in `date_time` <<mapping-date-format,format>>
 as requested in the request
 <3> The second sort value is API key name

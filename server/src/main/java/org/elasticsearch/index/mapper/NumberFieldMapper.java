@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -63,18 +64,6 @@ import java.util.function.Supplier;
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
 
-    public enum MetricType {
-        gauge,
-        counter;
-
-        public static MetricType fromString(String name) {
-            return Arrays.stream(values())
-                .filter(v -> v.name().equalsIgnoreCase(name))
-                .findFirst()
-                .orElse(null);
-        }
-    }
-
     public static final Setting<Boolean> COERCE_SETTING =
             Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
 
@@ -96,7 +85,13 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).builder.script.get());
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
         private final Parameter<Boolean> dimension;
-        private final Parameter<String> metric;
+        private final Parameter<String> metric = TimeSeriesParams.metricParam(
+            m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
+            hasDocValues,
+            null,
+            MetricType.gauge.name(),
+            MetricType.counter.name()
+        );
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -137,18 +132,6 @@ public class NumberFieldMapper extends FieldMapper {
                         );
                     }
                 });
-            this.metric = Parameter.restrictedStringParam(
-                "metric",
-                false,
-                m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
-                null,
-                MetricType.gauge.name(),
-                MetricType.counter.name()
-            ).acceptsNull().setValidator(v -> {
-                if (v != null && v.isEmpty() == false && hasDocValues.getValue() == false) {
-                    throw new IllegalArgumentException("Field [metric] requires that [" + hasDocValues.name + "] is true");
-                }
-            });
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
@@ -1153,7 +1136,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
     private final boolean dimension;
-    private final MetricType metricType;
+    private final TimeSeriesParams.MetricType metricType;
 
     private NumberFieldMapper(
             String simpleName,

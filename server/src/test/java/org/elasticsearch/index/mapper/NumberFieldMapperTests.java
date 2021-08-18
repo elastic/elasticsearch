@@ -281,6 +281,16 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
         assertMetricType("gauge", NumberFieldMapper.NumberFieldType::getMetricType);
         assertMetricType("counter", NumberFieldMapper.NumberFieldType::getMetricType);
+
+        // Test invalid metric type for this field type
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("metric", "histogram");
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Unknown value [histogram] for field [metric] - accepted values are [null, gauge, counter]")
+        );
     }
 
     public void testMetricAndDocvalues() {

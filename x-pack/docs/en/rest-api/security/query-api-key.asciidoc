@@ -19,6 +19,10 @@ in a <<paginate-search-results,paginated>> fashion.
 ==== {api-prereq-title}
 
 * To use this API, you must have at least the `manage_own_api_key` cluster privilege.
+* If the user only has the `manage_own_api_key` privilege, this API returns
+those API keys that are owned by the user. On the other hand, if the user
+has the `manage_api_key` or greater privileges (including `manage_security`), this
+API returns API keys regardless of their owners.
 
 [[security-api-query-api-key-desc]]
 ==== {api-description-title}
@@ -73,10 +77,6 @@ also be applied to the `_doc` field, which is useful for tie-breaking.
 `search_after`::
 (Optional, array) <<search-after,Search after>> definition.
 
-NOTE: If the user only has `manage_own_api_key` privilege, this API returns
-only those API keys that are owned by the user. On the other hand, if the user
-has `manage_api_key` or greater privilege (including `manage_security`), this
-API returns API keys regardless of their owners.
 
 [[security-api-query-api-key-response-body]]
 ==== {api-response-body-title}

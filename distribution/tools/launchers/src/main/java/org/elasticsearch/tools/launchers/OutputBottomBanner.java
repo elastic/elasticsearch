@@ -113,7 +113,8 @@ final class OutputBottomBanner {
                 // clear banner
                 if (terminalWidth != AnsiConsole.getTerminalWidth()) {
                     terminalWidth =  AnsiConsole.getTerminalWidth();
-                    bannerClearCommand = ansi().cursorUpLine(banner.getLineCount(terminalWidth)).eraseScreen(Ansi.Erase.FORWARD).toString();
+                    bannerClearCommand =
+                            ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
                 }
                 AnsiConsole.out().printf(Locale.ROOT, "%s", bannerClearCommand);
                 // forwarded line replaces banner

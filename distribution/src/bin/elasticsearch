@@ -18,6 +18,7 @@ source "`dirname "$0"`"/elasticsearch-env
 CHECK_KEYSTORE=true
 AUTO_CONFIG="${AUTO_CONFIG:-true}"
 DAEMONIZE=false
+QUIET=false
 for option in "$@"; do
   case "$option" in
     -h|--help|-V|--version)
@@ -26,6 +27,9 @@ for option in "$@"; do
       ;;
     -d|--daemonize)
       DAEMONIZE=true
+      ;;
+    -q|--quiet)
+      QUIET=true
       ;;
     -e|--enroll)
       AUTO_CONFIG=false
@@ -73,13 +77,15 @@ ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasti
 
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
-  exec > >("$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.OutputBottomBanner "EOF" \
-    <(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.BootstrapPasswordAndEnrollmentTokenForInitialNode \
-    ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
-    ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-    "$(dirname "$0")/elasticsearch-cli" \
-    "$@" \
-    <<<"$KEYSTORE_PASSWORD"))
+  if [[ "$QUIET" = false ]]; then
+    exec > >(exec "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.OutputBottomBanner "EOF" \
+      <(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.BootstrapPasswordAndEnrollmentTokenForInitialNode \
+      ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
+      ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+      "$(dirname "$0")/elasticsearch-cli" \
+      "$@" \
+      <<<"$KEYSTORE_PASSWORD"))
+  fi
   exec \
     "$JAVA" \
     "$XSHARE" \

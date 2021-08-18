@@ -332,4 +332,3 @@ The response contains a list of matched API keys along with their sort values:
 
 <1> The first sort value is creation time, which is displayed in `date_time` <<mapping-date-format,format>> as defined in the request
 <2> The second sort value is the API key name
-=======

@@ -15,6 +15,13 @@ configurations {
   nonRepositoryPlugins
 }
 
+// Intentionally doesn't include `repository-hdfs`
+List<String> repositoryPlugins = [
+  'repository-azure',
+  'repository-gcs',
+  'repository-s3'
+]
+
 // only configure immediate children of plugins dir
 configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.elasticsearch.plugin'
@@ -28,8 +35,10 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
     noticeFile rootProject.file('NOTICE.txt')
   }
 
-  String configurationName = project.name.startsWith('repository-') ? 'repositoryPlugins' : 'nonRepositoryPlugins'
-  parent.dependencies { DependencyHandler d ->
-    d.add(configurationName, d.project(path: project.name, configuration: 'zip'))
+
+  if (repositoryPlugins.includes(project.name)) {
+    parent.artifacts.add('repositoryPlugins', tasks.named('bundlePlugin'))
+  } else {
+    parent.artifacts.add('nonRepositoryPlugins', tasks.named('bundlePlugin'))
   }
 }

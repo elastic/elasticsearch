@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.rest-resources'
 
-String buildId = System.getProperty('build.id')
+String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false
 
 repositories {
@@ -82,7 +82,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
   def (major,minor) = VersionProperties.elasticsearch.split("\\.")
 
   return [
-    'base_image'         : base.getImage(),
+    'base_image'         : base.image,
     'bin_dir'            : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
     'build_date'         : BuildParams.buildDate,
     'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',

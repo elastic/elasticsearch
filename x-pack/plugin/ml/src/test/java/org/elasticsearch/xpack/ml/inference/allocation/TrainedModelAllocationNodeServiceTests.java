@@ -204,6 +204,9 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         verify(deploymentManager, times(2)).startDeployment(startTaskCapture.capture(), any());
         verify(trainedModelAllocationService, times(2)).updateModelAllocationState(requestCapture.capture(), any());
 
+        ArgumentCaptor<TrainedModelDeploymentTask> stopTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
+        verify(deploymentManager).stopDeployment(stopTaskCapture.capture());
+
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
@@ -213,6 +216,8 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         assertThat(requestCapture.getAllValues().get(1).getModelId(), equalTo(failedModelToLoad));
         assertThat(requestCapture.getAllValues().get(1).getNodeId(), equalTo(NODE_ID));
         assertThat(requestCapture.getAllValues().get(1).getRoutingState().getState(), equalTo(RoutingState.FAILED));
+
+        assertThat(stopTaskCapture.getValue().getModelId(), equalTo(failedModelToLoad));
 
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }

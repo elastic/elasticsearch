@@ -187,7 +187,7 @@ public class DeploymentManager {
             logger.info("[{}] Stopping deployment", task.getModelId());
             processContext.stopProcess();
         } else {
-            logger.info("[{}] No process context to stop", task.getModelId());
+            logger.debug("[{}] No process context to stop", task.getModelId());
         }
     }
 

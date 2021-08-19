@@ -165,9 +165,11 @@ String grammarPath = 'src/main/antlr'
 // need to customize the spotless config below.
 String outputPath = 'src/main/java/org/elasticsearch/painless/antlr'
 
-spotless {
-  java {
-    targetExclude "${outputPath}/*.java"
+pluginManager.withPlugin('com.diffplug.spotless') {
+  spotless {
+    java {
+      targetExclude "${outputPath}/*.java"
+    }
   }
 }
 

@@ -6,16 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.settings;
+package org.elasticsearch.common.settings.cli;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
-import joptsimple.OptionSpecBuilder;
-
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.settings.BaseKeyStoreCommand;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.Streams;

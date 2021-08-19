@@ -34,7 +34,7 @@ import java.util.List;
 @LuceneTestCase.SuppressFileSystems("*") // we do our own mocking
 public abstract class KeyStoreCommandTestCase extends CommandTestCase {
 
-    Environment env;
+    protected Environment env;
 
     List<FileSystem> fileSystems = new ArrayList<>();
 

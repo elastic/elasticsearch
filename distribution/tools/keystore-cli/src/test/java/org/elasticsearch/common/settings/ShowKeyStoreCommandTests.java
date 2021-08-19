@@ -11,6 +11,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.settings.cli.ShowKeyStoreCommand;
 import org.elasticsearch.env.Environment;
 
 import java.nio.file.Files;

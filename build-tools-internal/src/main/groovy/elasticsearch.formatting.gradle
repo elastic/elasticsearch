@@ -208,8 +208,6 @@ subprojects {
                    'src/*/java/org/elasticsearch/repositories/**/*.java',
                    'src/*/java/org/elasticsearch/search/aggregations/**/*.java',
                    'src/*/java/org/elasticsearch/snapshots/**/*.java'
-
-            targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
           } else {
             // Normally this isn't necessary, but we have Java sources in
             // non-standard places

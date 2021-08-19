@@ -150,8 +150,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:repository-encrypted:qa:azure',
   ':x-pack:plugin:repository-encrypted:qa:gcs',
   ':x-pack:plugin:repository-encrypted:qa:s3',
-  ':x-pack:plugin:rollup',
-  ':x-pack:plugin:rollup:qa:rest',
   ':x-pack:plugin:search-business-rules',
   ':x-pack:plugin:security',
   ':x-pack:plugin:security:cli',

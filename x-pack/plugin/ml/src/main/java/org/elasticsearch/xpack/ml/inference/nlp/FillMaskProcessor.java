@@ -26,7 +26,7 @@ public class FillMaskProcessor implements NlpTask.Processor {
     private final NlpTask.RequestBuilder requestBuilder;
 
     FillMaskProcessor(NlpTokenizer tokenizer, FillMaskConfig config) {
-        this.requestBuilder = tokenizer.requestBuilder(config);
+        this.requestBuilder = tokenizer.requestBuilder();
     }
 
     @Override

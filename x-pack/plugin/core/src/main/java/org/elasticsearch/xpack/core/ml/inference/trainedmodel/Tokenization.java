@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
-public abstract class TokenizationParams implements NamedXContentObject, NamedWriteable {
+public abstract class Tokenization implements NamedXContentObject, NamedWriteable {
 
     //TODO add global params like never_split, bos_token, eos_token, mask_token, tokenize_chinese_chars, strip_accents, etc.
     public static final ParseField DO_LOWER_CASE = new ParseField("do_lower_case");
@@ -31,21 +31,21 @@ public abstract class TokenizationParams implements NamedXContentObject, NamedWr
     private static final boolean DEFAULT_DO_LOWER_CASE = false;
     private static final boolean DEFAULT_WITH_SPECIAL_TOKENS = true;
 
-    static <T extends TokenizationParams> void declareCommonFields(ConstructingObjectParser<T, ?> parser) {
+    static <T extends Tokenization> void declareCommonFields(ConstructingObjectParser<T, ?> parser) {
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DO_LOWER_CASE);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), WITH_SPECIAL_TOKENS);
         parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_SEQUENCE_LENGTH);
     }
 
-    public static BertTokenizationParams createDefault() {
-        return new BertTokenizationParams(null, null, null);
+    public static BertTokenization createDefault() {
+        return new BertTokenization(null, null, null);
     }
 
     protected final boolean doLowerCase;
     protected final boolean withSpecialTokens;
     protected final int maxSequenceLength;
 
-    TokenizationParams(@Nullable Boolean doLowerCase, @Nullable Boolean withSpecialTokens, @Nullable Integer maxSequenceLength) {
+    Tokenization(@Nullable Boolean doLowerCase, @Nullable Boolean withSpecialTokens, @Nullable Integer maxSequenceLength) {
         if (maxSequenceLength != null && maxSequenceLength <= 0) {
             throw new IllegalArgumentException("[" + MAX_SEQUENCE_LENGTH.getPreferredName() + "] must be positive");
         }
@@ -54,7 +54,7 @@ public abstract class TokenizationParams implements NamedXContentObject, NamedWr
         this.maxSequenceLength = Optional.ofNullable(maxSequenceLength).orElse(DEFAULT_MAX_SEQUENCE_LENGTH);
     }
 
-    public TokenizationParams(StreamInput in) throws IOException {
+    public Tokenization(StreamInput in) throws IOException {
         this.doLowerCase = in.readBoolean();
         this.withSpecialTokens = in.readBoolean();
         this.maxSequenceLength = in.readVInt();
@@ -84,7 +84,7 @@ public abstract class TokenizationParams implements NamedXContentObject, NamedWr
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TokenizationParams that = (TokenizationParams) o;
+        Tokenization that = (Tokenization) o;
         return doLowerCase == that.doLowerCase
             && withSpecialTokens == that.withSpecialTokens
             && maxSequenceLength == that.maxSequenceLength;

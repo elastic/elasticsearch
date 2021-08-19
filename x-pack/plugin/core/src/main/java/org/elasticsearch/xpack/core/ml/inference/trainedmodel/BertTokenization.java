@@ -17,32 +17,32 @@ import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
-public class BertTokenizationParams extends TokenizationParams {
+public class BertTokenization extends Tokenization {
 
     public static final ParseField NAME = new ParseField("bert");
 
-    public static ConstructingObjectParser<BertTokenizationParams, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<BertTokenizationParams, Void> parser = new ConstructingObjectParser<>(
-            "bert_tokenization_params",
+    public static ConstructingObjectParser<BertTokenization, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<BertTokenization, Void> parser = new ConstructingObjectParser<>(
+            "bert_tokenization",
             ignoreUnknownFields,
-            a -> new BertTokenizationParams((Boolean) a[0], (Boolean) a[1], (Integer) a[2])
+            a -> new BertTokenization((Boolean) a[0], (Boolean) a[1], (Integer) a[2])
         );
-        TokenizationParams.declareCommonFields(parser);
+        Tokenization.declareCommonFields(parser);
         return parser;
     }
 
-    private static final ConstructingObjectParser<BertTokenizationParams, Void> LENIENT_PARSER = createParser(true);
-    private static final ConstructingObjectParser<BertTokenizationParams, Void> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<BertTokenization, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<BertTokenization, Void> STRICT_PARSER = createParser(false);
 
-    public static BertTokenizationParams fromXContent(XContentParser parser, boolean lenient) {
+    public static BertTokenization fromXContent(XContentParser parser, boolean lenient) {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
-    public BertTokenizationParams(@Nullable Boolean doLowerCase, @Nullable Boolean withSpecialTokens, @Nullable Integer maxSequenceLength) {
+    public BertTokenization(@Nullable Boolean doLowerCase, @Nullable Boolean withSpecialTokens, @Nullable Integer maxSequenceLength) {
         super(doLowerCase, withSpecialTokens, maxSequenceLength);
     }
 
-    public BertTokenizationParams(StreamInput in) throws IOException {
+    public BertTokenization(StreamInput in) throws IOException {
         super(in);
     }
 

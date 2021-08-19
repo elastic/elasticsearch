@@ -37,33 +37,33 @@ public class BertPassThroughConfig implements NlpConfig {
 
     private static ConstructingObjectParser<BertPassThroughConfig, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<BertPassThroughConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
-            a -> new BertPassThroughConfig((VocabularyConfig) a[0], (TokenizationParams) a[1]));
+            a -> new BertPassThroughConfig((VocabularyConfig) a[0], (Tokenization) a[1]));
         parser.declareObject(ConstructingObjectParser.constructorArg(), VocabularyConfig.createParser(ignoreUnknownFields), VOCABULARY);
         parser.declareNamedObject(
-            ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(TokenizationParams.class, n, ignoreUnknownFields),
-            TOKENIZATION_PARAMS
+            ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
+            TOKENIZATION
         );
         return parser;
     }
 
     private final VocabularyConfig vocabularyConfig;
-    private final TokenizationParams tokenizationParams;
+    private final Tokenization tokenization;
 
-    public BertPassThroughConfig(VocabularyConfig vocabularyConfig, @Nullable TokenizationParams tokenizationParams) {
+    public BertPassThroughConfig(VocabularyConfig vocabularyConfig, @Nullable Tokenization tokenization) {
         this.vocabularyConfig = ExceptionsHelper.requireNonNull(vocabularyConfig, VOCABULARY);
-        this.tokenizationParams = tokenizationParams == null ? TokenizationParams.createDefault() : tokenizationParams;
+        this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
     }
 
     public BertPassThroughConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
-        tokenizationParams = in.readNamedWriteable(TokenizationParams.class);
+        tokenization = in.readNamedWriteable(Tokenization.class);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig);
-        NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION_PARAMS.getPreferredName(), tokenizationParams);
+        NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION.getPreferredName(), tokenization);
         builder.endObject();
         return builder;
     }
@@ -76,7 +76,7 @@ public class BertPassThroughConfig implements NlpConfig {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         vocabularyConfig.writeTo(out);
-        out.writeNamedWriteable(tokenizationParams);
+        out.writeNamedWriteable(tokenization);
     }
 
     @Override
@@ -106,12 +106,12 @@ public class BertPassThroughConfig implements NlpConfig {
 
         BertPassThroughConfig that = (BertPassThroughConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)
-            && Objects.equals(tokenizationParams, that.tokenizationParams);
+            && Objects.equals(tokenization, that.tokenization);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(vocabularyConfig, tokenizationParams);
+        return Objects.hash(vocabularyConfig, tokenization);
     }
 
     @Override
@@ -120,7 +120,7 @@ public class BertPassThroughConfig implements NlpConfig {
     }
 
     @Override
-    public TokenizationParams getTokenizationParams() {
-        return tokenizationParams;
+    public Tokenization getTokenization() {
+        return tokenization;
     }
 }

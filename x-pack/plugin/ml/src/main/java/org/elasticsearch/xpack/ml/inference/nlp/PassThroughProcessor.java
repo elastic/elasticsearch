@@ -23,7 +23,7 @@ public class PassThroughProcessor implements NlpTask.Processor {
     private final NlpTask.RequestBuilder requestBuilder;
 
     PassThroughProcessor(NlpTokenizer tokenizer, BertPassThroughConfig config) {
-        this.requestBuilder = tokenizer.requestBuilder(config);
+        this.requestBuilder = tokenizer.requestBuilder();
     }
 
     @Override

@@ -17,28 +17,28 @@ import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
-public class DistilBertTokenizationParams extends TokenizationParams {
+public class DistilBertTokenization extends Tokenization {
 
     public static final ParseField NAME = new ParseField("distil_bert");
 
-    public static ConstructingObjectParser<DistilBertTokenizationParams, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<DistilBertTokenizationParams, Void> parser = new ConstructingObjectParser<>(
-            "distil_bert_tokenization_params",
+    public static ConstructingObjectParser<DistilBertTokenization, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<DistilBertTokenization, Void> parser = new ConstructingObjectParser<>(
+            "distil_bert_tokenization",
             ignoreUnknownFields,
-            a -> new DistilBertTokenizationParams((Boolean) a[0], (Boolean) a[1], (Integer) a[2])
+            a -> new DistilBertTokenization((Boolean) a[0], (Boolean) a[1], (Integer) a[2])
         );
-        TokenizationParams.declareCommonFields(parser);
+        Tokenization.declareCommonFields(parser);
         return parser;
     }
 
-    private static final ConstructingObjectParser<DistilBertTokenizationParams, Void> LENIENT_PARSER = createParser(true);
-    private static final ConstructingObjectParser<DistilBertTokenizationParams, Void> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<DistilBertTokenization, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<DistilBertTokenization, Void> STRICT_PARSER = createParser(false);
 
-    public static DistilBertTokenizationParams fromXContent(XContentParser parser, boolean lenient) {
+    public static DistilBertTokenization fromXContent(XContentParser parser, boolean lenient) {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
-    public DistilBertTokenizationParams(
+    public DistilBertTokenization(
         @Nullable Boolean doLowerCase,
         @Nullable Boolean withSpecialTokens,
         @Nullable Integer maxSequenceLength
@@ -46,7 +46,7 @@ public class DistilBertTokenizationParams extends TokenizationParams {
         super(doLowerCase, withSpecialTokens, maxSequenceLength);
     }
 
-    public DistilBertTokenizationParams(StreamInput in) throws IOException {
+    public DistilBertTokenization(StreamInput in) throws IOException {
         super(in);
     }
 

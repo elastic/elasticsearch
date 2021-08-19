@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationParams;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -21,7 +21,7 @@ public class BertTokenizerTests extends ESTestCase {
     public void testTokenize() {
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun"),
-            new BertTokenizationParams(null, false, null)
+            new BertTokenization(null, false, null)
         ).build();
 
         TokenizationResult tokenization = tokenizer.tokenize("Elasticsearch fun");
@@ -33,7 +33,7 @@ public class BertTokenizerTests extends ESTestCase {
     public void testTokenizeAppendSpecialTokens() {
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList( "elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN),
-            TokenizationParams.createDefault()
+            Tokenization.createDefault()
         ).build();
 
         TokenizationResult tokenization = tokenizer.tokenize("elasticsearch fun");
@@ -47,7 +47,7 @@ public class BertTokenizerTests extends ESTestCase {
 
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", specialToken, BertTokenizer.UNKNOWN_TOKEN),
-            TokenizationParams.createDefault()
+            Tokenization.createDefault()
         ).setNeverSplit(Collections.singleton(specialToken))
          .setWithSpecialTokens(false)
          .build();
@@ -62,7 +62,7 @@ public class BertTokenizerTests extends ESTestCase {
         {
             BertTokenizer tokenizer = BertTokenizer.builder(
                 Arrays.asList("elastic", "##search", "fun", BertTokenizer.UNKNOWN_TOKEN),
-                TokenizationParams.createDefault()
+                Tokenization.createDefault()
             ).setDoLowerCase(false)
              .setWithSpecialTokens(false)
              .build();
@@ -77,7 +77,7 @@ public class BertTokenizerTests extends ESTestCase {
         }
 
         {
-            BertTokenizer tokenizer = BertTokenizer.builder(Arrays.asList("elastic", "##search", "fun"), TokenizationParams.createDefault())
+            BertTokenizer tokenizer = BertTokenizer.builder(Arrays.asList("elastic", "##search", "fun"), Tokenization.createDefault())
                 .setDoLowerCase(true)
                 .setWithSpecialTokens(false)
                 .build();
@@ -90,7 +90,7 @@ public class BertTokenizerTests extends ESTestCase {
     public void testPunctuation() {
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", ".", ",", BertTokenizer.MASK_TOKEN, BertTokenizer.UNKNOWN_TOKEN),
-            TokenizationParams.createDefault()
+            Tokenization.createDefault()
         ).setWithSpecialTokens(false).build();
 
         TokenizationResult tokenization = tokenizer.tokenize("Elasticsearch, fun.");

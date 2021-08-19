@@ -49,7 +49,7 @@ public class SentimentAnalysisConfigTests extends InferenceConfigItemTestCase<Se
             VocabularyConfigTests.createRandom(),
             randomBoolean() ?
                 null :
-                randomFrom(BertTokenizationParamsTests.createRandom(), DistilBertTokenizationParamsTests.createRandom()),
+                randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom()),
             randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10))
         );
     }

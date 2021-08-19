@@ -29,7 +29,7 @@ public class NlpTask {
 
     public NlpTask(NlpConfig config, Vocabulary vocabulary) {
         this.config = config;
-        this.tokenizer = NlpTokenizer.build(vocabulary, config.getTokenizationParams());
+        this.tokenizer = NlpTokenizer.build(vocabulary, config.getTokenization());
     }
 
     /**

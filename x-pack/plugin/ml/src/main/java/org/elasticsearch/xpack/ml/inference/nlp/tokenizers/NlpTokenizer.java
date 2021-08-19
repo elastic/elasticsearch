@@ -7,32 +7,33 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationParams;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenizationParams;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.nlp.BertRequestBuilder;
+import org.elasticsearch.xpack.ml.inference.nlp.DistilBertRequestBuilder;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION_PARAMS;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.VOCABULARY;
 
 public interface NlpTokenizer {
 
     TokenizationResult tokenize(String text);
 
-    NlpTask.RequestBuilder requestBuilder(NlpConfig config);
+    NlpTask.RequestBuilder requestBuilder();
 
-    static NlpTokenizer build(Vocabulary vocabulary, TokenizationParams params) {
-        ExceptionsHelper.requireNonNull(params, TOKENIZATION_PARAMS);
+    static NlpTokenizer build(Vocabulary vocabulary, Tokenization params) {
+        ExceptionsHelper.requireNonNull(params, TOKENIZATION);
         ExceptionsHelper.requireNonNull(vocabulary, VOCABULARY);
-        if (params instanceof BertTokenizationParams) {
-            return BertTokenizer.builder(vocabulary.get(), params).build();
+        if (params instanceof BertTokenization) {
+            return BertTokenizer.builder(vocabulary.get(), params).setRequestBuilderFactory(BertRequestBuilder::new).build();
         }
-        if (params instanceof DistilBertTokenizationParams) {
-            return DistilBertTokenizer.builder(vocabulary.get(), params).build();
+        if (params instanceof DistilBertTokenization) {
+            return BertTokenizer.builder(vocabulary.get(), params).setRequestBuilderFactory(DistilBertRequestBuilder::new).build();
         }
-        throw new IllegalArgumentException("unknown tokenization_params type [" + params.getName() + "]");
+        throw new IllegalArgumentException("unknown tokenization type [" + params.getName() + "]");
     }
 }

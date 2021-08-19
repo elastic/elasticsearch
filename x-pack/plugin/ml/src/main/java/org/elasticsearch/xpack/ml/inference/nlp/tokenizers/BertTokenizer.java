@@ -7,8 +7,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.BertRequestBuilder;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
@@ -21,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Function;
 
 /**
  * Performs basic tokenization and normalization of input text
@@ -54,6 +54,7 @@ public class BertTokenizer implements NlpTokenizer {
     private final boolean withSpecialTokens;
     private final Set<String> neverSplit;
     private final int maxSequenceLength;
+    private final NlpTask.RequestBuilder requestBuilder;
 
     protected BertTokenizer(List<String> originalVocab,
                             SortedMap<String, Integer> vocab,
@@ -62,6 +63,7 @@ public class BertTokenizer implements NlpTokenizer {
                             boolean doStripAccents,
                             boolean withSpecialTokens,
                             int maxSequenceLength,
+                            Function<BertTokenizer, NlpTask.RequestBuilder> requestBuilderFactory,
                             Set<String> neverSplit) {
         wordPieceTokenizer = new WordPieceTokenizer(vocab, UNKNOWN_TOKEN, DEFAULT_MAX_INPUT_CHARS_PER_WORD);
         this.originalVocab = originalVocab;
@@ -72,6 +74,7 @@ public class BertTokenizer implements NlpTokenizer {
         this.withSpecialTokens = withSpecialTokens;
         this.neverSplit = Sets.union(neverSplit, NEVER_SPLIT);
         this.maxSequenceLength = maxSequenceLength;
+        this.requestBuilder = requestBuilderFactory.apply(this);
     }
 
     /**
@@ -146,16 +149,16 @@ public class BertTokenizer implements NlpTokenizer {
     }
 
     @Override
-    public NlpTask.RequestBuilder requestBuilder(NlpConfig config) {
-        return new BertRequestBuilder(this);
+    public NlpTask.RequestBuilder requestBuilder() {
+        return requestBuilder;
     }
 
     public int getMaxSequenceLength() {
         return maxSequenceLength;
     }
 
-    public static Builder builder(List<String> vocab, TokenizationParams tokenizationParams) {
-        return new Builder(vocab, tokenizationParams);
+    public static Builder builder(List<String> vocab, Tokenization tokenization) {
+        return new Builder(vocab, tokenization);
     }
 
     public static class Builder {
@@ -168,13 +171,14 @@ public class BertTokenizer implements NlpTokenizer {
         protected int maxSequenceLength;
         protected Boolean doStripAccents = null;
         protected Set<String> neverSplit;
+        protected Function<BertTokenizer, NlpTask.RequestBuilder> requestBuilderFactory = BertRequestBuilder::new;
 
-        protected Builder(List<String> vocab, TokenizationParams tokenizationParams) {
+        protected Builder(List<String> vocab, Tokenization tokenization) {
             this.originalVocab = vocab;
             this.vocab = buildSortedVocab(vocab);
-            this.doLowerCase = tokenizationParams.doLowerCase();
-            this.withSpecialTokens = tokenizationParams.withSpecialTokens();
-            this.maxSequenceLength = tokenizationParams.maxSequenceLength();
+            this.doLowerCase = tokenization.doLowerCase();
+            this.withSpecialTokens = tokenization.withSpecialTokens();
+            this.maxSequenceLength = tokenization.maxSequenceLength();
         }
 
         private static SortedMap<String, Integer> buildSortedVocab(List<String> vocab) {
@@ -220,6 +224,11 @@ public class BertTokenizer implements NlpTokenizer {
             return this;
         }
 
+        public Builder setRequestBuilderFactory(Function<BertTokenizer, NlpTask.RequestBuilder> requestBuilderFactory) {
+            this.requestBuilderFactory = requestBuilderFactory;
+            return this;
+        }
+
         public BertTokenizer build() {
             // if not set strip accents defaults to the value of doLowerCase
             if (doStripAccents == null) {
@@ -238,6 +247,7 @@ public class BertTokenizer implements NlpTokenizer {
                 doStripAccents,
                 withSpecialTokens,
                 maxSequenceLength,
+                requestBuilderFactory,
                 neverSplit
             );
         }

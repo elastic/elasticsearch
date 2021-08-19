@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
@@ -241,7 +241,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                         .setInferenceConfig(
                             new BertPassThroughConfig(
                                 new VocabularyConfig(indexname, TRAINED_MODEL_ID + "_vocab"),
-                                new BertTokenizationParams(null, false, null)
+                                new BertTokenization(null, false, null)
                             )
                         )
                         .setLocation(new IndexLocation(indexname))

@@ -74,7 +74,7 @@ public class NerProcessor implements NlpTask.Processor {
     NerProcessor(NlpTokenizer tokenizer, NerConfig config) {
         validate(config.getClassificationLabels());
         this.iobMap = buildIobMap(config.getClassificationLabels());
-        this.requestBuilder = tokenizer.requestBuilder(config);
+        this.requestBuilder = tokenizer.requestBuilder();
     }
 
     /**

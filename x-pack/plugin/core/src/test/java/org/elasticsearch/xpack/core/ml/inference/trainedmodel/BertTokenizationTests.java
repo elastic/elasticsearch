@@ -15,7 +15,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-public class DistilBertTokenizationParamsTests extends AbstractBWCSerializationTestCase<DistilBertTokenizationParams> {
+public class BertTokenizationTests extends AbstractBWCSerializationTestCase<BertTokenization> {
 
     private boolean lenient;
 
@@ -25,27 +25,27 @@ public class DistilBertTokenizationParamsTests extends AbstractBWCSerializationT
     }
 
     @Override
-    protected DistilBertTokenizationParams doParseInstance(XContentParser parser) throws IOException {
-        return DistilBertTokenizationParams.createParser(lenient).apply(parser, null);
+    protected BertTokenization doParseInstance(XContentParser parser) throws IOException {
+        return BertTokenization.createParser(lenient).apply(parser, null);
     }
 
     @Override
-    protected Writeable.Reader<DistilBertTokenizationParams> instanceReader() {
-        return DistilBertTokenizationParams::new;
+    protected Writeable.Reader<BertTokenization> instanceReader() {
+        return BertTokenization::new;
     }
 
     @Override
-    protected DistilBertTokenizationParams createTestInstance() {
+    protected BertTokenization createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected DistilBertTokenizationParams mutateInstanceForVersion(DistilBertTokenizationParams instance, Version version) {
+    protected BertTokenization mutateInstanceForVersion(BertTokenization instance, Version version) {
         return instance;
     }
 
-    public static DistilBertTokenizationParams createRandom() {
-        return new DistilBertTokenizationParams(
+    public static BertTokenization createRandom() {
+        return new BertTokenization(
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, 1024)

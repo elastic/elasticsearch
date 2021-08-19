@@ -49,7 +49,7 @@ public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskCon
             VocabularyConfigTests.createRandom(),
             randomBoolean() ?
                 null :
-                randomFrom(BertTokenizationParamsTests.createRandom(), DistilBertTokenizationParamsTests.createRandom())
+                randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom())
 
         );
     }

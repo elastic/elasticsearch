@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationParams;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenizationParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
@@ -221,8 +221,8 @@ public class NerProcessorTests extends ESTestCase {
         BertTokenizer tokenizer = BertTokenizer.builder(
             vocab,
             randomFrom(
-                new BertTokenizationParams(true, false, null),
-                new DistilBertTokenizationParams(true, false, null)
+                new BertTokenization(true, false, null),
+                new DistilBertTokenization(true, false, null)
             )
         ).setDoLowerCase(true).setWithSpecialTokens(false).build();
         return tokenizer.tokenize(input);

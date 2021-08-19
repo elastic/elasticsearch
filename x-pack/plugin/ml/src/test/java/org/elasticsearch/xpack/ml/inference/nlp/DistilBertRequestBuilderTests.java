@@ -12,9 +12,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenizationParams;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.DistilBertTokenizer;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,9 +25,9 @@ import static org.hamcrest.Matchers.hasSize;
 public class DistilBertRequestBuilderTests extends ESTestCase {
 
     public void testBuildRequest() throws IOException {
-        DistilBertTokenizer tokenizer = DistilBertTokenizer.builder(
+        BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN),
-            new DistilBertTokenizationParams(null, null, 512)
+            new DistilBertTokenization(null, null, 512)
         ).build();
 
         DistilBertRequestBuilder requestBuilder = new DistilBertRequestBuilder(tokenizer);
@@ -43,9 +42,9 @@ public class DistilBertRequestBuilderTests extends ESTestCase {
     }
 
     public void testInputTooLarge() throws IOException {
-        DistilBertTokenizer tokenizer = DistilBertTokenizer.builder(
+        BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN),
-            new DistilBertTokenizationParams(null, null, 5)
+            new DistilBertTokenization(null, null, 5)
         ).build();
         {
             DistilBertRequestBuilder requestBuilder = new DistilBertRequestBuilder(tokenizer);

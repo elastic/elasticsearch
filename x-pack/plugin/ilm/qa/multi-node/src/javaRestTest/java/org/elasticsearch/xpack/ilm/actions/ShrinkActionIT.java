@@ -12,6 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -299,6 +300,35 @@ public class ShrinkActionIT extends ESRestTestCase {
             assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
+        });
+        expectThrows(ResponseException.class, () -> indexDocument(client(), index));
+    }
+
+    /*
+     * This test verifies that we can still shrink an index even if the total number of shards in the index is greater than
+     * index.routing.allocation.total_shards_per_node.
+     */
+    public void testTotalShardsPerNodeTooLow() throws Exception {
+        int numShards = 4;
+        int divisor = randomFrom(2, 4);
+        int expectedFinalShards = numShards / divisor;
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), numShards - 2));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null));
+        updatePolicy(client(), index, policy);
+
+        String shrunkenIndexName = waitAndGetShrinkIndexName(client(), index);
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)), 60, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(aliasExists(shrunkenIndexName, index)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndexName),
+            equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndexName);
+            assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+            assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
+            assertThat(settings.get(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()), equalTo("-1"));
         });
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
     }

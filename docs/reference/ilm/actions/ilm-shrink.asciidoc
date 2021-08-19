@@ -17,6 +17,10 @@ stream. You cannot perform the `shrink` action on a write index.
 To use the `shrink` action in the `hot` phase, the `rollover` action *must* be
 present. If no rollover action is configured, {ilm-init} will reject the policy.
 
+The shrink action will set the index's index.routing.allocation.total_shards_per_node
+setting to -1 to ensure that all shards of the index can be copied to a single node.
+This setting will persist on the index even after the step completes.
+
 [IMPORTANT]
 If the shrink action is used on a <<ccr-put-follow,follower index>>, policy
 execution waits until the leader index rolls over (or is <<skipping-rollover,

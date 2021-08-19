@@ -98,7 +98,7 @@ RUN mkdir -m 755 /rootfs/dev && \\
 # Install a minimal set of dependencies, and some for Elasticsearch
 RUN ${package_manager} --installroot=/rootfs --releasever=/ --setopt=tsflags=nodocs \\
       --setopt=group_package_types=mandatory -y  \\
-      install bash curl findutils nc procps-ng shadow-utils unzip yum zip
+      install bash curl findutils nc procps-ng shadow-utils tar unzip yum zip
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.

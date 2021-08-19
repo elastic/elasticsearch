@@ -84,7 +84,17 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).builder.script.get());
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+
+        /**
+         * Parameter that marks this field as a time series dimension.
+         */
         private final Parameter<Boolean> dimension;
+
+        /**
+         * Parameter that marks this field as a time series metric defining its time series metric type.
+         * For the numeric fields gauge and counter metric types are
+         * supported
+         */
         private final Parameter<String> metric = TimeSeriesParams.metricParam(
             m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
             hasDocValues,

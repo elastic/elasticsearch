@@ -8,7 +8,8 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import org.elasticsearch.gradle.Version;
+import com.google.common.annotations.VisibleForTesting;
+
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -27,13 +28,12 @@ import org.gradle.internal.logging.text.StyledTextOutput;
 import org.gradle.internal.logging.text.StyledTextOutputFactory;
 import org.gradle.process.ExecOperations;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -57,7 +57,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty breakingChangesFile;
 
     private final StyledTextOutput errorOutput;
-    private final ExecOperations execOperations;
+    private final GitWrapper gitWrapper;
 
     @Inject
     public GenerateReleaseNotesTask(
@@ -81,16 +81,14 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         // and we need to draw some things to the user's attention.
         errorOutput = styledTextOutputFactory.create("release-notes");
 
-        this.execOperations = execOperations;
+        this.gitWrapper = new GitWrapper(execOperations);
     }
 
     @TaskAction
     public void executeTask() throws IOException {
         LOGGER.info("Finding changelog files...");
 
-        final Version elasticsearchVersion = VersionProperties.getElasticsearchVersion();
-
-        final Set<String> filesToIgnore = getFilesToIgnore(elasticsearchVersion);
+        final Set<String> filesToIgnore = getFilesToIgnore(gitWrapper, VersionProperties.getElasticsearch());
         if (filesToIgnore.isEmpty() == false) {
             LOGGER.info("Ignoring " + filesToIgnore.size() + " changelog file(s) from previous releases");
         }
@@ -144,44 +142,42 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         }
     }
 
-    private Set<String> getFilesToIgnore(Version version) {
-        if (VersionProperties.isElasticsearchSnapshot()
-            || version.getQualifier() == null
-            || version.getQualifier().equals("alpha1")) {
+    @VisibleForTesting
+    static Set<String> getFilesToIgnore(GitWrapper gitWrapper, String versionString) {
+        if (versionString.contains("-") == false || versionString.endsWith("-alpha1") || versionString.endsWith("-SNAPSHOT")) {
             return Collections.emptySet();
         }
 
+        QualifiedVersion version = QualifiedVersion.of(versionString);
+
         // We need to ensure the tags are up-to-date. Find the correct remote to use
-        String upstream = runCommand("git", "remote", "-v").lines()
-            .filter(line -> line.contains("(fetch)") && line.contains("elastic/elasticsearch"))
-            .map(line -> line.split("\\s+", 2)[0])
+        String upstream = gitWrapper.listRemotes()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().contains("elastic/elasticsearch"))
             .findFirst()
+            .map(Map.Entry::getKey)
             .orElseThrow(
                 () -> new GradleException(
                     "I need to ensure the git tags are up-to-date, but I couldn't find a git remote for [elastic/elasticsearch]"
                 )
             );
 
-        // Now update
-        runCommand("git", "fetch", upstream);
-        runCommand("git", "fetch", "--tags", upstream);
-
-        QualifiedVersion qualifiedVersion = QualifiedVersion.of(VersionProperties.getElasticsearch());
+        // Now update the remote, and make sure we update the tags too
+        gitWrapper.updateRemote(upstream);
+        gitWrapper.updateTags(upstream);
 
         // Find all prerelease tags for this release, using a wildcard tag pattern.
-        // Although `Version.toString()` only prints `major.minor.revision`, let's not rely on that in case the `toString()`
-        // logic ever changes and the behaviour here subtly breaks.
         String tagWildcard = "v%d.%d.%d-*".formatted(version.getMajor(), version.getMinor(), version.getRevision());
 
-        final QualifiedVersion tag = runCommand("git", "tag", "-l", tagWildcard).lines()
-            .map(QualifiedVersion::of)
-            .filter(each -> each.isBefore(qualifiedVersion))
+        final QualifiedVersion tag = gitWrapper.listVersions(tagWildcard)
+            .filter(each -> each.isBefore(version))
             .max(Comparator.naturalOrder())
-            .orElseThrow(
-                () -> new GradleException("Failed to find a prerelease tag prior to [v" + qualifiedVersion + "]")
-            );
+            .orElseThrow(() -> new GradleException("Failed to find a prerelease tag prior to [v" + version + "]"));
 
-        return runCommand("git", "ls-tree", "--name-only", "-r", tag.toString(), "docs/changelog").lines()
+        // List all files that were present in the tree at the previous tag. We'll ignore all these
+        // when we process the files that are in the checked-out tree.
+        return gitWrapper.listFiles("v" + tag.toString(), "docs/changelog")
             .map(line -> Path.of(line).getFileName().toString())
             .collect(Collectors.toSet());
     }
@@ -265,17 +261,5 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     public void setBreakingChangesFile(RegularFile file) {
         this.breakingChangesFile.set(file);
-    }
-
-    private String runCommand(String... args) {
-        final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-
-        execOperations.exec(spec -> {
-            // The redundant cast is to silence a compiler warning.
-            spec.setCommandLine((Object[]) args);
-            spec.setStandardOutput(stdout);
-        });
-
-        return stdout.toString(StandardCharsets.UTF_8);
     }
 }

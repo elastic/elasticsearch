@@ -40,7 +40,7 @@ public class PassThroughProcessor implements NlpTask.Processor {
         return this::processResult;
     }
 
-    private InferenceResults processResult(PyTorchResult pyTorchResult) {
+    private InferenceResults processResult(BertTokenizer.TokenizationResult tokenization, PyTorchResult pyTorchResult) {
         return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult());
     }
 }

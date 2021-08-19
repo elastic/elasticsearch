@@ -38,9 +38,12 @@ public class MlTestStateCleaner {
         deleteAllTrainedModelIngestPipelines();
         // This resets all features, not just ML, but they should have been getting reset between tests anyway so it shouldn't matter
         ResetFeaturesResponse response = client.features().resetFeatures(new ResetFeaturesRequest(), RequestOptions.DEFAULT);
-        for (ResetFeaturesResponse.ResetFeatureStateStatus status : response.getFeatureResetStatuses()) {
-            if (status.getStatus().equals("FAILURE")) {
-                logger.info("Reset state response: " + status.getException());
+        if (response.getFeatureResetStatuses().stream().anyMatch(status -> "FAILURE".equals(status.getStatus()))) {
+            logger.warn("Not all feature states could be reset while clearing ML Metadata:");
+            for (ResetFeaturesResponse.ResetFeatureStateStatus status : response.getFeatureResetStatuses()) {
+                if (status.getStatus().equals("FAILURE")) {
+                    logger.warn("Feature {} failed with response: {}", status.getFeatureName(), status.getException());
+                }
             }
         }
     }

@@ -52,6 +52,12 @@ public class EnrollmentDocumentationIT extends ESRestHighLevelClientTestCase {
             .build();
     }
 
+    /**
+     * Cleanup for these tests requires the admin client to have access to the
+     * truststore, so we use the same settings that we're using for the rest
+     * client in this test class.
+     * @return Settings for the admin client.
+     */
     @Override
     protected Settings restAdminSettings() {
         return restClientSettings();

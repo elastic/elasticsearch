@@ -98,14 +98,15 @@ are met.
 
 Select the {anomaly-job} or the group of {anomaly-jobs} that is checked against 
 the rule. If you assign additional jobs to the group, the new jobs are 
-automatically checked the next time the conditions are checked. You can also use 
-a special character (`*`) to apply the rule to all your existing jobs. Jobs 
-created after the rule are automatically included. If you have many jobs, you 
-might receive numerous notifications, you can exclude jobs that are not 
-critically important by using the _Exclude_ field.
+automatically checked the next time the conditions are checked.
+
+You can also use a special character (`*`) to apply the rule to all your jobs. 
+Jobs created after the rule are automatically included. If you have many jobs, 
+you might receive numerous notifications. To avoid this situation, you can 
+exclude jobs that are not critically important by using the _Exclude_ field.
 
 Enable the health check types that you want to apply. All checks are enabled by 
-default. At least one check needs to be selected to create the rule. The 
+default. At least one check needs to be enabled to create the rule. The 
 following health checkers are available:
 
 * _Datafeed is not started_: notifies if the corresponding {dfeed} of the job is 
@@ -122,7 +123,8 @@ following health checkers are available:
   <<ml-delayed-data-detection>> page to see what to do about delayed data.
 * _Errors in job messages_: notifies when the job messages contain error 
   messages. Review the notification; it contains the error messages, the 
-  corresponding job IDs and recommendations on how to fix the issue.
+  corresponding job IDs and recommendations on how to fix the issue. This check 
+  looks for job errors emerged only after the rule is created.
 
 [role="screenshot"]
 image::images/ml-health-check-config.jpg["Selecting health checkers"]
@@ -147,7 +149,9 @@ a message to a channel you selected. You can also create an index connector that
 writes the JSON object you configure to a specific index. It's also possible to 
 customize the notification messages. A list of variables is available to include 
 in the message, like job ID, anomaly score, time, top influencers, {dfeed} ID, 
-memory status and so on based on the selected alert type.
+memory status and so on based on the selected alert type. Refer to 
+<<action-variables>> to see the full list of available variables by alert type.
+
 
 [role="screenshot"]
 image::images/ml-anomaly-alert-messages.jpg["Customizing your message"]
@@ -160,3 +164,109 @@ The name of an alert is always the same as the job ID of the associated
 {anomaly-job} that triggered it. You can mute the notifications for a particular 
 {anomaly-job} on the page of the rule that lists the individual alerts. You can 
 open it via *{alerts-ui}* by selecting the rule name.
+
+[[action-variables]]
+=== Action variables
+
+
+[[anomaly-alert-action-variables]]
+==== {anomaly-detect-cap} alert action variables
+
+`context`::
+A preconstructed message for the rule.
+
+
+[[anomaly-jobs-health-action-variables]]
+==== {anomaly-jobs-cap} health action variables
+
+`context.message`::
+A preconstructed message for the rule.
+
+`context.results`::
+Contains the collection of the following properties.
++
+.Properties of `context.results` for _Datafeed is not started_ checker
+[%collapsible%open]
+====
+
+`datafeed_id`:::
+The ID of the corresponding {dfeed}.
+
+`datafeed_state`:::
+The state of the corresponding {dfeed}. It can be `starting`, `started`, 
+`stopping`, `stopped`.
+
+`job_id`:::
+The ID of the affected job.
+
+`job_state`:::
+The state of the affected job. It can be `opening`, `opened`, `closing`, 
+`closed`, or `failed`.
+====
++
+.Properties of `context.results` for _Model memory limit reached_ checker
+[%collapsible%open]
+====
+
+`job_id`:::
+The ID of the affected job.
+
+`memory_status`:::
+The status of the mathematical model. It can have one of the following values:
+
+* `ok`: The models stayed below the configured value.
+* `soft_limit`: The model used more than 60% of the configured memory limit and 
+  older unused models will be pruned to free up space. In categorization jobs no 
+  further category examples will be stored.
+* `hard_limit`: The model used more space than the configured memory limit. As a 
+  result, not all incoming data was processed.
+
+`model_bytes_exceeded`:::
+The number of bytes over the high limit for memory usage at the last allocation 
+failure.
+
+`log_time`:::
+The timestamp of the model size statistics according to server time.
+
+`peak_model_bytes`:::
+The peak number of bytes of memory ever used by the model.
+====
++
+.Properties of `context.results` for _Data delay has occured_ checker
+[%collapsible%open]
+====
+
+`annotation`:::
+The annotation corresponding to the data delay in the job.
+
+`end_timestamp`:::
+Timestamp of the latest finalized buckets with missing documents.
+
+`job_id`:::
+The ID of the affected job.
+
+`missed_docs_count`:::
+The number of missed documents.
+====
++
+.Properties of `context.results` for _Error in job messages_ checker
+[%collapsible%open]
+====
+
+`level`:::
+The level of...
+
+`timestamp`:::
+Timestamp of the latest finalized buckets with missing documents.
+
+`job_id`:::
+The ID of the affected job.
+
+`message`:::
+The error message.
+
+`node_name`:::
+The name of the node that runs the job.
+
+
+====

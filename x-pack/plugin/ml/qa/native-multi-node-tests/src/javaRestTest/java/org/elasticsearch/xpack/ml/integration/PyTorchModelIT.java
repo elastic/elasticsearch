@@ -64,7 +64,6 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_SUPER_USER =
         UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-    private final ExecutorService executorService = Executors.newFixedThreadPool(5);
 
     private static final String MODEL_INDEX = "model_store";
     private static final String VOCAB_INDEX = "vocab_store";
@@ -96,6 +95,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
+    private final ExecutorService executorService = Executors.newFixedThreadPool(5);
+
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
@@ -116,6 +117,8 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     @After
     public void cleanup() throws Exception {
+        terminate(executorService);
+
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
@@ -172,13 +175,12 @@ public class PyTorchModelIT extends ESRestTestCase {
         putModelDefinition(modelA);
         refreshModelStoreAndVocabIndex();
         createTrainedModel(modelA);
-        Response startDeploymentResponse = startDeployment(modelA);
-        logger.debug("Started deployment:" + EntityUtils.toString(startDeploymentResponse.getEntity()));
+        startDeployment(modelA);
         infer("once", modelA);
         infer("twice", modelA);
         Response response = getDeploymentStats(modelA);
+        logger.info(EntityUtils.toString(response.getEntity()));
         List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
-        logger.info("live stats response: " + stats);
         assertThat(stats, hasSize(1));
         assertThat(stats.get(0).get("model_id"), equalTo(modelA));
         assertThat(stats.get(0).get("model_size"), equalTo("1.5kb"));

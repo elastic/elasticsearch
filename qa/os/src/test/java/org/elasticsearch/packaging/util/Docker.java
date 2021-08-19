@@ -466,8 +466,9 @@ public class Docker {
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
         // nc is useful for checking network issues
+        // tar is required in some k8s situations: https://github.com/kubernetes/kubernetes/issues/58512
         // zip/unzip are installed to help users who are working with certificates.
-        Stream.of("nc", "unzip", "zip")
+        Stream.of("nc", "tar", "unzip", "zip")
             .forEach(
                 cliBinary -> assertTrue(
                     cliBinary + " ought to be available.",

@@ -3,7 +3,6 @@ admin:
     - all
   indices:
     - names: '*'
-      allow_restricted_indices: true
       privileges:
         - all
   run_as: [ '*' ]

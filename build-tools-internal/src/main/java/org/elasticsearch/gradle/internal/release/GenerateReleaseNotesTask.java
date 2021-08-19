@@ -144,7 +144,9 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     @VisibleForTesting
     static Set<String> getFilesToIgnore(GitWrapper gitWrapper, String versionString) {
-        if (versionString.contains("-") == false || versionString.endsWith("-alpha1") || versionString.endsWith("-SNAPSHOT")) {
+        if (versionString.endsWith(".0")
+            || versionString.endsWith("-alpha1")
+            || versionString.endsWith("-SNAPSHOT")) {
             return Collections.emptySet();
         }
 
@@ -167,8 +169,8 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         gitWrapper.updateRemote(upstream);
         gitWrapper.updateTags(upstream);
 
-        // Find all prerelease tags for this release, using a wildcard tag pattern.
-        String tagWildcard = "v%d.%d.%d-*".formatted(version.getMajor(), version.getMinor(), version.getRevision());
+        // Find all tags for this minor series, using a wildcard tag pattern.
+        String tagWildcard = "v%d.%d*".formatted(version.getMajor(), version.getMinor());
 
         final QualifiedVersion tag = gitWrapper.listVersions(tagWildcard)
             .filter(each -> each.isBefore(version))

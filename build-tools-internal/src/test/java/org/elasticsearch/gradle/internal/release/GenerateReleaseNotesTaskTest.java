@@ -48,20 +48,22 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     }
 
     /**
-     * Check that no files are ignored when the current version has no prerelease part.
+     * Check that no files are ignored for the first version in a minor series.
      */
     @Test
     public void getFilesToIgnore_withNoPrerelease_returnsNothing() {
-        // when:
-        Set<String> filesToIgnore = GenerateReleaseNotesTask.getFilesToIgnore(gitWrapper, "8.0.0");
+        Stream.of("7.0.0", "8.1.0", "9.2.0").forEach(version -> {
+            // when:
+            Set<String> filesToIgnore = GenerateReleaseNotesTask.getFilesToIgnore(gitWrapper, version);
 
-        // then:
-        assertThat(filesToIgnore, empty());
-        verifyZeroInteractions(gitWrapper);
+            // then:
+            assertThat(filesToIgnore, empty());
+            verifyZeroInteractions(gitWrapper);
+        });
     }
 
     /**
-     * Check that no files are ignored when the current version is the first alpha prerelease.
+     * Check that no files are ignored when a version is the first alpha prerelease.
      */
     @Test
     public void getFilesToIgnore_withFirstAlpha_returnsNothing() {
@@ -74,7 +76,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     }
 
     /**
-     * Check that the wrapper throws an error if it can't find the right git remote.
+     * Check that the git wrapper throws an error if it can't find the right git remote.
      */
     @Test
     public void getFilesToIgnore_withoutGitRemote_throwsError() {
@@ -90,16 +92,17 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     }
 
     /**
-     * Check that the wrapper returns the expected list of files for a prerelease.
+     * Check that the task identifies the expected list of files for a prerelease. It should select the immediately
+     * preceding prerelease version, and use the file tree from that tag.
      */
     @Test
     public void getFilesToIgnore_withPrerelease_returnsListOfFiles() {
         // given:
         when(gitWrapper.listRemotes()).thenReturn(Map.of("fred", "fred/elasticsearch", "upstream", "elastic/elasticsearch"));
         when(gitWrapper.listVersions(anyString())).thenReturn(
-            Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0-beta1", "8.0.0-beta2", "8.0.0-beta3", "8.0.0-rc1").map(QualifiedVersion::of)
+            Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0-beta1", "8.0.0-beta2", "8.0.0-beta3", "8.0.0-rc1", "8.0.0")
+                .map(QualifiedVersion::of)
         );
-        // Version here is just before the version that we pass to `getFilesToIgnore`
         when(gitWrapper.listFiles(anyString(), anyString())).thenReturn(Stream.of("docs/changelog/1234.yml", "docs/changelog/5678.yaml"));
 
         // when:
@@ -109,8 +112,34 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
         verify(gitWrapper).updateRemote("upstream");
         verify(gitWrapper).updateTags("upstream");
         verify(gitWrapper).updateTags("upstream");
-        verify(gitWrapper).listVersions("v8.0.0-*");
+        verify(gitWrapper).listVersions("v8.0*");
+        // The expected version here is just before the version that we pass to `getFilesToIgnore()`
         verify(gitWrapper).listFiles("v8.0.0-beta1", "docs/changelog");
+        assertThat(filesToIgnore, containsInAnyOrder("1234.yml", "5678.yaml"));
+    }
+
+    /**
+     * Check that the task identifies the expected list of files for a patch release. It should select the immediately
+     * preceding version, and use the file tree from that tag.
+     */
+    @Test
+    public void getFilesToIgnore_withPatchRelease_returnsListOfFiles() {
+        // given:
+        when(gitWrapper.listRemotes()).thenReturn(Map.of("upstream", "elastic/elasticsearch"));
+        when(gitWrapper.listVersions(anyString())).thenReturn(
+            Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0-beta1", "8.0.0-rc1", "8.0.0", "8.0.1", "8.0.2", "8.1.0")
+                .map(QualifiedVersion::of)
+        );
+        // Version here is just before the version that we pass to `getFilesToIgnore`
+        when(gitWrapper.listFiles(anyString(), anyString())).thenReturn(Stream.of("docs/changelog/1234.yml", "docs/changelog/5678.yaml"));
+
+        // when:
+        Set<String> filesToIgnore = GenerateReleaseNotesTask.getFilesToIgnore(gitWrapper, "8.0.2");
+
+        // then:
+        verify(gitWrapper).listVersions("v8.0*");
+        // The expected version here is just before the version that we pass to `getFilesToIgnore()`
+        verify(gitWrapper).listFiles("v8.0.1", "docs/changelog");
         assertThat(filesToIgnore, containsInAnyOrder("1234.yml", "5678.yaml"));
     }
 }

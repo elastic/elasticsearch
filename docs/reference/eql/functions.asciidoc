@@ -856,15 +856,6 @@ Value to convert to a string. If `null`, the function returns `null`.
 +
 If using a field as the argument, this parameter does not support the
 <<text,`text`>> field data type.
-+
-Avoid using complex expressions to pass `true` or `false` Boolean values to this
-parameter. If a field in the expression contains <<array,multiple values>>, the
-function may return inconsistent results. For example:
-+
-[source,eql]
-----
-where string(process.args_count > 2 and not process.args_count < 2 or not concat(destination.address, destination.port) == "127.0.0.1:8000") == "true"
-----
 
 *Returns:* string or `null`
 

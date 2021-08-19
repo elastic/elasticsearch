@@ -38,6 +38,8 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
@@ -187,7 +189,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }
 
-    public void testLoadQueuedModelsWhenOneFails() {
+    public void testLoadQueuedModelsWhenOneFails() throws InterruptedException {
         String modelToLoad = "loading-model";
         String failedModelToLoad = "failed-loading-model";
         withLoadFailure(failedModelToLoad);
@@ -196,7 +198,15 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(modelToLoad));
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(failedModelToLoad));
 
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocationOnMock -> {
+            latch.countDown();
+            return null;
+        }).when(deploymentManager).stopDeployment(any());
+
         trainedModelAllocationNodeService.loadQueuedModels();
+
+        latch.await(5, TimeUnit.SECONDS);
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAllocationStateAction.Request> requestCapture = ArgumentCaptor.forClass(

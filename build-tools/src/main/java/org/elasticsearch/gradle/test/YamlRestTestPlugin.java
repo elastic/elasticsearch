@@ -45,7 +45,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         ConfigurationContainer configurations = project.getConfigurations();
         Configuration restTestSpecs = configurations.create(REST_TEST_SPECS_CONFIGURATION_NAME);
         TaskProvider<Copy> copyRestTestSpecs = project.getTasks().register("copyRestTestSpecs", Copy.class, t -> {
-            t.from(project.zipTree(restTestSpecs.getSingleFile()));
+            t.from(project.zipTree(project.provider(() ->restTestSpecs.getSingleFile())));
             t.into(new File(project.getBuildDir(), "restResources/restspec"));
         });
 
@@ -57,7 +57,6 @@ public class YamlRestTestPlugin implements Plugin<Project> {
 
         testSourceSet.getOutput().dir(copyRestTestSpecs.map(Task::getOutputs));
         Configuration yamlRestTestImplementation = configurations.getByName(testSourceSet.getImplementationConfigurationName());
-
         setupDefaultDependencies(project.getDependencies(), restTestSpecs, yamlRestTestImplementation);
         var cluster = testClusters.maybeCreate(YAML_REST_TEST);
         TaskProvider<StandaloneRestIntegTestTask> yamlRestTestTask = setupTestTask(project, testSourceSet, cluster);

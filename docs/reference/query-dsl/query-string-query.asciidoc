@@ -4,7 +4,8 @@
 <titleabbrev>Query string</titleabbrev>
 ++++
 
-TIP: To get started with {es} queries, see <<search-your-data>>.
+TIP: This page contains information about the `query_string` query type. For
+information about running a search query in {es}, see <<search-your-data>>.
 
 Returns documents based on a provided query string, using a parser with a strict
 syntax.

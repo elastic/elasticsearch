@@ -129,15 +129,15 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
 
     private void testRandomCase(ClassAndName... types) throws IOException {
         for (int i = 0; i < types.length; i++) {
-            testRandomCase(true, true, i, types);
-            testRandomCase(true, false, i, types);
-            testRandomCase(false, true, i, types);
-            testRandomCase(false, false, i, types);
+            testRandomCase(true, MissingBucket.INCLUDE, i, types);
+            testRandomCase(true, MissingBucket.IGNORE, i, types);
+            testRandomCase(false, MissingBucket.INCLUDE, i, types);
+            testRandomCase(false, MissingBucket.IGNORE, i, types);
         }
     }
 
     private void testRandomCase(boolean forceMerge,
-                                boolean missingBucket,
+                                MissingBucket missingBucket,
                                 int indexSortSourcePrefix,
                                 ClassAndName... types) throws IOException {
         final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
@@ -192,7 +192,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         List<Comparable<?>> values = new ArrayList<>();
                         if (numValues == 0) {
                             hasAllField = false;
-                            if (missingBucket) {
+                            if (missingBucket.include()) {
                                 values.add(null);
                             }
                         } else {
@@ -216,7 +216,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         }
                         docValues.add(values);
                     }
-                    if (hasAllField || missingBucket) {
+                    if (hasAllField || missingBucket.include()) {
                         List<CompositeKey> comb = createListCombinations(docValues);
                         keys.addAll(comb);
                     }

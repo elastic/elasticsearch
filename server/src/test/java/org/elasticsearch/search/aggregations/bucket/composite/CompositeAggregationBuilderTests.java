@@ -36,9 +36,7 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         if (randomBoolean()) {
             histo.timeZone(randomZone());
         }
-        if (randomBoolean()) {
-            histo.missingBucket(true);
-        }
+        histo.missing(randomFrom(MissingBucket.values()));
         return histo;
     }
 
@@ -61,9 +59,7 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             terms.script(new Script(randomAlphaOfLengthBetween(10, 20)));
         }
         terms.order(randomFrom(SortOrder.values()));
-        if (randomBoolean()) {
-            terms.missingBucket(true);
-        }
+        terms.missing(randomFrom(MissingBucket.values()));
         return terms;
     }
 
@@ -74,9 +70,7 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         } else {
             histo.script(new Script(randomAlphaOfLengthBetween(10, 20)));
         }
-        if (randomBoolean()) {
-            histo.missingBucket(true);
-        }
+        histo.missing(randomFrom(MissingBucket.values()));
         histo.interval(randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false));
         return histo;
     }

@@ -37,7 +37,7 @@ public class CompositeValuesSourceConfig {
     private final ValuesSource vs;
     private final DocValueFormat format;
     private final int reverseMul;
-    private final boolean missingBucket;
+    private final MissingBucket missingBucket;
     private final boolean hasScript;
     private final SingleDimensionValuesSourceProvider singleDimensionValuesSourceProvider;
 
@@ -58,7 +58,7 @@ public class CompositeValuesSourceConfig {
         ValuesSource vs,
         DocValueFormat format,
         SortOrder order,
-        boolean missingBucket,
+        MissingBucket missingBucket,
         boolean hasScript,
         SingleDimensionValuesSourceProvider singleDimensionValuesSourceProvider
     ) {
@@ -104,7 +104,7 @@ public class CompositeValuesSourceConfig {
     /**
      * If true, an explicit `null bucket represents documents with missing values.
      */
-    boolean missingBucket() {
+    MissingBucket missingBucket() {
         return missingBucket;
     }
 

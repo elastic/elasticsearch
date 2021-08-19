@@ -29,7 +29,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     protected final DocValueFormat format;
     @Nullable
     protected final MappedFieldType fieldType;
-    protected final boolean missingBucket;
+    protected final MissingBucket missingBucket;
 
     protected final int size;
     protected final int reverseMul;
@@ -47,7 +47,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * @param reverseMul -1 if the natural order ({@link SortOrder#ASC} should be reversed.
      */
     SingleDimensionValuesSource(BigArrays bigArrays, DocValueFormat format,
-                                @Nullable MappedFieldType fieldType, boolean missingBucket,
+                                @Nullable MappedFieldType fieldType, MissingBucket missingBucket,
                                 int size, int reverseMul) {
         this.bigArrays = bigArrays;
         this.format = format;
@@ -140,7 +140,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      */
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
         if (fieldType == null ||
-                (missingBucket && afterValue == null) ||
+                (missingBucket.include() && afterValue == null) ||
                 fieldType.isSearchable() == false ||
                 // inverse of the natural order
                 reverseMul == -1) {

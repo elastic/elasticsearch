@@ -27,10 +27,16 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 
 public class CompositeValuesSourceParserHelper {
 
+    private static ParseField MISSING_PARSE_FIELD = new ParseField("missing");
+    private static ParseField MISSING_BUCKET_PARSE_FIELD = new ParseField("missing_bucket");
+
     static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser) {
         objectParser.declareField(VB::field, XContentParser::text,
             new ParseField("field"), ObjectParser.ValueType.STRING);
-        objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
+
+        objectParser.declareExclusiveFieldSet(MISSING_BUCKET_PARSE_FIELD.getPreferredName(), MISSING_PARSE_FIELD.getPreferredName());
+        objectParser.declareBoolean(VB::missingBucket, MISSING_BUCKET_PARSE_FIELD);
+        objectParser.declareString(VB::missing, MISSING_PARSE_FIELD);
 
         objectParser.declareField(VB::userValuetypeHint, p -> {
             ValueType valueType = ValueType.lenientParse(p.text());

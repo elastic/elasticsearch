@@ -42,7 +42,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
             String name,
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
-            boolean missingBucket,
+            MissingBucket missingBucket,
             SortOrder order
         );
     }
@@ -166,6 +166,6 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     @Override
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
         return registry.getAggregator(REGISTRY_KEY, config)
-            .apply(config, interval, name, script() != null, format(), missingBucket(), order());
+            .apply(config, interval, name, script() != null, format(), missing(), order());
     }
 }

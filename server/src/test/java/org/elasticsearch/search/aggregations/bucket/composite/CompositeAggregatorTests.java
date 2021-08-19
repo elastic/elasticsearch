@@ -1244,6 +1244,198 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
             }
         );
+
+        Consumer<InternalComposite> verifyMissingFirst = (result) -> {
+            assertEquals(7, result.getBuckets().size());
+            assertEquals("{keyword=null, long=null}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals("{keyword=null, long=100}", result.getBuckets().get(1).getKeyAsString());
+        };
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery()), dataset,
+            () -> new CompositeAggregationBuilder("name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword").missing(MissingBucket.FIRST),
+                    new TermsValuesSourceBuilder("long").field("long").missing(MissingBucket.FIRST)
+                )
+            ),
+            verifyMissingFirst
+        );
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery()), dataset,
+            () -> new CompositeAggregationBuilder("name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword").order(SortOrder.DESC).missing(MissingBucket.FIRST),
+                    new TermsValuesSourceBuilder("long").field("long").order(SortOrder.DESC).missing(MissingBucket.FIRST)
+                )
+            ),
+            verifyMissingFirst
+        );
+
+        Consumer<InternalComposite> verifyMissingLast = (result) -> {
+            assertEquals(7, result.getBuckets().size());
+            assertEquals("{keyword=null, long=100}", result.getBuckets().get(5).getKeyAsString());
+            assertEquals("{keyword=null, long=null}", result.getBuckets().get(6).getKeyAsString());
+        };
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery()), dataset,
+            () -> new CompositeAggregationBuilder("name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword").missing(MissingBucket.LAST),
+                    new TermsValuesSourceBuilder("long").field("long").missing(MissingBucket.LAST)
+                )
+            ),
+            verifyMissingLast
+        );
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery()), dataset,
+            () -> new CompositeAggregationBuilder("name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword").order(SortOrder.DESC).missing(MissingBucket.LAST),
+                    new TermsValuesSourceBuilder("long").field("long").order(SortOrder.DESC).missing(MissingBucket.LAST)
+                )
+            ),
+            verifyMissingLast
+        );
+    }
+
+    public void testMissingTermBucket() throws Exception {
+        List<Map<String, List<Object>>> dataset = Arrays.asList(
+            createDocument("const", 1, "keyword", "a"),
+            createDocument("const", 1, "keyword", "b"),
+            createDocument("const", 1, "long", 1)
+        );
+
+        testMissingBucket(dataset,
+            new TermsValuesSourceBuilder("keyword").field("keyword")
+                .missing(MissingBucket.IGNORE)
+                .order(SortOrder.ASC),
+            null
+        );
+        testMissingBucket(dataset,
+            new TermsValuesSourceBuilder("keyword").field("keyword")
+                .missing(MissingBucket.INCLUDE)
+                .order(SortOrder.ASC),
+            0
+        );
+        testMissingBucket(dataset,
+            new TermsValuesSourceBuilder("keyword").field("keyword")
+                .missing(MissingBucket.INCLUDE)
+                .order(SortOrder.DESC),
+            2
+        );
+        testMissingBucket(dataset,
+            new TermsValuesSourceBuilder("keyword").field("keyword")
+                .missing(MissingBucket.FIRST)
+                .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
+            0
+        );
+        testMissingBucket(dataset,
+            new TermsValuesSourceBuilder("keyword").field("keyword")
+                .missing(MissingBucket.LAST)
+                .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
+            2
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Collections.singletonList(new TermsValuesSourceBuilder("keyword").field("keyword")
+                    .missing(MissingBucket.FIRST)
+                    .order(SortOrder.ASC))
+            ).aggregateAfter(
+                createAfterKey("keyword", null)
+            ),
+            (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{keyword=b}", result.getBuckets().get(1).getKeyAsString());
+            }
+        );
+    }
+
+    public void testMissingHistogramBucket() throws Exception {
+        List<Map<String, List<Object>>> dataset = Arrays.asList(
+            createDocument("const", 1, "long", 1),
+            createDocument("const", 1, "long", 2),
+            createDocument("const", 1, "keyword", "a")
+        );
+
+        testMissingBucket(dataset,
+            new HistogramValuesSourceBuilder("hist").interval(1).field("long")
+                .missing(MissingBucket.IGNORE)
+                .order(SortOrder.ASC),
+            null
+        );
+        testMissingBucket(dataset,
+            new HistogramValuesSourceBuilder("hist").interval(1).field("long")
+                .missing(MissingBucket.INCLUDE)
+                .order(SortOrder.ASC),
+            0
+        );
+        testMissingBucket(dataset,
+            new HistogramValuesSourceBuilder("hist").interval(1).field("long")
+                .missing(MissingBucket.INCLUDE)
+                .order(SortOrder.DESC),
+            2
+        );
+        testMissingBucket(dataset,
+            new HistogramValuesSourceBuilder("hist").interval(1).field("long")
+                .missing(MissingBucket.FIRST)
+                .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
+            0
+        );
+        testMissingBucket(dataset,
+            new HistogramValuesSourceBuilder("hist").interval(1).field("long")
+                .missing(MissingBucket.LAST)
+                .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
+            2
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Collections.singletonList(new HistogramValuesSourceBuilder("hist").interval(1).field("long")
+                    .missing(MissingBucket.FIRST)
+                    .order(SortOrder.ASC))
+            ).aggregateAfter(
+                createAfterKey("hist", null)
+            ),
+            (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{hist=1.0}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{hist=2.0}", result.getBuckets().get(1).getKeyAsString());
+            }
+        );
+    }
+
+    private void testMissingBucket(
+        List<Map<String, List<Object>>> dataset,
+        CompositeValuesSourceBuilder<?> sourceBuilder,
+        Integer expectedMissingIndex
+    ) throws IOException {
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Collections.singletonList(sourceBuilder)
+            ),
+            (result) -> {
+                if(expectedMissingIndex == null) {
+                    for (InternalComposite.InternalBucket bucket : result.getBuckets()) {
+                        assertFalse(bucket.getKey().containsValue(null));
+                    }
+                } else {
+                    assertTrue(result.getBuckets().get(expectedMissingIndex).getKey().containsValue(null));
+                    assertEquals(1, result.getBuckets().get(expectedMissingIndex).getKey().size());
+                    assertEquals(1, result.getBuckets().get(expectedMissingIndex).getDocCount());
+                }
+            }
+        );
     }
 
     public void testMultiValuedWithKeywordAndLong() throws Exception {

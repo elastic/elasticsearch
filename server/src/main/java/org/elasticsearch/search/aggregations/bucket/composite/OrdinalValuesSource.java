@@ -68,7 +68,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     OrdinalValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer, MappedFieldType type,
                         CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
-                        DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
+                        DocValueFormat format, MissingBucket missingBucket, int size, int reverseMul) {
         super(bigArrays, format, type, missingBucket, size, reverseMul);
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
@@ -95,7 +95,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     private boolean ordAndValueConsistency(long ordinal, BytesRef value) {
         // The ordinal Long.MIN_VALUE is used to represent the missing bucket.
-        assert ordinal != Long.MIN_VALUE || missingBucket;
+        assert ordinal != Long.MIN_VALUE || missingBucket.include();
         // value is cached iff ordinal is unmapped and not missing bucket
         assert (ordinal == Long.MIN_VALUE || ordinal >= 0) == (value == null);
 
@@ -138,20 +138,20 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     int compare(int from, int to) {
         assert from < numSlots && to < numSlots;
-        return compareInternal(valuesOrd.get(from), valuesOrd.get(to), valuesUnmapped.get(from), valuesUnmapped.get(to)) * reverseMul;
+        return compareInternal(valuesOrd.get(from), valuesOrd.get(to), valuesUnmapped.get(from), valuesUnmapped.get(to));
     }
 
     @Override
     int compareCurrent(int slot) {
         assert currentValueOrd != null;
         assert slot < numSlots;
-        return compareInternal(currentValueOrd, valuesOrd.get(slot), currentValueUnmapped, valuesUnmapped.get(slot)) * reverseMul;
+        return compareInternal(currentValueOrd, valuesOrd.get(slot), currentValueUnmapped, valuesUnmapped.get(slot));
     }
 
     @Override
     int compareCurrentWithAfter() {
         assert currentValueOrd != null && afterValueOrd != null;
-        return compareInternal(currentValueOrd, afterValueOrd, currentValueUnmapped, afterValue) * reverseMul;
+        return compareInternal(currentValueOrd, afterValueOrd, currentValueUnmapped, afterValue);
     }
 
     @Override
@@ -168,31 +168,31 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     private int compareInternal(long ord1, long ord2, BytesRef bytesRef1, BytesRef bytesRef2) {
         if (ord1 >= 0 && ord2 >= 0) {
-            return Long.compare(ord1, ord2);
+            return Long.compare(ord1, ord2) * reverseMul;
         } else if (ord1 == Long.MIN_VALUE || ord2 == Long.MIN_VALUE) {
-            return Long.compare(ord1, ord2);
+            return Long.compare(ord1, ord2) * missingBucket.compareAnyValueToMissing(reverseMul);
         } else if (ord1 < 0 && ord2 < 0) {
             if (ord1 == ord2) {
                 // we need to compare actual terms to properly order
                 assert bytesRef1 != null && bytesRef2 != null;
                 return bytesRef1.compareTo(bytesRef2);
             }
-            return Long.compare(-ord1 - 1, -ord2 - 1);
+            return Long.compare(-ord1 - 1, -ord2 - 1) * reverseMul;
         } else {
             if (ord1 < 0) {
                 assert ord1 < 0 && ord2 >= 0;
                 int cmp = Long.compare(-ord1 - 1, ord2);
                 if (cmp == 0) {
-                    return -1;
+                    return -1 * reverseMul;
                 }
-                return cmp;
+                return cmp * reverseMul;
             } else {
                 assert ord1 >= 0 && ord2 < 0;
                 int cmp = Long.compare(ord1, -ord2 - 1);
                 if (cmp == 0) {
-                    return 1;
+                    return reverseMul;
                 }
-                return cmp;
+                return cmp * reverseMul;
             }
         }
     }
@@ -200,10 +200,10 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     void setAfter(Comparable<?> value) {
         assert invariant();
-        if (missingBucket && value == null) {
+        if (missingBucket.include() && value == null) {
             afterValue = null;
             afterValueOrd = Long.MIN_VALUE;
-        } else if (value.getClass() == String.class || (missingBucket && fieldType == null)) {
+        } else if (value.getClass() == String.class || (missingBucket.include() && fieldType == null)) {
             // the value might be not string if this field is missing in this shard but present in other shards
             // and doesn't have a string type
             afterValue = format.parseBytesRef(value.toString());
@@ -219,7 +219,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         assert slot < numSlots;
         long ord = valuesOrd.get(slot);
         if (ord == Long.MIN_VALUE) {
-            assert missingBucket;
+            assert missingBucket.include();
             return null;
         } else if (ord < 0) {
             return valuesUnmapped.get(slot);
@@ -257,7 +257,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                         currentValueUnmapped = null;
                         next.collect(doc, bucket);
                     }
-                } else if (missingBucket) {
+                } else if (missingBucket.include()) {
                     currentValueOrd = Long.MIN_VALUE;
                     currentValueUnmapped = null;
                     next.collect(doc, bucket);

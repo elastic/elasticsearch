@@ -219,7 +219,7 @@ final class CompositeAggregator extends BucketsAggregator {
             SortField indexSortField = indexSort.getSort()[i];
             if (source.fieldType == null
                     // TODO: can we handle missing bucket when using index sort optimization ?
-                    || source.missingBucket
+                    || source.missingBucket.include()
                     || indexSortField.getField().equals(source.fieldType.name()) == false
                     || isMaybeMultivalued(context, indexSortField)
                     || sourceConfig.hasScript()) {

@@ -37,7 +37,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            false,
+            MissingBucket.IGNORE,
             1,
             1
         );
@@ -55,7 +55,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            true,
+            MissingBucket.INCLUDE,
             1,
             1
         );
@@ -68,7 +68,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            false,
+            MissingBucket.IGNORE,
             0,
             -1
         );
@@ -81,7 +81,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             ip,
             context -> null,
             DocValueFormat.RAW,
-            false,
+            MissingBucket.IGNORE,
             1,
             1);
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
@@ -94,7 +94,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             (b) -> {},
             keyword, context -> null,
             DocValueFormat.RAW,
-            false,
+            MissingBucket.IGNORE,
             1,
             1
         );
@@ -112,7 +112,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            true,
+            MissingBucket.INCLUDE,
             1,
             1
         );
@@ -126,7 +126,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            false,
+            MissingBucket.IGNORE,
             1,
             -1
         );
@@ -140,7 +140,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             ip,
             context -> null,
             DocValueFormat.RAW,
-            false,
+            MissingBucket.IGNORE,
             1,
             1
         );
@@ -163,7 +163,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     context -> null,
                     value -> value,
                     DocValueFormat.RAW,
-                    false,
+                    MissingBucket.IGNORE,
                     1,
                     1
                 );
@@ -187,7 +187,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     context -> null,
                     value -> value,
                     DocValueFormat.RAW,
-                    true,
+                    MissingBucket.INCLUDE,
                     1,
                     1);
                 assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
@@ -203,7 +203,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     context -> null,
                     value -> value,
                     DocValueFormat.RAW,
-                    false,
+                    MissingBucket.IGNORE,
                     1,
                     -1
                 );
@@ -220,7 +220,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     number,
                     context -> null,
                     DocValueFormat.RAW,
-                    false,
+                    MissingBucket.IGNORE,
                     1,
                     1
                 );

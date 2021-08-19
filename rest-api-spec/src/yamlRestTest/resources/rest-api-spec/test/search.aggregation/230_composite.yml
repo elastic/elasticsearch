@@ -1118,7 +1118,7 @@ setup:
                   "nested": { "path": "courses" },
                   "aggregations": {
                       "names": {
-                          "composite": { 
+                          "composite": {
                               "sources": [
                                   "kw": {"terms": {"field": "courses.name"}}
                               ]
@@ -1264,7 +1264,7 @@ setup:
                         "aggs":  {
                             "keez": {
                                 "composite": {
-                                    "sources": [ 
+                                    "sources": [
                                         "key": {"terms": {"field": "kw"}}
                                     ]
                                 }
@@ -1278,3 +1278,29 @@ setup:
   - length: {aggregations.not_one.keez.buckets: 2}
   - match: {aggregations.not_one.keez.buckets.0.key.key: "three"}
   - match: {aggregations.not_one.keez.buckets.1.key.key: "two"}
+
+---
+"Use of missing and missing_bucket in same source":
+  - skip:
+      version: " - 7.15.99"
+      reason: missing_bucket has been deprecated and replaced by missing in 7.16
+  - do:
+      catch: "/.*The following fields are not allowed together: \\[missing_bucket, missing\\].*/"
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "kw": {
+                      "terms": {
+                        "field": "keyword",
+                        "missing": "_first",
+                        "missing_bucket": true
+                      }
+                    }
+                  }
+                ]

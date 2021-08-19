@@ -37,7 +37,7 @@ import static org.fusesource.jansi.Ansi.ansi;
  */
 final class OutputBottomBanner {
 
-    // generous buffer used to forward stdin to stdout multiple log lines at a time
+    // generous buffer used to forward stdin to stdout, multiple log lines at a time
     private static final int BUFFER_SIZE = 16384;
     private static final byte[] BUFFER = new byte[BUFFER_SIZE];
 
@@ -82,48 +82,54 @@ final class OutputBottomBanner {
         bannerThread.setDaemon(true);
         bannerThread.start();
 
-        String bannerClearCommand = null;
+        String clearBannerCommand = null;
         int terminalWidth = -1;
         boolean clearBanner = false;
-        Banner banner = null;
+        Banner banner = null; // set-once
         String richBanner = null;
-        boolean lineBoundary = true;
+        boolean lineBoundary = true; // banner printed only if the previous text ended with an end-of-line
         while (true) {
             if (lineBoundary) {
                 // banner is set-once
                 if (banner == null) {
                     banner = bannerReference.get();
-                }
-                if (banner != null && richBanner == null) {
-                    // cache formatted (bolded) text
-                    richBanner = ansi().newline().bold().a(banner.getBannerText()).boldOff().newline().toString();
+                    if (banner != null) {
+                        // cache formatted (bolded) text
+                        richBanner = ansi().newline().bold().a(banner.getBannerText()).boldOff().newline().toString();
+                    }
                 }
                 if (richBanner != null) {
                     AnsiConsole.out().print(richBanner);
                     clearBanner = true;
                 }
             }
+            // the banner is (maybe) printed atm, we can block for reads now
             int bytesRead = System.in.read(BUFFER, 0, BUFFER.length);
             if (bytesRead < 0) {
-                // the program should definitely exist if there is no input to forward
+                // the program should definitely exit if there is no input to forward anymore
                 return;
             } else if (bytesRead == 0) { // should never return "0", but just in case it does, loop
                 continue;
             } else {
+                // before forwarding input, clear the banner
                 if (clearBanner) {
                     assert banner != null;
                     if (terminalWidth != AnsiConsole.getTerminalWidth()) {
                         terminalWidth = AnsiConsole.getTerminalWidth();
-                        bannerClearCommand =
+                        clearBannerCommand =
                                 ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
                     }
-                    AnsiConsole.out().print(bannerClearCommand);
+                    AnsiConsole.out().print(clearBannerCommand);
                     clearBanner = false;
                 }
-                // forward output
+                // forward input to output
                 System.out.write(BUFFER, 0, bytesRead);
                 // it is expected that the piped input is a stream of lines
+                // if the input only returns line fragments, then the banner never gets
                 lineBoundary = BUFFER[bytesRead - 1] == (byte)'\n';
+                for (int i = bytesRead - 1; i >= 0; i++) {
+
+                }
             }
         }
         // TODO what happens if I terminate the program or interrupt the main thread

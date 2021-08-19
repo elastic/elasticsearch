@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -28,9 +27,9 @@ public class BertRequestBuilderTests extends ESTestCase {
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN)).build();
 
         BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, 512);
-        BytesReference bytesReference = requestBuilder.buildRequest("Elasticsearch fun", "request1");
+        NlpTask.Request request = requestBuilder.buildRequest("Elasticsearch fun", "request1");
 
-        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(bytesReference, true, XContentType.JSON).v2();
+        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
         assertEquals("request1", jsonDocAsMap.get("request_id"));

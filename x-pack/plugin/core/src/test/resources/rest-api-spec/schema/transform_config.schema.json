@@ -180,11 +180,11 @@
           "title": "docs per second",
           "type": "number"
         },
-        "interim_results": {
-          "$id": "#root/settings/interim_results",
-          "title": "interim results",
+        "align_checkpoints": {
+          "$id": "#root/settings/align_checkpoints",
+          "title": "align checkpoints",
           "type": "boolean",
-          "default": false
+          "default": true
         },
         "max_page_search_size": {
           "$id": "#root/settings/max_page_search_size",

@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class WhitelistLoaderTests extends ESTestCase {
+
     public void testUnknownAnnotations() {
         Map<String, WhitelistAnnotationParser> parsers = new HashMap<>(WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS);
 

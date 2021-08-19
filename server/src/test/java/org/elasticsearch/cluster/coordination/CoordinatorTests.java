@@ -1314,9 +1314,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             // cf. DEFAULT_STABILISATION_TIME, but stabilisation is quicker when there's a single node - there's no meaningful fault
             // detection and ongoing publications do not time out
             cluster.runFor(ELECTION_INITIAL_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + delayVariabilityMillis
-                + 4 * delayVariabilityMillis // two round trips for pre-voting and voting
-                + 7 * delayVariabilityMillis, // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
-                "stabilising");
+                // two round trips for pre-voting and voting
+                + 4 * delayVariabilityMillis
+                // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+                + 7 * delayVariabilityMillis, "stabilising");
 
             assertThat(cluster.getAnyLeader(), sameInstance(clusterNode));
         }

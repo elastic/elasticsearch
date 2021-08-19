@@ -528,7 +528,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
             .field(timestampField)
             .calendarInterval(new DateHistogramInterval("1d"))
-            .timeZone(ZoneId.of("-01:00", ZoneId.SHORT_IDS));  // adds a timezone so that we aren't on default UTC
+            // adds a timezone so that we aren't on default UTC
+            .timeZone(ZoneId.of("-01:00", ZoneId.SHORT_IDS));
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
             singletonList(dateHisto));
@@ -553,16 +554,16 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Map<String, Object> map = docs.get(0).sourceAsMap();
         assertNotNull(map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
         assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
+        // 2015-09-30T00:00:00.000-01:00
         assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.TIMESTAMP),
-            equalTo(1443574800000L)); // 2015-09-30T00:00:00.000-01:00
+            equalTo(1443574800000L));
 
         map = docs.get(1).sourceAsMap();
         assertNotNull(map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
         assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
+        // 2015-10-01T00:00:00.000-01:00
         assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.TIMESTAMP),
-            equalTo(1443661200000L)); // 2015-10-01T00:00:00.000-01:00
-
-
+            equalTo(1443661200000L));
     }
 
     interface Mock {

@@ -24,7 +24,7 @@ public class ChangeMethodOwnerRecipe extends Recipe {
                                    @NonNull @JsonProperty("methodName") String methodName,
                                    @NonNull @JsonProperty("targetFullQualifiedClassname") String targetFullQualifiedClassname) {
         doNext(new FullQualifiedChangeMethodOwnerRecipe(originFullQualifiedClassname, methodName, targetFullQualifiedClassname));
-        doNext(new FixFullQualifiedReferenceRecipe(targetFullQualifiedClassname));
+        doNext(new FixFullQualifiedReferenceRecipe(targetFullQualifiedClassname, true));
     }
 
 }

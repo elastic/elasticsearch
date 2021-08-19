@@ -28,17 +28,27 @@ import static org.elasticsearch.gradle.internal.rewrite.rules.FullQualifiedChang
 public class FixFullQualifiedReferenceRecipe extends Recipe {
 
     @Option(
-            displayName = "Fully-qualified target type name",
-            description = "A fully-qualified class name we want to fix.",
-            example = "org.elasticsearch.core.List"
+        displayName = "Fully-qualified target type name",
+        description = "A fully-qualified class name we want to fix.",
+        example = "org.elasticsearch.core.List"
     )
     private String fullQualifiedClassname;
 
+    @Option(
+        displayName = "Only on change flag",
+        description = "A flag indicating if this rule should only be applied on changed methods.",
+        example = "true"
+    )
+    private boolean onlyOnChangedSource;
+
     @JsonCreator
     public FixFullQualifiedReferenceRecipe(
-            @NonNull @JsonProperty("fullQualifiedClassname") String fullQualifiedClassname
+        @NonNull @JsonProperty("fullQualifiedClassname") String fullQualifiedClassname,
+        @NonNull @JsonProperty("onlyOnChangedSource") boolean onlyOnChangedSource
+
     ) {
         this.fullQualifiedClassname = fullQualifiedClassname;
+        this.onlyOnChangedSource = onlyOnChangedSource;
     }
 
     @Override
@@ -54,7 +64,7 @@ public class FixFullQualifiedReferenceRecipe extends Recipe {
     @Override
     protected JavaVisitor<ExecutionContext> getVisitor() {
         String unqualifiedIdentifier = fullQualifiedClassname.substring(fullQualifiedClassname.lastIndexOf('.') + 1);
-        return new Visitor(fullQualifiedClassname, unqualifiedIdentifier);
+        return new Visitor(fullQualifiedClassname, unqualifiedIdentifier, onlyOnChangedSource);
     }
 
     public static class Visitor extends JavaIsoVisitor<ExecutionContext> {
@@ -62,18 +72,18 @@ public class FixFullQualifiedReferenceRecipe extends Recipe {
         private String fullQualifiedClassname;
         private String unqualifiedIdentifier;
         private boolean hasOriginImport;
+        private boolean onlyOnChangedSource;
 
-        public Visitor(String fullQualifiedClassname, String unqualifiedIdentifier) {
+        public Visitor(String fullQualifiedClassname, String unqualifiedIdentifier, boolean onlyOnChangedSource) {
             this.fullQualifiedClassname = fullQualifiedClassname;
             this.unqualifiedIdentifier = unqualifiedIdentifier;
+            this.onlyOnChangedSource = onlyOnChangedSource;
         }
 
         @Override
         public J.MethodInvocation visitMethodInvocation(J.MethodInvocation method, ExecutionContext executionContext) {
-            Set<Object> processed = executionContext.getMessage(METHOD_CHANGE_PREFIX + fullQualifiedClassname, Collections.emptySet());
-            boolean changedMadeBefore = processed.contains(method.getId());
             J.MethodInvocation m = super.visitMethodInvocation(method, executionContext);
-            if (changedMadeBefore
+            if (canChange(method, executionContext)
                 && hasOriginImport == false
                 && m.getSelect() instanceof J.FieldAccess
                 && ((J.FieldAccess) m.getSelect()).isFullyQualifiedClassReference(fullQualifiedClassname)) {
@@ -90,6 +100,15 @@ public class FixFullQualifiedReferenceRecipe extends Recipe {
                 maybeAddImport(fullQualifiedClassname);
             }
             return m;
+        }
+
+        private boolean canChange(J.MethodInvocation method, ExecutionContext executionContext) {
+            if (onlyOnChangedSource == false) {
+                return true;
+            }
+
+            Set<Object> processed = executionContext.getMessage(METHOD_CHANGE_PREFIX + fullQualifiedClassname, Collections.emptySet());
+            return processed.contains(method.getId());
         }
 
         @Override

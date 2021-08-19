@@ -8,20 +8,17 @@
 
 package org.elasticsearch.tools.launchers;
 
-import org.elasticsearch.tools.java_version_checker.SuppressForbidden;
 import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiConsole;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -32,24 +29,28 @@ import static org.fusesource.jansi.Ansi.ansi;
  * Prints the text lines, that are coming through the standard input, to the standard output
  * (like the no-arg `cat` command), but followed by a multi-line text "banner" that persists as the last text
  * that is printed to the terminal.
- * The "banner" persists because it is printed out after every line of text, and is then cleared
- * before the next line is printed. Clearing and moving the cursor only works if the output is a terminal
+ * The "banner" persists because it is printed out before waiting for more input on stdin.
+ * Clearing and moving the cursor only works if the output is a terminal
  * (this redirection should not be used otherwise).
  * The banner is read from an input file, and mustn't necessarily be available before the stdin input is.
- * Once the content of the banner becomes available it cannot be changed.
+ * Once the content of the banner becomes available it cannot be changed (it is set-once).
  */
 final class OutputBottomBanner {
 
-    @SuppressForbidden(reason = "System#out")
+    // generous buffer used to forward stdin to stdout multiple log lines at a time
+    private static final int BUFFER_SIZE = 16384;
+    private static final byte[] BUFFER = new byte[BUFFER_SIZE];
+
     public static void main(final String[] args) throws IOException {
         if (args.length != 2) {
             throw new IllegalArgumentException("expected two arguments, but provided " + Arrays.toString(args));
         }
         // TODO validate args
-        // TODO timer arg
+        // TODO timer arg for limited lifetime banner
         final String bannerEndMarker = args[0];
         final String bannerFileName = args[1];
         final AtomicReference<Banner> bannerReference = new AtomicReference<>();
+        // don't bother with the banner text if the output is not a terminal
         // asynchronously read the whole banner; the banner is only used when complete
         final Thread bannerThread = new Thread(() -> {
             Banner.Builder bannerBuilder = Banner.builder();
@@ -75,61 +76,63 @@ final class OutputBottomBanner {
             } catch (InterruptedException ignore) {
                 Thread.currentThread().interrupt();
             }
+            // TODO consider logging
             bannerReference.set(bannerBuilder.build());
         });
         bannerThread.setDaemon(true);
         bannerThread.start();
 
-        // forward stdin to stdout
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()))) {
-            String line;
-            // no banner yet, forward input line by line
-            while (bannerReference.get() == null) {
-                // avoid blocking if no input, because banner can become available and it must be shown even if no input lines
-                if (reader.ready()) {
-                    // this might block if only part of line is available
-                    // this is reasonable because the assumption is that the input is a stream of lines
-                    // so it only blocks for a short while
-                    line = reader.readLine();
-                    System.out.printf(Locale.ROOT, "%s%n", line);
-                } else {
-                    // avoid busy looping when no input lines and no banner
-                    Thread.sleep(1000);
+        String bannerClearCommand = null;
+        int terminalWidth = -1;
+        boolean clearBanner = false;
+        Banner banner = null;
+        String richBanner = null;
+        boolean lineBoundary = true;
+        while (true) {
+            if (lineBoundary) {
+                // banner is set-once
+                if (banner == null) {
+                    banner = bannerReference.get();
+                }
+                if (banner != null && richBanner == null) {
+                    // cache formatted (bolded) text
+                    richBanner = ansi().newline().bold().a(banner.getBannerText()).boldOff().newline().toString();
+                }
+                if (richBanner != null) {
+                    AnsiConsole.out().print(richBanner);
+                    clearBanner = true;
                 }
             }
-            Banner banner = bannerReference.get();
-
-            // TODO multiline
-            // TODO timer
-
-            // bolded and separated by empty lines
-            final String richBanner = ansi().newline().bold().a(banner.getBannerText()).boldOff().newline().toString();
-            // print banner
-            AnsiConsole.out().printf(Locale.ROOT, "%s", richBanner);
-            // we can block indefinitely for input lines since the banner has already been printed
-            int terminalWidth = -1;
-            String bannerClearCommand = "";
-            while ((line = reader.readLine()) != null) {
-                // clear banner
-                if (terminalWidth != AnsiConsole.getTerminalWidth()) {
-                    terminalWidth =  AnsiConsole.getTerminalWidth();
-                    bannerClearCommand =
-                            ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
+            int bytesRead = System.in.read(BUFFER, 0, BUFFER.length);
+            if (bytesRead < 0) {
+                // the program should definitely exist if there is no input to forward
+                return;
+            } else if (bytesRead == 0) { // should never return "0", but just in case it does, loop
+                continue;
+            } else {
+                if (clearBanner) {
+                    assert banner != null;
+                    if (terminalWidth != AnsiConsole.getTerminalWidth()) {
+                        terminalWidth = AnsiConsole.getTerminalWidth();
+                        bannerClearCommand =
+                                ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
+                    }
+                    AnsiConsole.out().print(bannerClearCommand);
+                    clearBanner = false;
                 }
-                AnsiConsole.out().printf(Locale.ROOT, "%s", bannerClearCommand);
-                // forwarded line replaces banner
-                AnsiConsole.out().printf(Locale.ROOT, "%s%n", line);
-                // append another banner
-                AnsiConsole.out().printf(Locale.ROOT, "%s", richBanner);
+                // forward output
+                System.out.write(BUFFER, 0, bytesRead);
+                // it is expected that the piped input is a stream of lines
+                lineBoundary = BUFFER[bytesRead - 1] == (byte)'\n';
             }
-        } catch (InterruptedException e) {
-            // TODO what happens if I terminate the program??
-            bannerThread.interrupt();
-            Thread.currentThread().interrupt();
         }
+        // TODO what happens if I terminate the program or interrupt the main thread
     }
 
     private static class Banner {
+
+        private static final int MAX_BANNER_LENGTH = 8192; // TODO banner can have unlimited length?
+
         private final String bannerText;
         private final List<Integer> lineLengths;
         private final Map<Integer, Integer> lineCountCache = new ConcurrentHashMap<>(1);
@@ -146,6 +149,9 @@ final class OutputBottomBanner {
                     stringBuilder.append(System.lineSeparator());
                 }
                 stringBuilder.append(line);
+                if (stringBuilder.length() > MAX_BANNER_LENGTH) {
+                    throw new IllegalArgumentException("Read banner length exceeds limit [" + MAX_BANNER_LENGTH + "]");
+                }
                 lineLengths.add(line.length());
             }
 

@@ -54,6 +54,7 @@ then
   fi
 fi
 
+# TODO filter out settings and ensure all required settings can be read
 if [[ $AUTO_CONFIG = true ]]; then
   # it is possible that an auto-configuration failure can prevent the node from starting, but this is only the exceptional case
   # most likely an auto-configuration failure will leave the configuration untouched, optionally printing a message
@@ -77,7 +78,9 @@ ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasti
 
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
-  if [[ "$QUIET" = false ]]; then
+# TODO check terminfo and verify that OutputBanner started successfully before redirecting
+# TODO only run if auto config (first time)
+  if [[ "$QUIET" = false && -t 1 ]]; then
     exec > >(exec "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.OutputBottomBanner "EOF" \
       <(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.BootstrapPasswordAndEnrollmentTokenForInitialNode \
       ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \

@@ -59,8 +59,8 @@ public final class DateUtils {
     /**
      * Parses the given string into a DateTime using `defaultZone` as a default timezone.
      */
-    public static ZonedDateTime asDateTime(String dateFormat, ZoneId defaultZone) {
-        defaultZone = defaultZone == null ? UTC : defaultZone;
+    public static ZonedDateTime asDateTime(String dateFormat, ZoneId zoneId) {
+        ZoneId defaultZone = zoneId == null ? UTC : zoneId;
 
         int separatorIdx = dateFormat.indexOf('-'); // Find the first `-` date separator
         if (separatorIdx == 0) { // first char = `-` denotes a negative year

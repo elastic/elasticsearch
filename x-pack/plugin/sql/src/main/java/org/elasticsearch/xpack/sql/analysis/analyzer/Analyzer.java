@@ -118,7 +118,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new HavingOverProject(),
                 new ResolveAggsInHaving(),
                 new ResolveAggsInOrderBy()
-                //new ImplicitCasting()
                 );
         Batch finish = new Batch("Finish Analysis",
                 new ReplaceSubQueryAliases(), // Should be run before pruning SubqueryAliases

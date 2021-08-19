@@ -33,7 +33,7 @@ SELECT ('2020-06-01T09:20:30Z'::DATETIME)::STRING a,
 ;
 
 castStringWithoutTZToDatetimeInScript-TZ[Etc/GMT-1]
-SELECT hire_date::string,
+SELECT hire_date::STRING,
        hire_date >= '1997-05-19T01:00:00.000'::DATETIME c1,
        hire_date >= '1997-05-19T01:00:00.001'::DATETIME c2
 FROM test_emp ORDER BY hire_date DESC LIMIT 3;

@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
 
 public class SqlDataTypeConverterTests extends ESTestCase {
 
-    private static final ZoneId MINUS_5 = ZoneId.of("-05:00");
+    private static final ZoneId MINUS_5H = ZoneId.of("-05:00");
 
     public void testConversionToString() {
         DataType to = KEYWORD;
@@ -87,8 +87,8 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
-            assertEquals("1973-11-29T16:33:09.101-05:00", conversion.convert(DateUtils.asDateTimeWithMillis(123456789101L, MINUS_5)));
-            assertEquals("1966-02-01T21:26:50.899-05:00", conversion.convert(DateUtils.asDateTimeWithMillis(-123456789101L, MINUS_5)));
+            assertEquals("1973-11-29T16:33:09.101-05:00", conversion.convert(DateUtils.asDateTimeWithMillis(123456789101L, MINUS_5H)));
+            assertEquals("1966-02-01T21:26:50.899-05:00", conversion.convert(DateUtils.asDateTimeWithMillis(-123456789101L, MINUS_5H)));
         }
     }
 
@@ -321,14 +321,14 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(asDateTime(1483228800123L), conversion.convert("2017-01-01T00:00:00.123Z"));
             assertEquals(asDateTime(1483228800123L), conversion.convert("2017-01-01 00:00:00.123Z"));
 
-            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01T00:00:00.321-05:00"));
-            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(18000321L, MINUS_5H), conversion.convert("1970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(18000321L, MINUS_5H), conversion.convert("1970-01-01 00:00:00.321-05:00"));
 
-            assertEquals(asDateTime(3849948162000321L, MINUS_5), conversion.convert("+123970-01-01T00:00:00.321-05:00"));
-            assertEquals(asDateTime(3849948162000321L, MINUS_5), conversion.convert("+123970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(3849948162000321L, MINUS_5H), conversion.convert("+123970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(3849948162000321L, MINUS_5H), conversion.convert("+123970-01-01 00:00:00.321-05:00"));
 
-            assertEquals(asDateTime(-818587277999679L, MINUS_5), conversion.convert("-23970-01-01T00:00:00.321-05:00"));
-            assertEquals(asDateTime(-818587277999679L, MINUS_5), conversion.convert("-23970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(-818587277999679L, MINUS_5H), conversion.convert("-23970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(-818587277999679L, MINUS_5H), conversion.convert("-23970-01-01 00:00:00.321-05:00"));
 
             // double check back and forth conversion
             ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();

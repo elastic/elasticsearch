@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 
 public class DataTypeConversionTests extends ESTestCase {
 
-    public static final ZoneId MINUS_5 = ZoneId.of("-05:00");
+    public static final ZoneId MINUS_5H = ZoneId.of("-05:00");
 
     public void testConversionToString() {
         DataType to = KEYWORD;
@@ -133,14 +133,14 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(asDateTime(1483228800123L), conversion.convert("2017-01-01T00:00:00.123Z"));
             assertEquals(asDateTime(1483228800123L), conversion.convert("2017-01-01 00:00:00.123Z"));
 
-            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01T00:00:00.321-05:00"));
-            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(18000321L, MINUS_5H), conversion.convert("1970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(18000321L, MINUS_5H), conversion.convert("1970-01-01 00:00:00.321-05:00"));
 
-            assertEquals(asDateTime(3849948162000321L, MINUS_5), conversion.convert("+123970-01-01T00:00:00.321-05:00"));
-            assertEquals(asDateTime(3849948162000321L, MINUS_5), conversion.convert("+123970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(3849948162000321L, MINUS_5H), conversion.convert("+123970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(3849948162000321L, MINUS_5H), conversion.convert("+123970-01-01 00:00:00.321-05:00"));
 
-            assertEquals(asDateTime(-818587277999679L, MINUS_5), conversion.convert("-23970-01-01T00:00:00.321-05:00"));
-            assertEquals(asDateTime(-818587277999679L, MINUS_5), conversion.convert("-23970-01-01 00:00:00.321-05:00"));
+            assertEquals(asDateTime(-818587277999679L, MINUS_5H), conversion.convert("-23970-01-01T00:00:00.321-05:00"));
+            assertEquals(asDateTime(-818587277999679L, MINUS_5H), conversion.convert("-23970-01-01 00:00:00.321-05:00"));
 
             // double check back and forth conversion
             ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
@@ -154,36 +154,36 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToDateTimeWithZoneId() {
-        ZoneId minus3 = ZoneId.of("-03:00");
+        ZoneId minus3h = ZoneId.of("-03:00");
         long offsetInMillis = 3 * 60 * 60 * 1000;
 
         {
             Converter conversion = converterFor(INTEGER, DATETIME);
 
             assertNull(conversion.convert(null));
-            assertEquals(asDateTime(10L, UTC), conversion.convert(10, minus3));
-            assertEquals(asDateTime(-134L, UTC), conversion.convert(-134, minus3));
+            assertEquals(asDateTime(10L, UTC), conversion.convert(10, minus3h));
+            assertEquals(asDateTime(-134L, UTC), conversion.convert(-134, minus3h));
         }
         {
             Converter conversion = converterFor(KEYWORD, DATETIME);
 
-            assertNull(conversion.convert(null, minus3));
+            assertNull(conversion.convert(null, minus3h));
 
-            assertEquals(asDateTime(offsetInMillis, minus3), conversion.convert("1970-01-01", minus3));
-            assertEquals(asDateTime(1000L + offsetInMillis, minus3), conversion.convert("1970-01-01T00:00:01", minus3));
+            assertEquals(asDateTime(offsetInMillis, minus3h), conversion.convert("1970-01-01", minus3h));
+            assertEquals(asDateTime(1000L + offsetInMillis, minus3h), conversion.convert("1970-01-01T00:00:01", minus3h));
 
-            assertEquals(asDateTime(1483228800123L + offsetInMillis, minus3), conversion.convert("2017-01-01T00:00:00.123", minus3));
-            assertEquals(asDateTime(1483228800123L), conversion.convert("2017-01-01T00:00:00.123Z", minus3));
+            assertEquals(asDateTime(1483228800123L + offsetInMillis, minus3h), conversion.convert("2017-01-01T00:00:00.123", minus3h));
+            assertEquals(asDateTime(1483228800123L), conversion.convert("2017-01-01T00:00:00.123Z", minus3h));
 
-            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01T00:00:00.321-05:00", minus3));
-            assertEquals(asDateTime(18000321L, MINUS_5), conversion.convert("1970-01-01 00:00:00.321-05:00", minus3));
+            assertEquals(asDateTime(18000321L, MINUS_5H), conversion.convert("1970-01-01T00:00:00.321-05:00", minus3h));
+            assertEquals(asDateTime(18000321L, MINUS_5H), conversion.convert("1970-01-01 00:00:00.321-05:00", minus3h));
 
             // double check back and forth conversion
             ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Converter forward = converterFor(DATETIME, KEYWORD);
             Converter back = converterFor(KEYWORD, DATETIME);
-            assertEquals(dt, back.convert(forward.convert(dt, minus3), minus3));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff", minus3));
+            assertEquals(dt, back.convert(forward.convert(dt, minus3h), minus3h));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff", minus3h));
             assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0",
                 e.getMessage());
         }

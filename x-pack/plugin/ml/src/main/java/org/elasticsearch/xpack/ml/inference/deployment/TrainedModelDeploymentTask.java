@@ -54,10 +54,6 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params.getModelId();
     }
 
-    public String getIndex() {
-        return params.getIndex();
-    }
-
     public long estimateMemoryUsageBytes() {
         return params.estimateMemoryUsageBytes();
     }
@@ -89,7 +85,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         stop(reason);
     }
 
-    public void infer(String input, TimeValue timeout, ActionListener<InferenceResults> listener) {
-        trainedModelAllocationNodeService.infer(this, input, timeout, listener);
+    public void infer(Map<String, Object> doc, TimeValue timeout, ActionListener<InferenceResults> listener) {
+        trainedModelAllocationNodeService.infer(this, doc, timeout, listener);
     }
 }

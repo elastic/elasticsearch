@@ -11,9 +11,9 @@ esplugin {
 }
 
 ext {
+  antlrVersion = "4.9.2"
   // SQL dependency versions
   jlineVersion = "3.14.1"
-  antlrVersion = "4.5.3"
 
   // SQL test dependency versions
   csvjdbcVersion = "1.0.34"
@@ -33,7 +33,6 @@ dependencies {
   compileOnly(project(':modules:lang-painless:spi'))
   api project('sql-action')
   api project(':modules:aggs-matrix-stats')
-  api "org.antlr:antlr4-runtime:${antlrVersion}"
   compileOnly project(path: xpackModule('ql'))
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -71,6 +70,14 @@ dependencies {
 
 String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/xpack/sql/parser'
+
+pluginManager.withPlugin('com.diffplug.spotless') {
+  spotless {
+    java {
+      targetExclude "${outputPath}/*.java"
+    }
+  }
+}
 
 tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {

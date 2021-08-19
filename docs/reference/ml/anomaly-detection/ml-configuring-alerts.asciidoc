@@ -149,8 +149,8 @@ a message to a channel you selected. You can also create an index connector that
 writes the JSON object you configure to a specific index. It's also possible to 
 customize the notification messages. A list of variables is available to include 
 in the message, like job ID, anomaly score, time, top influencers, {dfeed} ID, 
-memory status and so on based on the selected alert type. Refer to 
-<<action-variables>> to see the full list of available variables by alert type.
+memory status and so on based on the selected rule type. Refer to 
+<<action-variables>> to see the full list of available variables by rule type.
 
 
 [role="screenshot"]
@@ -165,30 +165,72 @@ The name of an alert is always the same as the job ID of the associated
 {anomaly-job} on the page of the rule that lists the individual alerts. You can 
 open it via *{alerts-ui}* by selecting the rule name.
 
+
 [[action-variables]]
-=== Action variables
+== Action variables
+
+You can add different variables to your action. The following variables are 
+specific to the {ml} rule types.
 
 
 [[anomaly-alert-action-variables]]
-==== {anomaly-detect-cap} alert action variables
+=== {anomaly-detect-cap} alert action variables
+
+Every {anomaly-detect} alert has the following action variables:
 
 `context`::
-A preconstructed message for the rule.
+Contains properties that can be added to the notification messages.
++
+.Properties of `context`
+[%collapsible%open]
+====
+`anomalyExplorerUrl`:::
+URL to open in the Anomaly Explorer.
+
+`isInterim`:::
+Indicates if top hits contain interim results.
+
+`jobIds`:::
+List of job IDs that triggered the alert.
+
+`message`::: 
+A preconstructed message for the alert.
+
+`score`:::
+Anomaly score at the time of the notification action.
+
+`timestamp`:::
+The bucket timestamp of the anomaly.
+
+`timestampIso8601`:::
+The bucket timestamp of the anomaly in ISO8601 format.
+
+`topInfluencers`:::
+The list of top influencers.
+
+`topRecords`::: 
+The list of top records.
+====
 
 
 [[anomaly-jobs-health-action-variables]]
-==== {anomaly-jobs-cap} health action variables
+=== {anomaly-jobs-cap} health action variables
+
+Every health checker has two main variables: `context.message` and 
+`context.results`. The properties of `context.results` may vary based on the 
+checker type. You can find the possible properties for all the checkers below.
+
+==== _Datafeed is not started_ checker
 
 `context.message`::
-A preconstructed message for the rule.
+A preconstructed message for the alert.
 
 `context.results`::
 Contains the collection of the following properties.
 +
-.Properties of `context.results` for _Datafeed is not started_ checker
+.Properties of `context.results`
 [%collapsible%open]
 ====
-
 `datafeed_id`:::
 The ID of the corresponding {dfeed}.
 
@@ -203,11 +245,18 @@ The ID of the affected job.
 The state of the affected job. It can be `opening`, `opened`, `closing`, 
 `closed`, or `failed`.
 ====
+
+==== _Model memory limit reached_ checker
+
+`context.message`::
+A preconstructed message for the rule.
+
+`context.results`::
+Contains the collection of the following properties.
 +
-.Properties of `context.results` for _Model memory limit reached_ checker
+.Properties of `context.results` 
 [%collapsible%open]
 ====
-
 `job_id`:::
 The ID of the affected job.
 
@@ -231,11 +280,18 @@ The timestamp of the model size statistics according to server time.
 `peak_model_bytes`:::
 The peak number of bytes of memory ever used by the model.
 ====
+
+==== _Data delay has occured_ checker
+
+`context.message`::
+A preconstructed message for the rule.
+
+`context.results`::
+Contains the collection of the following properties.
 +
-.Properties of `context.results` for _Data delay has occured_ checker
+.Properties of `context.results`
 [%collapsible%open]
 ====
-
 `annotation`:::
 The annotation corresponding to the data delay in the job.
 
@@ -248,11 +304,18 @@ The ID of the affected job.
 `missed_docs_count`:::
 The number of missed documents.
 ====
+
+==== _Error in job messages_ checker
+
+`context.message`::
+A preconstructed message for the rule.
+
+`context.results`::
+Contains the collection of the following properties.
 +
-.Properties of `context.results` for _Error in job messages_ checker
+.Properties of `context.results`
 [%collapsible%open]
 ====
-
 `level`:::
 The level of...
 
@@ -267,6 +330,4 @@ The error message.
 
 `node_name`:::
 The name of the node that runs the job.
-
-
 ====

@@ -26,8 +26,9 @@ public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
     void assertTrackingComplete(Consumer<LicensedAllocatedPersistentTask> method) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         LicensedFeature.Persistent feature = LicensedFeature.persistent("family", "somefeature", License.OperationMode.PLATINUM);
-        var task = new LicensedAllocatedPersistentTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID, Map.of(),
-            feature, "context", licenseState);
+        LicensedAllocatedPersistentTask task =
+            new LicensedAllocatedPersistentTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID,
+                org.elasticsearch.core.Map.of(), feature, "context", licenseState);
         PersistentTasksService service = mock(PersistentTasksService.class);
         TaskManager taskManager = mock(TaskManager.class);
         task.init(service, taskManager, "id", 0);
@@ -60,25 +61,26 @@ public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
         AtomicBoolean cancelledCalled = new AtomicBoolean();
         AtomicBoolean failedCalled = new AtomicBoolean();
         AtomicBoolean abortedCalled = new AtomicBoolean();
-        var task = new LicensedAllocatedPersistentTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID, Map.of(),
-            feature, "context", licenseState) {
-            @Override
-            protected boolean doMarkAsCancelled() {
-                cancelledCalled.set(true);
-                return true;
-            }
-            @Override
-            protected void doMarkAsCompleted() {
-                completedCalled.set(true);
-            }
-            @Override
-            protected void doMarkAsFailed(Exception e) {
-                failedCalled.set(true);
-            }
-            @Override
-            protected void doMarkAsLocallyAborted(String reason) {
-                abortedCalled.set(true);
-            }
+        LicensedAllocatedPersistentTask task =
+            new LicensedAllocatedPersistentTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID,
+                org.elasticsearch.core.Map.of(), feature, "context", licenseState) {
+                @Override
+                protected boolean doMarkAsCancelled() {
+                    cancelledCalled.set(true);
+                    return true;
+                }
+                @Override
+                protected void doMarkAsCompleted() {
+                    completedCalled.set(true);
+                }
+                @Override
+                protected void doMarkAsFailed(Exception e) {
+                    failedCalled.set(true);
+                }
+                @Override
+                protected void doMarkAsLocallyAborted(String reason) {
+                    abortedCalled.set(true);
+                }
         };
 
         task.markAsCancelled();

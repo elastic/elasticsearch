@@ -32,10 +32,10 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
-    void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Boolean> listener) {
+    void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Void> listener) {
         PersistentTasksCustomMetadata persistentTasksMetadata = currentClusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasksMetadata == null) {
-            listener.onResponse(true);
+            listener.onResponse(null);
             return;
         }
 
@@ -48,7 +48,7 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
             .collect(Collectors.toList());
 
         if (shardFollowTasks.isEmpty()) {
-            listener.onResponse(true);
+            listener.onResponse(null);
             return;
         }
 
@@ -59,7 +59,7 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
                 if (r.isAcknowledged() == false) {
                     throw new ElasticsearchException("pause follow request failed to be acknowledged");
                 }
-                listener.onResponse(true);
+                listener.onResponse(null);
             },
             listener::onFailure
         ));

@@ -13,7 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
@@ -219,8 +219,8 @@ public class PublicationTransportHandler {
         return handlePublishRequest.apply(new PublishRequest(incomingState));
     }
 
-    public PublicationContext newPublicationContext(ClusterChangedEvent clusterChangedEvent) {
-        final PublicationContext publicationContext = new PublicationContext(clusterChangedEvent);
+    public PublicationContext newPublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+        final PublicationContext publicationContext = new PublicationContext(clusterStatePublicationEvent);
 
         // Build the serializations we expect to need now, early in the process, so that an error during serialization fails the publication
         // straight away. This isn't watertight since we send diffs on a best-effort basis and may fall back to sending a full state (and
@@ -266,10 +266,10 @@ public class PublicationTransportHandler {
         private final Map<Version, BytesReference> serializedStates = new HashMap<>();
         private final Map<Version, BytesReference> serializedDiffs = new HashMap<>();
 
-        PublicationContext(ClusterChangedEvent clusterChangedEvent) {
-            discoveryNodes = clusterChangedEvent.state().nodes();
-            newState = clusterChangedEvent.state();
-            previousState = clusterChangedEvent.previousState();
+        PublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+            discoveryNodes = clusterStatePublicationEvent.getNewState().nodes();
+            newState = clusterStatePublicationEvent.getNewState();
+            previousState = clusterStatePublicationEvent.getOldState();
             sendFullVersion = previousState.getBlocks().disableStatePersistence();
         }
 

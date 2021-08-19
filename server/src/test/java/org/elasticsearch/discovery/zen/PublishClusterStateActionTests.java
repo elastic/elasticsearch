@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -817,8 +818,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
     public AssertingAckListener publishState(PublishClusterStateAction action, ClusterState state,
                                              ClusterState previousState, int minMasterNodes) throws InterruptedException {
         AssertingAckListener assertingAckListener = new AssertingAckListener(state.nodes().getSize() - 1);
-        ClusterChangedEvent changedEvent = new ClusterChangedEvent("test update", state, previousState);
-        action.publish(changedEvent, minMasterNodes, assertingAckListener);
+        ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent("test update", previousState, state);
+        action.publish(clusterStatePublicationEvent, minMasterNodes, assertingAckListener);
         return assertingAckListener;
     }
 

@@ -41,8 +41,8 @@ public class ClusterServiceUtils {
         MasterService masterService = new MasterService(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_master_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
-            clusterStateRef.set(event.state());
+        masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             publishListener.onResponse(null);
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
@@ -159,8 +159,10 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterStatePublisher createClusterStatePublisher(ClusterApplier clusterApplier) {
-        return (event, publishListener, ackListener) ->
-            clusterApplier.onNewClusterState("mock_publish_to_self[" + event.source() + "]", () -> event.state(),
+        return (clusterStatePublicationEvent, publishListener, ackListener) ->
+            clusterApplier.onNewClusterState(
+                "mock_publish_to_self[" + clusterStatePublicationEvent.getSummary() + "]",
+                clusterStatePublicationEvent::getNewState,
                 new ClusterApplyListener() {
                     @Override
                     public void onSuccess(String source) {

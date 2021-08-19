@@ -59,6 +59,11 @@ public class EnrollmentIT  extends ESRestHighLevelClientTestCase {
             .build();
     }
 
+    @Override
+    protected Settings restAdminSettings() {
+        return restClientSettings();
+    }
+
     public void testEnrollNode() throws Exception {
         final NodeEnrollmentResponse nodeEnrollmentResponse =
             execute(highLevelClient().security()::enrollNode, highLevelClient().security()::enrollNodeAsync, RequestOptions.DEFAULT);

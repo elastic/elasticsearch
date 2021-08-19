@@ -52,6 +52,11 @@ public class EnrollmentDocumentationIT extends ESRestHighLevelClientTestCase {
             .build();
     }
 
+    @Override
+    protected Settings restAdminSettings() {
+        return restClientSettings();
+    }
+
     public void testNodeEnrollment() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

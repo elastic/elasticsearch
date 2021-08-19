@@ -85,13 +85,6 @@ dependencies {
 
 }
 
-spotless {
-  java {
-    // Contains large data tables that do not format well.
-    targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
-  }
-}
-
 tasks.named("forbiddenPatterns").configure {
     exclude '**/*.json'
     exclude '**/*.jmx'

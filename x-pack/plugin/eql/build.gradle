@@ -57,6 +57,14 @@ dependencies {
 String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/xpack/eql/parser'
 
+pluginManager.withPlugin('com.diffplug.spotless') {
+  spotless {
+    java {
+      targetExclude "${outputPath}/*.java"
+    }
+  }
+}
+
 tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {
     include '*.tokens'

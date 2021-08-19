@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -113,6 +115,8 @@ public class DeploymentManager {
             getModelResponse -> {
                 assert getModelResponse.getResources().results().size() == 1;
                 TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
+                processContext.modelInput.set(modelConfig.getInput());
+
                 assert modelConfig.getInferenceConfig() instanceof NlpConfig;
                 NlpConfig nlpConfig = (NlpConfig) modelConfig.getInferenceConfig();
 
@@ -183,12 +187,12 @@ public class DeploymentManager {
             logger.info("[{}] Stopping deployment", task.getModelId());
             processContext.stopProcess();
         } else {
-            logger.info("[{}] No process context to stop", task.getModelId());
+            logger.debug("[{}] No process context to stop", task.getModelId());
         }
     }
 
     public void infer(TrainedModelDeploymentTask task,
-                      String input, TimeValue timeout,
+                      Map<String, Object> doc, TimeValue timeout,
                       ActionListener<InferenceResults> listener) {
         if (task.isStopped()) {
             listener.onFailure(
@@ -219,9 +223,10 @@ public class DeploymentManager {
             @Override
             protected void doRun() {
                 try {
+                    String text = NlpTask.extractInput(processContext.modelInput.get(), doc);
                     NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
-                    processor.validateInputs(input);
-                    BytesReference request = processor.getRequestBuilder().buildRequest(input, requestId);
+                    processor.validateInputs(text);
+                    BytesReference request = processor.getRequestBuilder().buildRequest(text, requestId);
                     logger.trace(() -> "Inference Request "+ request.utf8ToString());
                     PyTorchResultProcessor.PendingResult pendingResult = processContext.resultProcessor.requestWritten(requestId);
                     processContext.process.get().writeInferenceRequest(request);
@@ -229,6 +234,8 @@ public class DeploymentManager {
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));
+                } catch (Exception e) {
+                    onFailure(e);
                 } finally {
                     processContext.resultProcessor.requestAccepted(requestId);
                 }
@@ -276,6 +283,7 @@ public class DeploymentManager {
         private final long taskId;
         private final SetOnce<NativePyTorchProcess> process = new SetOnce<>();
         private final SetOnce<NlpTask.Processor> nlpTaskProcessor = new SetOnce<>();
+        private final SetOnce<TrainedModelInput> modelInput = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
 

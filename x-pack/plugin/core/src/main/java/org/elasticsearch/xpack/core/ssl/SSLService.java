@@ -609,11 +609,18 @@ public class SSLService {
             // Client Authentication _should_ be required, but if someone turns it off, then this check is no longer relevant
             final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".", true);
             if (isConfigurationValidForServerUsage(configuration) == false) {
-                throw new ElasticsearchSecurityException("invalid SSL configuration for " + prefix +
-                    " - server ssl configuration requires a key and certificate, but these have not been configured; you must set either " +
-                    "[" + configurationSettings.x509KeyPair.keystorePath.getKey() + "], or both [" +
-                    configurationSettings.x509KeyPair.keyPath.getKey() + "] and [" +
-                    configurationSettings.x509KeyPair.certificatePath.getKey() + "]");
+                throw new ElasticsearchSecurityException(
+                    "invalid SSL configuration for "
+                        + prefix
+                        + " - server ssl configuration requires a key and certificate, but these have not been configured; "
+                        + "you must set either ["
+                        + configurationSettings.x509KeyPair.keystorePath.getKey()
+                        + "], or both ["
+                        + configurationSettings.x509KeyPair.keyPath.getKey()
+                        + "] and ["
+                        + configurationSettings.x509KeyPair.certificatePath.getKey()
+                        + "]"
+                );
             }
         } else if (settings.hasValue(enabledSetting) == false) {
             final List<String> sslSettingNames = settings.keySet().stream()

@@ -4,6 +4,8 @@
 <titleabbrev>Query string</titleabbrev>
 ++++
 
+TIP: To get started with {es} queries, see <<search-your-data>>.
+
 Returns documents based on a provided query string, using a parser with a strict
 syntax.
 

@@ -18,6 +18,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.compat.PreviewTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.action.TransportPreviewTransformAction;
 
 public class TransportPreviewTransformActionDeprecated extends TransportPreviewTransformAction {
@@ -30,6 +31,7 @@ public class TransportPreviewTransformActionDeprecated extends TransportPreviewT
         Client client,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformServices transformServices,
         ClusterService clusterService,
         Settings settings,
         IngestService ingestService
@@ -42,6 +44,7 @@ public class TransportPreviewTransformActionDeprecated extends TransportPreviewT
             client,
             threadPool,
             indexNameExpressionResolver,
+            transformServices,
             clusterService,
             settings,
             ingestService

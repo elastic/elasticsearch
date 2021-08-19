@@ -49,6 +49,8 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
@@ -77,6 +79,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     private final TransportService transportService;
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
+    private final TransformConfigManager transformConfigManager;
 
     @Inject
     public TransportPreviewTransformAction(
@@ -86,6 +89,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         Client client,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformServices transformServices,
         ClusterService clusterService,
         Settings settings,
         IngestService ingestService
@@ -98,6 +102,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             client,
             threadPool,
             indexNameExpressionResolver,
+            transformServices,
             clusterService,
             settings,
             ingestService
@@ -112,6 +117,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         Client client,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformServices transformServices,
         ClusterService clusterService,
         Settings settings,
         IngestService ingestService
@@ -137,6 +143,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
+        this.transformConfigManager = transformServices.getConfigManager();
     }
 
     @Override
@@ -144,73 +151,82 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         final ClusterState clusterState = clusterService.state();
         TransformNodes.throwIfNoTransformNodes(clusterState);
 
-        // Redirection can only be performed between nodes that are at least 7.13.
-        if (clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_7_13_0)) {
-            boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
-            if (TransformNodes.redirectToAnotherNodeIfNeeded(
+        ActionListener<TransformConfig> transformConfigActionListener = ActionListener.wrap(config -> {
+            // Redirection can only be performed between nodes that are at least 7.13.
+            if (clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_7_13_0)) {
+                boolean requiresRemote = config.getSource().requiresRemoteCluster();
+                if (TransformNodes.redirectToAnotherNodeIfNeeded(
                     clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, listener)) {
-                return;
+                    return;
+                }
             }
-        }
+
+            final Function function = FunctionFactory.create(config);
+
+            // <4> Validate transform query
+            ActionListener<Boolean> validateConfigListener = ActionListener.wrap(
+                validateConfigResponse -> {
+                    getPreview(
+                        config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
+                        function,
+                        config.getSource(),
+                        config.getDestination().getPipeline(),
+                        config.getDestination().getIndex(),
+                        config.getSyncConfig(),
+                        listener
+                    );
+                },
+                listener::onFailure
+            );
+
+            // <3> Validate transform function config
+            ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(
+                validateSourceDestResponse -> {
+                    function.validateConfig(validateConfigListener);
+                },
+                listener::onFailure
+            );
+
+            // <2> Validate source and destination indices
+            ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
+                aVoid -> {
+                    sourceDestValidator.validate(
+                        clusterState,
+                        config.getSource().getIndex(),
+                        config.getDestination().getIndex(),
+                        config.getDestination().getPipeline(),
+                        SourceDestValidations.getValidationsForPreview(config.getAdditionalSourceDestValidations()),
+                        validateSourceDestListener
+                    );
+                },
+                listener::onFailure
+            );
+
+            // <1> Early check to verify that the user can create the destination index and can read from the source
+            if (XPackSettings.SECURITY_ENABLED.get(nodeSettings)) {
+                TransformPrivilegeChecker.checkPrivileges(
+                    "preview",
+                    securityContext,
+                    indexNameExpressionResolver,
+                    clusterState,
+                    client,
+                    config,
+                    // We don't want to check privileges for a dummy (placeholder) index and the placeholder is inserted as
+                    // config.dest.index early in the REST action so the only possibility we have here is string comparison.
+                    DUMMY_DEST_INDEX_FOR_PREVIEW.equals(config.getDestination().getIndex()) == false,
+                    checkPrivilegesListener
+                );
+            } else { // No security enabled, just create the transform
+                checkPrivilegesListener.onResponse(null);
+            }
+        },
+            listener::onFailure);
 
         final TransformConfig config = request.getConfig();
-        final Function function = FunctionFactory.create(config);
-
-        // <4> Validate transform query
-        ActionListener<Boolean> validateConfigListener = ActionListener.wrap(
-            validateConfigResponse -> {
-                getPreview(
-                    config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
-                    function,
-                    config.getSource(),
-                    config.getDestination().getPipeline(),
-                    config.getDestination().getIndex(),
-                    config.getSyncConfig(),
-                    listener
-                );
-            },
-            listener::onFailure
-        );
-
-        // <3> Validate transform function config
-        ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(
-            validateSourceDestResponse -> {
-                function.validateConfig(validateConfigListener);
-            },
-            listener::onFailure
-        );
-
-        // <2> Validate source and destination indices
-        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> {
-                sourceDestValidator.validate(
-                    clusterState,
-                    config.getSource().getIndex(),
-                    config.getDestination().getIndex(),
-                    config.getDestination().getPipeline(),
-                    SourceDestValidations.getValidationsForPreview(config.getAdditionalSourceDestValidations()),
-                    validateSourceDestListener
-                );
-            },
-            listener::onFailure
-        );
-
-        // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (XPackSettings.SECURITY_ENABLED.get(nodeSettings)) {
-            TransformPrivilegeChecker.checkPrivileges(
-                "preview",
-                securityContext,
-                indexNameExpressionResolver,
-                clusterState,
-                client,
-                config,
-                // We don't want to check privileges for a dummy (placeholder) index and the placeholder is inserted as config.dest.index
-                // early in the REST action so the only possibility we have here is string comparison.
-                DUMMY_DEST_INDEX_FOR_PREVIEW.equals(config.getDestination().getIndex()) == false,
-                checkPrivilegesListener
-            );
-        } else { // No security enabled, just create the transform
-            checkPrivilegesListener.onResponse(null);
+        if (config != null) {
+            transformConfigActionListener.onResponse(config);
+        } else {
+            transformConfigManager.getTransformConfiguration(request.getTransformId(), transformConfigActionListener);
         }
     }
 

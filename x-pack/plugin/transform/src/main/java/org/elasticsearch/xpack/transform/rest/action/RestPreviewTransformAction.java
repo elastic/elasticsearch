@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.rest.action;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -24,7 +25,9 @@ public class RestPreviewTransformAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS + "_preview"));
+        return List.of(
+            new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS + "_preview"),
+            new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_preview"));
     }
 
     @Override
@@ -34,9 +37,27 @@ public class RestPreviewTransformAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        XContentParser parser = restRequest.contentParser();
-
-        PreviewTransformAction.Request request = PreviewTransformAction.Request.fromXContent(parser);
+        boolean hasId = restRequest.hasParam(TransformField.ID.getPreferredName());
+        boolean hasContent = restRequest.hasContent();
+        PreviewTransformAction.Request request;
+        if (hasId && hasContent) {
+            String idFromParam = restRequest.param(TransformField.ID.getPreferredName());
+            String idFromBody = (String) restRequest.contentParser().map().get(TransformField.ID.getPreferredName());
+            if (idFromParam.equals(idFromBody) == false) {
+                throw new ElasticsearchParseException(
+                    "transform id param [" + idFromParam + "] does not match request body id [" + idFromBody + "]");
+            }
+            XContentParser parser = restRequest.contentParser();
+            request = PreviewTransformAction.Request.fromXContent(parser);
+        } else if (hasId) {
+            String id = restRequest.param(TransformField.ID.getPreferredName());
+            request = new PreviewTransformAction.Request(id);
+        } else if (hasContent) {
+            XContentParser parser = restRequest.contentParser();
+            request = PreviewTransformAction.Request.fromXContent(parser);
+        } else {
+            throw new ElasticsearchParseException("Either transform id param or request body is required");
+        }
         return channel -> client.execute(PreviewTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

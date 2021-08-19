@@ -328,7 +328,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
-            assertThat(settings.get(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()), equalTo("-1"));
+            assertNull(settings.get(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
         });
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
     }

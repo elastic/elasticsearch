@@ -25,7 +25,7 @@ public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
 
     void assertTrackingComplete(Consumer<LicensedAllocatedPersistentTask> method) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        LicensedFeature.Persistent feature = LicensedFeature.persistent("somefeature", License.OperationMode.PLATINUM);
+        LicensedFeature.Persistent feature = LicensedFeature.persistent("family", "somefeature", License.OperationMode.PLATINUM);
         var task = new LicensedAllocatedPersistentTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID, Map.of(),
             feature, "context", licenseState);
         PersistentTasksService service = mock(PersistentTasksService.class);
@@ -54,7 +54,7 @@ public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
 
     public void testDoOverrides() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        LicensedFeature.Persistent feature = LicensedFeature.persistent("somefeature", License.OperationMode.PLATINUM);
+        LicensedFeature.Persistent feature = LicensedFeature.persistent("family", "somefeature", License.OperationMode.PLATINUM);
 
         AtomicBoolean completedCalled = new AtomicBoolean();
         AtomicBoolean cancelledCalled = new AtomicBoolean();

@@ -49,7 +49,7 @@ public class LicensedAllocatedPersistentTask extends AllocatedPersistentTask {
     @Override
     public final void markAsCompleted() {
         stopTracking();
-        super.markAsCompleted();
+        doMarkAsCompleted();
     }
 
     protected void doMarkAsCompleted() {

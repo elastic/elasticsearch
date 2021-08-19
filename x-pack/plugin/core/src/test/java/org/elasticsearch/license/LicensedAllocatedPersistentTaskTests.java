@@ -13,8 +13,10 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -48,5 +50,44 @@ public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
 
     public void testLocallyAborted() {
         assertTrackingComplete(t -> t.markAsLocallyAborted("reason"));
+    }
+
+    public void testDoOverrides() {
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        LicensedFeature.Persistent feature = LicensedFeature.persistent("somefeature", License.OperationMode.PLATINUM);
+
+        AtomicBoolean completedCalled = new AtomicBoolean();
+        AtomicBoolean cancelledCalled = new AtomicBoolean();
+        AtomicBoolean failedCalled = new AtomicBoolean();
+        AtomicBoolean abortedCalled = new AtomicBoolean();
+        var task = new LicensedAllocatedPersistentTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID, Map.of(),
+            feature, "context", licenseState) {
+            @Override
+            protected boolean doMarkAsCancelled() {
+                cancelledCalled.set(true);
+                return true;
+            }
+            @Override
+            protected void doMarkAsCompleted() {
+                completedCalled.set(true);
+            }
+            @Override
+            protected void doMarkAsFailed(Exception e) {
+                failedCalled.set(true);
+            }
+            @Override
+            protected void doMarkAsLocallyAborted(String reason) {
+                abortedCalled.set(true);
+            }
+        };
+
+        task.markAsCancelled();
+        assertThat(cancelledCalled.get(), is(true));
+        task.markAsCompleted();
+        assertThat(completedCalled.get(), is(true));
+        task.markAsFailed(null);
+        assertThat(failedCalled.get(), is(true));
+        task.markAsLocallyAborted("reason");
+        assertThat(abortedCalled.get(), is(true));
     }
 }

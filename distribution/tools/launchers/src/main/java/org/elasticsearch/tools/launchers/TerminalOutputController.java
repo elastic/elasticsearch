@@ -35,7 +35,8 @@ import static org.fusesource.jansi.Ansi.ansi;
  * The banner is read from an input file, and mustn't necessarily be available before the stdin input is.
  * Once the content of the banner becomes available it cannot be changed (it is set-once).
  */
-final class OutputBottomBanner {
+// TODO rename to ES node terminal output (verify that ES and logs still work)
+final class TerminalOutputController {
 
     // generous buffer used to forward stdin to stdout, multiple log lines at a time
     private static final int BUFFER_SIZE = 16384;
@@ -47,10 +48,79 @@ final class OutputBottomBanner {
         }
         // TODO validate args
         // TODO timer arg for limited lifetime banner
+        // TODO use JANSI to double check that output is terminal (and that it supports cmds)
+        // TODO think about how program can terminate abnormally
         final String bannerEndMarker = args[0];
         final String bannerFileName = args[1];
         final AtomicReference<Banner> bannerReference = new AtomicReference<>();
-        // don't bother with the banner text if the output is not a terminal
+        getBannerTextAsync(bannerFileName, bannerEndMarker, bannerReference);
+
+        String clearBannerCommand = null;
+        int terminalWidth = -1;
+        boolean clearBanner = false;
+        Banner banner = null; // set-once
+        String richBanner = null;
+        boolean printBanner = true; // banner printed only if the previous text ended with an end-of-line
+        int start = 0;
+        while (true) {
+            if (printBanner) {
+                // banner is set-once
+                if (banner == null) {
+                    banner = bannerReference.get();
+                    if (banner != null) {
+                        // cache formatted (bolded) text
+                        richBanner = ansi().newline().bold().a(banner.getBannerText()).boldOff().newline().toString();
+                    }
+                }
+                if (richBanner != null) {
+                    AnsiConsole.out().print(richBanner);
+                    // TODO print banner lifetime
+                    clearBanner = true;
+                }
+            }
+            if (start >= BUFFER.length) {
+                throw new IllegalStateException("Line longer [" + start + "] than buffer size");
+            }
+            // the banner is (maybe) printed atm, we can block for reads now
+            int bytesRead = System.in.read(BUFFER, start, BUFFER.length - start);
+            if (bytesRead == 0) {
+                throw new IllegalStateException("read call should always attempt to read at least one byte");
+            }
+            if (bytesRead < 0) {
+                // the program should definitely exit if there is no input to forward anymore
+                return;
+            } else {
+                int end = start + bytesRead;
+                int lineBreakPos = end - 1;
+                while (lineBreakPos >= start && BUFFER[lineBreakPos] != (byte)'\n') {
+                    lineBreakPos--;
+                }
+                // before forwarding input, clear the banner
+                if (lineBreakPos >= start) {
+                    if (clearBanner) {
+                        assert banner != null;
+                        if (terminalWidth != AnsiConsole.getTerminalWidth()) {
+                            terminalWidth = AnsiConsole.getTerminalWidth();
+                            clearBannerCommand =
+                                    ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
+                        }
+                        AnsiConsole.out().print(clearBannerCommand);
+                        clearBanner = false;
+                    }
+                    // forward input to output, until last end of line
+                    System.out.write(BUFFER, 0, lineBreakPos + 1);
+                    start = end - lineBreakPos - 1;
+                    System.arraycopy(BUFFER, lineBreakPos + 1, BUFFER, 0, start);
+                    printBanner = true;
+                } else {
+                    start = end;
+                    printBanner = false;
+                }
+            }
+        }
+    }
+
+    private static void getBannerTextAsync(String bannerFileName, String bannerEndMarker, AtomicReference<Banner> bannerReference) {
         // asynchronously read the whole banner; the banner is only used when complete
         final Thread bannerThread = new Thread(() -> {
             Banner.Builder bannerBuilder = Banner.builder();
@@ -76,63 +146,10 @@ final class OutputBottomBanner {
             } catch (InterruptedException ignore) {
                 Thread.currentThread().interrupt();
             }
-            // TODO consider logging
             bannerReference.set(bannerBuilder.build());
         });
         bannerThread.setDaemon(true);
         bannerThread.start();
-
-        String clearBannerCommand = null;
-        int terminalWidth = -1;
-        boolean clearBanner = false;
-        Banner banner = null; // set-once
-        String richBanner = null;
-        boolean lineBoundary = true; // banner printed only if the previous text ended with an end-of-line
-        while (true) {
-            if (lineBoundary) {
-                // banner is set-once
-                if (banner == null) {
-                    banner = bannerReference.get();
-                    if (banner != null) {
-                        // cache formatted (bolded) text
-                        richBanner = ansi().newline().bold().a(banner.getBannerText()).boldOff().newline().toString();
-                    }
-                }
-                if (richBanner != null) {
-                    AnsiConsole.out().print(richBanner);
-                    clearBanner = true;
-                }
-            }
-            // the banner is (maybe) printed atm, we can block for reads now
-            int bytesRead = System.in.read(BUFFER, 0, BUFFER.length);
-            if (bytesRead < 0) {
-                // the program should definitely exit if there is no input to forward anymore
-                return;
-            } else if (bytesRead == 0) { // should never return "0", but just in case it does, loop
-                continue;
-            } else {
-                // before forwarding input, clear the banner
-                if (clearBanner) {
-                    assert banner != null;
-                    if (terminalWidth != AnsiConsole.getTerminalWidth()) {
-                        terminalWidth = AnsiConsole.getTerminalWidth();
-                        clearBannerCommand =
-                                ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
-                    }
-                    AnsiConsole.out().print(clearBannerCommand);
-                    clearBanner = false;
-                }
-                // forward input to output
-                System.out.write(BUFFER, 0, bytesRead);
-                // it is expected that the piped input is a stream of lines
-                // if the input only returns line fragments, then the banner never gets
-                lineBoundary = BUFFER[bytesRead - 1] == (byte)'\n';
-                for (int i = bytesRead - 1; i >= 0; i++) {
-
-                }
-            }
-        }
-        // TODO what happens if I terminate the program or interrupt the main thread
     }
 
     private static class Banner {

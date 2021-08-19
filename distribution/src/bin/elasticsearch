@@ -54,11 +54,12 @@ then
   fi
 fi
 
-# TODO filter out settings and ensure all required settings can be read
+# TODO filter out arguments but ensure all required arguments can be read by the command
 if [[ $AUTO_CONFIG = true ]]; then
   # it is possible that an auto-configuration failure can prevent the node from starting, but this is only the exceptional case
   # most likely an auto-configuration failure will leave the configuration untouched, optionally printing a message
   # if the error is unexpected, but the node will start as usual
+  # TODO get error code to see if auto config really worked
   ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigInitialNode \
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
@@ -79,9 +80,9 @@ ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasti
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
 # TODO check terminfo and verify that OutputBanner started successfully before redirecting
-# TODO only run if auto config (first time)
-  if [[ "$QUIET" = false && -t 1 ]]; then
-    exec > >(exec "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.OutputBottomBanner "EOF" \
+# TODO only run if auto config successfully
+  if [[ ("$AUTO_CONFIG" = true) && ("$QUIET" = false) && (-t 1) ]]; then
+    exec > >(exec "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TerminalOutputController "EOF" \
       <(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.BootstrapPasswordAndEnrollmentTokenForInitialNode \
       ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
       ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \

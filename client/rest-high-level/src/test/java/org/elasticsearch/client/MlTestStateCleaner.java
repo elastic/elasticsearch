@@ -9,7 +9,6 @@ package org.elasticsearch.client;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.feature.ResetFeaturesRequest;

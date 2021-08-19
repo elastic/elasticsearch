@@ -302,7 +302,6 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                 new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76633")
     public void testExecuteAllocateUnassigned() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> includes = AllocateActionTests.randomAllocationRoutingMap(1, 5);
@@ -330,7 +329,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), null, null, true, ShardRoutingState.UNASSIGNED,
-                        new UnassignedInfo(randomFrom(Reason.values()), "the shard is intentionally unassigned")));
+                        TestShardRouting.randomUnassignedInfo("the shard is intentionally unassigned")));
 
         logger.info("running test with routing configurations:\n\t includes: [{}]\n\t excludes: [{}]\n\t requires: [{}]",
             includes, excludes, requires);

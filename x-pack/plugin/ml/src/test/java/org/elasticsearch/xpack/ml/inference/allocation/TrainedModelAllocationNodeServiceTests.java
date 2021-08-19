@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.junit.After;
@@ -244,12 +245,18 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                         .putCustom(
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(newParams(modelOne))
-                                .addNode(modelOne, NODE_ID)
-                                .addNewAllocation(newParams(modelTwo))
-                                .addNode(modelTwo, NODE_ID)
-                                .addNewAllocation(newParams(notUsedModel))
-                                .addNode(notUsedModel, "some-other-node")
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    modelTwo,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    notUsedModel,
+                                    TrainedModelAllocation.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                )
                                 .build()
                         )
                         .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build())
@@ -291,12 +298,18 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                         .putCustom(
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(newParams(modelOne))
-                                .addNode(modelOne, NODE_ID)
-                                .addNewAllocation(newParams(modelTwo))
-                                .addNode(modelTwo, NODE_ID)
-                                .addNewAllocation(newParams(notUsedModel))
-                                .addNode(notUsedModel, "some-other-node")
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    modelTwo,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    notUsedModel,
+                                    TrainedModelAllocation.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                )
                                 .build()
                         )
                         .build()
@@ -316,12 +329,18 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                         .putCustom(
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(newParams(modelOne))
-                                .addNode(modelOne, NODE_ID)
-                                .addNewAllocation(newParams(modelTwo))
-                                .addNode(modelTwo, "some-other-node")
-                                .addNewAllocation(newParams(notUsedModel))
-                                .addNode(notUsedModel, "some-other-node")
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    modelTwo,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo)).addNewRoutingEntry("some-other-node")
+                                )
+                                .addNewAllocation(
+                                    notUsedModel,
+                                    TrainedModelAllocation.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                )
                                 .build()
                         )
                         .build()
@@ -359,8 +378,10 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                         .putCustom(
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(newParams(modelOne))
-                                .addNode(modelOne, NODE_ID)
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
                                 .build()
                         )
                         .build()

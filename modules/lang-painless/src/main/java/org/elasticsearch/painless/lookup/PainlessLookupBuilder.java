@@ -19,6 +19,7 @@ import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
+import org.elasticsearch.painless.spi.annotation.AugmentedAnnotation;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
@@ -140,7 +141,8 @@ public final class PainlessLookupBuilder {
                     for (WhitelistField whitelistField : whitelistClass.whitelistFields) {
                         origin = whitelistField.origin;
                         painlessLookupBuilder.addPainlessField(
-                                targetCanonicalClassName, whitelistField.fieldName, whitelistField.canonicalTypeNameParameter);
+                                whitelist.classLoader, targetCanonicalClassName,
+                                whitelistField.fieldName, whitelistField.canonicalTypeNameParameter, whitelistField.painlessAnnotations);
                     }
                 }
 
@@ -426,6 +428,7 @@ public final class PainlessLookupBuilder {
         Objects.requireNonNull(methodName);
         Objects.requireNonNull(returnCanonicalTypeName);
         Objects.requireNonNull(canonicalTypeNameParameters);
+        Objects.requireNonNull(annotations);
 
         Class<?> targetClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
 
@@ -472,6 +475,7 @@ public final class PainlessLookupBuilder {
         Objects.requireNonNull(methodName);
         Objects.requireNonNull(returnType);
         Objects.requireNonNull(typeParameters);
+        Objects.requireNonNull(annotations);
 
         if (targetClass == def.class) {
             throw new IllegalArgumentException("cannot add method to reserved class [" + DEF_CLASS_NAME + "]");
@@ -610,16 +614,31 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public void addPainlessField(String targetCanonicalClassName, String fieldName, String canonicalTypeNameParameter) {
+    public void addPainlessField(ClassLoader classLoader, String targetCanonicalClassName,
+            String fieldName, String canonicalTypeNameParameter, Map<Class<?>, Object> annotations) {
+
+        Objects.requireNonNull(classLoader);
         Objects.requireNonNull(targetCanonicalClassName);
         Objects.requireNonNull(fieldName);
         Objects.requireNonNull(canonicalTypeNameParameter);
+        Objects.requireNonNull(annotations);
 
         Class<?> targetClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
 
         if (targetClass == null) {
             throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found for field " +
                     "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" + canonicalTypeNameParameter + "]]");
+        }
+
+        String augmentedCanonicalClassName = annotations.containsKey(AugmentedAnnotation.class) ?
+                ((AugmentedAnnotation)annotations.get(AugmentedAnnotation.class)).getAugmentedCanonicalClassName() : null;
+
+        Class<?> augmentedClass = null;
+
+        if (augmentedCanonicalClassName != null) {
+            augmentedClass = loadClass(classLoader, augmentedCanonicalClassName,
+                    () -> "augmented class [" + augmentedCanonicalClassName + "] not found for field " +
+                            "[[" + targetCanonicalClassName + "], [" + fieldName + "]");
         }
 
         Class<?> typeParameter = canonicalTypeNameToType(canonicalTypeNameParameter);
@@ -630,13 +649,16 @@ public final class PainlessLookupBuilder {
         }
 
 
-        addPainlessField(targetClass, fieldName, typeParameter);
+        addPainlessField(targetClass, augmentedClass, fieldName, typeParameter, annotations);
     }
 
-    public void addPainlessField(Class<?> targetClass, String fieldName, Class<?> typeParameter) {
+    public void addPainlessField(Class<?> targetClass, Class<?> augmentedClass,
+            String fieldName, Class<?> typeParameter, Map<Class<?>, Object> annotations) {
+
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(fieldName);
         Objects.requireNonNull(typeParameter);
+        Objects.requireNonNull(annotations);
 
         if (targetClass == def.class) {
             throw new IllegalArgumentException("cannot add field to reserved class [" + DEF_CLASS_NAME + "]");
@@ -658,17 +680,33 @@ public final class PainlessLookupBuilder {
         }
 
         if (isValidType(typeParameter) == false) {
-            throw new IllegalArgumentException("type parameter [" + typeToCanonicalTypeName(typeParameter) + "] not found " +
-                    "for field [[" + targetCanonicalClassName + "], [" + fieldName + "]");
+            throw new IllegalArgumentException("type parameter [" + typeToCanonicalTypeName(typeParameter) + "] not found for field " +
+                    "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" + typeToCanonicalTypeName(typeParameter) + "]]");
         }
 
         Field javaField;
 
-        try {
-            javaField = targetClass.getField(fieldName);
-        } catch (NoSuchFieldException nsme) {
-            throw new IllegalArgumentException(
-                    "reflection object not found for field [[" + targetCanonicalClassName + "], [" + fieldName + "]", nsme);
+        if (augmentedClass == null) {
+            try {
+                javaField = targetClass.getField(fieldName);
+            } catch (NoSuchFieldException nsfe) {
+                throw new IllegalArgumentException("reflection object not found for field " +
+                        "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" + typeToCanonicalTypeName(typeParameter) + "]]",
+                        nsfe);
+            }
+        } else {
+            try {
+                javaField = augmentedClass.getField(fieldName);
+
+                if (Modifier.isStatic(javaField.getModifiers()) == false || Modifier.isFinal(javaField.getModifiers()) == false) {
+                    throw new IllegalArgumentException("field [[" + targetCanonicalClassName + "], [" + fieldName + "] " +
+                            "with augmented class [" + typeToCanonicalTypeName(augmentedClass) + "] must be static and final");
+                }
+            } catch (NoSuchFieldException nsfe) {
+                throw new IllegalArgumentException("reflection object not found for field " +
+                        "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" + typeToCanonicalTypeName(typeParameter) + "]]" +
+                        "with augmented class [" + typeToCanonicalTypeName(augmentedClass) + "]", nsfe);
+            }
         }
 
         if (javaField.getType() != typeToJavaType(typeParameter)) {
@@ -694,7 +732,7 @@ public final class PainlessLookupBuilder {
             }
 
             PainlessField existingPainlessField = painlessClassBuilder.staticFields.get(painlessFieldKey);
-            PainlessField newPainlessField = new PainlessField(javaField, typeParameter, methodHandleGetter, null);
+            PainlessField newPainlessField = new PainlessField(javaField, typeParameter, annotations, methodHandleGetter, null);
 
             if (existingPainlessField == null) {
                 newPainlessField = painlessFieldCache.computeIfAbsent(newPainlessField, key -> key);
@@ -718,7 +756,8 @@ public final class PainlessLookupBuilder {
             }
 
             PainlessField existingPainlessField = painlessClassBuilder.fields.get(painlessFieldKey);
-            PainlessField newPainlessField = new PainlessField(javaField, typeParameter, methodHandleGetter, methodHandleSetter);
+            PainlessField newPainlessField =
+                    new PainlessField(javaField, typeParameter, annotations, methodHandleGetter, methodHandleSetter);
 
             if (existingPainlessField == null) {
                 newPainlessField = painlessFieldCache.computeIfAbsent(newPainlessField, key -> key);

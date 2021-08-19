@@ -52,7 +52,8 @@ Prepare a node to be restarted:
 PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 {
   "type": "restart",
-  "reason": "Demonstrating how the node shutdown API works"
+  "reason": "Demonstrating how the node shutdown API works",
+  "allocation_delay": "10m"
 }
 --------------------------------------------------
 
@@ -76,6 +77,7 @@ including the status of shard migration, task migration, and plugin cleanup:
             "type": "RESTART",
             "reason": "Demonstrating how the node shutdown API works",
             "shutdown_startedmillis": 1624406108685,
+            "allocation_delay": "10m",
             "status": "COMPLETE",
             "shard_migration": {
                 "status": "COMPLETE",

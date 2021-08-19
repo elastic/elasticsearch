@@ -211,7 +211,7 @@ RUN <%= retry.loop(
     package_manager,
       "${package_manager} update --setopt=tsflags=nodocs -y && \n" +
       "      ${package_manager} install --setopt=tsflags=nodocs -y \n" +
-      "      nc shadow-utils zip unzip findutils procps-ng && \n" +
+      "      nc shadow-utils tar zip unzip findutils procps-ng && \n" +
       "      ${package_manager} clean all"
     ) %>
 
@@ -223,7 +223,7 @@ RUN <%= retry.loop(
 %>
 RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
     ${package_manager} install --setopt=tsflags=nodocs -y \\
-      nc shadow-utils zip findutils unzip procps-ng && \\
+      nc shadow-utils tar zip findutils unzip procps-ng && \\
     ${package_manager} clean all
 
 <% } %>

@@ -38,6 +38,8 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
@@ -187,7 +189,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }
 
-    public void testLoadQueuedModelsWhenOneFails() {
+    public void testLoadQueuedModelsWhenOneFails() throws InterruptedException {
         String modelToLoad = "loading-model";
         String failedModelToLoad = "failed-loading-model";
         withLoadFailure(failedModelToLoad);
@@ -196,7 +198,15 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(modelToLoad));
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(failedModelToLoad));
 
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocationOnMock -> {
+            latch.countDown();
+            return null;
+        }).when(deploymentManager).stopDeployment(any());
+
         trainedModelAllocationNodeService.loadQueuedModels();
+
+        latch.await(5, TimeUnit.SECONDS);
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAllocationStateAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -204,6 +214,9 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         );
         verify(deploymentManager, times(2)).startDeployment(startTaskCapture.capture(), any());
         verify(trainedModelAllocationService, times(2)).updateModelAllocationState(requestCapture.capture(), any());
+
+        ArgumentCaptor<TrainedModelDeploymentTask> stopTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
+        verify(deploymentManager).stopDeployment(stopTaskCapture.capture());
 
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
@@ -214,6 +227,8 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         assertThat(requestCapture.getAllValues().get(1).getModelId(), equalTo(failedModelToLoad));
         assertThat(requestCapture.getAllValues().get(1).getNodeId(), equalTo(NODE_ID));
         assertThat(requestCapture.getAllValues().get(1).getRoutingState().getState(), equalTo(RoutingState.FAILED));
+
+        assertThat(stopTaskCapture.getValue().getModelId(), equalTo(failedModelToLoad));
 
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }

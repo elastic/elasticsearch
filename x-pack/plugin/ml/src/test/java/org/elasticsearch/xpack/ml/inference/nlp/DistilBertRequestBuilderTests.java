@@ -31,8 +31,8 @@ public class DistilBertRequestBuilderTests extends ESTestCase {
             new DistilBertTokenizationParams(null, null, 512)
         ).build();
 
-        DistilBertRequestBuilder requestBuilder = new DistilBertRequestBuilder(tokenizer, t -> p -> null);
-        BytesReference bytesReference = requestBuilder.buildRequest("Elasticsearch fun", "request1").v1();
+        DistilBertRequestBuilder requestBuilder = new DistilBertRequestBuilder(tokenizer);
+        BytesReference bytesReference = requestBuilder.buildRequest("Elasticsearch fun", "request1").processInput;
 
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(bytesReference, true, XContentType.JSON).v2();
 
@@ -43,13 +43,12 @@ public class DistilBertRequestBuilderTests extends ESTestCase {
     }
 
     public void testInputTooLarge() throws IOException {
-        NlpTask.ResultProcessorFactory emptyFactory = t -> p -> null;
         DistilBertTokenizer tokenizer = DistilBertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN),
             new DistilBertTokenizationParams(null, null, 5)
         ).build();
         {
-            DistilBertRequestBuilder requestBuilder = new DistilBertRequestBuilder(tokenizer, emptyFactory);
+            DistilBertRequestBuilder requestBuilder = new DistilBertRequestBuilder(tokenizer);
             ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
                 () -> requestBuilder.buildRequest("Elasticsearch fun Elasticsearch fun Elasticsearch fun", "request1"));
 
@@ -57,7 +56,7 @@ public class DistilBertRequestBuilderTests extends ESTestCase {
                 containsString("Input too large. The tokenized input length [11] exceeds the maximum sequence length [5]"));
         }
         {
-            DistilBertRequestBuilder requestBuilder = new DistilBertRequestBuilder(tokenizer, emptyFactory);
+            DistilBertRequestBuilder requestBuilder = new DistilBertRequestBuilder(tokenizer);
             // input will become 3 tokens + the Class and Separator token = 5 which is
             // our max sequence length
             requestBuilder.buildRequest("Elasticsearch fun", "request1");

@@ -146,8 +146,8 @@ public class BertTokenizer implements NlpTokenizer {
     }
 
     @Override
-    public NlpTask.RequestBuilder requestBuilder(NlpConfig config, NlpTask.ResultProcessorFactory factory) {
-        return new BertRequestBuilder(this, factory);
+    public NlpTask.RequestBuilder requestBuilder(NlpConfig config) {
+        return new BertRequestBuilder(this);
     }
 
     public int getMaxSequenceLength() {

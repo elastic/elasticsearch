@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 public class NerProcessor implements NlpTask.Processor {
 
@@ -75,7 +74,7 @@ public class NerProcessor implements NlpTask.Processor {
     NerProcessor(NlpTokenizer tokenizer, NerConfig config) {
         validate(config.getClassificationLabels());
         this.iobMap = buildIobMap(config.getClassificationLabels());
-        this.requestBuilder = tokenizer.requestBuilder(config, tokenizationResult -> new NerResultProcessor(tokenizationResult, iobMap));
+        this.requestBuilder = tokenizer.requestBuilder(config);
     }
 
     /**
@@ -129,18 +128,20 @@ public class NerProcessor implements NlpTask.Processor {
         return requestBuilder;
     }
 
-    static class NerResultProcessor implements NlpTask.ResultProcessor {
+    @Override
+    public NlpTask.ResultProcessor getResultProcessor() {
+        return new NerResultProcessor(iobMap);
+    }
 
-        private final TokenizationResult tokenization;
+    static class NerResultProcessor implements NlpTask.ResultProcessor {
         private final IobTag[] iobMap;
 
-        NerResultProcessor(TokenizationResult tokenization, IobTag[] iobMap) {
-            this.tokenization = Objects.requireNonNull(tokenization);
+        NerResultProcessor(IobTag[] iobMap) {
             this.iobMap = iobMap;
         }
 
         @Override
-        public InferenceResults processResult(PyTorchResult pyTorchResult) {
+        public InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
             if (tokenization.getTokens().isEmpty()) {
                 return new NerResults(Collections.emptyList());
             }
@@ -151,7 +152,7 @@ public class NerProcessor implements NlpTask.Processor {
             // of maybe (1 + 0) / 2 = 0.5 while before softmax it'd be exp(10 - 5) / normalization
             // which could easily be close to 1.
             double[][] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult());
-            List<TaggedToken> taggedTokens = tagTokens(normalizedScores);
+            List<TaggedToken> taggedTokens = tagTokens(tokenization, normalizedScores);
             List<NerResults.EntityGroup> entities = groupTaggedTokens(taggedTokens);
             return new NerResults(entities);
         }
@@ -162,7 +163,7 @@ public class NerProcessor implements NlpTask.Processor {
          * in the original input replacing them with a single token that
          * gets labelled based on the average score of all its sub-tokens.
          */
-        private List<TaggedToken> tagTokens(double[][] scores) {
+        private List<TaggedToken> tagTokens(TokenizationResult tokenization, double[][] scores) {
             List<TaggedToken> taggedTokens = new ArrayList<>();
             int startTokenIndex = 0;
             while (startTokenIndex < tokenization.getTokens().size()) {

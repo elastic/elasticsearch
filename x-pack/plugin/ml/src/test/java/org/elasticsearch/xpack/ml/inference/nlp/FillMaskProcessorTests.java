@@ -50,7 +50,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
 
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
-        FillMaskResults result = (FillMaskResults) FillMaskProcessor.processResult(tokenization, new PyTorchResult("1", scores, 0L, null));
+        FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 0L, null));
         assertThat(result.getPredictions(), hasSize(5));
         FillMaskResults.Prediction prediction = result.getPredictions().get(0);
         assertEquals("France", prediction.getToken());
@@ -74,7 +74,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
         PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][]{{}}, 0L, null);
 
-        FillMaskResults result = (FillMaskResults) FillMaskProcessor.processResult(tokenization, pyTorchResult);
+        FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, pyTorchResult);
 
         assertThat(result.getPredictions(), empty());
     }

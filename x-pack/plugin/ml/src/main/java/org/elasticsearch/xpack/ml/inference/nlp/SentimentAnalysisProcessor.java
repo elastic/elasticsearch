@@ -11,7 +11,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SentimentAnalysisResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -61,12 +60,17 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
         return this::buildRequest;
     }
 
-    Tuple<BytesReference, NlpTask.ResultProcessor> buildRequest(String input, String requestId) throws IOException {
+    NlpTask.Request buildRequest(String input, String requestId) throws IOException {
         TokenizationResult tokenization = tokenizer.tokenize(input);
-        return Tuple.tuple(jsonRequest(tokenization.getTokenIds(), requestId), this::processResult);
+        return new NlpTask.Request(tokenization, jsonRequest(tokenization.getTokenIds(), requestId));
     }
 
-    InferenceResults processResult(PyTorchResult pyTorchResult) {
+    @Override
+    public NlpTask.ResultProcessor getResultProcessor() {
+        return this::processResult;
+    }
+
+    InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
         if (pyTorchResult.getInferenceResult().length < 1) {
             return new WarningInferenceResults("Sentiment analysis result has no data");
         }

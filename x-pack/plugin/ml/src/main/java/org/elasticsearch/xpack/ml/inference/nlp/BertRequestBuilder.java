@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
@@ -26,17 +25,15 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
     static final String ARG3 = "arg_3";
 
     private final BertTokenizer tokenizer;
-    private final NlpTask.ResultProcessorFactory resultProcessorFactory;
 
-    public BertRequestBuilder(BertTokenizer tokenizer, NlpTask.ResultProcessorFactory resultProcessorFactory) {
+    public BertRequestBuilder(BertTokenizer tokenizer) {
         this.tokenizer = tokenizer;
-        this.resultProcessorFactory = resultProcessorFactory;
     }
 
     @Override
-    public Tuple<BytesReference, NlpTask.ResultProcessor> buildRequest(String input, String requestId) throws IOException {
-        TokenizationResult result = tokenizer.tokenize(input);
-        return Tuple.tuple(jsonRequest(result.getTokenIds(), requestId), resultProcessorFactory.build(result));
+    public NlpTask.Request buildRequest(String input, String requestId) throws IOException {
+        TokenizationResult tokenization = tokenizer.tokenize(input);
+        return new NlpTask.Request(tokenization, jsonRequest(tokenization.getTokenIds(), requestId));
     }
 
     static BytesReference jsonRequest(int[] tokens, String requestId) throws IOException {

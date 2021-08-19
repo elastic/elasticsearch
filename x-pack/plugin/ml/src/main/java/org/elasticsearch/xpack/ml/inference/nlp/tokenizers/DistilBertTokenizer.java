@@ -33,8 +33,8 @@ public class DistilBertTokenizer extends BertTokenizer {
     }
 
     @Override
-    public NlpTask.RequestBuilder requestBuilder(NlpConfig config, NlpTask.ResultProcessorFactory factory) {
-        return new DistilBertRequestBuilder(this, factory);
+    public NlpTask.RequestBuilder requestBuilder(NlpConfig config) {
+        return new DistilBertRequestBuilder(this);
     }
 
     public static Builder builder(List<String> vocab, TokenizationParams tokenizationParams) {

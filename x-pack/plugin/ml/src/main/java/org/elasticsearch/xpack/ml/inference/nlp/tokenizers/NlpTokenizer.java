@@ -22,7 +22,7 @@ public interface NlpTokenizer {
 
     TokenizationResult tokenize(String text);
 
-    NlpTask.RequestBuilder requestBuilder(NlpConfig config, NlpTask.ResultProcessorFactory factory);
+    NlpTask.RequestBuilder requestBuilder(NlpConfig config);
 
     static NlpTokenizer build(Vocabulary vocabulary, TokenizationParams params) {
         ExceptionsHelper.requireNonNull(params, TOKENIZATION_PARAMS);

@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -25,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -43,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
@@ -159,7 +158,6 @@ public class DeploymentManager {
     }
 
     Vocabulary parseVocabularyDocLeniently(SearchHit hit) throws IOException {
-
         try (InputStream stream = hit.getSourceRef().streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                  .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
@@ -227,13 +225,12 @@ public class DeploymentManager {
                     String text = NlpTask.extractInput(processContext.modelInput.get(), doc);
                     NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
                     processor.validateInputs(text);
-                    Tuple<BytesReference, NlpTask.ResultProcessor> requestAndResult = processor
-                        .getRequestBuilder()
-                        .buildRequest(text, requestId);
-                    logger.trace(() -> "Inference Request "+ requestAndResult.v1().utf8ToString());
-                    PyTorchResultProcessor.PendingResult pendingResult = processContext.resultProcessor.requestWritten(requestId);
-                    processContext.process.get().writeInferenceRequest(requestAndResult.v1());
-                    waitForResult(processContext, pendingResult, requestId, timeout, requestAndResult.v2(), listener);
+                    NlpTask.Request request = processor.getRequestBuilder().buildRequest(text, requestId);
+                    logger.trace(() -> "Inference Request "+ request.processInput.utf8ToString());
+                    PyTorchResultProcessor.PendingResult pendingResult = processContext.resultProcessor.registerRequest(requestId);
+                    processContext.process.get().writeInferenceRequest(request.processInput);
+                    waitForResult(processContext, pendingResult, request.tokenization, requestId, timeout, processor.getResultProcessor(),
+                        listener);
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));
@@ -248,6 +245,7 @@ public class DeploymentManager {
 
     private void waitForResult(ProcessContext processContext,
                                PyTorchResultProcessor.PendingResult pendingResult,
+                               TokenizationResult tokenization,
                                String requestId,
                                TimeValue timeout,
                                NlpTask.ResultProcessor inferenceResultsProcessor,
@@ -272,7 +270,7 @@ public class DeploymentManager {
             }
 
             logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", processContext.modelId, requestId));
-            InferenceResults results = inferenceResultsProcessor.processResult(pyTorchResult);
+            InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult);
             logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", processContext.modelId, requestId));
             listener.onResponse(results);
         } catch (InterruptedException e) {

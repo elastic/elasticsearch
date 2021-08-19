@@ -46,7 +46,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
@@ -119,8 +118,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Shell.Result r = bin.keystoreTool.run("list");
         assertThat(r.stdout, containsString("keystore.seed"));
-
-        addEntryVerifyThenRemove("bootstrap.password", "hunter2");
     }
 
     public void test30AutoCreateKeystore() throws Exception {
@@ -442,28 +439,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Platforms.onWindows(
             () -> sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd")
         );
-    }
-
-    private void addEntryVerifyThenRemove(String name, String value) {
-        final Installation.Executables bin = installation.executables();
-
-        Shell.Result result = bin.keystoreTool.run("add " + name, value);
-        assertThat(result.exitCode, is(0));
-
-        result = bin.keystoreTool.run("list");
-        assertThat(result.stdout, containsString(name));
-        assertThat(result.exitCode, is(0));
-
-        result = bin.keystoreTool.run("show " + name);
-        assertThat(result.stdout, containsString(value));
-        assertThat(result.exitCode, is(0));
-
-        result = bin.keystoreTool.run("remove " + name);
-        assertThat(result.exitCode, is(0));
-
-        result = bin.keystoreTool.run("list");
-        assertThat(result.stdout, not(containsString(name)));
-        assertThat(result.exitCode, is(0));
     }
 
     private void assertPasswordProtectedKeystore() {

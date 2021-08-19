@@ -19,8 +19,8 @@ public abstract class LicensedFeature {
      */
     public static class Momentary extends LicensedFeature {
 
-        private Momentary(String name, License.OperationMode minimumOperationMode, boolean needsActive) {
-            super(name, minimumOperationMode, needsActive);
+        private Momentary(String family, String name, License.OperationMode minimumOperationMode, boolean needsActive) {
+            super(family, name, minimumOperationMode, needsActive);
         }
 
         /**
@@ -41,8 +41,8 @@ public abstract class LicensedFeature {
      * A Persistent feature is one that is tracked starting when the license is checked, and later may be untracked.
      */
     public static class Persistent extends LicensedFeature {
-        private Persistent(String name, License.OperationMode minimumOperationMode, boolean needsActive) {
-            super(name, minimumOperationMode, needsActive);
+        private Persistent(String family, String name, License.OperationMode minimumOperationMode, boolean needsActive) {
+            super(family, name, minimumOperationMode, needsActive);
         }
 
         /**
@@ -76,24 +76,26 @@ public abstract class LicensedFeature {
         }
     }
 
+    final String family;
     final String name;
     final License.OperationMode minimumOperationMode;
     final boolean needsActive;
 
-    public LicensedFeature(String name, License.OperationMode minimumOperationMode, boolean needsActive) {
+    protected LicensedFeature(String family, String name, License.OperationMode minimumOperationMode, boolean needsActive) {
+        this.family = family;
         this.name = name;
         this.minimumOperationMode = minimumOperationMode;
         this.needsActive = needsActive;
     }
 
     /** Create a momentary feature for hte given license level */
-    public static Momentary momentary(String name, License.OperationMode licenseLevel) {
-        return new Momentary(name, licenseLevel, true);
+    public static Momentary momentary(String family, String name, License.OperationMode licenseLevel) {
+        return new Momentary(family, name, licenseLevel, true);
     }
 
     /** Create a persistent feature for the given license level */
-    public static Persistent persistent(String name, License.OperationMode licenseLevel) {
-        return new Persistent(name, licenseLevel, true);
+    public static Persistent persistent(String family, String name, License.OperationMode licenseLevel) {
+        return new Persistent(family, name, licenseLevel, true);
     }
 
     /**
@@ -101,8 +103,8 @@ public abstract class LicensedFeature {
      * to whether the license needs to be active to allow the feature.
      */
     @Deprecated
-    public static Momentary momentaryLenient(String name, License.OperationMode licenseLevel) {
-        return new Momentary(name, licenseLevel, false);
+    public static Momentary momentaryLenient(String family, String name, License.OperationMode licenseLevel) {
+        return new Momentary(family, name, licenseLevel, false);
     }
 
     /**
@@ -110,8 +112,8 @@ public abstract class LicensedFeature {
      * to whether the license needs to be active to allow the feature.
      */
     @Deprecated
-    public static Persistent persistentLenient(String name, License.OperationMode licenseLevel) {
-        return new Persistent(name, licenseLevel, false);
+    public static Persistent persistentLenient(String family, String name, License.OperationMode licenseLevel) {
+        return new Persistent(family, name, licenseLevel, false);
     }
 
     /**

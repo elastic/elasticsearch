@@ -38,7 +38,7 @@ public class PyTorchResultProcessor {
         this.summaryStatistics = new LongSummaryStatistics();
     }
 
-    public PendingResult requestWritten(String requestId) {
+    public PendingResult registerRequest(String requestId) {
         return pendingResults.computeIfAbsent(requestId, k -> new PendingResult());
     }
 

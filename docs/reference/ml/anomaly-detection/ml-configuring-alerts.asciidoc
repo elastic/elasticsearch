@@ -19,7 +19,8 @@ The following {ml} alerts are available:
   anomalies that match the rule conditions.
 * {anomaly-jobs-cap} health: monitors job health and alerts if an operational 
   issue occured that may prevent the job from detectiong anomalies. Recommended 
-  to use for jobs with critical importance.
+  to use for jobs that already have associated {anomaly-detect} alert and you 
+  want to closely monitor if these jobs work as expected.
 
 
 [[creating-ml-rules]]
@@ -97,15 +98,19 @@ are met.
 
 Select the {anomaly-job} or the group of {anomaly-jobs} that is checked against 
 the rule. If you assign additional jobs to the group, the new jobs are 
-automatically checked the next time the conditions are checked. You can 
-optionally select jobs or job groups that you want to exclude.
+automatically checked the next time the conditions are checked. You can also use 
+a special character (`*`) to apply the rule to all your existing jobs. Jobs 
+created after the rule are automatically included. If you have many jobs, you 
+might receive numerous notifications, you can exclude jobs that are not 
+critically important by using the _Exclude_ field.
 
-Enable the health check types that you want to apply. The following health 
-checkers are available:
+Enable the health check types that you want to apply. All checks are enabled by 
+default. At least one check needs to be selected to create the rule. The 
+following health checkers are available:
 
 * _Datafeed is not started_: notifies if the corresponding {dfeed} of the job is 
-  not started but the job is in an opened state. Check the job on the 
-  *Job managament* page and start its {dfeed} manually.
+  not started but the job is in an opened state. The notification message 
+  recommends you the necessary actions to solve the error.
 * _Model memory limit reached_: notfies if the model memory status of the job 
   reaches the soft or hard model memory limit. Optimize your job by following 
   <<detector-configuration, these guidelines>> or consider 
@@ -116,10 +121,8 @@ checkers are available:
   interval for checking delayed data with _Time interval_. Refer to the 
   <<ml-delayed-data-detection>> page to see what to do about delayed data.
 * _Errors in job messages_: notifies when the job messages contain error 
-  messages. Check the error messages of the job to identify the issue and take 
-  action if it is necessary. As numerous different error messages might emerge 
-  based on the corresponding issue, it is not possible to recommend a single 
-  action to take in this case.
+  messages. Review the notification; it contains the error messages, the 
+  corresponding job IDs and recommendations on how to fix the issue.
 
 [role="screenshot"]
 image::images/ml-health-check-config.jpg["Selecting health checkers"]

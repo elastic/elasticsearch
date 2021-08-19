@@ -97,7 +97,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             if (nodeId.isPresent()) {
                 Settings settings = Settings.builder()
                         .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get())
-                        .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), -1).build();
+                        .putNull(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()).build();
                 UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName)
                         .masterNodeTimeout(TimeValue.MAX_VALUE)
                         .settings(settings);
@@ -115,4 +115,5 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             listener.onFailure(new IndexNotFoundException(indexMetadata.getIndex()));
         }
     }
+
 }

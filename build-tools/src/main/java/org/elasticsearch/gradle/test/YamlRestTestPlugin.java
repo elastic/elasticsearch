@@ -33,6 +33,9 @@ import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.BUNDLE_PLUGIN_TA
 
 public class YamlRestTestPlugin implements Plugin<Project> {
 
+    public static final String REST_TEST_SPECS_CONFIGURATION_NAME = "restTestSpecs";
+    public static final String YAML_REST_TEST = "yamlRestTest";
+
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
@@ -40,14 +43,14 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         project.getPluginManager().apply(JavaBasePlugin.class);
 
         ConfigurationContainer configurations = project.getConfigurations();
-        Configuration restTestSpecs = configurations.create("restTestSpecs");
+        Configuration restTestSpecs = configurations.create(REST_TEST_SPECS_CONFIGURATION_NAME);
         TaskProvider<Copy> copyRestTestSpecs = project.getTasks().register("copyRestTestSpecs", Copy.class, t -> {
             t.from(project.zipTree(restTestSpecs.getSingleFile()));
             t.into(new File(project.getBuildDir(), "restResources/restspec"));
         });
 
         var sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        var testSourceSet = sourceSets.maybeCreate("yamlRestTest");
+        var testSourceSet = sourceSets.maybeCreate(YAML_REST_TEST);
         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
             .getExtensions()
             .getByName(TestClustersPlugin.EXTENSION_NAME);
@@ -56,7 +59,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         Configuration yamlRestTestImplementation = configurations.getByName(testSourceSet.getImplementationConfigurationName());
 
         setupDefaultDependencies(project.getDependencies(), restTestSpecs, yamlRestTestImplementation);
-        var cluster = testClusters.maybeCreate("yamlRestTest");
+        var cluster = testClusters.maybeCreate(YAML_REST_TEST);
         TaskProvider<StandaloneRestIntegTestTask> yamlRestTestTask = setupTestTask(project, testSourceSet, cluster);
 
         project.getPlugins().withType(PluginBuildPlugin.class, p -> {

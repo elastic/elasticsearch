@@ -9,6 +9,19 @@ subprojects {
       enabled = false
     }
   }
+  
+  // configure project dependencies for yaml rest test plugin.
+  // plugin defaults to external available artifacts
+  // 
+  project.getPluginManager().withPlugin("elasticsearch.yaml-rest-test", new Action<AppliedPlugin>() {
+    @Override
+    void execute(AppliedPlugin appliedPlugin) {
+        project.dependencies {
+          yamlRestTestImplementation project(":test:framework")
+          restTestSpecs project(":rest-api-spec")
+        }
+    }
+  })
 }
 
 configure(project('painless-whitelist')) {

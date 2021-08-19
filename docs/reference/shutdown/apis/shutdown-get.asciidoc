@@ -42,7 +42,7 @@ If no ID is specified, returns the status of all nodes being prepared for shutdo
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-[[sget-shutdown-api-example]]
+[[get-shutdown-api-example]]
 ==== {api-examples-title}
 
 Prepare a node to be restarted:

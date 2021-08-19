@@ -289,8 +289,19 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
                 AggregationConfigTests.randomAggregationConfig(),
                 null // deprecated
             );
+        SettingsConfig.Builder settingsConfigBuilder = new SettingsConfig.Builder();
+        if (randomBoolean()) {
+            settingsConfigBuilder.setAlignCheckpoints(
+                randomBoolean()
+                    // Set align_checkpoints setting explicitly to "true".
+                    ? true
+                    // Set align_checkpoints setting explicitly to "null". This will be interpreted as "true".
+                    : null);
+        } else {
+            // Leave align_checkpoints setting unset. This will be interpreted as "true".
+        }
         return new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId))
-            .setSettings(new SettingsConfig.Builder().setInterimResults(false).build())
+            .setSettings(settingsConfigBuilder.build())
             .setPivotConfig(pivotConfigWithDateHistogramSource)
             .setSyncConfig(new TimeSyncConfig(TIMESTAMP_FIELD, delay))
             .build();

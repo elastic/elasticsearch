@@ -27,7 +27,7 @@ executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-response]
+include-tagged::{doc-tests}/EnrollmentDocumentationIT.java[{api}-response]
 --------------------------------------------------
 <1> The CA private key that can be used by the new node in order to sign its certificate
 for the HTTP layer, as a Base64 encoded string of the ASN.1 DER encoding of the key.
@@ -49,14 +49,14 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-async]
+include-tagged::{doc-tests}/EnrollmentDocumentationIT.java[{api}-execute-async]
 --------------------------------------------------
 
 A typical listener for a `NodeEnrollmentResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-listener]
+include-tagged::{doc-tests}/EnrollmentDocumentationIT.java[{api}-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

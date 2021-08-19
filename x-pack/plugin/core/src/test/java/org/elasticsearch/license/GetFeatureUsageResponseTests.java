@@ -27,7 +27,7 @@ public class GetFeatureUsageResponseTests extends ESTestCase {
     public void assertStreamInputOutput(Version version, String family, String context) throws IOException {
         ZonedDateTime zdt = ZonedDateTime.now();
         FeatureUsageInfo fui = new FeatureUsageInfo(family, "feature", zdt, context, "gold");
-        GetFeatureUsageResponse originalResponse = new GetFeatureUsageResponse(List.of(fui));
+        GetFeatureUsageResponse originalResponse = new GetFeatureUsageResponse(org.elasticsearch.core.List.of(fui));
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(version);
         originalResponse.writeTo(output);

@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -83,6 +84,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     private DatafeedConfigProvider datafeedConfigProvider;
     private Client client;
     private MlMemoryTracker mlMemoryTracker;
+    private XPackLicenseState licenseState;
 
     @Before
     public void setUpMocks() {
@@ -111,6 +113,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         client = mock(Client.class);
         when(client.settings()).thenReturn(settings);
         mlMemoryTracker = mock(MlMemoryTracker.class);
+        licenseState = mock(XPackLicenseState.class);
     }
 
     public void testValidate_jobMissing() {
@@ -275,6 +278,6 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     private OpenJobPersistentTasksExecutor createExecutor(Settings settings) {
         return new OpenJobPersistentTasksExecutor(
             settings, clusterService, autodetectProcessManager, datafeedConfigProvider, mlMemoryTracker, client,
-            TestIndexNameExpressionResolver.newInstance());
+            TestIndexNameExpressionResolver.newInstance(), licenseState);
     }
 }

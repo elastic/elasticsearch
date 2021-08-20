@@ -77,8 +77,7 @@ public class ServiceAccountService {
 
     /**
      * Parses a token object from the content of a {@link ServiceAccountToken#asBearerString()} bearer string}.
-     * This bearer string would typically be
-     * {@link org.elasticsearch.xpack.security.authc.TokenService#extractBearerTokenFromHeader extracted} from an HTTP authorization header.
+     * This bearer string would typically be extracted from an HTTP authorization header.
      *
      * <p>
      * <strong>This method does not validate the credential, it simply parses it.</strong>

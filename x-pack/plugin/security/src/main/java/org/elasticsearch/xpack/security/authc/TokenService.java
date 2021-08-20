@@ -1697,21 +1697,6 @@ public final class TokenService {
         }
     }
 
-    /**
-     * Gets the token from the <code>Authorization</code> header if the header begins with
-     * <code>Bearer </code>
-     */
-    public SecureString extractBearerTokenFromHeader(ThreadContext threadContext) {
-        String header = threadContext.getHeader("Authorization");
-        if (Strings.hasText(header) && header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())
-            && header.length() > "Bearer ".length()) {
-            char[] chars = new char[header.length() - "Bearer ".length()];
-            header.getChars("Bearer ".length(), header.length(), chars, 0);
-            return new SecureString(chars);
-        }
-        return null;
-    }
-
     String prependVersionAndEncodeAccessToken(Version version, String accessToken) throws IOException, GeneralSecurityException {
         if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {

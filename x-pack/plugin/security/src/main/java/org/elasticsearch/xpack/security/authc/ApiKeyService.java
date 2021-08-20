@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -376,37 +377,21 @@ public class ApiKeyService {
         return builder;
     }
 
-    /**
-     * Checks for the presence of a {@code Authorization} header with a value that starts with
-     * {@code ApiKey }. If found this will attempt to authenticate the key.
-     */
-    void authenticateWithApiKeyIfPresent(ThreadContext ctx, ActionListener<AuthenticationResult> listener) {
-        if (isEnabled()) {
-            final ApiKeyCredentials credentials;
-            try {
-                credentials = getCredentialsFromHeader(ctx);
-            } catch (IllegalArgumentException iae) {
-                listener.onResponse(AuthenticationResult.unsuccessful(iae.getMessage(), iae));
-                return;
-            }
-
-            if (credentials != null) {
-                loadApiKeyAndValidateCredentials(ctx, credentials, ActionListener.wrap(
-                    response -> {
-                        credentials.close();
-                        listener.onResponse(response);
-                    },
-                    e -> {
-                        credentials.close();
-                        listener.onFailure(e);
-                    }
-                ));
-            } else {
-                listener.onResponse(AuthenticationResult.notHandled());
-            }
-        } else {
+    void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult> listener) {
+        if (false == isEnabled()) {
             listener.onResponse(AuthenticationResult.notHandled());
         }
+        assert credentials != null : "api key credentials must not be null";
+        loadApiKeyAndValidateCredentials(ctx, credentials, ActionListener.wrap(
+            response -> {
+                credentials.close();
+                listener.onResponse(response);
+            },
+            e -> {
+                credentials.close();
+                listener.onFailure(e);
+            }
+        ));
     }
 
     public Authentication createApiKeyAuthentication(AuthenticationResult authResult, String nodeName) {
@@ -737,7 +722,10 @@ public class ApiKeyService {
      * Gets the API Key from the <code>Authorization</code> header if the header begins with
      * <code>ApiKey </code>
      */
-    static ApiKeyCredentials getCredentialsFromHeader(ThreadContext threadContext) {
+    ApiKeyCredentials getCredentialsFromHeader(ThreadContext threadContext) {
+        if (false == isEnabled()) {
+            return null;
+        }
         String header = threadContext.getHeader("Authorization");
         if (Strings.hasText(header) && header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length())
             && header.length() > "ApiKey ".length()) {
@@ -814,7 +802,7 @@ public class ApiKeyService {
     }
 
     // public class for testing
-    public static final class ApiKeyCredentials implements Closeable {
+    public static final class ApiKeyCredentials implements AuthenticationToken, Closeable {
         private final String id;
         private final SecureString key;
 
@@ -834,6 +822,21 @@ public class ApiKeyService {
         @Override
         public void close() {
             key.close();
+        }
+
+        @Override
+        public String principal() {
+            return id;
+        }
+
+        @Override
+        public Object credentials() {
+            return key;
+        }
+
+        @Override
+        public void clearCredentials() {
+            close();
         }
     }
 

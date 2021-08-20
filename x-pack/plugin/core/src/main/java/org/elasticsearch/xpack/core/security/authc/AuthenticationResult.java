@@ -80,7 +80,6 @@ public final class AuthenticationResult {
      * @param user The user that was authenticated. Cannot be {@code null}.
      */
     public static AuthenticationResult success(User user) {
-        Objects.requireNonNull(user);
         return success(user, null);
     }
 
@@ -90,6 +89,7 @@ public final class AuthenticationResult {
      * @see #success(User)
      */
     public static AuthenticationResult success(User user, @Nullable Map<String, Object> metadata) {
+        Objects.requireNonNull(user);
         return new AuthenticationResult(Status.SUCCESS, user, null, null, metadata);
     }
 

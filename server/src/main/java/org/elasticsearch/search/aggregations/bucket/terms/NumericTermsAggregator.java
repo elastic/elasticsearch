@@ -573,8 +573,6 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         SignificantLongTerms buildEmptyResult() {
-            // We need to account for the significance of a miss in our global stats - provide corpus size as context
-            int supersetSize = searcher().getIndexReader().numDocs();
             return new SignificantLongTerms(
                 name,
                 bucketCountThresholds.getRequiredSize(),

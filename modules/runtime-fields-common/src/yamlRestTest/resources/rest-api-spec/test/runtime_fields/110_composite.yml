@@ -116,5 +116,5 @@ query:
         fields: "*"
 
   - match: {indices:                             ["http_logs"]}
-  - match: {fields.log.response.long.type:       long}
-  - match: {fields.log.clientip.ip.type:         ip}
+  - match: {fields.http\.response.long.type:       long}
+  - match: {fields.http\.clientip.ip.type:         ip}

@@ -502,4 +502,24 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat("last used no longer returns current", lastUsed.keySet(), containsInAnyOrder(usage));
         assertThat(lastUsed.get(usage), equalTo(300L));
     }
+
+    public void testWarningHeader() {
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        License.OperationMode licenseLevel = randomFrom(STANDARD, GOLD, PLATINUM, ENTERPRISE);
+        LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "testfeature", licenseLevel);
+
+        licenseState.update(licenseLevel, true, null);
+        feature.check(licenseState);
+        ensureNoWarnings();
+
+        String warningSoon = "warning: license expiring soon";
+        licenseState.update(licenseLevel, true, warningSoon);
+        feature.check(licenseState);
+        assertWarnings(warningSoon);
+
+        String warningExpired = "warning: license expired";
+        licenseState.update(licenseLevel, false, warningExpired);
+        feature.check(licenseState);
+        assertWarnings(warningExpired);
+    }
 }

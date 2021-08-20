@@ -471,13 +471,11 @@ public class XPackLicenseState {
 
     void featureUsed(LicensedFeature feature) {
         usage.put(new FeatureUsage(feature, null), epochMillisProvider.getAsLong());
-        checkForExpiry(feature);
     }
 
     void enableUsageTracking(LicensedFeature feature, String contextName) {
         Objects.requireNonNull(contextName, "Context name cannot be null");
         usage.put(new FeatureUsage(feature, contextName), -1L);
-        checkForExpiry(feature);
     }
 
     void disableUsageTracking(LicensedFeature feature, String contextName) {
@@ -508,29 +506,14 @@ public class XPackLicenseState {
 
     // Package protected: Only allowed to be called by LicensedFeature
     boolean isAllowed(LicensedFeature feature) {
-        if (isAllowedByLicense(feature.minimumOperationMode, feature.needsActive)) {
-            return true;
-        }
-        return false;
-    }
-
-    private void checkForExpiry(LicensedFeature feature) {
-        /*final long licenseExpiryDate = getLicenseExpiryDate();
-        // TODO: this should use epochMillisProvider to avoid a system call + testability
-        final long diff = licenseExpiryDate - System.currentTimeMillis();
-        if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
-            LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
-            final long days = TimeUnit.MILLISECONDS.toDays(diff);
-            final String expiryMessage = (days == 0 && diff > 0)? "expires today":
-                (diff > 0? String.format(Locale.ROOT, "will expire in [%d] days", days):
-                    String.format(Locale.ROOT, "expired on [%s]", LicenseService.DATE_FORMATTER.formatMillis(licenseExpiryDate)));
-            HeaderWarning.addWarning("Your license {}. " +
-                "Contact your administrator or update your license for continued use of features", expiryMessage);
-        }*/
         String warning = status.expiryWarning;
         if (warning != null) {
             HeaderWarning.addWarning(warning);
         }
+        if (isAllowedByLicense(feature.minimumOperationMode, feature.needsActive)) {
+            return true;
+        }
+        return false;
     }
 
     /**

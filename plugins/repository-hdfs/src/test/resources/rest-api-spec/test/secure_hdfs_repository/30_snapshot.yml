@@ -15,6 +15,7 @@
             path: "/user/elasticsearch/test/snapshot"
             security:
               principal: "elasticsearch@BUILD.ELASTIC.CO"
+            conf.dfs.encrypt.data.transfer.cipher.suites: "AES/CTR/NoPadding"
 
   # Create index
   - do:

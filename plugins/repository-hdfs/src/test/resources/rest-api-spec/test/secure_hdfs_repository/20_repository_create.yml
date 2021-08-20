@@ -14,6 +14,7 @@
               path: "/user/elasticsearch/test/repository_create"
               security:
                 principal: "elasticsearch@BUILD.ELASTIC.CO"
+              conf.dfs.encrypt.data.transfer.cipher.suites: "AES/CTR/NoPadding"
 
     # Get repository
     - do:

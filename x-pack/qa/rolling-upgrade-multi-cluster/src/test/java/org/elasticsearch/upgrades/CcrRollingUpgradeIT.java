@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -299,10 +298,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     private static void createLeaderIndex(RestClient client, String indexName) throws IOException {
         Settings.Builder indexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0);
-        if (UPGRADE_FROM_VERSION.before(Version.V_7_0_0) || randomBoolean()) {
-            indexSettings.put("index.soft_deletes.enabled", true);
-        }
+            .put("index.number_of_replicas", 0)
+            .put("index.soft_deletes.enabled", true);
         createIndex(client, indexName, indexSettings.build());
     }
 

@@ -14,9 +14,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
-import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Builder;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
@@ -90,6 +90,8 @@ public class MasterService extends AbstractLifecycleComponent {
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
 
+    private final TimingStatisticsTracker timingStatisticsTracker = new TimingStatisticsTracker();
+
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
@@ -131,6 +133,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 starvationLoggingThreshold.getMillis(),
                 threadPool::relativeTimeInMillis,
                 () -> threadPoolExecutor));
+    }
+
+    public MasterServiceTimingStatistics getTimingStats() {
+        return timingStatisticsTracker.getStatistics();
     }
 
     @SuppressWarnings("unchecked")
@@ -225,6 +231,7 @@ public class MasterService extends AbstractLifecycleComponent {
             taskOutputs.notifySuccessfulTasksOnUnchangedClusterState();
             final TimeValue executionTime = getTimeSince(notificationStartTime);
             logExecutionTime(executionTime, "notify listeners on unchanged cluster state", summary);
+            timingStatisticsTracker.onUnchangedClusterState(computationTime.millis(), executionTime.millis());
         } else {
             final ClusterState newClusterState = taskOutputs.newClusterState;
             if (logger.isTraceEnabled()) {
@@ -234,8 +241,13 @@ public class MasterService extends AbstractLifecycleComponent {
             }
             final long publicationStartTime = threadPool.relativeTimeInMillis();
             try {
-                ClusterStatePublicationEvent clusterStatePublicationEvent =
-                    new ClusterStatePublicationEvent(summary, previousClusterState, newClusterState);
+                final ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent(
+                    summary,
+                    previousClusterState,
+                    newClusterState,
+                    computationTime.millis(),
+                    publicationStartTime);
+
                 // new cluster state, notify all listeners
                 final DiscoveryNodes.Delta nodesDelta = newClusterState.nodes().delta(previousClusterState.nodes());
                 if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
@@ -247,7 +259,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
 
                 logger.debug("publishing cluster state version [{}]", newClusterState.version());
-                publish(clusterStatePublicationEvent, taskOutputs, publicationStartTime);
+                publish(clusterStatePublicationEvent, taskOutputs);
             } catch (Exception e) {
                 handleException(summary, publicationStartTime, newClusterState, e);
             }
@@ -258,7 +270,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return TimeValue.timeValueMillis(Math.max(0, threadPool.relativeTimeInMillis() - startTimeMillis));
     }
 
-    protected void publish(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs, long startTimeMillis) {
+    protected void publish(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs) {
         final PlainActionFuture<Void> fut = new PlainActionFuture<Void>() {
             @Override
             protected boolean blockingAllowed() {
@@ -275,7 +287,7 @@ public class MasterService extends AbstractLifecycleComponent {
             FutureUtils.get(fut);
             onPublicationSuccess(clusterStatePublicationEvent, taskOutputs);
         } catch (Exception e) {
-            onPublicationFailed(clusterStatePublicationEvent, taskOutputs, startTimeMillis, e);
+            onPublicationFailed(clusterStatePublicationEvent, taskOutputs, e);
         }
     }
 
@@ -296,15 +308,15 @@ public class MasterService extends AbstractLifecycleComponent {
             "notify listeners on successful publication of cluster state (version: " + clusterStatePublicationEvent.getNewState().version()
                 + ", uuid: " + clusterStatePublicationEvent.getNewState().stateUUID() + ')',
             clusterStatePublicationEvent.getSummary());
+        timingStatisticsTracker.onPublicationSuccess(
+            threadPool.relativeTimeInMillis(),
+            clusterStatePublicationEvent,
+            executionTime.millis());
     }
 
-    void onPublicationFailed(
-        ClusterStatePublicationEvent clusterStatePublicationEvent,
-        TaskOutputs taskOutputs,
-        long startTimeMillis,
-        Exception exception
-    ) {
+    void onPublicationFailed(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs, Exception exception) {
         if (exception instanceof FailedToCommitClusterStateException) {
+            final long notificationStartTime = threadPool.relativeTimeInMillis();
             final long version = clusterStatePublicationEvent.getNewState().version();
             logger.warn(
                 () -> new ParameterizedMessage(
@@ -313,10 +325,17 @@ public class MasterService extends AbstractLifecycleComponent {
                     version),
                 exception);
             taskOutputs.publishingFailed((FailedToCommitClusterStateException) exception);
+            final long notificationMillis = threadPool.relativeTimeInMillis() - notificationStartTime;
+            timingStatisticsTracker.onPublicationFailure(
+                threadPool.relativeTimeInMillis(),
+                clusterStatePublicationEvent,
+                notificationMillis);
         } else {
+            assert false : exception;
+            timingStatisticsTracker.onPublicationFailure(threadPool.relativeTimeInMillis(), clusterStatePublicationEvent, 0L);
             handleException(
                 clusterStatePublicationEvent.getSummary(),
-                startTimeMillis,
+                clusterStatePublicationEvent.getPublicationStartTimeMillis(),
                 clusterStatePublicationEvent.getNewState(),
                 exception);
         }
@@ -880,5 +899,92 @@ public class MasterService extends AbstractLifecycleComponent {
                 maxTaskWaitTime.millis());
         }
     }
+
+    private static class TimingStatisticsTracker {
+
+        private long unchangedTaskCount;
+        private long publicationSuccessCount;
+        private long publicationFailureCount;
+
+        private long unchangedComputationElapsedMillis;
+        private long unchangedNotificationElapsedMillis;
+
+        private long successfulComputationElapsedMillis;
+        private long successfulPublicationElapsedMillis;
+        private long successfulContextConstructionElapsedMillis;
+        private long successfulCommitElapsedMillis;
+        private long successfulCompletionElapsedMillis;
+        private long successfulMasterApplyElapsedMillis;
+        private long successfulNotificationElapsedMillis;
+
+        private long failedComputationElapsedMillis;
+        private long failedPublicationElapsedMillis;
+        private long failedContextConstructionElapsedMillis;
+        private long failedCommitElapsedMillis;
+        private long failedCompletionElapsedMillis;
+        private long failedMasterApplyElapsedMillis;
+        private long failedNotificationElapsedMillis;
+
+        synchronized void onUnchangedClusterState(long computationElapsedMillis, long notificationElapsedMillis) {
+            unchangedTaskCount += 1;
+            unchangedComputationElapsedMillis += computationElapsedMillis;
+            unchangedNotificationElapsedMillis += notificationElapsedMillis;
+        }
+
+        synchronized void onPublicationSuccess(
+            long currentTimeMillis,
+            ClusterStatePublicationEvent clusterStatePublicationEvent,
+            long notificationElapsedMillis
+        ) {
+            publicationSuccessCount += 1;
+            successfulComputationElapsedMillis += clusterStatePublicationEvent.getComputationTimeMillis();
+            successfulPublicationElapsedMillis += currentTimeMillis - clusterStatePublicationEvent.getPublicationStartTimeMillis();
+            successfulContextConstructionElapsedMillis += clusterStatePublicationEvent.getPublicationContextConstructionElapsedMillis();
+            successfulCommitElapsedMillis += clusterStatePublicationEvent.getPublicationCommitElapsedMillis();
+            successfulCompletionElapsedMillis += clusterStatePublicationEvent.getPublicationCompletionElapsedMillis();
+            successfulMasterApplyElapsedMillis += clusterStatePublicationEvent.getMasterApplyElapsedMillis();
+            successfulNotificationElapsedMillis += notificationElapsedMillis;
+        }
+
+        synchronized void onPublicationFailure(
+            long currentTimeMillis,
+            ClusterStatePublicationEvent clusterStatePublicationEvent,
+            long notificationMillis
+        ) {
+            publicationFailureCount += 1;
+            failedComputationElapsedMillis += clusterStatePublicationEvent.getComputationTimeMillis();
+            failedPublicationElapsedMillis += currentTimeMillis - clusterStatePublicationEvent.getPublicationStartTimeMillis();
+            failedContextConstructionElapsedMillis += clusterStatePublicationEvent.maybeGetPublicationContextConstructionElapsedMillis();
+            failedCommitElapsedMillis += clusterStatePublicationEvent.maybeGetPublicationCommitElapsedMillis();
+            failedCompletionElapsedMillis += clusterStatePublicationEvent.maybeGetPublicationCompletionElapsedMillis();
+            failedMasterApplyElapsedMillis += clusterStatePublicationEvent.maybeGetMasterApplyElapsedMillis();
+            failedNotificationElapsedMillis += notificationMillis;
+        }
+
+        synchronized MasterServiceTimingStatistics getStatistics() {
+            return new MasterServiceTimingStatistics(
+                unchangedTaskCount,
+                publicationSuccessCount,
+                publicationFailureCount,
+                unchangedComputationElapsedMillis,
+                unchangedNotificationElapsedMillis,
+                successfulComputationElapsedMillis,
+                successfulPublicationElapsedMillis,
+                successfulContextConstructionElapsedMillis,
+                successfulCommitElapsedMillis,
+                successfulCompletionElapsedMillis,
+                successfulMasterApplyElapsedMillis,
+                successfulNotificationElapsedMillis,
+                failedComputationElapsedMillis,
+                failedPublicationElapsedMillis,
+                failedContextConstructionElapsedMillis,
+                failedCommitElapsedMillis,
+                failedCompletionElapsedMillis,
+                failedMasterApplyElapsedMillis,
+                failedNotificationElapsedMillis
+            );
+        }
+    }
+
 
 }

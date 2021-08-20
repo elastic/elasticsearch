@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.MasterServiceTimingStatistics;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -277,6 +278,87 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(queueStats.getTotal(), deserializedDiscoveryStats.getQueueStats().getTotal());
                         assertEquals(queueStats.getPending(), deserializedDiscoveryStats.getQueueStats().getPending());
                     }
+
+                    final PublishClusterStateStats publishStats = discoveryStats.getPublishStats();
+                    if (publishStats == null) {
+                        assertNull(deserializedDiscoveryStats.getPublishStats());
+                    } else {
+                        final PublishClusterStateStats deserializedPublishStats = deserializedDiscoveryStats.getPublishStats();
+                        assertEquals(
+                            publishStats.getFullClusterStateReceivedCount(),
+                            deserializedPublishStats.getFullClusterStateReceivedCount());
+                        assertEquals(
+                            publishStats.getCompatibleClusterStateDiffReceivedCount(),
+                            deserializedPublishStats.getCompatibleClusterStateDiffReceivedCount());
+                        assertEquals(
+                            publishStats.getIncompatibleClusterStateDiffReceivedCount(),
+                            deserializedPublishStats.getIncompatibleClusterStateDiffReceivedCount());
+                    }
+
+                    final MasterServiceTimingStatistics masterTimingStats = discoveryStats.getMasterTimingStats();
+                    if (masterTimingStats == null) {
+                        assertNull(deserializedDiscoveryStats.getMasterTimingStats());
+                    } else {
+                        final MasterServiceTimingStatistics deserializedMasterTimingStats
+                            = deserializedDiscoveryStats.getMasterTimingStats();
+                        assertEquals(
+                            masterTimingStats.getUnchangedTaskCount(),
+                            deserializedMasterTimingStats.getUnchangedTaskCount());
+                        assertEquals(
+                            masterTimingStats.getPublicationSuccessCount(),
+                            deserializedMasterTimingStats.getPublicationSuccessCount());
+                        assertEquals(
+                            masterTimingStats.getPublicationFailureCount(),
+                            deserializedMasterTimingStats.getPublicationFailureCount());
+                        assertEquals(
+                            masterTimingStats.getUnchangedComputationElapsedMillis(),
+                            deserializedMasterTimingStats.getUnchangedComputationElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getUnchangedNotificationElapsedMillis(),
+                            deserializedMasterTimingStats.getUnchangedNotificationElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getSuccessfulComputationElapsedMillis(),
+                            deserializedMasterTimingStats.getSuccessfulComputationElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getSuccessfulPublicationElapsedMillis(),
+                            deserializedMasterTimingStats.getSuccessfulPublicationElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getSuccessfulContextConstructionElapsedMillis(),
+                            deserializedMasterTimingStats.getSuccessfulContextConstructionElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getSuccessfulCommitElapsedMillis(),
+                            deserializedMasterTimingStats.getSuccessfulCommitElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getSuccessfulCompletionElapsedMillis(),
+                            deserializedMasterTimingStats.getSuccessfulCompletionElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getSuccessfulMasterApplyElapsedMillis(),
+                            deserializedMasterTimingStats.getSuccessfulMasterApplyElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getSuccessfulNotificationElapsedMillis(),
+                            deserializedMasterTimingStats.getSuccessfulNotificationElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getFailedComputationElapsedMillis(),
+                            deserializedMasterTimingStats.getFailedComputationElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getFailedPublicationElapsedMillis(),
+                            deserializedMasterTimingStats.getFailedPublicationElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getFailedContextConstructionElapsedMillis(),
+                            deserializedMasterTimingStats.getFailedContextConstructionElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getFailedCommitElapsedMillis(),
+                            deserializedMasterTimingStats.getFailedCommitElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getFailedCompletionElapsedMillis(),
+                            deserializedMasterTimingStats.getFailedCompletionElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getFailedMasterApplyElapsedMillis(),
+                            deserializedMasterTimingStats.getFailedMasterApplyElapsedMillis());
+                        assertEquals(
+                            masterTimingStats.getFailedNotificationElapsedMillis(),
+                            deserializedMasterTimingStats.getFailedNotificationElapsedMillis());
+                    }
                 }
                 IngestStats ingestStats = nodeStats.getIngestStats();
                 IngestStats deserializedIngestStats = deserializedNodeStats.getIngestStats();
@@ -483,14 +565,36 @@ public class NodeStatsTests extends ESTestCase {
         }
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
-                randomBoolean()
+            randomBoolean()
                 ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt())
                 : null,
-                randomBoolean()
+            randomBoolean()
                 ? new PublishClusterStateStats(
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong())
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong())
+                : null,
+            randomBoolean()
+                ? new MasterServiceTimingStatistics(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong())
                 : null)
             : null;
         IngestStats ingestStats = null;

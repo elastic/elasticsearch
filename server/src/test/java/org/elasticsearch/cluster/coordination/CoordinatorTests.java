@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
@@ -23,6 +24,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.MasterServiceTimingStatistics;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
@@ -78,6 +81,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
@@ -958,6 +962,198 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 assertEquals(cn.toString(), prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
                     postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
             }
+        }
+    }
+
+    private static class TimeAdvancer {
+        private final DeterministicTaskQueue deterministicTaskQueue;
+        private long elapsedTime;
+
+        TimeAdvancer(DeterministicTaskQueue deterministicTaskQueue) {
+            this.deterministicTaskQueue = deterministicTaskQueue;
+        }
+
+        void advanceTime() {
+            final long startTime = deterministicTaskQueue.getCurrentTimeMillis();
+            if (deterministicTaskQueue.hasDeferredTasks() == false) {
+                deterministicTaskQueue.scheduleAt(startTime + between(1000, 2000), new Runnable() {
+                    @Override
+                    public void run() {
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "no-op task to advance time";
+                    }
+                });
+            }
+            deterministicTaskQueue.advanceTime();
+            elapsedTime += deterministicTaskQueue.getCurrentTimeMillis() - startTime;
+        }
+
+        long getElapsedTime() {
+            return elapsedTime;
+        }
+    }
+
+    public void testMasterStatsOnNoOpUpdate() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            for (ClusterNode clusterNode : cluster.getAllNodesExcept()) {
+                assertThat(
+                    clusterNode.coordinator.stats().getMasterTimingStats() != null,
+                    equalTo(clusterNode.getLocalNode().isMasterNode()));
+            }
+
+            final ClusterNode leader = cluster.getAnyLeader();
+            final MasterServiceTimingStatistics stats0 = leader.coordinator.stats().getMasterTimingStats();
+
+            final TimeAdvancer computeAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            final TimeAdvancer notifyAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            leader.submitUpdateTask("unchanged", cs -> {
+                computeAdvancer.advanceTime();
+                return cs;
+            }, new ClusterStateTaskListener() {
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    notifyAdvancer.advanceTime();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    assert false : e;
+                }
+            });
+
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+
+            final MasterServiceTimingStatistics stats1 = leader.coordinator.stats().getMasterTimingStats();
+
+            final String description = Strings.toString(stats1) + " vs " + Strings.toString(stats0);
+            assertThat(description, stats1.getUnchangedTaskCount() - stats0.getUnchangedTaskCount(), greaterThanOrEqualTo(1L));
+            assertThat(
+                description,
+                stats1.getUnchangedComputationElapsedMillis() - stats0.getUnchangedComputationElapsedMillis(),
+                greaterThanOrEqualTo(computeAdvancer.getElapsedTime()));
+            assertThat(
+                description,
+                stats1.getUnchangedNotificationElapsedMillis() - stats0.getUnchangedNotificationElapsedMillis(),
+                greaterThanOrEqualTo(notifyAdvancer.getElapsedTime()));
+        }
+    }
+
+    public void testMasterStatsOnSuccessfulUpdate() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final ClusterNode leader = cluster.getAnyLeader();
+            final MasterServiceTimingStatistics stats0 = leader.coordinator.stats().getMasterTimingStats();
+
+            final TimeAdvancer computeAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            final TimeAdvancer notifyAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            leader.submitUpdateTask("update", cs -> {
+                computeAdvancer.advanceTime();
+                return ClusterState.builder(cs).build();
+            }, new ClusterStateTaskListener() {
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    notifyAdvancer.advanceTime();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    assert false : e;
+                }
+            });
+
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+
+            final MasterServiceTimingStatistics stats1 = leader.coordinator.stats().getMasterTimingStats();
+
+            final String description = Strings.toString(stats1) + " vs " + Strings.toString(stats0);
+            assertThat(description, stats1.getPublicationSuccessCount() - stats0.getPublicationSuccessCount(), greaterThanOrEqualTo(1L));
+            assertThat(
+                description,
+                stats1.getSuccessfulComputationElapsedMillis() - stats0.getSuccessfulComputationElapsedMillis(),
+                greaterThanOrEqualTo(computeAdvancer.getElapsedTime()));
+            assertThat(
+                description,
+                stats1.getSuccessfulNotificationElapsedMillis() - stats0.getSuccessfulNotificationElapsedMillis(),
+                greaterThanOrEqualTo(notifyAdvancer.getElapsedTime()));
+            assertThat(
+                description,
+                stats1.getSuccessfulPublicationElapsedMillis() - stats0.getSuccessfulPublicationElapsedMillis(),
+                greaterThanOrEqualTo(notifyAdvancer.getElapsedTime()));
+
+            // this action is atomic actions, no simulated time can elapse
+            assertThat(description, stats0.getSuccessfulContextConstructionElapsedMillis(), equalTo(0L));
+            assertThat(description, stats1.getSuccessfulContextConstructionElapsedMillis(), equalTo(0L));
+
+            // this is atomic up to some scheduling delay
+            assertThat(
+                description,
+                stats1.getSuccessfulMasterApplyElapsedMillis() - stats0.getSuccessfulMasterApplyElapsedMillis(),
+                lessThanOrEqualTo(DEFAULT_DELAY_VARIABILITY));
+        }
+    }
+
+    public void testMasterStatsOnFailedUpdate() {
+        try (Cluster cluster = new Cluster(randomIntBetween(3, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final ClusterNode leader = cluster.getAnyLeader();
+            final MasterServiceTimingStatistics stats0 = leader.coordinator.stats().getMasterTimingStats();
+
+            final TimeAdvancer computeAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            final TimeAdvancer notifyAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            leader.submitUpdateTask("update", cs -> {
+                computeAdvancer.advanceTime();
+                return ClusterState.builder(cs).build();
+            }, new ClusterStateTaskListener() {
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    fail("shouldn't have processed cluster state");
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    notifyAdvancer.advanceTime();
+                }
+            });
+
+            leader.blackhole();
+            cluster.stabilise(DEFAULT_STABILISATION_TIME);
+
+            final MasterServiceTimingStatistics stats1 = leader.coordinator.stats().getMasterTimingStats();
+
+            final String description = Strings.toString(stats1) + " vs " + Strings.toString(stats0);
+            assertThat(description, stats1.getPublicationFailureCount() - stats0.getPublicationFailureCount(), greaterThanOrEqualTo(1L));
+            assertThat(
+                description,
+                stats1.getFailedComputationElapsedMillis() - stats0.getFailedComputationElapsedMillis(),
+                greaterThanOrEqualTo(computeAdvancer.getElapsedTime()));
+            assertThat(
+                description,
+                stats1.getFailedNotificationElapsedMillis() - stats0.getFailedNotificationElapsedMillis(),
+                greaterThanOrEqualTo(notifyAdvancer.getElapsedTime()));
+            assertThat(
+                description,
+                stats1.getFailedPublicationElapsedMillis() - stats0.getFailedPublicationElapsedMillis(),
+                greaterThanOrEqualTo(notifyAdvancer.getElapsedTime()));
+
+            // this action is atomic, no simulated time can elapse
+            assertThat(description, stats0.getFailedContextConstructionElapsedMillis(), equalTo(0L));
+            assertThat(description, stats1.getFailedContextConstructionElapsedMillis(), equalTo(0L));
+
+            // no state should have been applied
+            assertThat(
+                description,
+                stats1.getFailedMasterApplyElapsedMillis() - stats0.getFailedMasterApplyElapsedMillis(),
+                equalTo(0L));
         }
     }
 

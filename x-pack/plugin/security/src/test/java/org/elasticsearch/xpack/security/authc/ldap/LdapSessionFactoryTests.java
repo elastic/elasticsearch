@@ -271,7 +271,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         SecureString userPass = new SecureString("pass");
 
         try (ResourceWatcherService resourceWatcher = new ResourceWatcherService(settings, threadPool)) {
-            new SSLConfigurationReloader(environment, resourceWatcher, SSLService.getSSLConfigurations(environment.settings()).values())
+            new SSLConfigurationReloader(resourceWatcher, SSLService.getSSLConfigurations(environment).values())
                 .setSSLService(sslService);
             Files.copy(fakeCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
             resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);

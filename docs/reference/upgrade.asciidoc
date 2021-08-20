@@ -10,7 +10,7 @@ process so upgrading does not interrupt service. Rolling upgrades are supported:
 * From 5.6 to 6.8
 * From 6.8 to {prev-major-version}
 * From {prev-major-version} to {version}
-ifeval::[ "{version}" != "{minor-version}.0" ]
+ifeval::[ "{bare_version}" != "{minor-version}.0" ]
 * From any version since {minor-version}.0 to {version}
 endif::[]
 
@@ -33,7 +33,7 @@ The following table shows the recommended upgrade paths to {version}.
 |Upgrade from   
 |Recommended upgrade path to {version}
 
-ifeval::[ "{version}" != "{minor-version}.0" ]
+ifeval::[ "{bare_version}" != "{minor-version}.0" ]
 |A previous {minor-version} version (e.g., {minor-version}.0)
 |<<rolling-upgrades,Rolling upgrade>> to {version}
 endif::[]
@@ -41,7 +41,7 @@ endif::[]
 |{prev-major-version}
 |<<rolling-upgrades,Rolling upgrade>> to {version}
 
-|7.0–7.7
+|7.0–7.15
 a|
 . https://www.elastic.co/guide/en/elasticsearch/reference/{prev-major-version}/rolling-upgrades.html[Rolling upgrade] to {prev-major-version}
 . <<rolling-upgrades,Rolling upgrade>> to {version}

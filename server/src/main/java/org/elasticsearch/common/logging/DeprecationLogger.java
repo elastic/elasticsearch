@@ -72,7 +72,7 @@ public class DeprecationLogger {
     }
 
     /**
-     * Logs a message at the {@link #DEPRECATION} level. The message is also sent to the header warning logger,
+     * Logs a message at the {@link Level#WARN} level. The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
     public DeprecationLogger deprecate(
@@ -84,7 +84,25 @@ public class DeprecationLogger {
         assert category != DeprecationCategory.COMPATIBLE_API :
             "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
         ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
-        logger.log(DEPRECATION, deprecationMessage);
+        logger.log(Level.WARN, deprecationMessage);
+        return this;
+    }
+    /**
+     * Logs a message at the {@link Level#INFO} level for less critical deprecations
+     * that likely won't break in next version.
+     * The message is also sent to the header warning logger,
+     * so that it can be returned to the client.
+     */
+    public DeprecationLogger deprecateAtInfo(
+        final DeprecationCategory category,
+        final String key,
+        final String msg,
+        final Object... params
+    ) {
+        assert category != DeprecationCategory.COMPATIBLE_API :
+            "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
+        ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
+        logger.log(Level.INFO, deprecationMessage);
         return this;
     }
 
@@ -94,7 +112,7 @@ public class DeprecationLogger {
         final Object... params) {
         String opaqueId = HeaderWarning.getXOpaqueId();
         ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, msg, params);
-        logger.log(DEPRECATION, deprecationMessage);
+        logger.log(Level.WARN, deprecationMessage);
         return this;
     }
 

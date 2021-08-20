@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -364,7 +365,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             new MockLogAppender.SeenEventExpectation(
                 "restore-system-index-from-snapshot",
                 "org.elasticsearch.deprecation.snapshots.RestoreService",
-                DeprecationLogger.DEPRECATION,
+                Level.WARN,
                 "Restoring system indices by name is deprecated. Use feature states instead. System indices: [.test-system-idx]"
             )
         );

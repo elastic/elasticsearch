@@ -46,7 +46,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.logging.DeprecationLogger.DEPRECATION;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -171,7 +170,7 @@ public class EvilLoggerTests extends ESTestCase {
         for (int i = 0; i < 128; i++) {
             assertLogLine(
                     deprecationEvents.get(i),
-                    DEPRECATION,
+                    Level.WARN,
                     "org.elasticsearch.common.logging.DeprecationLogger.deprecate",
                     "This is a maybe logged deprecation message" + i);
         }
@@ -204,7 +203,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertThat(deprecationEvents.size(), equalTo(1));
             assertLogLine(
                     deprecationEvents.get(0),
-                    DEPRECATION,
+                    Level.WARN,
                     "org.elasticsearch.common.logging.DeprecationLogger.deprecate",
                     "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                             "See the breaking changes documentation for the next major version.");

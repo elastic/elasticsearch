@@ -10,6 +10,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -20,11 +21,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-
 
 public class HistogramFieldMapperTests extends MapperTestCase {
 
@@ -322,4 +324,48 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         })));
         assertThat(e.getMessage(), containsString("Field [hist] of type [histogram] can't be used in multifields"));
     }
+
+    protected <T> void assertMetricType(String metricType, Function<T, Enum> checker)
+        throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("metric", metricType);
+        }));
+
+        @SuppressWarnings("unchecked") // Syntactic sugar in tests
+        T fieldType = (T) mapperService.fieldType("field");
+        assertThat(checker.apply(fieldType).name(), equalTo(metricType));
+    }
+
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        HistogramFieldMapper.HistogramFieldType ft = (HistogramFieldMapper.HistogramFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+        assertMetricType("histogram", HistogramFieldMapper.HistogramFieldType::getMetricType);
+
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("metric", "gauge");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [gauge] for field [metric] - accepted values are [null, histogram]")
+            );
+        }
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("metric", "unknown");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [unknown] for field [metric] - accepted values are [null, histogram]")
+            );
+        }
+    }
+
 }

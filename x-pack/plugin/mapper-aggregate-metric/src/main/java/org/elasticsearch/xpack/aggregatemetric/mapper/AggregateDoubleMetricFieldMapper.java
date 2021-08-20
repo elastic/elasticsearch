@@ -240,7 +240,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
                 buildFullName(context),
                 meta.getValue(),
-                metric.getValue() != null ? MetricType.valueOf(metric.getValue()) : null
+                MetricType.fromString(metric.getValue())
             );
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
@@ -509,6 +509,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     /** The default metric to be when querying this field type */
     protected Metric defaultMetric;
 
+    /** The metric type (gauge, counter, summary) if  field is a time series metric */
     private final TimeSeriesParams.MetricType metricType;
 
     private AggregateDoubleMetricFieldMapper(

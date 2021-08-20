@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -27,10 +26,10 @@ public final class TimeSeriesParams {
         summary;
 
         /**
-         * Convert string to MetricType value returning null for null or invalid string values
+         * Convert string to MetricType value returning null for null values
          */
         public static MetricType fromString(String name) {
-            return name != null ? Arrays.stream(values()).filter(v -> v.name().equalsIgnoreCase(name)).findFirst().orElse(null) : null;
+            return name != null ? valueOf(name) : null;
         }
     }
 
@@ -56,6 +55,5 @@ public final class TimeSeriesParams {
 
         return param;
     }
-
 
 }

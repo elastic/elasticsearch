@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -74,6 +75,17 @@ public class HistogramFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
 
+        /**
+         * Parameter that marks this field as a time series metric defining its time series metric type.
+         * For {@link HistogramFieldMapper} fields only the histogram metric type is supported.
+         */
+        private final Parameter<String> metric = TimeSeriesParams.metricParam(
+            m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
+            null, // This field type always stores its subfields as doc_values
+            null,
+            TimeSeriesParams.MetricType.histogram.name()
+        );
+
         public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
             this.ignoreMalformed
@@ -82,13 +94,22 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(ignoreMalformed, meta);
+            return List.of(ignoreMalformed, meta, metric);
         }
 
         @Override
         public HistogramFieldMapper build(ContentPath contentPath) {
-            return new HistogramFieldMapper(name, new HistogramFieldType(buildFullName(contentPath), meta.getValue()),
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            return new HistogramFieldMapper(
+                name,
+                new HistogramFieldType(
+                    buildFullName(contentPath),
+                    meta.getValue(),
+                    TimeSeriesParams.MetricType.fromString(metric.getValue())
+                ),
+                multiFieldsBuilder.build(this, contentPath),
+                copyTo.build(),
+                this
+            );
         }
     }
 
@@ -98,11 +119,15 @@ public class HistogramFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
 
+    /** The metric type (gauge, counter, summary) if  field is a time series metric */
+    private final TimeSeriesParams.MetricType metricType;
+
     public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
+        this.metricType = TimeSeriesParams.MetricType.fromString(builder.metric.getValue());
     }
 
     boolean ignoreMalformed() {
@@ -126,8 +151,11 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public static class HistogramFieldType extends MappedFieldType {
 
-        public HistogramFieldType(String name, Map<String, String> meta) {
+        private final TimeSeriesParams.MetricType metricType;
+
+        public HistogramFieldType(String name, Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
+            this.metricType = metricType;
         }
 
         @Override
@@ -222,6 +250,14 @@ public class HistogramFieldMapper extends FieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("[" + CONTENT_TYPE + "] field do not support searching, " +
                 "use dedicated aggregations instead: [" + name() + "]");
+        }
+
+        /**
+         * If field is a time series metric field, returns its metric type
+         * @return the metric type or null
+         */
+        public TimeSeriesParams.MetricType getMetricType() {
+            return metricType;
         }
     }
 

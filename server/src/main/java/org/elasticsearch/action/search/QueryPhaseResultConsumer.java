@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -57,7 +56,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final SearchPhaseController controller;
     private final SearchProgressListener progressListener;
     private final ReduceContextBuilder aggReduceContextBuilder;
-    private final NamedWriteableRegistry namedWriteableRegistry;
 
     private final int topNSize;
     private final boolean hasTopDocs;
@@ -76,7 +74,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                                     CircuitBreaker circuitBreaker,
                                     SearchPhaseController controller,
                                     SearchProgressListener progressListener,
-                                    NamedWriteableRegistry namedWriteableRegistry,
                                     int expectedResultSize,
                                     Consumer<Exception> onPartialMergeFailure) {
         super(expectedResultSize);
@@ -85,7 +82,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.controller = controller;
         this.progressListener = progressListener;
         this.aggReduceContextBuilder = controller.getReduceContext(request);
-        this.namedWriteableRegistry = namedWriteableRegistry;
         this.topNSize = getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();
         this.onPartialMergeFailure = onPartialMergeFailure;

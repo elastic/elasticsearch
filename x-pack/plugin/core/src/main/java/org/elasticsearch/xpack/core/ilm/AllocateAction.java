@@ -93,7 +93,7 @@ public class AllocateAction implements LifecycleAction {
 
     @SuppressWarnings("unchecked")
     public AllocateAction(StreamInput in) throws IOException {
-        this(in.readOptionalVInt(), in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readOptionalInt() : null,
+        this(in.readOptionalVInt(), in.getVersion().onOrAfter(Version.V_7_15_0) ? in.readOptionalInt() : null,
             (Map<String, String>) in.readGenericValue(), (Map<String, String>) in.readGenericValue(),
             (Map<String, String>) in.readGenericValue());
     }
@@ -121,7 +121,7 @@ public class AllocateAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(numberOfReplicas);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             out.writeOptionalInt(totalShardsPerNode);
         }
         out.writeGenericValue(include);

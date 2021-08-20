@@ -28,12 +28,6 @@ public class LicenseScheduleTests extends ESTestCase {
         schedule = LicenseService.nextLicenseCheck(license);
     }
 
-    public void testEnabledLicenseSchedule() throws Exception {
-        int expiryDuration = (int) (license.expiryDate() - license.issueDate());
-        long triggeredTime = license.issueDate() + between(0, expiryDuration);
-        assertThat(schedule.nextScheduledTimeAfter(license.issueDate(), triggeredTime), equalTo(license.expiryDate()));
-    }
-
     public void testExpiredLicenseSchedule() throws Exception {
         long triggeredTime = license.expiryDate() + randomIntBetween(1, 1000);
         assertThat(schedule.nextScheduledTimeAfter(license.issueDate(), triggeredTime),
@@ -46,7 +40,7 @@ public class LicenseScheduleTests extends ESTestCase {
                 equalTo(license.issueDate()));
     }
 
-    public void testDailyWarning() {
+    public void testDailyWarningPeriod() {
 
         long millisInDay = TimeValue.timeValueDays(1).getMillis();
         long warningOffset = LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();

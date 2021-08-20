@@ -121,8 +121,8 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (name.equals('secureHdfsFixture') || name.equals('secureHaHdfsFixture')) {
+      miniHDFSArgs.addAll(["--add-exports", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"])
       miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
-      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
     }
     // If it's an HA fixture, set a nameservice to use in the JVM options
     if (name.equals('haHdfsFixture') || name.equals('secureHaHdfsFixture')) {
@@ -157,7 +157,6 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     }
 
     if (name.contains("Secure")) {
-      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
       if (name.contains("Ha")) {
         dependsOn "secureHaHdfsFixture"
       } else {
@@ -210,6 +209,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     plugin(bundlePlugin.archiveFile)
     if (integTestTaskName.contains("Secure")) {
       systemProperty "java.security.krb5.conf", krb5conf
+      jvmArgs "--add-exports", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"
       extraConfigFile(
         "repository-hdfs/krb5.keytab",
         file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "elasticsearch.keytab")}"), IGNORE_VALUE

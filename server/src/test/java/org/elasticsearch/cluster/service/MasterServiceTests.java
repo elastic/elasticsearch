@@ -39,6 +39,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -118,6 +119,7 @@ public class MasterServiceTests extends ESTestCase {
         final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             clusterStateRef.set(clusterStatePublicationEvent.getNewState());
+            ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
             publishListener.onResponse(null);
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
@@ -726,6 +728,7 @@ public class MasterServiceTests extends ESTestCase {
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
             final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
             masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+                ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
                 if (clusterStatePublicationEvent.getSummary().contains("test5")) {
                     relativeTimeInMillis += MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
                         + randomLongBetween(1, 1000000);
@@ -894,7 +897,10 @@ public class MasterServiceTests extends ESTestCase {
                     .masterNodeId(node1.getId()))
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
             final AtomicReference<ClusterStatePublisher> publisherRef = new AtomicReference<>();
-            masterService.setClusterStatePublisher((e, pl, al) -> publisherRef.get().publish(e, pl, al));
+            masterService.setClusterStatePublisher((e, pl, al) -> {
+                ClusterServiceUtils.setAllElapsedMillis(e);
+                publisherRef.get().publish(e, pl, al);
+            });
             masterService.setClusterStateSupplier(() -> initialClusterState);
             masterService.start();
 

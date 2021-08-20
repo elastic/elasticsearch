@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
@@ -661,7 +662,8 @@ public class CopyToMapperTests extends MapperServiceTestCase {
                 .nullField("keyword")
             .endObject());
 
-        LuceneDocument document = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument document = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME,
+            "1", json, XContentType.JSON)).rootDoc();
         assertEquals(0, document.getFields("keyword").length);
 
         IndexableField[] fields = document.getFields("keyword_copy");

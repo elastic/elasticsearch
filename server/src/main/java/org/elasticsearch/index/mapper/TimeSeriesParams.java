@@ -16,6 +16,8 @@ import java.util.function.Function;
  */
 public final class TimeSeriesParams {
 
+    public static final String TIME_SERIES_METRIC_PARAM = "time_series_metric";
+
     private TimeSeriesParams() {
     }
 
@@ -33,27 +35,8 @@ public final class TimeSeriesParams {
         }
     }
 
-    public static FieldMapper.Parameter<String> metricParam(
-        Function<FieldMapper, String> initializer,
-        FieldMapper.Parameter<Boolean> hasDocValues,
-        String... values
-    ) {
-        FieldMapper.Parameter<String> param = FieldMapper.Parameter.restrictedStringParam("metric", false, initializer, values)
-            .acceptsNull();
-        // We are overriding the default validator that checks for acceptable values.
-        // So we must call the default validator explicitly from inside our new validator.
-        // TODO: Make parameters support multiple validators
-        final Consumer<String> defaultValidator = param.getValidator();
-        param.setValidator(v -> {
-            // Call the default validator first
-            defaultValidator.accept(v);
-
-            if (v != null && v.isEmpty() == false && hasDocValues != null && hasDocValues.getValue() == false) {
-                throw new IllegalArgumentException("Field [metric] requires that [" + hasDocValues.name + "] is true");
-            }
-        });
-
-        return param;
+    public static FieldMapper.Parameter<String> metricParam(Function<FieldMapper, String> initializer, String... values) {
+        return FieldMapper.Parameter.restrictedStringParam(TIME_SERIES_METRIC_PARAM, false, initializer, values).acceptsNull();
     }
 
 }

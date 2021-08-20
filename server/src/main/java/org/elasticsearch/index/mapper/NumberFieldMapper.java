@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -95,13 +96,7 @@ public class NumberFieldMapper extends FieldMapper {
          * For the numeric fields gauge and counter metric types are
          * supported
          */
-        private final Parameter<String> metric = TimeSeriesParams.metricParam(
-            m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
-            hasDocValues,
-            null,
-            MetricType.gauge.name(),
-            MetricType.counter.name()
-        );
+        private final Parameter<String> metric;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -142,6 +137,25 @@ public class NumberFieldMapper extends FieldMapper {
                         );
                     }
                 });
+
+            this.metric = TimeSeriesParams.metricParam(
+                m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
+                null,
+                MetricType.gauge.name(),
+                MetricType.counter.name()
+            );
+            // We are overriding the default validator that checks for acceptable values.
+            // Therefore, we must call the default validator explicitly from inside our new validator.
+            // TODO: Make parameters support multiple validators
+            final Consumer<String> defaultValidator = metric.getValidator();
+            metric.setValidator(v -> {
+                // Call the default validator first
+                defaultValidator.accept(v);
+
+                if (v != null && v.isEmpty() == false && hasDocValues.getValue() == false) {
+                    throw new IllegalArgumentException("Field [" + metric.name + "] requires that [" + hasDocValues.name + "] is true");
+                }
+            });
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);

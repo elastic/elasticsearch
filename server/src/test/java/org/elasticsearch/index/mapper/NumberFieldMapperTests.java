@@ -265,7 +265,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("metric", metricType);
+            b.field("time_series_metric", metricType);
         }));
 
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
@@ -286,22 +286,22 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             // Test invalid metric type for this field type
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("metric", "histogram");
+                b.field("time_series_metric", "histogram");
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [histogram] for field [metric] - accepted values are [null, gauge, counter]")
+                containsString("Unknown value [histogram] for field [time_series_metric] - accepted values are [null, gauge, counter]")
             );
         }
         {
             // Test invalid metric type for this field type
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("metric", "unknown");
+                b.field("time_series_metric", "unknown");
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [unknown] for field [metric] - accepted values are [null, gauge, counter]")
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [null, gauge, counter]")
             );
         }
     }
@@ -309,9 +309,9 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     public void testMetricAndDocvalues() {
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("metric", "counter").field("doc_values", false);
+            b.field("time_series_metric", "counter").field("doc_values", false);
         })));
-        assertThat(e.getCause().getMessage(), containsString("Field [metric] requires that [doc_values] is true"));
+        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
     }
 
     @Override

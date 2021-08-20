@@ -79,17 +79,18 @@ public class HistogramFieldMapper extends FieldMapper {
          * Parameter that marks this field as a time series metric defining its time series metric type.
          * For {@link HistogramFieldMapper} fields only the histogram metric type is supported.
          */
-        private final Parameter<String> metric = TimeSeriesParams.metricParam(
-            m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
-            null, // This field type always stores its subfields as doc_values
-            null,
-            TimeSeriesParams.MetricType.histogram.name()
-        );
+        private final Parameter<String> metric;
 
         public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
             this.ignoreMalformed
                 = Parameter.explicitBoolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+
+            this.metric = TimeSeriesParams.metricParam(
+                m -> toType(m).metricType != null ? toType(m).metricType.name() : null,
+                null,
+                TimeSeriesParams.MetricType.histogram.name()
+            );
         }
 
         @Override

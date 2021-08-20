@@ -557,7 +557,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("metric", metricType);
+            b.field("time_series_metric", metricType);
         }));
 
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
@@ -580,22 +580,26 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             // Test invalid metric type for this field type
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("metric", "histogram");
+                b.field("time_series_metric", "histogram");
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [histogram] for field [metric] - accepted values are [null, gauge, counter, summary]")
+                containsString(
+                    "Unknown value [histogram] for field [time_series_metric] - accepted values are [null, gauge, counter, summary]"
+                )
             );
         }
         {
             // Test invalid metric type for this field type
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("metric", "unknown");
+                b.field("time_series_metric", "unknown");
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [unknown] for field [metric] - accepted values are [null, gauge, counter, summary]")
+                containsString(
+                    "Unknown value [unknown] for field [time_series_metric] - accepted values are [null, gauge, counter, summary]"
+                )
             );
         }
     }

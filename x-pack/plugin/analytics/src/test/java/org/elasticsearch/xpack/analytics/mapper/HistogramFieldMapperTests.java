@@ -329,7 +329,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("metric", metricType);
+            b.field("time_series_metric", metricType);
         }));
 
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
@@ -348,22 +348,22 @@ public class HistogramFieldMapperTests extends MapperTestCase {
             // Test invalid metric type for this field type
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("metric", "gauge");
+                b.field("time_series_metric", "gauge");
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [gauge] for field [metric] - accepted values are [null, histogram]")
+                containsString("Unknown value [gauge] for field [time_series_metric] - accepted values are [null, histogram]")
             );
         }
         {
             // Test invalid metric type for this field type
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("metric", "unknown");
+                b.field("time_series_metric", "unknown");
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [unknown] for field [metric] - accepted values are [null, histogram]")
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [null, histogram]")
             );
         }
     }

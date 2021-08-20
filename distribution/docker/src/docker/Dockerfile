@@ -269,7 +269,7 @@ RUN bin/elasticsearch-plugin install --batch \\
     file:/tmp/repository-gcs-${version}.zip \\
     file:/tmp/repository-azure-${version}.zip
 
-# I tried to use `ADD` here, but I couldn't force it to do what I wanted
+<% /*  I tried to use `ADD` here, but I couldn't force it to do what I wanted */ %>
 COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
 RUN mkdir -p /opt/filebeat /opt/metricbeat && \\
     tar xf /tmp/filebeat-${version}.tar.gz -C /opt/filebeat --strip-components=1 && \\

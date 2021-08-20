@@ -88,6 +88,22 @@ public abstract class LicensedFeature {
         this.needsActive = needsActive;
     }
 
+    public String getFamily() {
+        return family;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public License.OperationMode getMinimumOperationMode() {
+        return minimumOperationMode;
+    }
+
+    public boolean isNeedsActive() {
+        return needsActive;
+    }
+
     /** Create a momentary feature for hte given license level */
     public static Momentary momentary(String family, String name, License.OperationMode licenseLevel) {
         return new Momentary(family, name, licenseLevel, true);

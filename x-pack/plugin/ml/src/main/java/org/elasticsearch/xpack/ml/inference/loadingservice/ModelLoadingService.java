@@ -28,6 +28,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -56,6 +58,8 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.ml.MachineLearning.ML_MODEL_INFERENCE_FEATURE;
 
 /**
  * This is a thread safe model loading service with LRU cache.
@@ -129,6 +133,7 @@ public class ModelLoadingService implements ClusterStateListener {
     private final ByteSizeValue maxCacheSize;
     private final String localNode;
     private final CircuitBreaker trainedModelCircuitBreaker;
+    private final XPackLicenseState licenseState;
 
     public ModelLoadingService(TrainedModelProvider trainedModelProvider,
                                InferenceAuditor auditor,
@@ -137,7 +142,8 @@ public class ModelLoadingService implements ClusterStateListener {
                                TrainedModelStatsService modelStatsService,
                                Settings settings,
                                String localNode,
-                               CircuitBreaker trainedModelCircuitBreaker) {
+                               CircuitBreaker trainedModelCircuitBreaker,
+                               XPackLicenseState licenseState) {
         this.provider = trainedModelProvider;
         this.threadPool = threadPool;
         this.maxCacheSize = INFERENCE_MODEL_CACHE_SIZE.get(settings);
@@ -154,6 +160,7 @@ public class ModelLoadingService implements ClusterStateListener {
         clusterService.addListener(this);
         this.localNode = localNode;
         this.trainedModelCircuitBreaker = ExceptionsHelper.requireNonNull(trainedModelCircuitBreaker, "trainedModelCircuitBreaker");
+        this.licenseState = licenseState;
     }
 
     // for testing
@@ -355,7 +362,6 @@ public class ModelLoadingService implements ClusterStateListener {
                         InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
                             inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :
                             trainedModelConfig.getInferenceConfig();
-
                         try {
                             updateCircuitBreakerEstimate(modelId, inferenceDefinition, trainedModelConfig);
                         } catch (CircuitBreakingException ex) {
@@ -422,7 +428,7 @@ public class ModelLoadingService implements ClusterStateListener {
         synchronized (loadingListeners) {
             populateNewModelAlias(modelId);
             // If the model is referenced, that means it is currently in a pipeline somewhere
-            // Also, if the consume is a search consumer, we should always cache it
+            // Also, if the consumer is a search consumer, we should always cache it
             if (referencedModels.contains(modelId)
                 || Sets.haveNonEmptyIntersection(modelIdToModelAliases.getOrDefault(modelId, new HashSet<>()), referencedModels)
                 || consumer.equals(Consumer.SEARCH)) {
@@ -431,6 +437,14 @@ public class ModelLoadingService implements ClusterStateListener {
                     // If it isn't, we flip an `isLoaded` flag, and increment the model counter to make sure if it is evicted
                     // between now and when the listeners access it, the circuit breaker reflects actual usage.
                     localModelCache.computeIfAbsent(modelId, modelAndConsumerLoader);
+                    // We should start tracking on successful load. It will stop being tracked once it evacuates the cache and is no
+                    // longer a referenced model
+                    // NOTE: It is not possible to change the referenced models without locking on `loadingListeners`
+                    //       So, if the model is evacuated from cache immediately after checking that it was present,
+                    //       the feature usage will still be tracked.
+                    if (License.OperationMode.BASIC.equals(trainedModelConfig.getLicenseLevel()) == false) {
+                        ML_MODEL_INFERENCE_FEATURE.startTracking(licenseState, modelId);
+                    }
                 } catch (ExecutionException ee) {
                     logger.warn(() -> new ParameterizedMessage("[{}] threw when attempting add to cache", modelId), ee);
                 }
@@ -507,6 +521,10 @@ public class ModelLoadingService implements ClusterStateListener {
                 modelId,
                 modelIdToModelAliases.getOrDefault(modelId, new HashSet<>())
             ));
+            // If it's not referenced in a pipeline, stop tracking it on this node
+            if (referencedModels.contains(modelId) == false) {
+                ML_MODEL_INFERENCE_FEATURE.stopTracking(licenseState, modelId);
+            }
 
             // If the model is no longer referenced, flush the stats to persist as soon as possible
             notification.getValue().model.persistStats(referencedModels.contains(modelId) == false);
@@ -576,6 +594,13 @@ public class ModelLoadingService implements ClusterStateListener {
                     if (modelAndConsumer != null && modelAndConsumer.consumers.contains(Consumer.SEARCH) == false) {
                         logger.trace("[{} ({})] invalidated from cache", modelId, modelAliasOrId);
                         localModelCache.invalidate(modelId);
+                    }
+                    // The model is not cached and the model no longer referenced we should ensure that we are not tracking the
+                    // license usage.
+                    // It is possible that we stop referencing it BEFORE its cached, or it was previously invalidated
+                    // Either way, we know we won't put it back in cache as we are synchronized on `loadingListeners`
+                    if (modelAndConsumer == null) {
+                        ML_MODEL_INFERENCE_FEATURE.stopTracking(licenseState, modelId);
                     }
                 }
             }

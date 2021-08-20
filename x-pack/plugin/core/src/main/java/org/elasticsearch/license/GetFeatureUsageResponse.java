@@ -70,6 +70,26 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
             }
             out.writeString(licenseLevel);
         }
+
+        public String getFamily() {
+            return family;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public ZonedDateTime getLastUsedTime() {
+            return lastUsedTime;
+        }
+
+        public String getContext() {
+            return context;
+        }
+
+        public String getLicenseLevel() {
+            return licenseLevel;
+        }
     }
 
     private List<FeatureUsageInfo> features;

@@ -25,11 +25,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.IdsQueryBuilder;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.license.LicensedAllocatedPersistentTask;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
@@ -40,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.dataframe.steps.DataFrameAnalyticsStep;
@@ -53,7 +53,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements StartDataFrameAnalyticsAction.TaskMatcher {
+public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask implements StartDataFrameAnalyticsAction.TaskMatcher {
 
     private static final Logger LOGGER = LogManager.getLogger(DataFrameAnalyticsTask.class);
 
@@ -68,8 +68,18 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
     public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
                                   Client client, DataFrameAnalyticsManager analyticsManager, DataFrameAnalyticsAuditor auditor,
-                                  StartDataFrameAnalyticsAction.TaskParams taskParams) {
-        super(id, type, action, MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(), parentTask, headers);
+                                  StartDataFrameAnalyticsAction.TaskParams taskParams, XPackLicenseState licenseState) {
+        super(
+            id,
+            type,
+            action,
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(),
+            parentTask,
+            headers,
+            MachineLearning.ML_ANALYTICS_JOBS_FEATURE,
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(),
+            licenseState
+        );
         this.client = new ParentTaskAssigningClient(Objects.requireNonNull(client), parentTask);
         this.analyticsManager = Objects.requireNonNull(analyticsManager);
         this.auditor = Objects.requireNonNull(auditor);
@@ -98,14 +108,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     @Override
-    protected void init(PersistentTasksService persistentTasksService,
-                        TaskManager taskManager,
-                        String persistentTaskId,
-                        long allocationId) {
-        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
-    }
-
-    @Override
     protected void onCancelled() {
         stop(getReasonCancelled(), StopDataFrameAnalyticsAction.DEFAULT_TIMEOUT);
         markAsCompleted();
@@ -118,7 +120,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     @Override
-    public void markAsCompleted() {
+    public void doMarkAsCompleted() {
         // It is possible that the stop API has been called in the meantime and that
         // may also cause this method to be called. We check whether we have already
         // been marked completed to avoid doing it twice. We need to capture that
@@ -135,7 +137,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     @Override
-    public void markAsFailed(Exception e) {
+    public void doMarkAsFailed(Exception e) {
         persistProgress(client, taskParams.getId(), () -> super.markAsFailed(e));
     }
 

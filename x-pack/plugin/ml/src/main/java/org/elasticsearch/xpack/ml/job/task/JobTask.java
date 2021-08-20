@@ -35,8 +35,15 @@ public class JobTask extends LicensedAllocatedPersistentTask implements OpenJobA
     private final AtomicReference<ClosingOrVacating> closingOrVacating = new AtomicReference<>(ClosingOrVacating.NEITHER);
     private volatile AutodetectProcessManager autodetectProcessManager;
 
-    protected JobTask(String jobId, long id, String type, String action, TaskId parentTask, Map<String, String> headers,
-            XPackLicenseState licenseState) {
+    protected JobTask(
+        String jobId,
+        long id,
+        String type,
+        String action,
+        TaskId parentTask,
+        Map<String, String> headers,
+        XPackLicenseState licenseState
+    ) {
         super(id, type, action, "job-" + jobId, parentTask, headers, MachineLearning.ML_JOBS_FEATURE, "job-" + jobId, licenseState);
         this.jobId = jobId;
     }

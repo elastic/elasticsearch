@@ -20,6 +20,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -165,7 +166,9 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             mock(DataFrameAnalyticsManager.class),
             mock(DataFrameAnalyticsAuditor.class),
             mock(MlMemoryTracker.class),
-            TestIndexNameExpressionResolver.newInstance());
+            TestIndexNameExpressionResolver.newInstance(),
+            mock(XPackLicenseState.class)
+        );
     }
 
     private static DiscoveryNode createNode(int i, boolean isMlNode, Version nodeVersion) {

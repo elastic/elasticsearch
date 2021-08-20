@@ -75,9 +75,8 @@
 ---
 "Test background filter count ":
   - skip:
-      # TODO Fix after backport
-      version: " - 7.99.99"
-      reason: introduced in 7.15.0
+      version: " - 7.14.99"
+      reason: bugfix introduced in 7.15.0
 
   - do:
       indices.create:

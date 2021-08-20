@@ -33,7 +33,6 @@ import java.util.Map;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasLength;

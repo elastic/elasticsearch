@@ -550,6 +550,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 // see https://github.com/elastic/x-plugins/issues/983
                 return license.issueDate();
             } else if (time < license.expiryDate()) {
+                // Re-check the license every day during the warning period up to the license expiration.
+                // This will cause the warning message to be updated that is emitted on soon-expiring license use.
                 long nextTime = license.expiryDate() - LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
                 while (nextTime <= time) {
                     nextTime += TimeValue.timeValueDays(1).getMillis();

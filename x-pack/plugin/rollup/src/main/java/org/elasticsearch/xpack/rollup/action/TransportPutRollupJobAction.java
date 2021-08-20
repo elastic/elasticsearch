@@ -32,14 +32,14 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
@@ -68,24 +68,39 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportPutRollupJobAction.class);
 
     @Inject
-    public TransportPutRollupJobAction(TransportService transportService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       ClusterService clusterService,
-                                       PersistentTasksService persistentTasksService, Client client) {
-        super(PutRollupJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutRollupJobAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportPutRollupJobAction(
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterService clusterService,
+        PersistentTasksService persistentTasksService,
+        Client client
+    ) {
+        super(
+            PutRollupJobAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutRollupJobAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.persistentTasksService = persistentTasksService;
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(PutRollupJobAction.Request request, ClusterState clusterState,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        PutRollupJobAction.Request request,
+        ClusterState clusterState,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         checkForDeprecatedTZ(request);
 
-        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
-            .indices(request.getConfig().getIndexPattern())
+        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(request.getConfig().getIndexPattern())
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
 
         client.fieldCaps(fieldCapsRequest, listener.delegateFailure((l, fieldCapabilitiesResponse) -> {
@@ -104,9 +119,19 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
         String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
         if (modernTZ != null) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_timezone",
-                "Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
-                    + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
+            deprecationLogger.deprecate(
+                DeprecationCategory.API,
+                "deprecated_timezone",
+                "Creating Rollup job ["
+                    + request.getConfig().getId()
+                    + "] with timezone ["
+                    + timeZone
+                    + "], but ["
+                    + timeZone
+                    + "] has been deprecated by the IANA.  Use ["
+                    + modernTZ
+                    + "] instead."
+            );
         }
     }
 
@@ -116,8 +141,13 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         return new RollupJob(config, filteredHeaders);
     }
 
-    static void createIndex(RollupJob job, ActionListener<AcknowledgedResponse> listener,
-                            PersistentTasksService persistentTasksService, Client client, Logger logger) {
+    static void createIndex(
+        RollupJob job,
+        ActionListener<AcknowledgedResponse> listener,
+        PersistentTasksService persistentTasksService,
+        Client client,
+        Logger logger
+    ) {
 
         CreateIndexRequest request = new CreateIndexRequest(job.getConfig().getRollupIndex());
         try {
@@ -128,56 +158,64 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        client.execute(CreateIndexAction.INSTANCE, request,
-                ActionListener.wrap(createIndexResponse -> startPersistentTask(job, listener, persistentTasksService), e -> {
-                    if (e instanceof ResourceAlreadyExistsException) {
-                        logger.debug("Rolled index already exists for rollup job [" + job.getConfig().getId() + "], updating metadata.");
-                        updateMapping(job, listener, persistentTasksService, client, logger);
-                    } else {
-                        String msg = "Could not create index for rollup job [" + job.getConfig().getId() + "]";
-                        logger.error(msg);
-                        listener.onFailure(new RuntimeException(msg, e));
-                    }
-                }));
+        client.execute(
+            CreateIndexAction.INSTANCE,
+            request,
+            ActionListener.wrap(createIndexResponse -> startPersistentTask(job, listener, persistentTasksService), e -> {
+                if (e instanceof ResourceAlreadyExistsException) {
+                    logger.debug("Rolled index already exists for rollup job [" + job.getConfig().getId() + "], updating metadata.");
+                    updateMapping(job, listener, persistentTasksService, client, logger);
+                } else {
+                    String msg = "Could not create index for rollup job [" + job.getConfig().getId() + "]";
+                    logger.error(msg);
+                    listener.onFailure(new RuntimeException(msg, e));
+                }
+            })
+        );
     }
 
     private static XContentBuilder createMappings(RollupJobConfig config) throws IOException {
         return XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
-                .startObject("mappings")
-                    .startObject("_doc")
-                        .startObject("_meta")
-                            .field(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.CURRENT.toString())
-                            .startObject("_rollup")
-                                .field(config.getId(), config)
-                            .endObject()
-                        .endObject()
-                        .startArray("dynamic_templates")
-                            .startObject()
-                                .startObject("strings")
-                                    .field("match_mapping_type", "string")
-                                    .startObject("mapping")
-                                        .field("type", "keyword")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                            .startObject()
-                                .startObject("date_histograms")
-                                    .field("path_match", "*.date_histogram.timestamp")
-                                    .startObject("mapping")
-                                        .field("type", "date")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endArray()
-                    .endObject()
-                .endObject()
+            .startObject("mappings")
+            .startObject("_doc")
+            .startObject("_meta")
+            .field(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.CURRENT.toString())
+            .startObject("_rollup")
+            .field(config.getId(), config)
+            .endObject()
+            .endObject()
+            .startArray("dynamic_templates")
+            .startObject()
+            .startObject("strings")
+            .field("match_mapping_type", "string")
+            .startObject("mapping")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("date_histograms")
+            .field("path_match", "*.date_histogram.timestamp")
+            .startObject("mapping")
+            .field("type", "date")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
             .endObject();
     }
 
     @SuppressWarnings("unchecked")
-    static void updateMapping(RollupJob job, ActionListener<AcknowledgedResponse> listener,
-                              PersistentTasksService persistentTasksService, Client client, Logger logger) {
+    static void updateMapping(
+        RollupJob job,
+        ActionListener<AcknowledgedResponse> listener,
+        PersistentTasksService persistentTasksService,
+        Client client,
+        Logger logger
+    ) {
 
         final String indexName = job.getConfig().getRollupIndex();
 
@@ -185,8 +223,10 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             MappingMetadata mappings = getMappingResponse.getMappings().get(indexName).get(RollupField.TYPE_NAME);
             Object m = mappings == null ? null : mappings.getSourceAsMap().get("_meta");
             if (m == null) {
-                String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected " +
-                    "to find _meta key in mapping of rollup index [" + indexName + "] but not found).";
+                String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected "
+                    + "to find _meta key in mapping of rollup index ["
+                    + indexName
+                    + "] but not found).";
                 logger.error(msg);
                 listener.onFailure(new RuntimeException(msg));
                 return;
@@ -194,26 +234,31 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
             Map<String, Object> metadata = (Map<String, Object>) m;
             if (metadata.get(RollupField.ROLLUP_META) == null) {
-                String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected " +
-                    "to find rollup meta key [" + RollupField.ROLLUP_META + "] in mapping of rollup index ["
-                    + indexName + "] but not found).";
+                String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected "
+                    + "to find rollup meta key ["
+                    + RollupField.ROLLUP_META
+                    + "] in mapping of rollup index ["
+                    + indexName
+                    + "] but not found).";
                 logger.error(msg);
                 listener.onFailure(new RuntimeException(msg));
                 return;
             }
 
-            Map<String, Object> rollupMeta = (Map<String, Object>)((Map<String, Object>) m).get(RollupField.ROLLUP_META);
+            Map<String, Object> rollupMeta = (Map<String, Object>) ((Map<String, Object>) m).get(RollupField.ROLLUP_META);
 
-            String stringVersion = (String)((Map<String, Object>) m).get(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD);
+            String stringVersion = (String) ((Map<String, Object>) m).get(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD);
             if (stringVersion == null) {
-                listener.onFailure(new IllegalStateException("Could not determine version of existing rollup metadata for index ["
-                    + indexName + "]"));
+                listener.onFailure(
+                    new IllegalStateException("Could not determine version of existing rollup metadata for index [" + indexName + "]")
+                );
                 return;
             }
 
             if (rollupMeta.get(job.getConfig().getId()) != null) {
-                String msg = "Cannot create rollup job [" + job.getConfig().getId()
-                        + "] because job was previously created (existing metadata).";
+                String msg = "Cannot create rollup job ["
+                    + job.getConfig().getId()
+                    + "] because job was previously created (existing metadata).";
                 logger.error(msg);
                 listener.onFailure(new ElasticsearchStatusException(msg, RestStatus.CONFLICT));
                 return;
@@ -226,56 +271,74 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             PutMappingRequest request = new PutMappingRequest(indexName);
             request.type(RollupField.TYPE_NAME);
             request.source(newMapping);
-            client.execute(PutMappingAction.INSTANCE, request,
-                    ActionListener.wrap(putMappingResponse -> startPersistentTask(job, listener, persistentTasksService),
-                            listener::onFailure));
+            client.execute(
+                PutMappingAction.INSTANCE,
+                request,
+                ActionListener.wrap(putMappingResponse -> startPersistentTask(job, listener, persistentTasksService), listener::onFailure)
+            );
         };
 
         GetMappingsRequest request = new GetMappingsRequest();
-        client.execute(GetMappingsAction.INSTANCE, request, ActionListener.wrap(getMappingResponseHandler,
-                e -> {
-                    String msg = "Could not update mappings for rollup job [" + job.getConfig().getId() + "]";
-                    logger.error(msg);
-                    listener.onFailure(new RuntimeException(msg, e));
-                }));
+        client.execute(GetMappingsAction.INSTANCE, request, ActionListener.wrap(getMappingResponseHandler, e -> {
+            String msg = "Could not update mappings for rollup job [" + job.getConfig().getId() + "]";
+            logger.error(msg);
+            listener.onFailure(new RuntimeException(msg, e));
+        }));
     }
 
-    static void startPersistentTask(RollupJob job, ActionListener<AcknowledgedResponse> listener,
-                                    PersistentTasksService persistentTasksService) {
+    static void startPersistentTask(
+        RollupJob job,
+        ActionListener<AcknowledgedResponse> listener,
+        PersistentTasksService persistentTasksService
+    ) {
         assertNoAuthorizationHeader(job.getHeaders());
-        persistentTasksService.sendStartRequest(job.getConfig().getId(), RollupField.TASK_NAME, job,
-                ActionListener.wrap(
-                        rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService),
-                        e -> {
-                            if (e instanceof ResourceAlreadyExistsException) {
-                                e = new ElasticsearchStatusException("Cannot create job [" + job.getConfig().getId() +
-                                        "] because it has already been created (task exists)", RestStatus.CONFLICT, e);
-                            }
-                            listener.onFailure(e);
-                        }));
+        persistentTasksService.sendStartRequest(
+            job.getConfig().getId(),
+            RollupField.TASK_NAME,
+            job,
+            ActionListener.wrap(rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService), e -> {
+                if (e instanceof ResourceAlreadyExistsException) {
+                    e = new ElasticsearchStatusException(
+                        "Cannot create job [" + job.getConfig().getId() + "] because it has already been created (task exists)",
+                        RestStatus.CONFLICT,
+                        e
+                    );
+                }
+                listener.onFailure(e);
+            })
+        );
     }
 
+    private static void waitForRollupStarted(
+        RollupJob job,
+        ActionListener<AcknowledgedResponse> listener,
+        PersistentTasksService persistentTasksService
+    ) {
+        persistentTasksService.waitForPersistentTaskCondition(
+            job.getConfig().getId(),
+            Objects::nonNull,
+            job.getConfig().getTimeout(),
+            new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<RollupJob> task) {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                }
 
-    private static void waitForRollupStarted(RollupJob job, ActionListener<AcknowledgedResponse> listener,
-                                             PersistentTasksService persistentTasksService) {
-        persistentTasksService.waitForPersistentTaskCondition(job.getConfig().getId(), Objects::nonNull, job.getConfig().getTimeout(),
-                new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
-                    @Override
-                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<RollupJob> task) {
-                        listener.onResponse(AcknowledgedResponse.TRUE);
-                    }
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-
-                    @Override
-                    public void onTimeout(TimeValue timeout) {
-                        listener.onFailure(new ElasticsearchException("Creation of task for Rollup Job ID ["
-                                + job.getConfig().getId() + "] timed out after [" + timeout + "]"));
-                    }
-                });
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    listener.onFailure(
+                        new ElasticsearchException(
+                            "Creation of task for Rollup Job ID [" + job.getConfig().getId() + "] timed out after [" + timeout + "]"
+                        )
+                    );
+                }
+            }
+        );
     }
 
     @Override

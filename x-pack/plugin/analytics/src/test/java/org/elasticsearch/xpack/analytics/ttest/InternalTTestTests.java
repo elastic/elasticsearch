@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.analytics.ttest;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -116,10 +116,12 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(
-                TTestAggregationBuilder.NAME), (p, c) -> {
-                    assumeTrue("There is no ParsedTTest yet", false);
-                    return null;
-        }));
+        return CollectionUtils.appendToCopy(
+            super.getNamedXContents(),
+            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(TTestAggregationBuilder.NAME), (p, c) -> {
+                assumeTrue("There is no ParsedTTest yet", false);
+                return null;
+            })
+        );
     }
 }

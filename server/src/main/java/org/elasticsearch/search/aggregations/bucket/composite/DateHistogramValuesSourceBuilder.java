@@ -10,16 +10,16 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.List;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -68,8 +68,10 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         DateHistogramCompositeSupplier.class
     );
 
-    static final ObjectParser<DateHistogramValuesSourceBuilder, String> PARSER =
-            ObjectParser.fromBuilder(TYPE, DateHistogramValuesSourceBuilder::new);
+    static final ObjectParser<DateHistogramValuesSourceBuilder, String> PARSER = ObjectParser.fromBuilder(
+        TYPE,
+        DateHistogramValuesSourceBuilder::new
+    );
     static {
         PARSER.declareString(DateHistogramValuesSourceBuilder::format, new ParseField("format"));
         DateIntervalWrapper.declareIntervalFields(PARSER);
@@ -135,8 +137,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         DateHistogramValuesSourceBuilder other = (DateHistogramValuesSourceBuilder) obj;
-        return Objects.equals(dateHistogramInterval, other.dateHistogramInterval)
-            && Objects.equals(timeZone, other.timeZone);
+        return Objects.equals(dateHistogramInterval, other.dateHistogramInterval) && Objects.equals(timeZone, other.timeZone);
     }
 
     @Override
@@ -307,7 +308,8 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                     }
                 );
             },
-            false);
+            false
+        );
     }
 
     @Override

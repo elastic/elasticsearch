@@ -110,8 +110,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                 return false;
             }
             KeyedFilter other = (KeyedFilter) obj;
-            return Objects.equals(key, other.key)
-                    && Objects.equals(filter, other.filter);
+            return Objects.equals(key, other.key) && Objects.equals(filter, other.filter);
         }
     }
 
@@ -157,26 +156,24 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         if (filterByFilter != null) {
             return filterByFilter;
         }
-        return new FiltersAggregator.Compatible(
-            name,
-            factories,
-            filters,
-            keyed,
-            otherBucketKey,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
+        return new FiltersAggregator.Compatible(name, factories, filters, keyed, otherBucketKey, context, parent, cardinality, metadata);
     }
 
     private final List<QueryToFilterAdapter<?>> filters;
     private final boolean keyed;
     protected final String otherBucketKey;
 
-    FiltersAggregator(String name, AggregatorFactories factories, List<QueryToFilterAdapter<?>> filters, boolean keyed,
-            String otherBucketKey, AggregationContext context, Aggregator parent, CardinalityUpperBound cardinality,
-            Map<String, Object> metadata) throws IOException {
+    FiltersAggregator(
+        String name,
+        AggregatorFactories factories,
+        List<QueryToFilterAdapter<?>> filters,
+        boolean keyed,
+        String otherBucketKey,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(filters.size() + (otherBucketKey == null ? 0 : 1)), metadata);
         this.filters = org.elasticsearch.core.List.copyOf(filters);
         this.keyed = keyed;
@@ -189,14 +186,22 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForFixedBucketCount(owningBucketOrds, filters.size() + (otherBucketKey == null ? 0 : 1),
+        return buildAggregationsForFixedBucketCount(
+            owningBucketOrds,
+            filters.size() + (otherBucketKey == null ? 0 : 1),
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 if (offsetInOwningOrd < filters.size()) {
-                    return new InternalFilters.InternalBucket(filters.get(offsetInOwningOrd).key().toString(), docCount,
-                            subAggregationResults, keyed);
+                    return new InternalFilters.InternalBucket(
+                        filters.get(offsetInOwningOrd).key().toString(),
+                        docCount,
+                        subAggregationResults,
+                        keyed
+                    );
                 }
                 return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed);
-            }, buckets -> new InternalFilters(name, buckets, keyed, metadata()));
+            },
+            buckets -> new InternalFilters(name, buckets, keyed, metadata())
+        );
     }
 
     @Override

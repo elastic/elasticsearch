@@ -36,8 +36,14 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     private TopDocsAndMaxScore topDocs;
     private SearchHits searchHits;
 
-    public InternalTopHits(String name, int from, int size, TopDocsAndMaxScore topDocs, SearchHits searchHits,
-            Map<String, Object> metadata) {
+    public InternalTopHits(
+        String name,
+        int from,
+        int size,
+        TopDocsAndMaxScore topDocs,
+        SearchHits searchHits,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.from = from;
         this.size = size;
@@ -146,9 +152,14 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
         }
         assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
-        return new InternalTopHits(name, this.from, this.size,
+        return new InternalTopHits(
+            name,
+            this.from,
+            this.size,
             new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-            new SearchHits(hits, reducedTopDocs.totalHits, maxScore), getMetadata());
+            new SearchHits(hits, reducedTopDocs.totalHits, maxScore),
+            getMetadata()
+        );
     }
 
     @Override

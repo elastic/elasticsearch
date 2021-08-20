@@ -21,6 +21,7 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
     private static final int BIAS_K = 6;
 
     // these static tables come from the appendix of the paper
+    // @formatter:off
     private static final double[][] RAW_ESTIMATE_DATA = {
             // precision 4
             { 11, 11.717, 12.207, 12.7896, 13.2882, 13.8204, 14.3772, 14.9342, 15.5202, 16.161, 16.7722, 17.4636, 18.0396, 18.6766, 19.3566,
@@ -688,6 +689,7 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
                     -404.317000000039, -528.898999999976, -506.621000000043, -513.205000000075, -479.351000000024, -596.139999999898,
                     -527.016999999993, -664.681000000099, -680.306000000099, -704.050000000047, -850.486000000034, -757.43200000003,
                     -713.308999999892, } };
+    // @formatter:on
 
     private static final long[] THRESHOLDS = new long[] {
         10,

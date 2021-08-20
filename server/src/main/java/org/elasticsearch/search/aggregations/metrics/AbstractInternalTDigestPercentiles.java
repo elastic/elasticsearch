@@ -27,8 +27,14 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected final TDigestState state;
     final boolean keyed;
 
-    AbstractInternalTDigestPercentiles(String name, double[] keys, TDigestState state, boolean keyed, DocValueFormat formatter,
-            Map<String, Object> metadata) {
+    AbstractInternalTDigestPercentiles(
+        String name,
+        double[] keys,
+        TDigestState state,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.keys = keys;
         this.state = state;
@@ -109,14 +115,19 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         return createReduced(getName(), keys, merged, keyed, getMetadata());
     }
 
-    protected abstract AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            Map<String, Object> metadata);
+    protected abstract AbstractInternalTDigestPercentiles createReduced(
+        String name,
+        double[] keys,
+        TDigestState merged,
+        boolean keyed,
+        Map<String, Object> metadata
+    );
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
-            for(int i = 0; i < keys.length; ++i) {
+            for (int i = 0; i < keys.length; ++i) {
                 String key = String.valueOf(keys[i]);
                 double value = value(keys[i]);
                 builder.field(key, state.size() == 0 ? null : value);
@@ -149,9 +160,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         if (super.equals(obj) == false) return false;
 
         AbstractInternalTDigestPercentiles that = (AbstractInternalTDigestPercentiles) obj;
-        return keyed == that.keyed
-                && Arrays.equals(keys, that.keys)
-                && Objects.equals(state, that.state);
+        return keyed == that.keyed && Arrays.equals(keys, that.keys) && Objects.equals(state, that.state);
     }
 
     @Override

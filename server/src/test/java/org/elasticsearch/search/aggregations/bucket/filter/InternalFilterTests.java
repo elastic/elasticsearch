@@ -27,8 +27,12 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class InternalFilterTests extends InternalSingleBucketAggregationTestCase<InternalFilter> {
     @Override
-    protected InternalFilter createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            Map<String, Object> metadata) {
+    protected InternalFilter createTestInstance(
+        String name,
+        long docCount,
+        InternalAggregations aggregations,
+        Map<String, Object> metadata
+    ) {
         return new InternalFilter(name, docCount, aggregations, metadata);
     }
 
@@ -65,7 +69,8 @@ public class InternalFilterTests extends InternalSingleBucketAggregationTestCase
         };
         PipelineTree tree = new PipelineTree(
             org.elasticsearch.core.Map.of(inner.getName(), new PipelineTree(emptyMap(), singletonList(mockPipeline))),
-            emptyList());
+            emptyList()
+        );
         InternalFilter reduced = (InternalFilter) test.reducePipelines(test, emptyReduceContextBuilder().forFinalReduction(), tree);
         assertThat(reduced.getAggregations().get(dummy.getName()), sameInstance(dummy));
     }

@@ -50,13 +50,17 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
         ClusterName clusterName = new ClusterName("cluster_name");
         when(clusterService.getClusterName()).thenReturn(clusterName);
 
-
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
 
-        return new TransportAnalyticsStatsAction(transportService, clusterService, threadPool,
-            new ActionFilters(Collections.emptySet()), usage);
+        return new TransportAnalyticsStatsAction(
+            transportService,
+            clusterService,
+            threadPool,
+            new ActionFilters(Collections.emptySet()),
+            usage
+        );
     }
 
     public void test() throws IOException {
@@ -81,7 +85,10 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
             .map(usage -> action(usage).nodeOperation(new AnalyticsStatsAction.NodeRequest(request)))
             .collect(toList());
         AnalyticsStatsAction.Response response = new AnalyticsStatsAction.Response(
-            new ClusterName("cluster_name"), nodeResponses, emptyList());
+            new ClusterName("cluster_name"),
+            nodeResponses,
+            emptyList()
+        );
 
         AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(response);
         try (XContentBuilder builder = jsonBuilder()) {

@@ -107,12 +107,14 @@ class RollupShardIndexer {
     final Set<String> tmpFiles = new HashSet<>();
     final Set<String> tmpFilesDeleted = new HashSet<>();
 
-    RollupShardIndexer(Client client,
-                       IndexService indexService,
-                       ShardId shardId,
-                       RollupActionConfig config,
-                       String tmpIndex,
-                       int ramBufferSizeMB) {
+    RollupShardIndexer(
+        Client client,
+        IndexService indexService,
+        ShardId shardId,
+        RollupActionConfig config,
+        String tmpIndex,
+        int ramBufferSizeMB
+    ) {
         this.client = client;
         this.indexShard = indexService.getShard(shardId.id());
         this.config = config;
@@ -162,8 +164,9 @@ class RollupShardIndexer {
 
             if (config.getGroupConfig().getHistogram() != null) {
                 HistogramGroupConfig histoConfig = config.getGroupConfig().getHistogram();
-                this.groupFieldFetchers.addAll(FieldValueFetcher.buildHistograms(searchExecutionContext,
-                    histoConfig.getFields(), histoConfig.getInterval()));
+                this.groupFieldFetchers.addAll(
+                    FieldValueFetcher.buildHistograms(searchExecutionContext, histoConfig.getFields(), histoConfig.getInterval())
+                );
             }
 
             if (config.getMetricsConfig().size() > 0) {
@@ -187,11 +190,10 @@ class RollupShardIndexer {
             throw new IllegalArgumentException("fieldType is null");
         }
         if (fieldType instanceof DateFieldMapper.DateFieldType == false) {
-            throw new IllegalArgumentException("Wrong type for the timestamp field, " +
-                "expected [date], got [" + fieldType.name()  + "]");
+            throw new IllegalArgumentException("Wrong type for the timestamp field, " + "expected [date], got [" + fieldType.name() + "]");
         }
         if (fieldType.isSearchable() == false) {
-            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() +  "]  is not searchable");
+            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "]  is not searchable");
         }
     }
 
@@ -206,7 +208,7 @@ class RollupShardIndexer {
             bulkProcessor.close();
         }
         // TODO: check that numIndexed == numSent, otherwise throw an exception
-        logger.info("Successfully sent [" + numIndexed.get()  + "], indexed [" + numIndexed.get()  + "]");
+        logger.info("Successfully sent [" + numIndexed.get() + "], indexed [" + numIndexed.get() + "]");
         return numIndexed.get();
     }
 
@@ -223,8 +225,13 @@ class RollupShardIndexer {
                 if (response.hasFailures()) {
                     Map<String, String> failures = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
-                        .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage,
-                            (msg1, msg2) -> Objects.equals(msg1, msg2) ? msg1 : msg1 + "," + msg2));
+                        .collect(
+                            Collectors.toMap(
+                                BulkItemResponse::getId,
+                                BulkItemResponse::getFailureMessage,
+                                (msg1, msg2) -> Objects.equals(msg1, msg2) ? msg1 : msg1 + "," + msg2
+                            )
+                        );
                     logger.error("failures: [{}]", failures);
                 }
             }
@@ -260,9 +267,7 @@ class RollupShardIndexer {
         return tzRoundingBuilder.timeZone(zoneId).build();
     }
 
-    private void indexBucket(BucketKey key,
-                             List<FieldMetricsProducer> fieldsMetrics,
-                             int docCount) {
+    private void indexBucket(BucketKey key, List<FieldMetricsProducer> fieldsMetrics, int docCount) {
         IndexRequestBuilder request = client.prepareIndex(tmpIndex, "_doc");
         Map<String, Object> doc = new HashMap<>(2 + key.groupFields.size() + fieldsMetrics.size());
         doc.put(DocCountFieldMapper.NAME, docCount);
@@ -323,7 +328,7 @@ class RollupShardIndexer {
                             }
                         }
                     }
-                    ++ docCount;
+                    ++docCount;
                     lastKey = key;
                 }
                 next = it.next();
@@ -342,8 +347,7 @@ class RollupShardIndexer {
             final NextRoundingVisitor visitor = new NextRoundingVisitor(rounding, lastRounding);
             try {
                 pointValues.intersect(visitor);
-            } catch (CollectionTerminatedException exc) {
-            }
+            } catch (CollectionTerminatedException exc) {}
             if (visitor.nextRounding != null) {
                 nextRounding = nextRounding == null ? visitor.nextRounding : Math.min(nextRounding, visitor.nextRounding);
             }
@@ -379,16 +383,20 @@ class RollupShardIndexer {
         return (o1, o2) -> {
             int keySize1 = readInt(o1.bytes, o1.offset);
             int keySize2 = readInt(o2.bytes, o2.offset);
-            return FutureArrays.compareUnsigned(o1.bytes, o1.offset + Integer.BYTES, keySize1 + o1.offset + Integer.BYTES,
-                o2.bytes, o2.offset + Integer.BYTES, keySize2 + o2.offset + Integer.BYTES);
+            return FutureArrays.compareUnsigned(
+                o1.bytes,
+                o1.offset + Integer.BYTES,
+                keySize1 + o1.offset + Integer.BYTES,
+                o2.bytes,
+                o2.offset + Integer.BYTES,
+                keySize2 + o2.offset + Integer.BYTES
+            );
         };
     }
 
     private static int readInt(byte[] bytes, int offset) {
-        return ((bytes[offset] & 0xFF) << 24)
-            | ((bytes[offset + 1] & 0xFF) << 16)
-            | ((bytes[offset + 2] & 0xFF) << 8)
-            | (bytes[offset + 3] & 0xFF);
+        return ((bytes[offset] & 0xFF) << 24) | ((bytes[offset + 1] & 0xFF) << 16) | ((bytes[offset + 2] & 0xFF) << 8) | (bytes[offset + 3]
+            & 0xFF);
     }
 
     private static class BucketKey {
@@ -405,8 +413,7 @@ class RollupShardIndexer {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             BucketKey other = (BucketKey) o;
-            return timestamp == other.timestamp &&
-                Objects.equals(groupFields, other.groupFields);
+            return timestamp == other.timestamp && Objects.equals(groupFields, other.groupFields);
         }
 
         @Override
@@ -416,10 +423,7 @@ class RollupShardIndexer {
 
         @Override
         public String toString() {
-            return "BucketKey{" +
-                "timestamp=" + timestamp +
-                ", groupFields=" + groupFields +
-                '}';
+            return "BucketKey{" + "timestamp=" + timestamp + ", groupFields=" + groupFields + '}';
         }
     }
 
@@ -427,8 +431,7 @@ class RollupShardIndexer {
         private final long timestamp;
         private final XExternalRefSorter externalSorter;
 
-        private BucketCollector(long timestamp,
-                                XExternalRefSorter externalSorter) {
+        private BucketCollector(long timestamp, XExternalRefSorter externalSorter) {
             this.externalSorter = externalSorter;
             this.timestamp = timestamp;
         }
@@ -439,8 +442,7 @@ class RollupShardIndexer {
             final List<FormattedDocValues> metricsFieldLeaves = leafFetchers(context, metricsFieldFetchers);
             return new LeafCollector() {
                 @Override
-                public void setScorer(Scorable scorer) {
-                }
+                public void setScorer(Scorable scorer) {}
 
                 @Override
                 public void collect(int docID) throws IOException {

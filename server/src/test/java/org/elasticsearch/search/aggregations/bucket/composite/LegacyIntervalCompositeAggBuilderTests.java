@@ -33,8 +33,9 @@ public class LegacyIntervalCompositeAggBuilderTests extends BaseAggregationTestC
             histo.script(new Script(randomAlphaOfLengthBetween(10, 20)));
         }
         if (randomBoolean()) {
-            histo.dateHistogramInterval(randomFrom(DateHistogramInterval.days(1),
-                DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1)));
+            histo.dateHistogramInterval(
+                randomFrom(DateHistogramInterval.days(1), DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1))
+            );
         } else {
             histo.interval(randomNonNegativeLong());
         }

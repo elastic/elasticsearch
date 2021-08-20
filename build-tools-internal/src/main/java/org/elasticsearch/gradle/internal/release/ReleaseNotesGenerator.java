@@ -12,7 +12,6 @@ import groovy.text.SimpleTemplateEngine;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.GradleException;
 
 import java.io.File;
@@ -24,6 +23,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -48,7 +48,7 @@ public class ReleaseNotesGenerator {
         TYPE_LABELS.put("upgrade", "Upgrades");
     }
 
-    static void update(File templateFile, File outputFile, List<ChangelogEntry> changelogs) throws IOException {
+    static void update(File templateFile, File outputFile, Map<QualifiedVersion, Set<ChangelogEntry>> changelogs) throws IOException {
         final String templateString = Files.readString(templateFile.toPath());
 
         try (FileWriter output = new FileWriter(outputFile)) {
@@ -57,14 +57,13 @@ public class ReleaseNotesGenerator {
     }
 
     @VisibleForTesting
-    static void generateFile(String template, List<ChangelogEntry> changelogs, Writer outputWriter) throws IOException {
-        final var changelogsByTypeByArea = buildChangelogBreakdown(changelogs);
+    static void generateFile(String template, Map<QualifiedVersion, Set<ChangelogEntry>> changelogs, Writer outputWriter)
+        throws IOException {
+        final var changelogsByVersionByTypeByArea = buildChangelogBreakdown(changelogs);
 
         final Map<String, Object> bindings = new HashMap<>();
-        bindings.put("changelogsByTypeByArea", changelogsByTypeByArea);
+        bindings.put("changelogsByVersionByTypeByArea", changelogsByVersionByTypeByArea);
         bindings.put("TYPE_LABELS", TYPE_LABELS);
-        bindings.put("version", VersionProperties.getElasticsearchVersion());
-        bindings.put("versionString", VersionProperties.getElasticsearch());
 
         try {
             final SimpleTemplateEngine engine = new SimpleTemplateEngine();
@@ -74,35 +73,44 @@ public class ReleaseNotesGenerator {
         }
     }
 
-    private static Map<String, Map<String, List<ChangelogEntry>>> buildChangelogBreakdown(
-        List<ChangelogEntry> changelogs
+    private static Map<QualifiedVersion, Map<String, Map<String, List<ChangelogEntry>>>> buildChangelogBreakdown(
+        Map<QualifiedVersion, Set<ChangelogEntry>> changelogsByVersion
     ) {
-        final Map<String, Map<String, List<ChangelogEntry>>> changelogsByTypeByArea = changelogs.stream()
-            .collect(
-                Collectors.groupingBy(
-                    // Group changelogs entries by their change type
-                    // Entries with breaking info are always put in the breaking section
-                    entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
-                    TreeMap::new,
-                    // Group changelogs for each type by their team area
+        Map<QualifiedVersion, Map<String, Map<String, List<ChangelogEntry>>>> changelogsByVersionByTypeByArea = new TreeMap<>(
+            Comparator.reverseOrder()
+        );
+
+        changelogsByVersion.forEach((version, changelogs) -> {
+            Map<String, Map<String, List<ChangelogEntry>>> changelogsByTypeByArea = changelogs.stream()
+                .collect(
                     Collectors.groupingBy(
-                        // `security` and `known-issue` areas don't need to supply an area
-                        entry -> entry.getType().equals("known-issue") || entry.getType().equals("security")
-                            ? "_all_"
-                            : entry.getArea(),
+                        // Entries with breaking info are always put in the breaking section
+                        entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
                         TreeMap::new,
-                        Collectors.toList()
+                        // Group changelogs for each type by their team area
+                        Collectors.groupingBy(
+                            // `security` and `known-issue` areas don't need to supply an area
+                            entry -> entry.getType().equals("known-issue") || entry.getType().equals("security")
+                                ? "_all_"
+                                : entry.getArea(),
+                            TreeMap::new,
+                            Collectors.toList()
+                        )
                     )
-                )
-            );
+                );
+
+            changelogsByVersionByTypeByArea.put(version, changelogsByTypeByArea);
+        });
 
         // Sort per-area changelogs by their summary text. Assumes that the underlying list is sortable
-        changelogsByTypeByArea.forEach(
-            (_type, byTeam) -> byTeam.forEach(
-                (_team, changelogsForTeam) -> changelogsForTeam.sort(Comparator.comparing(ChangelogEntry::getSummary))
+        changelogsByVersionByTypeByArea.forEach(
+            (_version, byVersion) -> byVersion.forEach(
+                (_type, byTeam) -> byTeam.forEach(
+                    (_team, changelogsForTeam) -> changelogsForTeam.sort(Comparator.comparing(ChangelogEntry::getSummary))
+                )
             )
         );
 
-        return changelogsByTypeByArea;
+        return changelogsByVersionByTypeByArea;
     }
 }

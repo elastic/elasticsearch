@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.release;
 import org.elasticsearch.gradle.Version;
 
 import java.util.Comparator;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,18 +24,18 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
     private final int major;
     private final int minor;
     private final int revision;
-    private final Qualifier preRelease;
+    private final Qualifier qualifier;
 
-    // We only support e.g. `.RC2` due to legacy tags. New tags should conform to semver.
-    private static final String versionRegex =
-        "^v? (\\d+) \\. (\\d+) \\. (\\d+) (?: [.-] (alpha\\d+ | beta\\d+ | rc\\d+ ) )? (?: -SNAPSHOT)? $";
-    private static final Pattern pattern = Pattern.compile(versionRegex, Pattern.COMMENTS | Pattern.CASE_INSENSITIVE);
+    private static final Pattern pattern = Pattern.compile(
+        "^v? (\\d+) \\. (\\d+) \\. (\\d+) (?: - (alpha\\d+ | beta\\d+ | rc\\d+ | SNAPSHOT ) )? $",
+        Pattern.COMMENTS
+    );
 
-    private QualifiedVersion(int major, int minor, int revision, String preRelease) {
+    private QualifiedVersion(int major, int minor, int revision, String qualifier) {
         this.major = major;
         this.minor = minor;
         this.revision = revision;
-        this.preRelease = preRelease == null ? null : Qualifier.of(preRelease.replaceFirst("^[.-]", "").toLowerCase(Locale.ROOT));
+        this.qualifier = qualifier == null ? null : Qualifier.of(qualifier);
     }
 
     /**
@@ -48,8 +47,7 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
         Objects.requireNonNull(s);
         Matcher matcher = pattern.matcher(s);
         if (matcher.matches() == false) {
-            String expected = "(v)?major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]";
-            throw new IllegalArgumentException("Invalid version format: '" + s + "'. Should be " + expected);
+            throw new IllegalArgumentException("Invalid version format: '" + s + "'. Should be " + pattern);
         }
 
         return new QualifiedVersion(
@@ -62,7 +60,7 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
 
     @Override
     public String toString() {
-        return "%d.%d.%d%s".formatted(major, minor, revision, preRelease == null ? "" : "-" + preRelease);
+        return "%d.%d.%d%s".formatted(major, minor, revision, qualifier == null ? "" : "-" + qualifier);
     }
 
     @Override
@@ -73,12 +71,12 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
         return major == version.major
             && minor == version.minor
             && revision == version.revision
-            && Objects.equals(preRelease, version.preRelease);
+            && Objects.equals(qualifier, version.qualifier);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(major, minor, revision, preRelease);
+        return Objects.hash(major, minor, revision, qualifier);
     }
 
     public int getMajor() {
@@ -93,30 +91,26 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
         return revision;
     }
 
-    public Qualifier getPreRelease() {
-        return preRelease;
+    public boolean hasQualifier() {
+        return qualifier != null;
     }
 
-    public boolean isPreRelease() {
-        return preRelease != null;
+    public Qualifier getQualifier() {
+        return qualifier;
     }
 
-    public boolean isFirstPreRelease() {
-        return preRelease != null && preRelease.level == QualifierLevel.alpha && preRelease.number == 1;
+    public boolean isSnapshot() {
+        return this.qualifier != null && this.qualifier.level == QualifierLevel.SNAPSHOT;
     }
 
     private static final Comparator<QualifiedVersion> COMPARATOR = Comparator.comparing((QualifiedVersion v) -> v.major)
         .thenComparing(v -> v.minor)
         .thenComparing(v -> v.revision)
-        .thenComparing((QualifiedVersion v) -> v.preRelease, Comparator.nullsLast(Comparator.naturalOrder()));
+        .thenComparing((QualifiedVersion v) -> v.qualifier, Comparator.nullsLast(Comparator.naturalOrder()));
 
     @Override
     public int compareTo(QualifiedVersion other) {
         return COMPARATOR.compare(this, other);
-    }
-
-    public boolean isPriorMajor(QualifiedVersion other) {
-        return this.major == other.major - 1;
     }
 
     public boolean isBefore(QualifiedVersion other) {
@@ -126,7 +120,8 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
     private enum QualifierLevel {
         alpha,
         beta,
-        rc
+        rc,
+        SNAPSHOT
     }
 
     private static class Qualifier implements Comparable<Qualifier> {
@@ -138,24 +133,27 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
             this.number = number;
         }
 
-        private static final Comparator<Qualifier> COMPARATOR = Comparator.comparing((Qualifier p) -> p.level)
-            .thenComparing(p -> p.number);
+        private static final Comparator<Qualifier> COMPARATOR = Comparator.comparing((Qualifier p) -> p.level).thenComparing(p -> p.number);
 
         @Override
         public int compareTo(Qualifier other) {
             return COMPARATOR.compare(this, other);
         }
 
-        private static Qualifier of(String prerelease) {
+        private static Qualifier of(String qualifier) {
+            if ("SNAPSHOT".equals(qualifier)) {
+                return new Qualifier(QualifierLevel.SNAPSHOT, 0);
+            }
+
             Pattern pattern = Pattern.compile("^(alpha|beta|rc)(\\d+)$");
-            Matcher matcher = pattern.matcher(prerelease);
+            Matcher matcher = pattern.matcher(qualifier);
             if (matcher.find()) {
                 String level = matcher.group(1);
                 int number = Integer.parseInt(matcher.group(2));
                 return new Qualifier(QualifierLevel.valueOf(level), number);
             } else {
                 // This shouldn't happen - we check the format before this is called
-                throw new IllegalArgumentException("Invalid prerelease passed");
+                throw new IllegalArgumentException("Invalid qualifier [" + qualifier + "] passed");
             }
         }
 

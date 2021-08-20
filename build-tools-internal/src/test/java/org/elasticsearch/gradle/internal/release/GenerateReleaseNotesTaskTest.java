@@ -13,14 +13,21 @@ import org.gradle.api.GradleException;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.File;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -35,43 +42,60 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     }
 
     /**
-     * Check that no files are ignored when the current version is a snapshot.
+     * Check that partitioning changelog files when the current version is a snapshot returns a map with a single entry.
      */
     @Test
-    public void getFilesToIgnore_withSnapshot_returnsNothing() {
+    public void partitionFiles_withSnapshot_returnsSingleMapping() {
         // when:
-        Set<String> filesToIgnore = GenerateReleaseNotesTask.getFilesToIgnore(gitWrapper, "8.0.0-SNAPSHOT");
+        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFiles(
+            gitWrapper,
+            "8.0.0-SNAPSHOT",
+            Set.of(new File("docs/changelog/1234.yaml"))
+        );
 
         // then:
-        assertThat(filesToIgnore, empty());
+        assertThat(partitionedFiles, aMapWithSize(1));
+        assertThat(
+            partitionedFiles,
+            hasEntry(equalTo(QualifiedVersion.of("8.0.0-SNAPSHOT")), hasItem(new File("docs/changelog/1234.yaml")))
+        );
         verifyZeroInteractions(gitWrapper);
     }
 
     /**
-     * Check that no files are ignored for the first version in a minor series.
+     * Check that partitioning changelog files when the current version is the first release
+     * in a minor series returns a map with a single entry.
      */
     @Test
-    public void getFilesToIgnore_withNoPrerelease_returnsNothing() {
-        Stream.of("7.0.0", "8.1.0", "9.2.0").forEach(version -> {
-            // when:
-            Set<String> filesToIgnore = GenerateReleaseNotesTask.getFilesToIgnore(gitWrapper, version);
+    public void partitionFiles_withFirstRevision_returnsSingleMapping() {
+        // when:
+        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFiles(
+            gitWrapper,
+            "8.5.0",
+            Set.of(new File("docs/changelog/1234.yaml"))
+        );
 
-            // then:
-            assertThat(filesToIgnore, empty());
-            verifyZeroInteractions(gitWrapper);
-        });
+        // then:
+        assertThat(partitionedFiles, aMapWithSize(1));
+        assertThat(partitionedFiles, hasEntry(equalTo(QualifiedVersion.of("8.5.0")), hasItem(new File("docs/changelog/1234.yaml"))));
+        verifyZeroInteractions(gitWrapper);
     }
 
     /**
-     * Check that no files are ignored when a version is the first alpha prerelease.
+     * Check that partitioning changelog files when the current version is the first alpha prerelease returns a map with a single entry.
      */
     @Test
-    public void getFilesToIgnore_withFirstAlpha_returnsNothing() {
+    public void partitionFiles_withFirstAlpha_returnsSingleMapping() {
         // when:
-        Set<String> filesToIgnore = GenerateReleaseNotesTask.getFilesToIgnore(gitWrapper, "8.0.0-alpha1");
+        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFiles(
+            gitWrapper,
+            "8.0.0-alpha1",
+            Set.of(new File("docs/changelog/1234.yaml"))
+        );
 
         // then:
-        assertThat(filesToIgnore, empty());
+        assertThat(partitionedFiles, aMapWithSize(1));
+        assertThat(partitionedFiles, hasEntry(equalTo(QualifiedVersion.of("8.0.0-alpha1")), hasItem(new File("docs/changelog/1234.yaml"))));
         verifyZeroInteractions(gitWrapper);
     }
 
@@ -79,12 +103,12 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
      * Check that the git wrapper throws an error if it can't find the right git remote.
      */
     @Test
-    public void getFilesToIgnore_withoutGitRemote_throwsError() {
+    public void partitionFiles_withoutGitRemote_throwsError() {
         // when:
         when(gitWrapper.listRemotes()).thenReturn(Map.of("fred", "fred/elasticsearch"));
         GradleException exception = expectThrows(
             GradleException.class,
-            () -> GenerateReleaseNotesTask.getFilesToIgnore(gitWrapper, "8.0.0-alpha2")
+            () -> GenerateReleaseNotesTask.partitionFiles(gitWrapper, "8.0.1", Set.of())
         );
 
         // then:
@@ -92,54 +116,136 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     }
 
     /**
-     * Check that the task identifies the expected list of files for a prerelease. It should select the immediately
-     * preceding prerelease version, and use the file tree from that tag.
+     * Check that the task partitions the list of files correctly by version for a prerelease.
      */
     @Test
-    public void getFilesToIgnore_withPrerelease_returnsListOfFiles() {
+    public void partitionFiles_withPrerelease_correctlyGroupsByPrereleaseVersion() {
         // given:
-        when(gitWrapper.listRemotes()).thenReturn(Map.of("fred", "fred/elasticsearch", "upstream", "elastic/elasticsearch"));
+        when(gitWrapper.listRemotes()).thenReturn(Map.of("upstream", "elastic/elasticsearch"));
         when(gitWrapper.listVersions(anyString())).thenReturn(
             Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0-beta1", "8.0.0-beta2", "8.0.0-beta3", "8.0.0-rc1", "8.0.0")
                 .map(QualifiedVersion::of)
         );
-        when(gitWrapper.listFiles(anyString(), anyString())).thenReturn(Stream.of("docs/changelog/1234.yml", "docs/changelog/5678.yaml"));
+        when(gitWrapper.listFiles(eq("v8.0.0-alpha1"), anyString())).thenReturn(
+            Stream.of("docs/changelog/1_1234.yaml", "docs/changelog/1_5678.yaml")
+        );
+        when(gitWrapper.listFiles(eq("v8.0.0-alpha2"), anyString())).thenReturn(
+            Stream.of("docs/changelog/2_1234.yaml", "docs/changelog/2_5678.yaml")
+        );
+
+        Set<File> allFiles = Set.of(
+            new File("docs/changelog/1_1234.yaml"),
+            new File("docs/changelog/1_5678.yaml"),
+            new File("docs/changelog/2_1234.yaml"),
+            new File("docs/changelog/2_5678.yaml"),
+            new File("docs/changelog/3_1234.yaml"),
+            new File("docs/changelog/3_5678.yaml")
+        );
 
         // when:
-        Set<String> filesToIgnore = GenerateReleaseNotesTask.getFilesToIgnore(gitWrapper, "8.0.0-beta2");
+        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFiles(gitWrapper, "8.0.0-beta1", allFiles);
 
         // then:
         verify(gitWrapper).updateRemote("upstream");
         verify(gitWrapper).updateTags("upstream");
         verify(gitWrapper).updateTags("upstream");
         verify(gitWrapper).listVersions("v8.0*");
-        // The expected version here is just before the version that we pass to `getFilesToIgnore()`
-        verify(gitWrapper).listFiles("v8.0.0-beta1", "docs/changelog");
-        assertThat(filesToIgnore, containsInAnyOrder("1234.yml", "5678.yaml"));
+        verify(gitWrapper).listFiles("v8.0.0-alpha1", "docs/changelog");
+        verify(gitWrapper).listFiles("v8.0.0-alpha2", "docs/changelog");
+
+        assertThat(
+            partitionedFiles,
+            allOf(
+                aMapWithSize(3),
+                hasKey(QualifiedVersion.of("8.0.0-alpha1")),
+                hasKey(QualifiedVersion.of("8.0.0-alpha2")),
+                hasKey(QualifiedVersion.of("8.0.0-beta1"))
+            )
+        );
+
+        assertThat(
+            partitionedFiles,
+            allOf(
+                hasEntry(
+                    equalTo(QualifiedVersion.of("8.0.0-alpha1")),
+                    containsInAnyOrder(new File("docs/changelog/1_1234.yaml"), new File("docs/changelog/1_5678.yaml"))
+                ),
+                hasEntry(
+                    equalTo(QualifiedVersion.of("8.0.0-alpha2")),
+                    containsInAnyOrder(new File("docs/changelog/2_1234.yaml"), new File("docs/changelog/2_5678.yaml"))
+                ),
+                hasEntry(
+                    equalTo(QualifiedVersion.of("8.0.0-beta1")),
+                    containsInAnyOrder(new File("docs/changelog/3_1234.yaml"), new File("docs/changelog/3_5678.yaml"))
+                )
+            )
+        );
     }
 
     /**
-     * Check that the task identifies the expected list of files for a patch release. It should select the immediately
-     * preceding version, and use the file tree from that tag.
+     * Check that the task partitions the list of files correctly by version for a patch release.
      */
     @Test
-    public void getFilesToIgnore_withPatchRelease_returnsListOfFiles() {
+    public void partitionFiles_withPatchRelease_correctlyGroupsByPatchVersion() {
         // given:
         when(gitWrapper.listRemotes()).thenReturn(Map.of("upstream", "elastic/elasticsearch"));
         when(gitWrapper.listVersions(anyString())).thenReturn(
             Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0-beta1", "8.0.0-rc1", "8.0.0", "8.0.1", "8.0.2", "8.1.0")
                 .map(QualifiedVersion::of)
         );
-        // Version here is just before the version that we pass to `getFilesToIgnore`
-        when(gitWrapper.listFiles(anyString(), anyString())).thenReturn(Stream.of("docs/changelog/1234.yml", "docs/changelog/5678.yaml"));
+        when(gitWrapper.listFiles(eq("v8.0.0"), anyString())).thenReturn(
+            Stream.of("docs/changelog/1_1234.yaml", "docs/changelog/1_5678.yaml")
+        );
+        when(gitWrapper.listFiles(eq("v8.0.1"), anyString())).thenReturn(
+            Stream.of("docs/changelog/2_1234.yaml", "docs/changelog/2_5678.yaml")
+        );
+
+        Set<File> allFiles = Set.of(
+            new File("docs/changelog/1_1234.yaml"),
+            new File("docs/changelog/1_5678.yaml"),
+            new File("docs/changelog/2_1234.yaml"),
+            new File("docs/changelog/2_5678.yaml"),
+            new File("docs/changelog/3_1234.yaml"),
+            new File("docs/changelog/3_5678.yaml")
+        );
 
         // when:
-        Set<String> filesToIgnore = GenerateReleaseNotesTask.getFilesToIgnore(gitWrapper, "8.0.2");
+        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFiles(gitWrapper, "8.0.2", allFiles);
 
         // then:
+        verify(gitWrapper).updateRemote("upstream");
+        verify(gitWrapper).updateTags("upstream");
+        verify(gitWrapper).updateTags("upstream");
         verify(gitWrapper).listVersions("v8.0*");
-        // The expected version here is just before the version that we pass to `getFilesToIgnore()`
+        verify(gitWrapper).listFiles("v8.0.0", "docs/changelog");
         verify(gitWrapper).listFiles("v8.0.1", "docs/changelog");
-        assertThat(filesToIgnore, containsInAnyOrder("1234.yml", "5678.yaml"));
+
+        assertThat(
+            partitionedFiles,
+            allOf(
+                aMapWithSize(3),
+                hasKey(QualifiedVersion.of("8.0.0")),
+                hasKey(QualifiedVersion.of("8.0.1")),
+                hasKey(QualifiedVersion.of("8.0.2"))
+            )
+        );
+
+        assertThat(
+            partitionedFiles,
+            allOf(
+                hasEntry(
+                    equalTo(QualifiedVersion.of("8.0.0")),
+                    containsInAnyOrder(new File("docs/changelog/1_1234.yaml"), new File("docs/changelog/1_5678.yaml"))
+                ),
+                hasEntry(
+                    equalTo(QualifiedVersion.of("8.0.1")),
+                    containsInAnyOrder(new File("docs/changelog/2_1234.yaml"), new File("docs/changelog/2_5678.yaml"))
+                ),
+                hasEntry(
+                    equalTo(QualifiedVersion.of("8.0.2")),
+                    containsInAnyOrder(new File("docs/changelog/3_1234.yaml"), new File("docs/changelog/3_5678.yaml"))
+                )
+            )
+        );
     }
 }

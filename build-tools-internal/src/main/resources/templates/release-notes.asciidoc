@@ -1,35 +1,36 @@
-[[release-notes-$versionString]]
-== {es} version $versionString
-<% if (version.qualifier == "SNAPSHOT") { %>
+<% for (version in changelogsByVersionByTypeByArea.keySet()) {
+%>[[release-notes-$version]]
+== {es} version $version
+<% if (version.isSnapshot()) { %>
 coming[$version]
 <% } %>
 Also see <<breaking-changes-${ version.major }.${ version.minor },Breaking changes in ${ version.major }.${ version.minor }>>.
-<% if (changelogsByTypeByArea["security"] != null) { %>
+<% if (changelogsByVersionByTypeByArea[version]["security"] != null) { %>
 [discrete]
-[[security-updates-${versionString}]]
+[[security-updates-${version}]]
 === Security updates
 
-<% for (change in changelogsByTypeByArea.remove("security").remove("_all_")) {
+<% for (change in changelogsByVersionByTypeByArea[version].remove("security").remove("_all_")) {
     print "* ${change.summary}\n"
 }
 }
-if (changelogsByTypeByArea["known-issue"] != null) { %>
+if (changelogsByVersionByTypeByArea[version]["known-issue"] != null) { %>
 [discrete]
 [[known-issues-${version}]]
 === Known issues
 
-<% for (change in changelogsByTypeByArea.remove("known-issue").remove("_all_")) {
+<% for (change in changelogsByVersionByTypeByArea[version].remove("known-issue").remove("_all_")) {
     print "* ${change.summary}\n"
 }
 }
-for (changeType in changelogsByTypeByArea.keySet()) { %>
+for (changeType in changelogsByVersionByTypeByArea[version].keySet()) { %>
 [[${ changeType }-${ version }]]
 [float]
 === ${ TYPE_LABELS[changeType] }
-<% for (team in changelogsByTypeByArea[changeType].keySet()) {
+<% for (team in changelogsByVersionByTypeByArea[version][changeType].keySet()) {
     print "\n${team}::\n";
 
-    for (change in changelogsByTypeByArea[changeType][team]) {
+    for (change in changelogsByVersionByTypeByArea[version][changeType][team]) {
         print "* ${change.summary} {es-pull}${change.pr}[#${change.pr}]"
         if (change.issues != null && change.issues.empty == false) {
             print change.issues.size() == 1 ? " (issue: " : " (issues: "
@@ -38,6 +39,7 @@ for (changeType in changelogsByTypeByArea.keySet()) { %>
         }
         print "\n"
     }
+}
 }
 }
 %>

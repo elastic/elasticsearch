@@ -1147,10 +1147,19 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testIndexDocsWithCustomRoutingAllowed() throws Exception {
-        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of("logs-foobar*"), new Template(null, null, null), null, null, null,
-            null, new ComposableIndexTemplate.DataStreamTemplate(false, true));
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("id1").indexTemplate(template)).actionGet();
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of("logs-foobar*"),
+            new Template(null, null, null),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+        );
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("id1").indexTemplate(template)
+        ).actionGet();
         // Index doc that triggers creation of a data stream
         String dataStream = "logs-foobar";
         IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
@@ -1166,7 +1175,8 @@ public class DataStreamIT extends ESIntegTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < 10; i++) {
             bulkRequest.add(
-                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE).source("@timestamp", System.currentTimeMillis())
+                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                    .source("@timestamp", System.currentTimeMillis())
                     .routing("bulk-request-routing")
             );
         }
@@ -1596,66 +1606,107 @@ public class DataStreamIT extends ESIntegTestCase {
         /**
          * partition size with no routing required
          */
-        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of("logs"), new Template(
-            Settings.builder().put("index.number_of_shards", "3")
-                .put("index.routing_partition_size", "2").build(), null, null), null, null, null,
-            null, new ComposableIndexTemplate.DataStreamTemplate(false, true));
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of("logs"),
+            new Template(
+                Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
+                null,
+                null
+            ),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+        );
         ComposableIndexTemplate finalTemplate = template;
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(finalTemplate)).actionGet());
-        Exception actualException = (Exception)e.getCause();
-        assertTrue(Throwables.getRootCause(actualException).getMessage()
-            .contains("must have routing required for partitioned index"));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                PutComposableIndexTemplateAction.INSTANCE,
+                new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(finalTemplate)
+            ).actionGet()
+        );
+        Exception actualException = (Exception) e.getCause();
+        assertTrue(Throwables.getRootCause(actualException).getMessage().contains("must have routing required for partitioned index"));
         /**
          * partition size with routing required
          */
-        template = new ComposableIndexTemplate(List.of("logs"), new Template(
-            Settings.builder().put("index.number_of_shards", "3")
-                .put("index.routing_partition_size", "2").build(), new CompressedXContent("{\n"
-            + "      \"_routing\": {\n"
-            + "        \"required\": true\n"
-            + "      }\n"
-            + "    }"), null), null, null, null,
-            null, new ComposableIndexTemplate.DataStreamTemplate(false, true));
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)).actionGet();
+        template = new ComposableIndexTemplate(
+            List.of("logs"),
+            new Template(
+                Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
+                new CompressedXContent("{\n" + "      \"_routing\": {\n" + "        \"required\": true\n" + "      }\n" + "    }"),
+                null
+            ),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+        );
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)
+        ).actionGet();
 
         /**
          * routing enable with allow custom routing false
          */
-          template = new ComposableIndexTemplate(List.of("logs"), new Template(
-            Settings.builder().put("index.number_of_shards", "3")
-                .put("index.routing_partition_size", "2").build(), new CompressedXContent("{\n"
-            + "      \"_routing\": {\n"
-            + "        \"required\": true\n"
-            + "      }\n"
-            + "    }"), null), null, null, null,
-            null, new ComposableIndexTemplate.DataStreamTemplate(false, null));
+        template = new ComposableIndexTemplate(
+            List.of("logs"),
+            new Template(
+                Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
+                new CompressedXContent("{\n" + "      \"_routing\": {\n" + "        \"required\": true\n" + "      }\n" + "    }"),
+                null
+            ),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, null)
+        );
         ComposableIndexTemplate finalTemplate1 = template;
-        e = expectThrows(IllegalArgumentException.class,
-            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(finalTemplate1)).actionGet());
-          actualException = (Exception)e.getCause();
-        assertTrue(Throwables.getRootCause(actualException).getMessage()
-            .contains("allow_custom_routing within data_stream field must be true when custom routing is enabled"));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                PutComposableIndexTemplateAction.INSTANCE,
+                new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(finalTemplate1)
+            ).actionGet()
+        );
+        actualException = (Exception) e.getCause();
+        assertTrue(
+            Throwables.getRootCause(actualException)
+                .getMessage()
+                .contains("allow_custom_routing within data_stream field must be true when custom routing is enabled")
+        );
     }
-
 
     public void testSearchWithRouting() throws IOException, ExecutionException, InterruptedException {
         /**
          * partition size with routing required
          */
-        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of("my-logs"), new Template(
-            Settings.builder().put("index.number_of_shards", "10").put("index.number_of_routing_shards", "10")
-                .put("index.routing_partition_size", "4").build(), new CompressedXContent("{\n"
-            + "      \"_routing\": {\n"
-            + "        \"required\": true\n"
-            + "      }\n"
-            + "    }"), null), null, null, null,
-            null, new ComposableIndexTemplate.DataStreamTemplate(false, true));
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)).actionGet();
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of("my-logs"),
+            new Template(
+                Settings.builder()
+                    .put("index.number_of_shards", "10")
+                    .put("index.number_of_routing_shards", "10")
+                    .put("index.routing_partition_size", "4")
+                    .build(),
+                new CompressedXContent("{\n" + "      \"_routing\": {\n" + "        \"required\": true\n" + "      }\n" + "    }"),
+                null
+            ),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
+        );
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)
+        ).actionGet();
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("my-logs");
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         SearchRequest searchRequest = new SearchRequest("my-logs").routing("123");

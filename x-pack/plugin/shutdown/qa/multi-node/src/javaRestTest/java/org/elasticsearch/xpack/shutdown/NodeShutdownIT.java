@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -47,7 +46,6 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void checkCRUD(String type, String allocationDelay) throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
 
         // Ensure if we do a GET before the cluster metadata is set up, we don't get an error
@@ -83,7 +81,6 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private void checkPutShutdownIdempotency(String type) throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
 
         // PUT the shutdown once
@@ -120,7 +117,6 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void checkTypeChange(String fromType, String toType) throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         String type = fromType;
 
@@ -153,7 +149,6 @@ public class NodeShutdownIT extends ESRestTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testAllocationPreventedForRemoval() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
@@ -200,7 +195,6 @@ public class NodeShutdownIT extends ESRestTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testShardsMoveOffRemovingNode() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
 
         final String indexName = "test-idx";
@@ -252,7 +246,6 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     public void testShardsCanBeAllocatedAfterShutdownDeleted() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
@@ -275,7 +268,6 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     public void testStalledShardMigrationProperlyDetected() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         int numberOfShards = randomIntBetween(1,5);
 
@@ -328,7 +320,6 @@ public class NodeShutdownIT extends ESRestTestCase {
      * Ensures that attempting to delete the status of a node that is not registered for shutdown gives a 404 response code.
      */
     public void testDeleteNodeNotRegisteredForShutdown() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         Request deleteReq = new Request("DELETE", "_nodes/this-node-doesnt-exist/shutdown");
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(deleteReq));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(404));

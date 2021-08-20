@@ -768,7 +768,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         UpdatableLicenseState xPackLicenseState = new UpdatableLicenseState(SECURITY_ENABLED_SETTINGS);
         // these licenses don't allow custom role providers
         xPackLicenseState.update(randomFrom(OperationMode.BASIC, OperationMode.GOLD, OperationMode.STANDARD), true,
-            Long.MAX_VALUE, null);
+            Long.MAX_VALUE);
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
@@ -794,7 +794,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
         // these licenses allow custom role providers
         xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.ENTERPRISE, OperationMode.TRIAL), true,
-            Long.MAX_VALUE, null);
+            Long.MAX_VALUE);
         roleNames = Sets.newHashSet("roleA");
         future = new PlainActionFuture<>();
         compositeRolesStore.roles(roleNames, future);
@@ -812,7 +812,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ApiKeyService.class), mock(ServiceAccountService.class),
             documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
         xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.ENTERPRISE, OperationMode.TRIAL), false,
-            Long.MAX_VALUE, null);
+            Long.MAX_VALUE);
         roleNames = Sets.newHashSet("roleA");
         future = new PlainActionFuture<>();
         compositeRolesStore.roles(roleNames, future);

@@ -94,6 +94,9 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.reso
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -279,6 +282,15 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         MetadataCreateIndexService.validateSplitIndex(clusterState, "source", "target",
             Settings.builder().put("index.number_of_shards", targetShards).build());
+    }
+
+    public void testValidateNoCustomPath() {
+        Settings indexSettings = Settings.builder().put(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey(), "some/path").build();
+        List<String> validationErrors = MetadataCreateIndexService.validateNoCustomPath(indexSettings);
+        assertThat(validationErrors, contains(containsString("per-index custom data path")));
+
+        List<String> noErrors = MetadataCreateIndexService.validateNoCustomPath(Settings.EMPTY);
+        assertThat(noErrors, empty());
     }
 
     public void testPrepareResizeIndexSettings() {

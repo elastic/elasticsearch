@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -50,7 +49,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             },
             null, new String[] { "*" },
             MetadataUtils.DEFAULT_RESERVED_METADATA, Collections.emptyMap());
-    public static final Role SUPERUSER_ROLE = Role.builder(SUPERUSER_ROLE_DESCRIPTOR, null).build();
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
 
     private static Map<String, RoleDescriptor> initializeReservedRoles() {
@@ -273,7 +271,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("logstash_admin", new RoleDescriptor("logstash_admin", new String[] {"manage_logstash_pipelines"},
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".logstash*")
-                                .privileges("create", "delete", "index", "manage", "read").build() },
+                                .privileges("create", "delete", "index", "manage", "read")
+                                .build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("rollup_user", new RoleDescriptor("rollup_user", new String[] { "monitor_rollup" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))

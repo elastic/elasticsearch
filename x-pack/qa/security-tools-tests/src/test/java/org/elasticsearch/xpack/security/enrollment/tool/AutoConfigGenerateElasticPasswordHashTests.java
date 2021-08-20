@@ -35,6 +35,7 @@ import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTO
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.is;
 
@@ -107,8 +108,8 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
         keyStoreWrapper.decrypt(new char[0]);
         // set a random password so that we fail to decrypt it in GenerateElasticPasswordHash#execute
         keyStoreWrapper.save(env.configFile(), randomAlphaOfLength(16).toCharArray());
-        execute();
+        UserException e = expectThrows(UserException.class, this::execute);
+        assertThat(e.getMessage(), equalTo("Failed to generate a password for the elastic user"));
         assertThat(terminal.getOutput(), is(emptyString()));
-        assertThat(terminal.getErrorOutput(), containsString("Provided keystore password was incorrect"));
     }
 }

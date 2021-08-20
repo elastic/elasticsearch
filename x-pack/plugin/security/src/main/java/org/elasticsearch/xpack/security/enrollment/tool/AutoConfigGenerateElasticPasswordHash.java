@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.security.enrollment.tool;
 
 import joptsimple.OptionSet;
 
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
@@ -55,8 +57,7 @@ public class AutoConfigGenerateElasticPasswordHash extends KeyStoreAwareCommand 
             nodeKeystore.save(env.configFile(), new char[0]);
             terminal.print(Terminal.Verbosity.NORMAL, elasticPassword.toString());
         } catch (Exception e) {
-            // Write nothing to stdout, so that the caller knows we failed to generate or set the password in the keystore
-            terminal.errorPrintln(e.getMessage());
+            throw new UserException(ExitCodes.CANT_CREATE, "Failed to generate a password for the elastic user", e);
         }
     }
 }

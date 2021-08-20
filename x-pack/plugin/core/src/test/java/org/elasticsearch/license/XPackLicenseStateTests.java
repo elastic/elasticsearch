@@ -41,7 +41,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     /** Creates a license state with the given license type and active state, and checks the given method returns expected. */
     void assertAllowed(OperationMode mode, boolean active, Predicate<XPackLicenseState> predicate, boolean expected) {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(mode, active, Long.MAX_VALUE);
+        licenseState.update(mode, active, null);
         assertEquals(expected, predicate.test(licenseState));
     }
 
@@ -91,7 +91,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityStandard() {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
-        licenseState.update(STANDARD, true, Long.MAX_VALUE);
+        licenseState.update(STANDARD, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
@@ -101,7 +101,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityStandardExpired() {
         XPackLicenseState licenseState = new XPackLicenseState( () -> 0);
-        licenseState.update(STANDARD, false, Long.MAX_VALUE);
+        licenseState.update(STANDARD, false, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
@@ -111,7 +111,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityBasic() {
         XPackLicenseState licenseState = new XPackLicenseState( () -> 0);
-        licenseState.update(BASIC, true, Long.MAX_VALUE);
+        licenseState.update(BASIC, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
@@ -123,7 +123,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityGold() {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
-        licenseState.update(GOLD, true, Long.MAX_VALUE);
+        licenseState.update(GOLD, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
@@ -133,7 +133,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityGoldExpired() {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
-        licenseState.update(GOLD, false, Long.MAX_VALUE);
+        licenseState.update(GOLD, false, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
@@ -143,7 +143,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityPlatinum() {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
-        licenseState.update(PLATINUM, true, Long.MAX_VALUE);
+        licenseState.update(PLATINUM, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
@@ -153,7 +153,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityPlatinumExpired() {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
-        licenseState.update(PLATINUM, false, Long.MAX_VALUE);
+        licenseState.update(PLATINUM, false, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
@@ -320,48 +320,48 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testJdbcBasic() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(BASIC, true, Long.MAX_VALUE);
+        licenseState.update(BASIC, true, null);
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
     public void testJdbcStandard() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(STANDARD, true, Long.MAX_VALUE);
+        licenseState.update(STANDARD, true, null);
 
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
     public void testJdbcStandardExpired() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(STANDARD, false, Long.MAX_VALUE);
+        licenseState.update(STANDARD, false, null);
 
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
     public void testJdbcGold() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(GOLD, true, Long.MAX_VALUE);
+        licenseState.update(GOLD, true, null);
 
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
     public void testJdbcGoldExpired() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(GOLD, false, Long.MAX_VALUE);
+        licenseState.update(GOLD, false, null);
 
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
     public void testJdbcPlatinum() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(PLATINUM, true, Long.MAX_VALUE);
+        licenseState.update(PLATINUM, true, null);
 
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(true));
     }
 
     public void testJdbcPlatinumExpired() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(PLATINUM, false, Long.MAX_VALUE);
+        licenseState.update(PLATINUM, false, null);
 
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
@@ -381,56 +381,56 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testCcrBasic() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(BASIC, true, Long.MAX_VALUE);
+        state.update(BASIC, true, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrBasicExpired() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(BASIC, false, Long.MAX_VALUE);
+        state.update(BASIC, false, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrStandard() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(STANDARD, true, Long.MAX_VALUE);
+        state.update(STANDARD, true, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrStandardExpired() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(STANDARD, false, Long.MAX_VALUE);
+        state.update(STANDARD, false, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrGold() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(GOLD, true, Long.MAX_VALUE);
+        state.update(GOLD, true, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrGoldExpired() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(GOLD, false, Long.MAX_VALUE);
+        state.update(GOLD, false, null);
 
         assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
     }
 
     public void testCcrPlatinum() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(PLATINUM, true, Long.MAX_VALUE);
+        state.update(PLATINUM, true, null);
 
         assertTrue(state.checkFeature(XPackLicenseState.Feature.CCR));
     }
 
     public void testCcrPlatinumExpired() {
         final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(PLATINUM, false, Long.MAX_VALUE);
+        state.update(PLATINUM, false, null);
 
         assertFalse(state.checkFeature(XPackLicenseState.Feature.CCR));
     }

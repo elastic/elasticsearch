@@ -115,7 +115,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-        licenseState.update(License.OperationMode.PLATINUM, true, Long.MAX_VALUE);
+        licenseState.update(License.OperationMode.PLATINUM, true, null);
 
         final Clock clock = Clock.systemUTC();
 

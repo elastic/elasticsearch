@@ -379,13 +379,13 @@ public class XPackLicenseState {
         /** True if the license is active, or false if it is expired. */
         final boolean active;
 
-        /** The current expiration date of the license; Long.MAX_VALUE if not available yet. */
-        final long licenseExpiryDate;
+        /** A warning to be emitted on license checks about the license expiring soon. */
+        final String expiryWarning;
 
-        Status(OperationMode mode, boolean active, long licenseExpiryDate) {
+        Status(OperationMode mode, boolean active, String expiryWarning) {
             this.mode = mode;
             this.active = active;
-            this.licenseExpiryDate = licenseExpiryDate;
+            this.expiryWarning = expiryWarning;
         }
     }
 
@@ -404,7 +404,7 @@ public class XPackLicenseState {
     // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
     // reads. Methods should use `executeAgainstStatus` and `checkAgainstStatus` to ensure that the status
     // is only read once.
-    private volatile Status status = new Status(OperationMode.TRIAL, true, Long.MAX_VALUE);
+    private volatile Status status = new Status(OperationMode.TRIAL, true, null);
 
     public XPackLicenseState(LongSupplier epochMillisProvider) {
         this.listeners = new CopyOnWriteArrayList<>();
@@ -439,10 +439,10 @@ public class XPackLicenseState {
      *
      * @param mode   The mode (type) of the current license.
      * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
-     * @param expirationDate Expiration date of the current license.
+     * @param expiryWarning Warning to emit on license checks about the license expiring soon.
      */
-    protected void update(OperationMode mode, boolean active, long expirationDate) {
-        status = new Status(mode, active, expirationDate);
+    protected void update(OperationMode mode, boolean active, String expiryWarning) {
+        status = new Status(mode, active, expiryWarning);
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
@@ -518,7 +518,7 @@ public class XPackLicenseState {
     }
 
     private void checkForExpiry(LicensedFeature feature) {
-        final long licenseExpiryDate = getLicenseExpiryDate();
+        /*final long licenseExpiryDate = getLicenseExpiryDate();
         // TODO: this should use epochMillisProvider to avoid a system call + testability
         final long diff = licenseExpiryDate - System.currentTimeMillis();
         if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
@@ -529,6 +529,10 @@ public class XPackLicenseState {
                     String.format(Locale.ROOT, "expired on [%s]", LicenseService.DATE_FORMATTER.formatMillis(licenseExpiryDate)));
             HeaderWarning.addWarning("Your license {}. " +
                 "Contact your administrator or update your license for continued use of features", expiryMessage);
+        }*/
+        String warning = status.expiryWarning;
+        if (warning != null) {
+            HeaderWarning.addWarning(warning);
         }
     }
 
@@ -610,11 +614,6 @@ public class XPackLicenseState {
             }
             return isAllowedByOperationMode(status.mode, minimumMode);
         });
-    }
-
-    /** Return the current license expiration date. */
-    public long getLicenseExpiryDate() {
-        return executeAgainstStatus(status -> status.licenseExpiryDate);
     }
 
     /**

@@ -210,49 +210,6 @@ public class LicensingTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testWarningHeader() throws Exception {
-        License.OperationMode mode = randomFrom(License.OperationMode.PLATINUM, License.OperationMode.ENTERPRISE);
-        enableLicensing(mode);
-
-        // We test with "user_a" (that has a DLS-enabled role), so that we exercise licensed functionality and generate the warning header.
-        // Functionality under a basic (or SSPL) license does not necessarily generate expiration warnings
-        Request request = new Request("GET", "/_security/_authenticate");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", basicAuthHeaderValue("user_a", new SecureString("passwd".toCharArray())));
-        request.setOptions(options);
-        Response response = getRestClient().performRequest(request);
-        List<String> beforeWarningHeaders = getWarningHeaders(response.getHeaders());
-        assertTrue(beforeWarningHeaders.isEmpty());
-        long now = System.currentTimeMillis();
-
-        long newExpirationDate = now + LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() - 1;
-        setLicensingExpirationDate(mode, newExpirationDate);
-        response = getRestClient().performRequest(request);
-        List<String> afterWarningHeaders = getWarningHeaders(response.getHeaders());
-        assertThat(afterWarningHeaders, Matchers.hasSize(1));
-        assertThat(afterWarningHeaders.get(0), Matchers.containsString("Your license will expire in [6] days. " +
-            "Contact your administrator or update your license for continued use of features"));
-
-        newExpirationDate = now + 300000;
-        setLicensingExpirationDate(mode, newExpirationDate);
-        response = getRestClient().performRequest(request);
-        afterWarningHeaders= getWarningHeaders(response.getHeaders());
-        assertThat(afterWarningHeaders, Matchers.hasSize(1));
-        assertThat(afterWarningHeaders.get(0), Matchers.containsString("Your license expires today. " +
-            "Contact your administrator or update your license for continued use of features"));
-
-        newExpirationDate = now - 300000;
-        setLicensingExpirationDate(mode, newExpirationDate);
-        response = getRestClient().performRequest(request);
-        afterWarningHeaders= getWarningHeaders(response.getHeaders());
-        assertThat(afterWarningHeaders, Matchers.hasSize(1));
-        long finalNewExpirationDate = newExpirationDate;
-        String expiredMessage = String.format(Locale.ROOT, "Your license expired on [%s]. ",
-            LicenseService.DATE_FORMATTER.formatMillis(finalNewExpirationDate));
-        assertThat(afterWarningHeaders.get(0), Matchers.containsString(expiredMessage +
-            "Contact your administrator or update your license for continued use of features"));
-    }
-
     public void testNoWarningHeaderWhenAuthenticationFailed() throws Exception {
         Request request = new Request("GET", "/_security/user");
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -263,7 +220,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             License.OperationMode.ENTERPRISE, License.OperationMode.STANDARD);
         long now = System.currentTimeMillis();
         long newExpirationDate = now + LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() - 1;
-        setLicensingExpirationDate(mode, newExpirationDate);
+        setLicensingExpirationDate(mode, "warning: license will expire soon");
         Header[] headers = null;
         try {
             getRestClient().performRequest(request);
@@ -296,7 +253,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
             // apply the disabling of the license once the cluster is stable
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(OperationMode.BASIC, false, Long.MAX_VALUE);
+                licenseState.update(OperationMode.BASIC, false, null);
             }
         }, 30L, TimeUnit.SECONDS);
     }
@@ -308,7 +265,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             // first update the license so we can execute monitoring actions
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, Long.MAX_VALUE);
+                licenseState.update(operationMode, true, null);
             }
 
             ensureGreen();
@@ -318,15 +275,15 @@ public class LicensingTests extends SecurityIntegTestCase {
             // re-apply the update in case any node received an updated cluster state that triggered the license state
             // to change
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, Long.MAX_VALUE);
+                licenseState.update(operationMode, true, null);
             }
         }, 30L, TimeUnit.SECONDS);
     }
 
-    private void setLicensingExpirationDate(License.OperationMode operationMode, long expirationDate) throws Exception {
+    private void setLicensingExpirationDate(License.OperationMode operationMode, String expiryWarning) throws Exception {
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, expirationDate);
+                licenseState.update(operationMode, true, expiryWarning);
             }
 
             ensureGreen();

@@ -508,7 +508,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         // quick check if a rewrite is required, if none found just return the original
         // a failing quick check, does not mean a rewrite is necessary
         if (transformConfig.getVersion() != null
-            && transformConfig.getVersion().onOrAfter(Version.V_7_11_0)
+            && transformConfig.getVersion().onOrAfter(Version.V_7_15_0)
             && (transformConfig.getPivotConfig() == null || transformConfig.getPivotConfig().getMaxPageSearchSize() == null)) {
             return transformConfig;
         }
@@ -539,7 +539,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     maxPageSearchSize,
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
-                    builder.getSettings().getInterimResults()
+                    builder.getSettings().getAlignCheckpoints()
                 )
             );
         }
@@ -551,18 +551,18 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getMaxPageSearchSize(),
                     builder.getSettings().getDocsPerSecond(),
                     true,
-                    builder.getSettings().getInterimResults())
+                    builder.getSettings().getAlignCheckpoints())
             );
         }
 
-        // 3. set interim_results to true for transforms < 7.15 to keep BWC
-        if (builder.getVersion() != null && builder.getVersion().before(Version.CURRENT)) {  // TODO: 7.15
+        // 3. set align_checkpoints to false for transforms < 7.15 to keep BWC
+        if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_15_0)) {
             builder.setSettings(
                 new SettingsConfig(
                     builder.getSettings().getMaxPageSearchSize(),
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
-                    true)
+                    false)
             );
         }
 

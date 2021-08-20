@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.security.action.enrollment;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -25,10 +25,11 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentRequest;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentResponse;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslSettingsLoader;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -48,9 +49,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportKibanaEnrollmentActionTests extends ESTestCase {
-    private List<ChangePasswordRequest> changePasswordRequests;
+    private List<CreateServiceAccountTokenRequest> createServiceAccountTokenRequests;
     private TransportKibanaEnrollmentAction action;
     private Client client;
+    private static final String TOKEN_NAME = TransportKibanaEnrollmentAction.getTokenName();
+    private static final SecureString TOKEN_VALUE = new SecureString("token-value".toCharArray());
 
     @BeforeClass
     public static void muteInFips(){
@@ -58,7 +61,7 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
     }
 
     @Before @SuppressWarnings("unchecked") public void setup() throws Exception {
-        changePasswordRequests = new ArrayList<>();
+        createServiceAccountTokenRequests = new ArrayList<>();
         final Environment env = mock(Environment.class);
         final Path tempDir = createTempDir();
         final Path httpCaPath = tempDir.resolve("httpCa.p12");
@@ -72,7 +75,7 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
             .build();
         when(env.settings()).thenReturn(settings);
         final SSLService sslService = mock(SSLService.class);
-        final SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
+        final SslConfiguration sslConfiguration = SslSettingsLoader.load(settings, null, env);
         when(sslService.getHttpTransportSSLConfiguration()).thenReturn(sslConfiguration);
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);
@@ -80,12 +83,13 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocation -> {
-            ChangePasswordRequest changePasswordRequest = (ChangePasswordRequest) invocation.getArguments()[1];
-            changePasswordRequests.add(changePasswordRequest);
-            ActionListener<ActionResponse.Empty> listener = (ActionListener) invocation.getArguments()[2];
-            listener.onResponse(ActionResponse.Empty.INSTANCE);
+            CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+                (CreateServiceAccountTokenRequest) invocation.getArguments()[1];
+            createServiceAccountTokenRequests.add(createServiceAccountTokenRequest);
+            ActionListener<CreateServiceAccountTokenResponse> listener = (ActionListener) invocation.getArguments()[2];
+            listener.onResponse(CreateServiceAccountTokenResponse.created(TOKEN_NAME, TOKEN_VALUE));
             return null;
-        }).when(client).execute(eq(ChangePasswordAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(CreateServiceAccountTokenAction.INSTANCE), any(), any());
 
         final TransportService transportService = new TransportService(Settings.EMPTY,
             mock(Transport.class),
@@ -94,33 +98,41 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
             x -> null,
             null,
             Collections.emptySet());
-        action = new TransportKibanaEnrollmentAction(transportService, client, sslService, env, mock(ActionFilters.class));
+        action = new TransportKibanaEnrollmentAction(transportService, client, sslService, mock(ActionFilters.class));
     }
 
     public void testKibanaEnrollment() {
+        assertThat(TOKEN_NAME, startsWith("enroll-process-token-"));
         final KibanaEnrollmentRequest request = new KibanaEnrollmentRequest();
         final PlainActionFuture<KibanaEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         final KibanaEnrollmentResponse response = future.actionGet();
-        assertThat(response.getHttpCa(), startsWith("MIIDSjCCAjKgAwIBAgIVALCgZXvbceUrjJaQMheDCX0kXnRJMA0GCSqGSIb3DQEBCwUAMDQxMjAw" +
-            "BgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMB4XDTIxMDQyODEyNTY0MVoXDTI0MDQyNzEyNTY0MVowNDEyMDAGA1UEA" +
-            "xMpRWxhc3RpYyBDZXJ0aWZpY2F0ZSBUb29sIEF1dG9nZW5lcmF0ZWQgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCCJbOU4JvxDD/F"));
-        assertNotNull(response.getPassword());
-        assertThat(changePasswordRequests.size(), equalTo(1));
+        assertThat(
+            response.getHttpCa(),
+            startsWith(
+                "MIIDSjCCAjKgAwIBAgIVALCgZXvbceUrjJaQMheDCX0kXnRJMA0GCSqGSIb3DQEBCwUAMDQxMjAw" +
+                    "BgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMB4XDTIx" +
+                    "MDQyODEyNTY0MVoXDTI0MDQyNzEyNTY0MVowNDEyMDAGA1UEAxMpRWxhc3RpYyBDZXJ0aWZp" +
+                    "Y2F0ZSBUb29sIEF1dG9nZW5lcmF0ZWQgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK" +
+                    "AoIBAQCCJbOU4JvxDD/F"
+            )
+        );
+        assertThat(response.getTokenValue(), equalTo(TOKEN_VALUE));
+        assertThat(createServiceAccountTokenRequests.size(), equalTo(1));
     }
 
-    public void testKibanaEnrollmentFailedPasswordChange() {
+    public void testKibanaEnrollmentFailedTokenCreation() {
         // Override change password mock
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) invocation.getArguments()[2];
-            listener.onFailure(new ValidationException());
+            ActionListener<CreateServiceAccountTokenResponse> listener = (ActionListener) invocation.getArguments()[2];
+            listener.onFailure(new IllegalStateException());
             return null;
-        }).when(client).execute(eq(ChangePasswordAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(CreateServiceAccountTokenAction.INSTANCE), any(), any());
         final KibanaEnrollmentRequest request = new KibanaEnrollmentRequest();
         final PlainActionFuture<KibanaEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
-        assertThat(e.getDetailedMessage(), containsString("Failed to set the password for user [kibana_system]"));
+        assertThat(e.getDetailedMessage(), containsString("Failed to create token for the [elastic/kibana] service account"));
     }
 }

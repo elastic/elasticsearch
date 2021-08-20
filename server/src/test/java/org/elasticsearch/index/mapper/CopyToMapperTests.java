@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
@@ -642,6 +643,31 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             "Cannot copy field [date] to fields [date_copy]. Copy-to currently only works for value-type fields, not objects.",
             ex.getMessage()
         );
+    }
+
+    public void testCopyToWithNullValue() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(topMapping(b ->
+            b.startObject("properties")
+                .startObject("keyword_copy")
+                    .field("type", "keyword")
+                    .field("null_value", "default-value")
+                .endObject()
+                .startObject("keyword")
+                    .field("type", "keyword")
+                    .array("copy_to", "keyword_copy")
+                .endObject()
+            .endObject()));
+
+        BytesReference json = BytesReference.bytes(jsonBuilder().startObject()
+                .nullField("keyword")
+            .endObject());
+
+        LuceneDocument document = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME,
+            "1", json, XContentType.JSON)).rootDoc();
+        assertEquals(0, document.getFields("keyword").length);
+
+        IndexableField[] fields = document.getFields("keyword_copy");
+        assertEquals(2, fields.length);
     }
 
     public void testCopyToGeoPoint() throws Exception {

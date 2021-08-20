@@ -1276,7 +1276,8 @@ Last time JVM statistics were refreshed.
 
 `uptime`::
 (<<time-units,time value>>)
-JVM uptime.
+Human-readable JVM uptime. Only returned if the
+<<_human_readable_output,`human`>> query parameter is `true`.
 
 `uptime_in_millis`::
 (integer)

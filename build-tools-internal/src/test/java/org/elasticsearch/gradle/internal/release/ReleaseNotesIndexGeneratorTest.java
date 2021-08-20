@@ -28,7 +28,7 @@ public class ReleaseNotesIndexGeneratorTest {
      * Check that a release notes index can be generated.
      */
     @Test
-    public void generateFile() throws Exception {
+    public void generateFile_rendersCorrectMarkup() throws Exception {
         // given:
         final Set<QualifiedVersion> versions = Stream.of(
             "8.0.0-alpha1",

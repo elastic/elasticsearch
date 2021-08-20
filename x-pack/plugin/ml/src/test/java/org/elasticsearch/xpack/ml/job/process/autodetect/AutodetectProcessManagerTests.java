@@ -591,7 +591,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessManager manager = createSpyManager();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         AtomicBoolean markCalled = new AtomicBoolean();
-        JobTask jobTask = new JobTask("foo", 0, "type", "action", TaskId.EMPTY_TASK_ID, Map.of(), licenseState) {
+        JobTask jobTask = new JobTask("foo", 0, "type", "action", TaskId.EMPTY_TASK_ID, org.elasticsearch.core.Map.of(), licenseState) {
             @Override
             protected void doMarkAsCompleted() {
                 markCalled.set(true);

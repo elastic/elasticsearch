@@ -85,7 +85,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertArrayEquals(expectedIndices, request.indices());
         assertThat(request.settings().get(settingsKey), anyOf(acceptableValues.stream().map(e -> equalTo(e)).collect(Collectors.toList())));
         if (assertOnlyKeyInSettings) {
-            assertEquals(1, request.settings().size());
+            assertEquals(2, request.settings().size());
         }
     }
 

@@ -261,7 +261,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("Parameter [dimension] cannot be set"));
     }
 
-    protected <T> void assertMetricType(String metricType, Function<T, Enum> checker)
+    protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker)
         throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

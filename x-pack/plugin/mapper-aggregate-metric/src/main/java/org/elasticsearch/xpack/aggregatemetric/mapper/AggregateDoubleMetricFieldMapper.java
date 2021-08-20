@@ -652,8 +652,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault)
-            .metric(metricType != null ? metricType.name() : null)
-            .init(this);
+        return new Builder(simpleName(), ignoreMalformedByDefault).metric(metricType != null ? metricType.name() : null).init(this);
     }
 }

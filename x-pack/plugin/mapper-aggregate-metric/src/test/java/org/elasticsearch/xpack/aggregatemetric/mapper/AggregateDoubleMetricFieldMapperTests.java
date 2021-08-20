@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.hamcrest.Matchers;
@@ -553,8 +554,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("Field [metric] of type [aggregate_metric_double] can't be used in multifields"));
     }
 
-    protected <T> void assertMetricType(String metricType, Function<T, Enum> checker)
-        throws IOException {
+    protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker) throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_metric", metricType);

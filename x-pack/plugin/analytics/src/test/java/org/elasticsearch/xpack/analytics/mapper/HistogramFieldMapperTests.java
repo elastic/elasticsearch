@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
@@ -325,7 +326,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("Field [hist] of type [histogram] can't be used in multifields"));
     }
 
-    protected <T> void assertMetricType(String metricType, Function<T, Enum> checker)
+    protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker)
         throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

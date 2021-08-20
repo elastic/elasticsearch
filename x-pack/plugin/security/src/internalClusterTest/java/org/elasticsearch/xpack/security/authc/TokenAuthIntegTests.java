@@ -65,6 +65,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
@@ -217,22 +218,71 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         // Now the documents are deleted, try to invalidate the access token and refresh token again
         InvalidateTokenResponse invalidateAccessTokenResponse = securityClient.prepareInvalidateToken(accessToken)
-            .setType(randomFrom(InvalidateTokenRequest.Type.values()))
+            .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
             .execute()
             .actionGet();
         assertThat(invalidateAccessTokenResponse.getResult().getInvalidatedTokens(), empty());
         assertThat(invalidateAccessTokenResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
         assertThat(invalidateAccessTokenResponse.getResult().getErrors(), empty());
+
+        // Weird testing behaviour ahead...
+        // invalidating by access token (above) is a Get, but invalidating by refresh token (below) is a Search
+        // In a multi node cluster, in a small % of cases, the search might find a document that has been deleted but not yet refreshed
+        // in that node's shard.
+        // Our assertion, therefore, is that an attempt to invalidate the refresh token must not actually invalidate
+        // anything (concurrency controls must prevent that), nor may return any errors,
+        // but it might _temporarily_ find an "already deleted" token.
         InvalidateTokenResponse invalidateRefreshTokenResponse = securityClient.prepareInvalidateToken(refreshToken)
             .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
             .execute()
             .actionGet();
         assertThat(invalidateRefreshTokenResponse.getResult().getInvalidatedTokens(), empty());
         assertThat(invalidateRefreshTokenResponse.getResult().getPreviouslyInvalidatedTokens(), empty());
-        assertThat(invalidateRefreshTokenResponse.getResult().getErrors(), empty());
+
+        // 99% of the time, this will already be empty, but if not ensure it goes to empty within the allowed timeframe
+        if (false == invalidateRefreshTokenResponse.getResult().getErrors().isEmpty()) {
+            assertBusy(() -> {
+                InvalidateTokenResponse newResponse = securityClient.prepareInvalidateToken(refreshToken)
+                    .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
+                    .execute()
+                    .actionGet();
+                assertThat(newResponse.getResult().getErrors(), empty());
+            });
+        }
     }
 
-    public void testInvalidateAllTokensForUser() throws Exception{
+    public void testAccessTokenAndRefreshTokenCanBeInvalidatedIndependently() {
+        CreateTokenResponse response = securityClient().prepareCreateToken().setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
+        final InvalidateTokenResponse response1, response2;
+        if (randomBoolean()) {
+            response1 = securityClient().prepareInvalidateToken(response.getTokenString())
+                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+                .execute().actionGet();
+            response2 = securityClient().prepareInvalidateToken(response.getRefreshToken())
+                .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
+                .execute().actionGet();
+        } else {
+            response1 = securityClient().prepareInvalidateToken(response.getRefreshToken())
+                .setType(InvalidateTokenRequest.Type.REFRESH_TOKEN)
+                .execute().actionGet();
+            response2 = securityClient().prepareInvalidateToken(response.getTokenString())
+                .setType(InvalidateTokenRequest.Type.ACCESS_TOKEN)
+                .execute().actionGet();
+        }
+
+        assertThat(response1.getResult().getInvalidatedTokens(), hasSize(1));
+        assertThat(response1.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(response1.getResult().getErrors(), empty());
+
+        assertThat(response2.getResult().getInvalidatedTokens(), hasSize(1));
+        assertThat(response2.getResult().getPreviouslyInvalidatedTokens(), empty());
+        assertThat(response2.getResult().getErrors(), empty());
+    }
+
+    public void testInvalidateAllTokensForUser() throws Exception {
         final int numOfRequests = randomIntBetween(5, 10);
         for (int i = 0; i < numOfRequests; i++) {
             securityClient().prepareCreateToken()

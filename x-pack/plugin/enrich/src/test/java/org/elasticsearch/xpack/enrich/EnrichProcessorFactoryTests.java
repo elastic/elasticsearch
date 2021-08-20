@@ -153,20 +153,22 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testUnsupportedPolicy() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy("unsupported", null, List.of("source_index"), "my_key", enrichValues);
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
-        factory.metadata = createMetadata("majestic", policy);
+        try (Client client = new NoOpClient(this.getClass().getSimpleName() + "TestClient")) {
+            EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService);
+            factory.metadata = createMetadata("majestic", policy);
 
-        Map<String, Object> config = new HashMap<>();
-        config.put("policy_name", "majestic");
-        config.put("field", "host");
-        config.put("target_field", "entry");
-        boolean keyIgnoreMissing = randomBoolean();
-        if (keyIgnoreMissing || randomBoolean()) {
-            config.put("ignore_missing", keyIgnoreMissing);
+            Map<String, Object> config = new HashMap<>();
+            config.put("policy_name", "majestic");
+            config.put("field", "host");
+            config.put("target_field", "entry");
+            boolean keyIgnoreMissing = randomBoolean();
+            if (keyIgnoreMissing || randomBoolean()) {
+                config.put("ignore_missing", keyIgnoreMissing);
+            }
+
+            Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
+            assertThat(e.getMessage(), equalTo("unsupported policy type [unsupported]"));
         }
-
-        Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
-        assertThat(e.getMessage(), equalTo("unsupported policy type [unsupported]"));
     }
 
     public void testCompactEnrichValuesFormat() throws Exception {

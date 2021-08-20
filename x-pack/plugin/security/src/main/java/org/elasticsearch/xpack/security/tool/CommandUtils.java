@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.security.tool;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.security.support.Validation;
-
 import java.security.SecureRandom;
 
 public class CommandUtils {
@@ -18,7 +15,7 @@ public class CommandUtils {
     static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     /**
-     * Generates a password of a given length from a set of predefined allowed chars. Callers need to zero fill the char array.
+     * Generates a password of a given length from a set of predefined allowed chars.
      * @param passwordLength the length of the password
      * @return the char array with the password
      */

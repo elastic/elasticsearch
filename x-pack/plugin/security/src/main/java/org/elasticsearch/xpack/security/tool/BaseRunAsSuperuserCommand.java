@@ -15,7 +15,6 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -30,8 +29,6 @@ import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Path;
@@ -44,7 +41,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.tool.CommandLineHttpClient.createURL;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generateUsername;
 
@@ -195,10 +191,10 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     private void checkClusterHealthWithRetries(Environment env, Terminal terminal, String username, SecureString password, int retries,
                                                boolean force) throws Exception {
         CommandLineHttpClient client = clientFunction.apply(env);
-        final URL clusterHealthUrl = createURL(new URL(client.getDefaultURL()), "_cluster/health", "?pretty");
+        final URL clusterHealthUrl = CommandLineHttpClient.createURL(new URL(client.getDefaultURL()), "_cluster/health", "?pretty");
         final HttpResponse response;
         try {
-            response = client.execute("GET", clusterHealthUrl, username, password, () -> null, this::responseBuilder);
+            response = client.execute("GET", clusterHealthUrl, username, password, () -> null, CommandLineHttpClient::responseBuilder);
         } catch (Exception e) {
             throw new UserException(ExitCodes.UNAVAILABLE, "Failed to determine the health of the cluster. ", e);
         }
@@ -247,13 +243,6 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             }
             // else it is yellow or green so we can continue
         }
-    }
-
-    protected HttpResponse.HttpResponseBuilder responseBuilder(InputStream is) throws IOException {
-        final HttpResponse.HttpResponseBuilder httpResponseBuilder = new HttpResponse.HttpResponseBuilder();
-        final String responseBody = Streams.readFully(is).utf8ToString();
-        httpResponseBuilder.withResponseBody(responseBody);
-        return httpResponseBuilder;
     }
 
     /**

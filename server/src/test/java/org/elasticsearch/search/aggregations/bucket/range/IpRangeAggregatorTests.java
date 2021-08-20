@@ -50,6 +50,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
             : b == null ? m : a.compareTo(b);
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void testRanges() throws Exception {
         boolean v4 = randomBoolean();
         IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg").field("field");

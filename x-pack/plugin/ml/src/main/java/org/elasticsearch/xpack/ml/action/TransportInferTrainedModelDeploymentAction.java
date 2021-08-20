@@ -80,7 +80,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     @Override
     protected void taskOperation(InferTrainedModelDeploymentAction.Request request, TrainedModelDeploymentTask task,
                                  ActionListener<InferTrainedModelDeploymentAction.Response> listener) {
-        task.infer(request.getInput(), request.getTimeout(),
+        task.infer(request.getDocs().get(0), request.getTimeout(),
             ActionListener.wrap(
                 pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult)),
                 listener::onFailure)

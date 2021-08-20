@@ -434,7 +434,7 @@ public class SecurityTests extends ESTestCase {
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         licenseState.update(
             randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD),
-            true, Long.MAX_VALUE, null);
+            true, Long.MAX_VALUE);
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
     }
@@ -558,7 +558,7 @@ public class SecurityTests extends ESTestCase {
         threadContext.stashContext();
         licenseState.update(
             randomFrom(License.OperationMode.GOLD, License.OperationMode.BASIC),
-            true, Long.MAX_VALUE, null);
+            true, Long.MAX_VALUE);
         service.authenticate(request, ActionListener.wrap(result -> {
             assertTrue(completed.compareAndSet(false, true));
         }, e -> {

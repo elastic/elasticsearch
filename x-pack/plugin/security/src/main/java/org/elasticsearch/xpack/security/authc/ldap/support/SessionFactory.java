@@ -11,19 +11,19 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
@@ -151,11 +151,11 @@ public abstract class SessionFactory {
                     "] may not be used at the same time");
         } else if (verificationModeExists) {
             final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
-            final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
+            final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
             if (sslConfiguration == null) {
                 throw new IllegalStateException("cannot find SSL configuration for " + sslKey);
             }
-            if (sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
+            if (sslConfiguration.getVerificationMode().isHostnameVerificationEnabled()) {
                 options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
             }
         } else if (hostnameVerificationExists) {
@@ -192,9 +192,9 @@ public abstract class SessionFactory {
         SocketFactory socketFactory = null;
         if (ldapServers.ssl()) {
             final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
-            final SSLConfiguration ssl = clientSSLService.getSSLConfiguration(sslKey);
+            final SslConfiguration ssl = clientSSLService.getSSLConfiguration(sslKey);
             socketFactory = clientSSLService.sslSocketFactory(ssl);
-            if (ssl.verificationMode().isHostnameVerificationEnabled()) {
+            if (ssl.getVerificationMode().isHostnameVerificationEnabled()) {
                 logger.debug("using encryption for LDAP connections with hostname verification");
             } else {
                 logger.debug("using encryption for LDAP connections without hostname verification");

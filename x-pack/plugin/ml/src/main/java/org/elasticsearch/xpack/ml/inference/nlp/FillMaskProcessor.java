@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.util.ArrayList;
@@ -22,8 +23,8 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     private final BertRequestBuilder bertRequestBuilder;
 
-    FillMaskProcessor(BertTokenizer tokenizer, NlpTaskConfig config) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config);
+    FillMaskProcessor(BertTokenizer tokenizer, FillMaskConfig config) {
+        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config.getTokenizationParams().maxSequenceLength());
     }
 
     @Override
@@ -50,11 +51,10 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor() {
-        return (pyTorchResult) -> processResult(bertRequestBuilder.getTokenization(), pyTorchResult);
+        return (tokenization, pyTorchResult) -> processResult(tokenization, pyTorchResult);
     }
 
-    InferenceResults processResult(BertTokenizer.TokenizationResult tokenization,
-                                           PyTorchResult pyTorchResult) {
+    InferenceResults processResult(BertTokenizer.TokenizationResult tokenization, PyTorchResult pyTorchResult) {
 
         if (tokenization.getTokens().isEmpty()) {
             return new FillMaskResults(Collections.emptyList());

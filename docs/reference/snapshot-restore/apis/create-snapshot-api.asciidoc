@@ -79,15 +79,28 @@ Name of the repository to create a snapshot in.
 (Required, string)
 Name of the snapshot to create. This name must be unique in the snapshot repository.
 
+[[create-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request returns a response when the snapshot
+is complete. If `false`, the request returns a response when the snapshot
+initializes. Defaults to `false`.
+
 [role="child_attributes"]
 [[create-snapshot-api-request-body]]
 ==== {api-request-body-title}
 
+// Set an attribute so we can reuse these params with anchors
+:page-id: create-snapshot-api
+// tag::snapshot-config[]
 `ignore_unavailable`::
 (Optional, Boolean)
-If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
-+
-If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
+If `false`, the snapshot fails if any data stream or index in `indices` is
+missing or closed. If `true`, the snapshot ignores missing or closed data
+streams and indices. Defaults to `false`.
 
 `indices`::
 (Optional, string)
@@ -113,10 +126,8 @@ The global state includes:
 * {ilm-init} lifecycle policies
 * Data stored in system indices, such as Watches and task records (configurable via `feature_states`)
 --
-+
-IMPORTANT: By default, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<create-snapshot-api-partial,`partial`>> to `true`.
 
-[[create-snapshot-api-feature-states]]
+[id="{page-id}-feature-states"]
 `feature_states`::
 (Optional, array of strings)
 A list of feature states to be included in this snapshot. A list of features
@@ -130,24 +141,19 @@ By default, all available feature states will be included in the snapshot if
 `include_global_state` is `true`, or no feature states if `include_global_state`
 is `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
-
 `metadata`::
-(Optional, string)
+(Optional, object)
 Attaches arbitrary metadata to the snapshot, such as a record of who took the snapshot, why it was taken, or any other useful data. Metadata must be less than 1024 bytes.
 
-[[create-snapshot-api-partial]]
+[id="{page-id}-partial"]
 `partial`::
 (Optional, Boolean)
 If `false`, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. Defaults to `false`.
 +
 If `true`, allows taking a partial snapshot of indices with unavailable shards.
-
-`wait_for_completion`::
-(Optional, Boolean)
-If `true`, the request returns a response when the snapshot is complete.
-If `false`, the request returns a response when the snapshot initializes.
-Defaults to `false`.
+// end::snapshot-config[]
+// Unset the attribute
+:!page-id:
 
 [[create-snapshot-api-example]]
 ==== {api-examples-title}

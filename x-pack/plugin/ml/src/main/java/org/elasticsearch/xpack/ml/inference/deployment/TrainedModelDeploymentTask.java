@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationNodeService;
 
 import java.util.Map;
+import java.util.Optional;
 
 public class TrainedModelDeploymentTask extends CancellableTask implements StartTrainedModelDeploymentAction.TaskMatcher {
 
@@ -29,6 +31,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     private final TaskParams params;
     private final TrainedModelAllocationNodeService trainedModelAllocationNodeService;
     private volatile boolean stopped;
+    private final SetOnce<String> stoppedReason = new SetOnce<>();
 
     public TrainedModelDeploymentTask(
         long id,
@@ -51,10 +54,6 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params.getModelId();
     }
 
-    public String getIndex() {
-        return params.getIndex();
-    }
-
     public long estimateMemoryUsageBytes() {
         return params.estimateMemoryUsageBytes();
     }
@@ -62,16 +61,22 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     public void stop(String reason) {
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
         stopped = true;
-        trainedModelAllocationNodeService.stopDeploymentAndNotify(this);
+        stoppedReason.trySet(reason);
+        trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason);
     }
 
     public void stopWithoutNotification(String reason) {
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
+        stoppedReason.trySet(reason);
         stopped = true;
     }
 
     public boolean isStopped() {
         return stopped;
+    }
+
+    public Optional<String> stoppedReason() {
+        return Optional.ofNullable(stoppedReason.get());
     }
 
     @Override
@@ -80,7 +85,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         stop(reason);
     }
 
-    public void infer(String input, TimeValue timeout, ActionListener<InferenceResults> listener) {
-        trainedModelAllocationNodeService.infer(this, input, timeout, listener);
+    public void infer(Map<String, Object> doc, TimeValue timeout, ActionListener<InferenceResults> listener) {
+        trainedModelAllocationNodeService.infer(this, doc, timeout, listener);
     }
 }

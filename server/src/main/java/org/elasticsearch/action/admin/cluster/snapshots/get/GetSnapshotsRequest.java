@@ -25,6 +25,7 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
 
@@ -43,7 +44,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public static final Version PAGINATED_GET_SNAPSHOTS_VERSION = Version.V_7_14_0;
 
-    public static final Version NUMERIC_PAGINATION_VERSION = Version.V_8_0_0;
+    public static final Version NUMERIC_PAGINATION_VERSION = Version.V_7_15_0;
 
     public static final int NO_LIMIT = -1;
 
@@ -421,5 +422,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeString(repoName);
             out.writeString(snapshotName);
         }
+    }
+
+    @Override
+    public String getDescription() {
+        final StringBuilder stringBuilder = new StringBuilder("repositories[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(repositories), ",", "", "", 512, stringBuilder);
+        stringBuilder.append("], snapshots[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(snapshots), ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 }

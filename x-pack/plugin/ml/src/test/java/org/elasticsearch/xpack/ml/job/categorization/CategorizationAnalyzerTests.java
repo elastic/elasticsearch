@@ -45,8 +45,8 @@ public class CategorizationAnalyzerTests extends ESTestCase {
          "10.8.0.11 - - [29/Nov/2020:21:34:56 +0000] \"POST /intake/v2/events HTTP/1.1\" 202 0 \"-\" " +
             "\"elasticapm-node/3.8.0 elastic-apm-http-client/9.4.2 node/12.20.0\" 4913 10.006 [default-apm-apm-server-8200] [] " +
             "10.8.1.18:8200 0 0.002 202 1eac41789ea9a60a8be4e476c54cbbc9\n" +
-         "10.8.0.14 - - [29/Nov/2020:21:34:57 +0000] \"POST /intake/v2/events HTTP/1.1\" 202 0 \"-\" \"elasticapm-python/5.10.0\" 1025 " +
-            "0.001 [default-apm-apm-server-8200] [] 10.8.1.18:8200 0 0.001 202 d27088936cadd3b8804b68998a5f94fa";
+         "10.8.0.14 - - [29/Nov/2020:21:34:57 +0000] \"POST /intake/v2/events HTTP/1.1\" 202 0 \"-\" \"elasticapm-python/5.10.0\" " +
+            "1025 0.001 [default-apm-apm-server-8200] [] 10.8.1.18:8200 0 0.001 202 d27088936cadd3b8804b68998a5f94fa";
 
     private AnalysisRegistry analysisRegistry;
 

@@ -158,7 +158,7 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
         }
 
         public String toString() {
-            return this.level.name() + this.number;
+            return level == QualifierLevel.SNAPSHOT ? level.name() : level.name() + number;
         }
 
         @Override

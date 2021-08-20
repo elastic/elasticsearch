@@ -40,6 +40,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static java.util.Comparator.naturalOrder;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
+
 /**
  * Orchestrates the steps required to generate or update various release notes files.
  */
@@ -79,6 +83,10 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     @TaskAction
     public void executeTask() throws IOException {
+        if (needsGitTags(VersionProperties.getElasticsearch())) {
+            findAndUpdateUpstreamRemote(gitWrapper);
+        }
+
         LOGGER.info("Finding changelog files...");
 
         final Map<QualifiedVersion, Set<File>> filesByVersion = partitionFiles(
@@ -91,13 +99,19 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         final Map<QualifiedVersion, Set<ChangelogEntry>> changelogsByVersion = new HashMap<>();
 
         filesByVersion.forEach((version, files) -> {
-            Set<ChangelogEntry> entriesForVersion = files.stream().map(ChangelogEntry::parse).collect(Collectors.toSet());
+            Set<ChangelogEntry> entriesForVersion = files.stream().map(ChangelogEntry::parse).collect(toSet());
             entries.addAll(entriesForVersion);
             changelogsByVersion.put(version, entriesForVersion);
         });
 
+        final List<QualifiedVersion> versions = getVersions(gitWrapper, VersionProperties.getElasticsearch());
+
         LOGGER.info("Updating release notes index...");
-        ReleaseNotesIndexUpdater.update(this.releaseNotesIndexTemplate.get().getAsFile(), this.releaseNotesIndexFile.get().getAsFile());
+        ReleaseNotesIndexGenerator.update(
+            versions,
+            this.releaseNotesIndexTemplate.get().getAsFile(),
+            this.releaseNotesIndexFile.get().getAsFile()
+        );
 
         LOGGER.info("Generating release notes...");
         ReleaseNotesGenerator.update(
@@ -122,19 +136,18 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     }
 
     @VisibleForTesting
+    static List<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
+        QualifiedVersion v = QualifiedVersion.of(currentVersion);
+        return gitWrapper.listVersions("v" + v.getMajor() + '.' + v.getMinor() + ".*").collect(toList());
+    }
+
+    @VisibleForTesting
     static Map<QualifiedVersion, Set<File>> partitionFiles(GitWrapper gitWrapper, String versionString, Set<File> allFilesInCheckout) {
-        if (versionString.endsWith(".0") || versionString.endsWith("-alpha1") || versionString.endsWith("-SNAPSHOT")) {
+        if (needsGitTags(versionString) == false) {
             return Map.of(QualifiedVersion.of(versionString), allFilesInCheckout);
         }
 
         QualifiedVersion currentVersion = QualifiedVersion.of(versionString);
-
-        // We need to ensure the tags are up-to-date. Find the correct remote to use
-        String upstream = findUpstreamRemote(gitWrapper);
-
-        // Now update the remote, and make sure we update the tags too
-        gitWrapper.updateRemote(upstream);
-        gitWrapper.updateTags(upstream);
 
         // Find all tags for this minor series, using a wildcard tag pattern.
         String tagWildcard = "v%d.%d*".formatted(currentVersion.getMajor(), currentVersion.getMinor());
@@ -142,8 +155,8 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         final List<QualifiedVersion> earlierVersions = gitWrapper.listVersions(tagWildcard)
             // Only keep earlier versions, and if `currentVersion` is a prerelease, then only prereleases too.
             .filter(each -> each.isBefore(currentVersion) && (currentVersion.hasQualifier() == each.hasQualifier()))
-            .sorted(Comparator.naturalOrder())
-            .collect(Collectors.toList());
+            .sorted(naturalOrder())
+            .collect(toList());
 
         if (earlierVersions.isEmpty()) {
             throw new GradleException("Failed to find git tags prior to [v" + currentVersion + "]");
@@ -158,7 +171,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             // 2. Find all the changelog files it contained
             Set<String> filesInTreeForVersion = gitWrapper.listFiles("v" + earlierVersion, "docs/changelog")
                 .map(line -> Path.of(line).getFileName().toString())
-                .collect(Collectors.toSet());
+                .collect(toSet());
 
             Set<File> filesForVersion = new HashSet<>();
             partitionedFiles.put(earlierVersion, filesForVersion);
@@ -181,8 +194,10 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         return partitionedFiles;
     }
 
-    private static String findUpstreamRemote(GitWrapper gitWrapper) {
-        return gitWrapper.listRemotes()
+    private static void findAndUpdateUpstreamRemote(GitWrapper gitWrapper) {
+        LOGGER.info("Finding upstream git remote");
+        // We need to ensure the tags are up-to-date. Find the correct remote to use
+        String upstream = gitWrapper.listRemotes()
             .entrySet()
             .stream()
             .filter(entry -> entry.getValue().contains("elastic/elasticsearch"))
@@ -193,6 +208,22 @@ public class GenerateReleaseNotesTask extends DefaultTask {
                     "I need to ensure the git tags are up-to-date, but I couldn't find a git remote for [elastic/elasticsearch]"
                 )
             );
+
+        LOGGER.info("Updating remote [{}]", upstream);
+        // Now update the remote, and make sure we update the tags too
+        gitWrapper.updateRemote(upstream);
+
+        LOGGER.info("Updating tags from [{}]", upstream);
+        gitWrapper.updateTags(upstream);
+    }
+
+    @VisibleForTesting
+    static boolean needsGitTags(String versionString) {
+        if (versionString.endsWith(".0") || versionString.endsWith(".0-SNAPSHOT") || versionString.endsWith("-alpha1")) {
+            return false;
+        }
+
+        return true;
     }
 
     @InputFiles

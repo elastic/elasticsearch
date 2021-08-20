@@ -27,6 +27,10 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import static java.util.Comparator.comparing;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toList;
+
 /**
  * Generates the release notes i.e. list of changes that have gone into this release. They are grouped by the
  * type of change, then by team area.
@@ -83,18 +87,18 @@ public class ReleaseNotesGenerator {
         changelogsByVersion.forEach((version, changelogs) -> {
             Map<String, Map<String, List<ChangelogEntry>>> changelogsByTypeByArea = changelogs.stream()
                 .collect(
-                    Collectors.groupingBy(
+                    groupingBy(
                         // Entries with breaking info are always put in the breaking section
                         entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
                         TreeMap::new,
                         // Group changelogs for each type by their team area
-                        Collectors.groupingBy(
+                        groupingBy(
                             // `security` and `known-issue` areas don't need to supply an area
                             entry -> entry.getType().equals("known-issue") || entry.getType().equals("security")
                                 ? "_all_"
                                 : entry.getArea(),
                             TreeMap::new,
-                            Collectors.toList()
+                            toList()
                         )
                     )
                 );
@@ -106,7 +110,7 @@ public class ReleaseNotesGenerator {
         changelogsByVersionByTypeByArea.forEach(
             (_version, byVersion) -> byVersion.forEach(
                 (_type, byTeam) -> byTeam.forEach(
-                    (_team, changelogsForTeam) -> changelogsForTeam.sort(Comparator.comparing(ChangelogEntry::getSummary))
+                    (_team, changelogsForTeam) -> changelogsForTeam.sort(comparing(ChangelogEntry::getSummary))
                 )
             )
         );

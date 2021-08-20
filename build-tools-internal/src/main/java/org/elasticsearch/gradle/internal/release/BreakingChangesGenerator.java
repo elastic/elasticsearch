@@ -19,12 +19,16 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+
+import static java.util.Comparator.comparing;
+import static java.util.stream.Collectors.groupingBy;
 
 /**
  * Generates the page that lists the breaking changes and deprecations for a minor version release.
@@ -44,17 +48,19 @@ public class BreakingChangesGenerator {
         final Map<Boolean, Map<String, List<ChangelogEntry.Breaking>>> breakingChangesByNotabilityByArea = entries.stream()
             .map(ChangelogEntry::getBreaking)
             .filter(Objects::nonNull)
+            .sorted(comparing(ChangelogEntry.Breaking::getTitle))
             .collect(
-                Collectors.groupingBy(
+                groupingBy(
                     ChangelogEntry.Breaking::isNotable,
-                    Collectors.groupingBy(ChangelogEntry.Breaking::getArea, TreeMap::new, Collectors.toList())
+                    groupingBy(ChangelogEntry.Breaking::getArea, TreeMap::new, Collectors.toList())
                 )
             );
 
         final Map<String, List<ChangelogEntry.Deprecation>> deprecationsByArea = entries.stream()
             .map(ChangelogEntry::getDeprecation)
             .filter(Objects::nonNull)
-            .collect(Collectors.groupingBy(ChangelogEntry.Deprecation::getArea, TreeMap::new, Collectors.toList()));
+            .sorted(comparing(ChangelogEntry.Deprecation::getTitle))
+            .collect(groupingBy(ChangelogEntry.Deprecation::getArea, TreeMap::new, Collectors.toList()));
 
         final Map<String, Object> bindings = new HashMap<>();
         bindings.put("breakingChangesByNotabilityByArea", breakingChangesByNotabilityByArea);

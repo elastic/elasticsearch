@@ -274,7 +274,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void deleteJob() throws IOException {
-        new MlTestStateCleaner(logger, highLevelClient()).clearMlMetadata();
+        new MlTestStateCleaner(logger, adminHighLevelClient()).clearMlMetadata();
     }
 
     public void testGetModelSnapshots() throws IOException {

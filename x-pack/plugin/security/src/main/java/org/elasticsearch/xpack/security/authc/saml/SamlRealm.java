@@ -28,6 +28,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -47,7 +48,6 @@ import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
@@ -556,7 +556,7 @@ public final class SamlRealm extends Realm implements Releasable {
         HttpClientBuilder builder = HttpClientBuilder.create();
         // ssl setup
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
-        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
+        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
         final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         builder.setSSLSocketFactory(factory);

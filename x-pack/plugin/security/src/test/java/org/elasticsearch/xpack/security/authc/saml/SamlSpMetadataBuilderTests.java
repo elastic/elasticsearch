@@ -18,12 +18,10 @@ import org.w3c.dom.Element;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -41,28 +39,11 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
     public void setup() throws Exception {
         SamlUtils.initialize(logger);
         final Path certPath = getDataPath("saml.crt");
-        final Certificate[] certs = CertParsingUtils.readX509Certificates(Collections.singletonList(certPath));
-        if (certs.length != 1) {
-            fail("Expected exactly 1 certificate in " + certPath);
-        }
-        if (certs[0] instanceof X509Certificate) {
-            this.certificate = (X509Certificate) certs[0];
-        } else {
-            fail("Expected exactly X509Certificate, but was " + certs[0].getClass());
-        }
-
+        this.certificate = CertParsingUtils.readX509Certificate(certPath);
         final Path threeCertsPath = getDataPath("saml-three-certs.crt");
-        final Certificate[] threeCerts = CertParsingUtils.readX509Certificates(Collections.singletonList(threeCertsPath));
-        if (threeCerts.length != 3) {
+        this.threeCertificates = CertParsingUtils.readX509Certificates(Collections.singletonList(threeCertsPath));
+        if (threeCertificates.length != 3) {
             fail("Expected exactly 3 certificate in " + certPath);
-        }
-        List<Class<?>> notX509Certificates = Arrays.stream(threeCerts).filter((cert) -> {
-            return (cert instanceof X509Certificate) == false;
-        }).map(cert -> cert.getClass()).collect(Collectors.toList());
-        if (notX509Certificates.isEmpty() == false) {
-            fail("Expected exactly X509Certificates, but found " + notX509Certificates);
-        } else {
-            this.threeCertificates = Arrays.asList(threeCerts).toArray(new X509Certificate[0]);
         }
     }
 

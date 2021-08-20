@@ -30,6 +30,7 @@ import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;

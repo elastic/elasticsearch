@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -91,10 +90,11 @@ public class XPackLicenseState {
 
         Feature(OperationMode minimumOperationMode, boolean needsActive) {
             assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
+            String name = name().toLowerCase(Locale.ROOT);
             if (needsActive) {
-                this.feature = LicensedFeature.momentary(name().toLowerCase(Locale.ROOT), minimumOperationMode);
+                this.feature = LicensedFeature.momentary(name, name, minimumOperationMode);
             } else {
-                this.feature = LicensedFeature.momentaryLenient(name().toLowerCase(Locale.ROOT), minimumOperationMode);
+                this.feature = LicensedFeature.momentaryLenient(name, name, minimumOperationMode);
             }
         }
     }
@@ -440,11 +440,8 @@ public class XPackLicenseState {
      * @param mode   The mode (type) of the current license.
      * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
      * @param expirationDate Expiration date of the current license.
-     * @param mostRecentTrialVersion If this cluster has, at some point commenced a trial, the most recent version on which they did that.
-     *                               May be {@code null} if they have never generated a trial license on this cluster, or the most recent
-     *                               trial was prior to this metadata being tracked (6.1)
      */
-    protected void update(OperationMode mode, boolean active, long expirationDate, @Nullable Version mostRecentTrialVersion) {
+    protected void update(OperationMode mode, boolean active, long expirationDate) {
         status = new Status(mode, active, expirationDate);
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
@@ -659,16 +656,12 @@ public class XPackLicenseState {
             return Objects.hash(feature, context);
         }
 
-        public String featureName() {
-            return feature.name;
+        public LicensedFeature feature() {
+            return feature;
         }
 
         public String contextName() {
             return context;
-        }
-
-        public OperationMode minimumOperationMode() {
-            return feature.minimumOperationMode;
         }
     }
 }

@@ -19,6 +19,7 @@
             - debian-8-packaging
             - debian-9-packaging
             - debian-10-packaging
+            - debian-11-packaging
             - opensuse-15-1-packaging
             - oraclelinux-6-packaging
             - oraclelinux-7-packaging

@@ -355,7 +355,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       onlyIf { Architecture.current() == architecture }
     }
 
-  if (base != DockerBase.IRON_BANK) {
+  if (base != DockerBase.IRON_BANK && base != DockerBase.CLOUD && base != DockerBase.CLOUD_ESS) {
     tasks.named("assemble").configure {
       dependsOn(buildDockerImageTask)
     }

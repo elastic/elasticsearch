@@ -2,6 +2,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 Project mainProject = project
@@ -15,6 +16,7 @@ subprojects {
 
   dependencies {
     testImplementation project(":x-pack:plugin:core")
+    testImplementation(testArtifact(project(xpackModule('core'))))
     testArtifacts testArtifact(project(mainProject.path))
   }
 

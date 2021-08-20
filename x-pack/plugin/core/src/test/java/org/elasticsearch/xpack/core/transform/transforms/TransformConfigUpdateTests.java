@@ -159,14 +159,14 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getSettings().getMaxPageSearchSize(), equalTo(4_000));
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(config.getSettings().getDocsPerSecond()));
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
-        assertThat(updatedConfig.getSettings().getInterimResults(), equalTo(config.getSettings().getInterimResults()));
+        assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
 
         update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(null, 43.244F, (Boolean) null, null), null);
         updatedConfig = update.apply(updatedConfig);
         assertThat(updatedConfig.getSettings().getMaxPageSearchSize(), equalTo(4_000));
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(43.244F));
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
-        assertThat(updatedConfig.getSettings().getInterimResults(), equalTo(config.getSettings().getInterimResults()));
+        assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
 
         // now reset to default using the magic -1
         update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, null, (Boolean) null, null), null);
@@ -174,14 +174,14 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertNull(updatedConfig.getSettings().getMaxPageSearchSize());
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(43.244F));
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
-        assertThat(updatedConfig.getSettings().getInterimResults(), equalTo(config.getSettings().getInterimResults()));
+        assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
 
         update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, -1F, (Boolean) null, null), null);
         updatedConfig = update.apply(updatedConfig);
         assertNull(updatedConfig.getSettings().getMaxPageSearchSize());
         assertNull(updatedConfig.getSettings().getDocsPerSecond());
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
-        assertThat(updatedConfig.getSettings().getInterimResults(), equalTo(config.getSettings().getInterimResults()));
+        assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
     }
 
     public void testApplyWithSyncChange() {

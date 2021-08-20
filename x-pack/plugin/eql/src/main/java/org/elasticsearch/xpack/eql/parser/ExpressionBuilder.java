@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Great
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -146,7 +145,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
             case EqlBaseParser.EQ:
                 return new Equals(source, left, right, zoneId);
             case EqlBaseParser.NEQ:
-                return new NotEquals(source, left, right, zoneId);
+                return new Not(source, new Equals(source, left, right, zoneId));
             case EqlBaseParser.LT:
                 return new LessThan(source, left, right, zoneId);
             case EqlBaseParser.LTE:

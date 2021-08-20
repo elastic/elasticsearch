@@ -17,11 +17,14 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.file.Files;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
+
+import static java.util.Comparator.reverseOrder;
 
 /**
  * This class ensures that the release notes index page has the appropriate anchors and include directives
@@ -29,15 +32,18 @@ import java.util.stream.Collectors;
  */
 public class ReleaseNotesIndexGenerator {
 
-    static void update(List<QualifiedVersion> versions, File indexTemplate, File indexFile) throws IOException {
+    static void update(Set<QualifiedVersion> versions, File indexTemplate, File indexFile) throws IOException {
         try (FileWriter indexFileWriter = new FileWriter(indexFile)) {
             generateFile(versions, Files.readString(indexTemplate.toPath()), indexFileWriter);
         }
     }
 
     @VisibleForTesting
-    static void generateFile(List<QualifiedVersion> versions, String indexTemplate, Writer outputWriter) throws IOException {
-        versions.sort(Comparator.reverseOrder());
+    static void generateFile(Set<QualifiedVersion> versionsSet, String indexTemplate, Writer outputWriter) throws IOException {
+        final Set<QualifiedVersion> versions = new TreeSet<>(reverseOrder());
+
+        // For the purpose of generating the index, snapshot versions are the same as released versions. Prerelease versions are not.
+        versionsSet.stream().map(v -> v.isSnapshot() ? v.withoutQualifier() : v).forEach(versions::add);
 
         final List<String> includeVersions = versions.stream()
             .map(v -> v.hasQualifier() ? v.toString() : v.getMajor() + "." + v.getMinor())

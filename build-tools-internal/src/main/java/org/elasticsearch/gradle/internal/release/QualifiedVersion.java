@@ -103,6 +103,10 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
         return this.qualifier != null && this.qualifier.level == QualifierLevel.SNAPSHOT;
     }
 
+    public QualifiedVersion withoutQualifier() {
+        return new QualifiedVersion(major, minor, revision, null);
+    }
+
     private static final Comparator<QualifiedVersion> COMPARATOR = Comparator.comparing((QualifiedVersion v) -> v.major)
         .thenComparing(v -> v.minor)
         .thenComparing(v -> v.revision)

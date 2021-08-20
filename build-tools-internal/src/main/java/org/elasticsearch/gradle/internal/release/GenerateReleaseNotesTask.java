@@ -30,14 +30,12 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import static java.util.Comparator.naturalOrder;
@@ -104,7 +102,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             changelogsByVersion.put(version, entriesForVersion);
         });
 
-        final List<QualifiedVersion> versions = getVersions(gitWrapper, VersionProperties.getElasticsearch());
+        final Set<QualifiedVersion> versions = getVersions(gitWrapper, VersionProperties.getElasticsearch());
 
         LOGGER.info("Updating release notes index...");
         ReleaseNotesIndexGenerator.update(
@@ -136,9 +134,11 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     }
 
     @VisibleForTesting
-    static List<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
+    static Set<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
         QualifiedVersion v = QualifiedVersion.of(currentVersion);
-        return gitWrapper.listVersions("v" + v.getMajor() + '.' + v.getMinor() + ".*").collect(toList());
+        Set<QualifiedVersion> versions = gitWrapper.listVersions("v" + v.getMajor() + '.' + v.getMinor() + ".*").collect(toSet());
+        versions.add(v);
+        return versions;
     }
 
     @VisibleForTesting

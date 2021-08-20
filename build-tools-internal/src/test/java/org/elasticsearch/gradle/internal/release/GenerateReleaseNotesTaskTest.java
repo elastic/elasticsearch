@@ -15,6 +15,7 @@ import org.junit.Test;
 import java.io.File;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -88,7 +89,6 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
         assertThat(GenerateReleaseNotesTask.needsGitTags("8.0.0-alpha2"), is(true));
     }
 
-
     /**
      * Check that partitioning changelog files when the current version is a snapshot returns a map with a single entry.
      */
@@ -145,6 +145,38 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
         assertThat(partitionedFiles, aMapWithSize(1));
         assertThat(partitionedFiles, hasEntry(equalTo(QualifiedVersion.of("8.0.0-alpha1")), hasItem(new File("docs/changelog/1234.yaml"))));
         verifyZeroInteractions(gitWrapper);
+    }
+
+    /**
+     * Check that when deriving a lit of versions from git tags, the current unreleased version is included.
+     */
+    @Test
+    public void getVersions_includesCurrentVersion() {
+        // given:
+        when(gitWrapper.listVersions(anyString())).thenReturn(
+            Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0-beta1", "8.0.0-beta2", "8.0.0-beta3", "8.0.0-rc1", "8.0.0")
+                .map(QualifiedVersion::of)
+        );
+
+        // when:
+        Set<QualifiedVersion> versions = GenerateReleaseNotesTask.getVersions(gitWrapper, "8.0.0-SNAPSHOT");
+
+        // then:
+        assertThat(
+            versions,
+            containsInAnyOrder(
+                Stream.of(
+                    "8.0.0-alpha1",
+                    "8.0.0-alpha2",
+                    "8.0.0-beta1",
+                    "8.0.0-beta2",
+                    "8.0.0-beta3",
+                    "8.0.0-rc1",
+                    "8.0.0",
+                    "8.0.0-SNAPSHOT"
+                ).map(QualifiedVersion::of).collect(Collectors.toList()).toArray(new QualifiedVersion[] {})
+            )
+        );
     }
 
     /**

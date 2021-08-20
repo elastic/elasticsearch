@@ -107,7 +107,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         if (trustRestrictions == null) {
             return trustConfig;
         }
-        throw new IllegalArgumentException("SSL trust_restrictions are not currently supported");
+        return new RestrictedTrustConfig(trustRestrictions, trustConfig);
     }
 
     public SslConfiguration load(Environment env) {

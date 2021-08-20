@@ -1,0 +1,32 @@
+{
+  "phases": {
+    "hot": {
+      "actions": {
+        "rollover": {
+          "max_primary_shard_size": "50gb",
+          "max_age": "30d"
+        }
+      }
+    },
+    "warm": {
+      "actions": {
+        "shrink": {
+          "number_of_shards": 1
+        },
+        "forcemerge": {
+          "max_num_segments": 1
+        }
+      }
+    },
+    "delete": {
+      "min_age": "30d",
+      "actions":{
+        "delete": {}
+      }
+    }
+  },
+  "_meta": {
+    "description": "built-in ILM policy using the hot and warm phases with a retention of 30 days",
+    "managed": true
+  }
+}

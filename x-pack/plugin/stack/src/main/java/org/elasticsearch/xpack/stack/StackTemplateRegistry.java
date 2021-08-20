@@ -54,6 +54,36 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     );
 
     //////////////////////////////////////////////////////////
+    // Built in ILM policies for users to use
+    //////////////////////////////////////////////////////////
+    public static final String ILM_7_DAYS_POLICY_NAME = "7-days-hot-warm";
+    public static final String ILM_30_DAYS_POLICY_NAME = "30-days-hot-warm";
+    public static final String ILM_90_DAYS_POLICY_NAME = "90-days-hot-warm-cold";
+    public static final String ILM_180_DAYS_POLICY_NAME = "180-days-hot-warm-cold";
+    public static final String ILM_365_DAYS_POLICY_NAME = "365-days-hot-warm-cold";
+
+    public static final LifecyclePolicyConfig ILM_7_DAYS_POLICY = new LifecyclePolicyConfig(
+        ILM_7_DAYS_POLICY_NAME,
+        "/" + ILM_7_DAYS_POLICY_NAME + ".json"
+    );
+    public static final LifecyclePolicyConfig ILM_30_DAYS_POLICY = new LifecyclePolicyConfig(
+        ILM_30_DAYS_POLICY_NAME,
+        "/" + ILM_30_DAYS_POLICY_NAME + ".json"
+    );
+    public static final LifecyclePolicyConfig ILM_90_DAYS_POLICY = new LifecyclePolicyConfig(
+        ILM_90_DAYS_POLICY_NAME,
+        "/" + ILM_90_DAYS_POLICY_NAME + ".json"
+    );
+    public static final LifecyclePolicyConfig ILM_180_DAYS_POLICY = new LifecyclePolicyConfig(
+        ILM_180_DAYS_POLICY_NAME,
+        "/" + ILM_180_DAYS_POLICY_NAME + ".json"
+    );
+    public static final LifecyclePolicyConfig ILM_365_DAYS_POLICY = new LifecyclePolicyConfig(
+        ILM_365_DAYS_POLICY_NAME,
+        "/" + ILM_365_DAYS_POLICY_NAME + ".json"
+    );
+
+    //////////////////////////////////////////////////////////
     // Logs components (for matching logs-*-* indices)
     //////////////////////////////////////////////////////////
     public static final String LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs-mappings";
@@ -177,7 +207,16 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
         if (stackTemplateEnabled) {
-            return Arrays.asList(LOGS_ILM_POLICY, METRICS_ILM_POLICY, SYNTHETICS_ILM_POLICY);
+            return Arrays.asList(
+                LOGS_ILM_POLICY,
+                METRICS_ILM_POLICY,
+                SYNTHETICS_ILM_POLICY,
+                ILM_7_DAYS_POLICY,
+                ILM_30_DAYS_POLICY,
+                ILM_90_DAYS_POLICY,
+                ILM_180_DAYS_POLICY,
+                ILM_365_DAYS_POLICY
+            );
         } else {
             return Collections.emptyList();
         }

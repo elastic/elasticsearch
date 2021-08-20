@@ -17,7 +17,18 @@ restResources {
 ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
 ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
 
+configurations {
+  // configuration to make use by external yaml rest test plugin in our examples
+  // easy and efficient
+  basicRestSpecs {
+    attributes {
+      attribute(org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
 artifacts {
+  basicRestSpecs(new File(projectDir, "src/main/resources"))
   restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

@@ -13,6 +13,8 @@ import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.transform.UnzipTransform;
+import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -20,6 +22,9 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
+import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
@@ -42,10 +47,25 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         project.getPluginManager().apply(TestClustersPlugin.class);
         project.getPluginManager().apply(JavaBasePlugin.class);
 
+        Attribute<Boolean> restAttribute = Attribute.of("restSpecs", Boolean.class);
+        project.getDependencies().getAttributesSchema().attribute(restAttribute);
+        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.JAR_TYPE);
+        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
+            transformSpec.getFrom()
+                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.JAR_TYPE)
+                .attribute(restAttribute, true);
+            transformSpec.getTo()
+                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(restAttribute, true);
+        });
+
         ConfigurationContainer configurations = project.getConfigurations();
         Configuration restTestSpecs = configurations.create(REST_TEST_SPECS_CONFIGURATION_NAME);
+        restTestSpecs.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        restTestSpecs.getAttributes().attribute(restAttribute, true);
+
         TaskProvider<Copy> copyRestTestSpecs = project.getTasks().register("copyRestTestSpecs", Copy.class, t -> {
-            t.from(project.zipTree(project.provider(() ->restTestSpecs.getSingleFile())));
+            t.from(restTestSpecs);
             t.into(new File(project.getBuildDir(), "restResources/restspec"));
         });
 
@@ -60,7 +80,6 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         setupDefaultDependencies(project.getDependencies(), restTestSpecs, yamlRestTestImplementation);
         var cluster = testClusters.maybeCreate(YAML_REST_TEST);
         TaskProvider<StandaloneRestIntegTestTask> yamlRestTestTask = setupTestTask(project, testSourceSet, cluster);
-
         project.getPlugins().withType(PluginBuildPlugin.class, p -> {
             TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
             cluster.plugin(bundle.flatMap(Zip::getArchiveFile));
@@ -68,9 +87,11 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         });
     }
 
-    private static void setupDefaultDependencies(DependencyHandler dependencyHandler,
-                                                 Configuration restTestSpecs,
-                                                 Configuration yamlRestTestImplementation) {
+    private static void setupDefaultDependencies(
+        DependencyHandler dependencyHandler,
+        Configuration restTestSpecs,
+        Configuration yamlRestTestImplementation
+    ) {
         String elasticsearchVersion = VersionProperties.getElasticsearch();
         yamlRestTestImplementation.defaultDependencies(
             deps -> deps.add(dependencyHandler.create("org.elasticsearch.test:framework:" + elasticsearchVersion))
@@ -81,7 +102,11 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         );
     }
 
-    private TaskProvider<StandaloneRestIntegTestTask> setupTestTask(Project project, SourceSet testSourceSet, ElasticsearchCluster cluster) {
+    private TaskProvider<StandaloneRestIntegTestTask> setupTestTask(
+        Project project,
+        SourceSet testSourceSet,
+        ElasticsearchCluster cluster
+    ) {
         return project.getTasks().register("yamlRestTest", StandaloneRestIntegTestTask.class, task -> {
             task.useCluster(cluster);
             task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());

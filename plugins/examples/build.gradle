@@ -16,7 +16,7 @@ subprojects { p ->
     @Override
     void execute(AppliedPlugin appliedPlugin) {
         p.dependencies.add("yamlRestTestImplementation", project(":test:framework"))
-        p.dependencies.add("restTestSpecs", project(":rest-api-spec"))
+        p.dependencies.add("restTestSpecs", p.dependencies.project(path:':rest-api-spec', configuration:'basicRestSpecs'))
     }
   })
 }

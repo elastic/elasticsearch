@@ -14,7 +14,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class GetShardSnapshotRequestSerializationTests extends AbstractWireSerializingTestCase<GetShardSnapshotRequest> {
     @Override
@@ -45,5 +50,22 @@ public class GetShardSnapshotRequestSerializationTests extends AbstractWireSeria
 
     private ShardId randomShardId() {
         return new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(), randomIntBetween(0, 100));
+    }
+
+    public void testGetDescription() {
+        final GetShardSnapshotRequest request = new GetShardSnapshotRequest(Arrays.asList("repo1", "repo2"), new ShardId("idx", "uuid", 0));
+        assertThat(request.getDescription(), equalTo("shard[idx][0], repositories[repo1,repo2]"));
+
+        final GetShardSnapshotRequest randomRequest = createTestInstance();
+        final String description = randomRequest.getDescription();
+        assertThat(description, containsString(randomRequest.getShardId().toString()));
+        assertThat(
+            description,
+            description.length(),
+            lessThanOrEqualTo(
+                ("shard" + randomRequest.getShardId() + ", repositories[").length() + 1024 + 100 + ",... (999 in total, 999 omitted)"
+                    .length()
+            )
+        );
     }
 }

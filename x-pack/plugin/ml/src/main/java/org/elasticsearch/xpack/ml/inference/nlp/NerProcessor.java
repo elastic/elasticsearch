@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 public class NerProcessor implements NlpTask.Processor {
 
@@ -130,21 +129,19 @@ public class NerProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor() {
-        return new NerResultProcessor(bertRequestBuilder.getTokenization(), iobMap);
+        return new NerResultProcessor(iobMap);
     }
 
     static class NerResultProcessor implements NlpTask.ResultProcessor {
 
-        private final BertTokenizer.TokenizationResult tokenization;
         private final IobTag[] iobMap;
 
-        NerResultProcessor(BertTokenizer.TokenizationResult tokenization, IobTag[] iobMap) {
-            this.tokenization = Objects.requireNonNull(tokenization);
+        NerResultProcessor(IobTag[] iobMap) {
             this.iobMap = iobMap;
         }
 
         @Override
-        public InferenceResults processResult(PyTorchResult pyTorchResult) {
+        public InferenceResults processResult(BertTokenizer.TokenizationResult tokenization, PyTorchResult pyTorchResult) {
             if (tokenization.getTokens().isEmpty()) {
                 return new NerResults(Collections.emptyList());
             }
@@ -155,7 +152,7 @@ public class NerProcessor implements NlpTask.Processor {
             // of maybe (1 + 0) / 2 = 0.5 while before softmax it'd be exp(10 - 5) / normalization
             // which could easily be close to 1.
             double[][] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult());
-            List<TaggedToken> taggedTokens = tagTokens(normalizedScores);
+            List<TaggedToken> taggedTokens = tagTokens(tokenization, normalizedScores);
             List<NerResults.EntityGroup> entities = groupTaggedTokens(taggedTokens);
             return new NerResults(entities);
         }
@@ -166,7 +163,7 @@ public class NerProcessor implements NlpTask.Processor {
          * in the original input replacing them with a single token that
          * gets labelled based on the average score of all its sub-tokens.
          */
-        private List<TaggedToken> tagTokens(double[][] scores) {
+        private List<TaggedToken> tagTokens(BertTokenizer.TokenizationResult tokenization, double[][] scores) {
             List<TaggedToken> taggedTokens = new ArrayList<>();
             int startTokenIndex = 0;
             while (startTokenIndex < tokenization.getTokens().size()) {

@@ -125,7 +125,7 @@ public class PValueScore extends NXYSignificanceHeuristic {
         // Adjust counts to ignore ratio changes which are less than 5%
         // casting to `long` to round down to nearest whole number
         docsContainTermNotInClass = (long)(Math.min(
-	    1.05 * docsContainTermNotInClass,
+            1.05 * docsContainTermNotInClass,
             docsContainTermInClass / allDocsInClass * allDocsNotInClass
         ) + 0.5);
 
@@ -139,11 +139,11 @@ public class PValueScore extends NXYSignificanceHeuristic {
         }
 
         double v1 = new LongBinomialDistribution(
-	    (long)allDocsInClass, docsContainTermInClass / allDocsInClass
+            (long)allDocsInClass, docsContainTermInClass / allDocsInClass
         ).logProbability((long)docsContainTermInClass);
 
         double v2 = new LongBinomialDistribution(
-	    (long)allDocsNotInClass, docsContainTermNotInClass / allDocsNotInClass
+            (long)allDocsNotInClass, docsContainTermNotInClass / allDocsNotInClass
         ).logProbability((long)docsContainTermNotInClass);
 
         double p2 = (docsContainTermInClass + docsContainTermNotInClass) / (allDocsInClass + allDocsNotInClass);

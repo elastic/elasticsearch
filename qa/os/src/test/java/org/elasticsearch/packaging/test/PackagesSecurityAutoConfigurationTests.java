@@ -72,7 +72,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         verifySecurityNotAutoConfigured(installation);
     }
 
-    private static void verifySecurityNotAutoConfigured(Installation es) throws Exception{
+    private static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
         final Shell.Result lsResult = sh.run("ls", es.config);
         assertNotNull(lsResult.stdout);
         assertThat((int) Arrays.stream(lsResult.stdout.split(" ")).filter(f -> f.startsWith("auto_config_on")).count(), equalTo(0));

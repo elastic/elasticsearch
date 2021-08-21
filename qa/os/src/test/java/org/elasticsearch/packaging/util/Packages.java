@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -37,7 +38,6 @@ import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -87,7 +87,7 @@ public class Packages {
         }
 
         Installation installation = Installation.ofPackage(sh, distribution);
-
+        installation.setElasticPassword(captureElasticPasswordFromOutput(result));
         if (distribution.hasJdk == false) {
             Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
@@ -99,6 +99,14 @@ public class Packages {
         // TODO Figure out how to run all packaging tests with security enabled which is now the default behavior
         ServerUtils.possiblyDisableSecurityFeatures(installation);
         return installation;
+    }
+
+    private static String captureElasticPasswordFromOutput(Result result) {
+        return Arrays.stream(result.stdout.split(System.lineSeparator()))
+            .filter(l -> l.contains("The password of the elastic superuser will be set to:"))
+            .map(l -> l.substring(56, 76))
+            .findFirst()
+            .orElse(null);
     }
 
     public static Installation upgradePackage(Shell sh, Distribution distribution) throws IOException {
@@ -221,7 +229,7 @@ public class Packages {
         }
     }
 
-    private static void verifyDefaultInstallation(Installation es, Distribution distribution) throws IOException {
+    private static void verifyDefaultInstallation(Installation es, Distribution distribution) {
 
         Stream.of(
             "elasticsearch-certgen",
@@ -244,45 +252,6 @@ public class Packages {
 
         Stream.of("users", "users_roles", "roles.yml", "role_mapping.yml", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
-        verifySecurityAutoConfigured(es, distribution);
-    }
-
-    private static void verifySecurityAutoConfigured(Installation es, Distribution distribution) throws IOException {
-        assertThat(es.config("auto_generated_certs"), file(Directory, "root", "elasticsearch", p755));
-        Stream.of("http_keystore.p12", "http_truststore.p12", "transport_keystore_all_nodes.p12", "transport_truststore_all_nodes.p12")
-            .forEach(
-                keystore -> assertThat(es.config("auto_generated_certs").resolve(keystore), file(File, "root", "elasticsearch", p660))
-            );
-        List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        assertThat(configLines, contains("xpack.security.enabled: true"));
-        assertThat(configLines, contains("xpack.security.enrollment.enabled: true"));
-        assertThat(configLines, contains("xpack.security.authc.realms.file.auto_generated_1625753263.order: 0"));
-        assertThat(configLines, contains("xpack.security.transport.ssl.enabled: true"));
-        assertThat(configLines, contains("xpack.security.transport.ssl.verification_mode: certificate"));
-        assertThat(configLines, contains("xpack.security.transport.ssl.client_authentication: required"));
-        assertThat(
-            configLines,
-            contains(
-                "xpack.security.transport.ssl.keystore.path: " + "/etc/elasticsearch/auto_generated_certs/transport_keystore_all_nodes.p12"
-            )
-        );
-        assertThat(
-            configLines,
-            contains(
-                "xpack.security.transport.ssl.truststore.path: "
-                    + "/etc/elasticsearch/auto_generated_certs/transport_truststore_all_nodes.p12"
-            )
-        );
-        assertThat(configLines, contains("xpack.security.http.ssl.enabled: true"));
-        assertThat(
-            configLines,
-            contains("xpack.security.http.ssl.keystore.path: " + "/etc/elasticsearch/auto_generated_certs/http_keystore.p12")
-        );
-        assertThat(
-            configLines,
-            contains("xpack.security.http.ssl.truststore.path: " + "/etc/elasticsearch/auto_generated_certs/http_truststore.p12")
-        );
-        assertThat(configLines, contains("http.host: [_local_, _site_]"));
     }
 
     /**

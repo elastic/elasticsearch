@@ -56,30 +56,39 @@ if command -v systemctl > /dev/null; then
 fi
 
 if [ "x$IS_UPGRADE" != "xtrue" ]; then
-    # Should we call system.exit() in ConfigInitialNode so that we only proceed if there was no error?
+
     ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-    /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""
-
-    INITIAL_PASSWORD=$(ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.GenerateElasticPasswordHash \
-    ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
-    ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-    /usr/share/elasticsearch/bin/elasticsearch-cli)
-    if [ -z "${INITIAL_PASSWORD}" ]; then
-        echo "##########                 Security autoconfiguration information                ############"
-        echo "#                                                                                           #"
-        echo "# The password of the elastic superuser will be set to: ${INITIAL_PASSWORD}                      #"
-        echo "# upon starting elasticsearch for the first time                                            #"
-        echo "#                                                                                           #"
-        echo "#                                                                                           #"
-        echo "#############################################################################################"
+    bash -c 'sudo -E -g elasticsearch /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""'
+    if [ $? -eq 0 ]; then
+        INITIAL_PASSWORD=$(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHash \
+        ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
+        ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+        bash -c '/usr/share/elasticsearch/bin/elasticsearch-cli')
+        if [ $? -eq 0 ]; then
+            echo "##########                 Security autoconfiguration information                ############"
+            echo "#                                                                                           #"
+            echo "# The password of the elastic superuser will be set to: ${INITIAL_PASSWORD}                #"
+            echo "# upon starting elasticsearch for the first time                                            #"
+            echo "#                                                                                           #"
+            echo "#                                                                                           #"
+            echo "#############################################################################################"
+        else
+            echo "##########                 Security autoconfiguration information                ############"
+            echo "#                                                                                           #"
+            echo "# Failed to auto-configure the password for the elastic user upon installation              #"
+            echo "# You can use elasticsearch-reset-elastic-password to set a password for the elastic user   #"
+            echo "#                                                                                           #"
+            echo "#############################################################################################"
+        fi
     else
         echo "##########                 Security autoconfiguration information                ############"
         echo "#                                                                                           #"
-        echo "# Failed to auto-configure the password for the elastic user upon installation              #"
+        echo "# Failed to auto-configure security. Authentication and Authorization is enabled            #"
         echo "# You can use elasticsearch-reset-elastic-password to set a password for the elastic user   #"
         echo "#                                                                                           #"
+        echo "# See <link_here> for instructions on how to configure TLS manually                         #"
         echo "#############################################################################################"
     fi
     if command -v systemctl >/dev/null; then

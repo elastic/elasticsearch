@@ -134,7 +134,6 @@ import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
@@ -338,7 +337,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.core.XPackSettings.ELASTIC_PASSWORD_HASH;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
@@ -483,11 +481,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         securityIndex.set(SecurityIndexManager.buildSecurityIndexManager(client, clusterService, SECURITY_MAIN_INDEX_DESCRIPTOR));
 
         // Store this because when the listener we register will be called, secure settings will be closed
-        if (ELASTIC_PASSWORD_HASH.exists(settings)) {
-            elasticPasswordHash.set(ELASTIC_PASSWORD_HASH.get(settings));
-            securityIndex.get().addStateListener(this::possiblySetElasticPassword);
-        }
-
         final TokenService tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
@@ -634,21 +627,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         cacheInvalidatorRegistry.validate();
 
         return components;
-    }
-
-    protected void possiblySetElasticPassword(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
-            && currentState.equals(SecurityIndexManager.State.UNRECOVERED_STATE) == false
-            && securityIndex.get().indexExists() == false
-            && elasticPasswordHash.get() != null) {
-            final ChangePasswordRequest request = new ChangePasswordRequest();
-            request.username("elastic");
-            request.passwordHash(elasticPasswordHash.get().getChars());
-            nativeUsersStore.get().changePassword(request, ActionListener.wrap(
-                r -> {},
-                e -> logger.warn("failed to set the elastic user password from the value of [" + ELASTIC_PASSWORD_HASH.getKey() + "]")));
-            elasticPasswordHash.get().close();
-        }
     }
 
     private AuthorizationEngine getAuthorizationEngine() {

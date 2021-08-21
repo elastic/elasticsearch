@@ -8,6 +8,8 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.elasticsearch.core.Nullable;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -32,6 +34,8 @@ public class Installation {
     public final Path modules;
     public final Path pidDir;
     public final Path envFile;
+    @Nullable
+    private String elasticPassword; // auto-configured password upon installation
 
     private Installation(
         Shell sh,
@@ -58,6 +62,7 @@ public class Installation {
         this.modules = modules;
         this.pidDir = pidDir;
         this.envFile = envFile;
+        this.elasticPassword = null;
     }
 
     public static Installation ofArchive(Shell sh, Distribution distribution, Path home) {
@@ -134,6 +139,14 @@ public class Installation {
 
     public Path config(Path configFileName) {
         return config.resolve(configFileName);
+    }
+
+    public String getElasticPassword() {
+        return this.elasticPassword;
+    }
+
+    public void setElasticPassword(String password) {
+        this.elasticPassword = password;
     }
 
     public Executables executables() {

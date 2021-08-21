@@ -249,6 +249,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     }
 
     public static void addSettings(List<Setting<?>> settingsList) {
-        settingsList.add(BOOTSTRAP_ELASTIC_PASSWORD);
+        settingsList.addAll(List.of(BOOTSTRAP_ELASTIC_PASSWORD, AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH));
     }
 }

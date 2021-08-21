@@ -501,19 +501,18 @@ public class XPackLicenseState {
      */
     @Deprecated
     public boolean isAllowed(Feature feature) {
-        return isAllowed(feature.feature);
+        return isAllowed(feature.feature, false);
     }
 
     // Package protected: Only allowed to be called by LicensedFeature
-    boolean isAllowed(LicensedFeature feature) {
-        String warning = status.expiryWarning;
-        if (warning != null) {
-            HeaderWarning.addWarning(warning);
+    boolean isAllowed(LicensedFeature feature, boolean checkExpiry) {
+        if (checkExpiry) {
+            String warning = status.expiryWarning;
+            if (warning != null) {
+                HeaderWarning.addWarning(warning);
+            }
         }
-        if (isAllowedByLicense(feature.minimumOperationMode, feature.needsActive)) {
-            return true;
-        }
-        return false;
+        return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
     }
 
     /**

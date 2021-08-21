@@ -450,7 +450,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         Map<XPackLicenseState.FeatureUsage, Long> lastUsed = licenseState.getLastUsed();
         assertThat("initial epoch time", lastUsed, not(hasKey(goldFeature)));
 
-        licenseState.isAllowed(goldFeature);
+        licenseState.isAllowed(goldFeature, true);
         lastUsed = licenseState.getLastUsed();
         assertThat("isAllowed does not track", lastUsed, not(hasKey(goldFeature)));
 
@@ -477,7 +477,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         Map<XPackLicenseState.FeatureUsage, Long> lastUsed = licenseState.getLastUsed();
         assertThat("initial epoch time", lastUsed, not(hasKey(goldFeature)));
 
-        licenseState.isAllowed(goldFeature);
+        licenseState.isAllowed(goldFeature, true);
         lastUsed = licenseState.getLastUsed();
         assertThat("isAllowed does not track", lastUsed, not(hasKey(goldFeature)));
 

@@ -60,12 +60,13 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
     ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-    bash -c '/usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""'
+    /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""
     if [ $? -eq 0 ]; then
         INITIAL_PASSWORD=$(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHash \
         ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
         ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-        bash -c '/usr/share/elasticsearch/bin/elasticsearch-cli')
+        /usr/share/elasticsearch/bin/elasticsearch-cli)
+        md5sum "${ES_PATH_CONF}"/elasticsearch.keystore > "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
         if [ $? -eq 0 ]; then
             echo "##########                 Security autoconfiguration information                ############"
             echo "#                                                                                           #"

@@ -36,12 +36,14 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     static final String TYPE = "enrich";
     private final Client client;
     private final ScriptService scriptService;
+    private final EnrichCache enrichCache;
 
     volatile Metadata metadata;
 
-    EnrichProcessorFactory(Client client, ScriptService scriptService) {
+    EnrichProcessorFactory(Client client, ScriptService scriptService, EnrichCache enrichCache) {
         this.client = client;
         this.scriptService = scriptService;
+        this.enrichCache = enrichCache;
     }
 
     @Override
@@ -75,7 +77,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (maxMatches < 1 || maxMatches > 128) {
             throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 128");
         }
-        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner = createSearchRunner(client);
+        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner = createSearchRunner(client, enrichCache);
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
                 return new MatchProcessor(
@@ -117,16 +119,25 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     @Override
     public void accept(ClusterState state) {
         metadata = state.getMetadata();
+        enrichCache.setMetadata(metadata);
     }
 
-    private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {
+    private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(
+        Client client,
+        EnrichCache enrichCache
+    ) {
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (req, handler) -> {
-            originClient.execute(
-                EnrichCoordinatorProxyAction.INSTANCE,
-                req,
-                ActionListener.wrap(resp -> { handler.accept(resp, null); }, e -> { handler.accept(null, e); })
-            );
+            // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
+            SearchResponse response = enrichCache.get(req);
+            if (response != null) {
+                handler.accept(response, null);
+            } else {
+                originClient.execute(EnrichCoordinatorProxyAction.INSTANCE, req, ActionListener.wrap(resp -> {
+                    enrichCache.put(req, resp);
+                    handler.accept(resp, null);
+                }, e -> { handler.accept(null, e); }));
+            }
         };
     }
 }

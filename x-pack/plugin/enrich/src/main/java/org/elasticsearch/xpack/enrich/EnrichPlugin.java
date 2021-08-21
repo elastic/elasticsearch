@@ -126,15 +126,19 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
     }, val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME), Setting.Property.NodeScope);
 
+    public static final Setting<Long> CACHE_SIZE = Setting.longSetting("enrich.cache_size", 1000, 0, Setting.Property.NodeScope);
+
     private final Settings settings;
+    private final EnrichCache enrichCache;
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
+        this.enrichCache = new EnrichCache(CACHE_SIZE.get(settings));
     }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client, parameters.scriptService);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client, parameters.scriptService, enrichCache);
         parameters.ingestService.addIngestClusterStateListener(factory);
         return Map.of(EnrichProcessorFactory.TYPE, factory);
     }
@@ -200,7 +204,12 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             enrichPolicyLocks
         );
         enrichPolicyMaintenanceService.initialize();
-        return List.of(enrichPolicyLocks, new EnrichCoordinatorProxyAction.Coordinator(client, settings), enrichPolicyMaintenanceService);
+        return List.of(
+            enrichPolicyLocks,
+            new EnrichCoordinatorProxyAction.Coordinator(client, settings),
+            enrichPolicyMaintenanceService,
+            enrichCache
+        );
     }
 
     @Override
@@ -230,7 +239,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS,
             COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
             COORDINATOR_PROXY_QUEUE_CAPACITY,
-            ENRICH_MAX_FORCE_MERGE_ATTEMPTS
+            ENRICH_MAX_FORCE_MERGE_ATTEMPTS,
+            CACHE_SIZE
         );
     }
 

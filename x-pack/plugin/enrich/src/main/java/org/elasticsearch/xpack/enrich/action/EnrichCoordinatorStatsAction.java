@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -26,6 +27,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
+import org.elasticsearch.xpack.enrich.EnrichCache;
 
 import java.io.IOException;
 import java.util.List;
@@ -88,15 +90,18 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
     public static class NodeResponse extends BaseNodeResponse {
 
+        private final EnrichStatsAction.Response.CacheStats cacheStats;
         private final CoordinatorStats coordinatorStats;
 
-        NodeResponse(DiscoveryNode node, CoordinatorStats coordinatorStats) {
+        NodeResponse(DiscoveryNode node, EnrichStatsAction.Response.CacheStats cacheStats, CoordinatorStats coordinatorStats) {
             super(node);
+            this.cacheStats = cacheStats;
             this.coordinatorStats = coordinatorStats;
         }
 
         NodeResponse(StreamInput in) throws IOException {
             super(in);
+            this.cacheStats = in.getVersion().onOrAfter(Version.V_8_0_0) ? new EnrichStatsAction.Response.CacheStats(in) : null;
             this.coordinatorStats = new CoordinatorStats(in);
         }
 
@@ -104,15 +109,23 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
             return coordinatorStats;
         }
 
+        public EnrichStatsAction.Response.CacheStats getCacheStats() {
+            return cacheStats;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                cacheStats.writeTo(out);
+            }
             coordinatorStats.writeTo(out);
         }
     }
 
     public static class TransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse> {
 
+        private final EnrichCache enrichCache;
         private final EnrichCoordinatorProxyAction.Coordinator coordinator;
 
         @Inject
@@ -121,6 +134,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
+            EnrichCache enrichCache,
             EnrichCoordinatorProxyAction.Coordinator coordinator
         ) {
             super(
@@ -134,6 +148,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
                 ThreadPool.Names.SAME,
                 NodeResponse.class
             );
+            this.enrichCache = enrichCache;
             this.coordinator = coordinator;
         }
 
@@ -161,7 +176,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         @Override
         protected NodeResponse nodeOperation(NodeRequest request, Task task) {
             DiscoveryNode node = clusterService.localNode();
-            return new NodeResponse(node, coordinator.getStats(node.getId()));
+            return new NodeResponse(node, enrichCache.getStats(node.getId()), coordinator.getStats(node.getId()));
         }
     }
 

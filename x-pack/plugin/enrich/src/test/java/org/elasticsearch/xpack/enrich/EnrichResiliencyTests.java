@@ -49,6 +49,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         // Severely throttle the processing throughput to reach max capacity easier
         return Settings.builder()
+            .put(EnrichPlugin.CACHE_SIZE.getKey(), 0)
             .put(EnrichPlugin.COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.getKey(), 1)
             .put(EnrichPlugin.COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.getKey(), 1)
             .put(EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.getKey(), 10)

@@ -92,7 +92,12 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                 .map(t -> new ExecutingPolicy(t.getDescription(), t))
                 .sorted(Comparator.comparing(ExecutingPolicy::getName))
                 .collect(Collectors.toList());
-            listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats));
+            List<EnrichStatsAction.Response.CacheStats> cacheStats = response.getNodes()
+                .stream()
+                .map(EnrichCoordinatorStatsAction.NodeResponse::getCacheStats)
+                .sorted(Comparator.comparing(EnrichStatsAction.Response.CacheStats::getNodeId))
+                .collect(Collectors.toList());
+            listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats, cacheStats));
         }, listener::onFailure);
         client.execute(EnrichCoordinatorStatsAction.INSTANCE, statsRequest, statsListener);
     }

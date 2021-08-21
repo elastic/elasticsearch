@@ -25,6 +25,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
+import org.elasticsearch.xpack.enrich.EnrichCache;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 
 import java.util.ArrayList;
@@ -57,11 +58,18 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
     public static class TransportAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
         private final Coordinator coordinator;
+        private final EnrichCache enrichCache;
 
         @Inject
-        public TransportAction(TransportService transportService, ActionFilters actionFilters, Coordinator coordinator) {
+        public TransportAction(
+            TransportService transportService,
+            ActionFilters actionFilters,
+            Coordinator coordinator,
+            EnrichCache enrichCache
+        ) {
             super(NAME, transportService, actionFilters, SearchRequest::new);
             this.coordinator = coordinator;
+            this.enrichCache = enrichCache;
         }
 
         @Override

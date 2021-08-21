@@ -2117,8 +2117,8 @@ state update since the node started.
 
 `success`::
 (object)
-Contains statistics about cluster state update attempts that did not change the
-cluster state.
+Contains statistics about cluster state update attempts that successfully
+changed the cluster state.
 +
 .Properties of `success`
 [%collapsible]

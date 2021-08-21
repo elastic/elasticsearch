@@ -14,6 +14,9 @@ package org.elasticsearch.cluster;
  */
 public class ClusterStatePublicationEvent {
 
+    /**
+     * Sentinel value so that we can assert each field is set once and only once on each successful event, and at most once on each failure.
+     */
     private static final long NOT_SET = -1L;
 
     private final String summary;

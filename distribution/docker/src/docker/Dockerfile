@@ -55,7 +55,9 @@ RUN set -eux ; \\
 # Extract Elasticsearch artifact
 ################################################################################
 
-${build_args}
+ARG BASE_REGISTRY=registry1.dso.mil
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
+ARG BASE_TAG=8.4
 
 FROM ${base_image} AS builder
 
@@ -224,16 +226,16 @@ WORKDIR /usr/share/elasticsearch
 <% if (docker_base == "iron_bank") {
   // Iron Bank always copies the local artifact
 %>
-COPY elasticsearch-7.14.0-linux-x86_64.tar.gz /opt/elasticsearch.tar.gz
+COPY elasticsearch-${version}-linux-x86_64.tar.gz /tmp/elasticsearch.tar.gz
 <% } else {
   // Fetch the appropriate Elasticsearch distribution for this architecture.
   // Keep this command on one line - it is replaced with a `COPY` during local builds.
   // It uses the `arch` command to fetch the correct distro for the build machine.
 %>
-RUN curl --retry 10 -S -L --output /opt/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
+RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 <% } %>
 
-RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
+RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
 
 # The distribution includes a `config` directory, no need to create it
 COPY ${config_dir}/elasticsearch.yml config/
@@ -258,6 +260,27 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     chmod 0555 bin/* jdk/bin/* jdk/lib/jspawnhelper modules/x-pack-ml/platform/linux-*/bin/* && \\
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} +
+
+<% if (docker_base == "cloud") { %>
+# Preinstall common plugins
+COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /tmp/
+RUN bin/elasticsearch-plugin install --batch \\
+    file:/tmp/repository-s3-${version}.zip \\
+    file:/tmp/repository-gcs-${version}.zip \\
+    file:/tmp/repository-azure-${version}.zip
+
+<% /*  I tried to use `ADD` here, but I couldn't force it to do what I wanted */ %>
+COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
+RUN mkdir -p /opt/filebeat /opt/metricbeat && \\
+    tar xf /tmp/filebeat-${version}.tar.gz -C /opt/filebeat --strip-components=1 && \\
+    tar xf /tmp/metricbeat-${version}.tar.gz -C /opt/metricbeat --strip-components=1
+
+# Add plugins infrastructure
+RUN mkdir -p /opt/plugins/archive
+COPY bin/plugin-wrapper.sh /opt/plugins
+# These are the correct permissions for both the directories and the script
+RUN chmod -R 0555 /opt/plugins
+<% } %>
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 
@@ -324,6 +347,10 @@ COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearc
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 <% } %>
 
+<% if (docker_base == 'cloud') { %>
+COPY --from=builder --chown=0:0 /opt /opt
+<% } %>
+
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
@@ -387,14 +414,23 @@ RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
-USER elasticsearch:root
+<% if (docker_base == "cloud") { %>
+ENTRYPOINT ["/bin/tini", "--"]
+CMD ["/app/elasticsearch.sh"]
+# Generate a stub command that will be overwritten at runtime
+RUN mkdir /app && \\
+    echo -e '#!/bin/sh\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
+    chmod 0555 /app/elasticsearch.sh
 
+<% } else { %>
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.
 ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
-
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
+<% } %>
+
+USER elasticsearch:root
 
 <% if (docker_base == 'iron_bank') { %>
 HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1

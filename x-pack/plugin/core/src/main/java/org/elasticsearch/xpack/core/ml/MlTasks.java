@@ -15,8 +15,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
-import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
-import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
@@ -30,11 +28,13 @@ import java.util.stream.Collectors;
 
 public final class MlTasks {
 
+    public static final String TRAINED_MODEL_ALLOCATION_TASK_TYPE = "trained_model_allocation";
+    public static final String TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX = "xpack/ml/allocation-";
+
     public static final String JOB_TASK_NAME = "xpack/ml/job";
     public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
     public static final String DATA_FRAME_ANALYTICS_TASK_NAME = "xpack/ml/data_frame/analytics";
     public static final String JOB_SNAPSHOT_UPGRADE_TASK_NAME = "xpack/ml/job/snapshot/upgrade";
-    public static final String TRAINED_MODEL_DEPLOYMENT_TASK_NAME = "xpack/ml/trained_model/deployment";
 
     public static final String JOB_TASK_ID_PREFIX = "job-";
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
@@ -126,12 +126,6 @@ public final class MlTasks {
         return tasks == null ? null : tasks.getTask(snapshotUpgradeTaskId(jobId, snapshotId));
     }
 
-    @Nullable
-    public static PersistentTasksCustomMetadata.PersistentTask<?> getTrainedModelDeploymentTask(
-            String modelId, @Nullable PersistentTasksCustomMetadata tasks) {
-        return tasks == null ? null : tasks.getTask(trainedModelDeploymentTaskId(modelId));
-    }
-
     /**
      * Note that the return value of this method does NOT take node relocations into account.
      * Use {@link #getJobStateModifiedForReassignments} to return a value adjusted to the most
@@ -220,31 +214,6 @@ public final class MlTasks {
             if (state != DataFrameAnalyticsState.FAILED) {
                 // we are relocating at the moment
                 return DataFrameAnalyticsState.STARTING;
-            }
-        }
-        return state;
-    }
-
-    public static TrainedModelDeploymentState getTrainedModelDeploymentState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-        if (task == null) {
-            return TrainedModelDeploymentState.STOPPED;
-        }
-        TrainedModelDeploymentTaskState taskState = (TrainedModelDeploymentTaskState) task.getState();
-        if (taskState == null) {
-            return TrainedModelDeploymentState.STARTING;
-        }
-
-        TrainedModelDeploymentState state = taskState.getState();
-        if (taskState.isStatusStale(task)) {
-            if (state == TrainedModelDeploymentState.STOPPING) {
-                // previous executor node failed while the job was stopping - it won't
-                // be restarted on another node, so consider it STOPPED for reassignment purposes
-                return TrainedModelDeploymentState.STOPPED;
-            }
-            if (state != TrainedModelDeploymentState.FAILED) {
-                // we are relocating at the moment
-                // TODO Revisit this in the new allocation framework as there won't necessarily be a concept of relocation.
-                return TrainedModelDeploymentState.STARTING;
             }
         }
         return state;
@@ -435,8 +404,6 @@ public final class MlTasks {
                 return taskState == null ? SnapshotUpgradeState.LOADING_OLD_STATE : taskState.getState();
             case DATA_FRAME_ANALYTICS_TASK_NAME:
                 return getDataFrameAnalyticsState(task);
-            case TRAINED_MODEL_DEPLOYMENT_TASK_NAME:
-                return getTrainedModelDeploymentState(task);
             default:
                 throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
         }

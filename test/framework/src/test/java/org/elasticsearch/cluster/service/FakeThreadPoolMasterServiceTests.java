@@ -57,8 +57,8 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
 
         FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService("test_node","test", mockThreadPool, runnableTasks::add);
         masterService.setClusterStateSupplier(lastClusterStateRef::get);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
-            lastClusterStateRef.set(event.state());
+        masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            lastClusterStateRef.set(clusterStatePublicationEvent.getNewState());
             publishingCallback.set(publishListener);
         });
         masterService.start();

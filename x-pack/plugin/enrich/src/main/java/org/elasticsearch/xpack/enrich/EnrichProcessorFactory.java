@@ -6,7 +6,11 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -19,9 +23,13 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 final class EnrichProcessorFactory implements Processor.Factory, Consumer<ClusterState> {
 
@@ -67,14 +75,14 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (maxMatches < 1 || maxMatches > 128) {
             throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 128");
         }
-
+        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner = createSearchRunner(client);
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
             case EnrichPolicy.RANGE_TYPE:
                 return new MatchProcessor(
                     tag,
                     description,
-                    client,
+                    searchRunner,
                     policyName,
                     field,
                     targetField,
@@ -91,7 +99,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                 return new GeoMatchProcessor(
                     tag,
                     description,
-                    client,
+                    searchRunner,
                     policyName,
                     field,
                     targetField,
@@ -112,4 +120,14 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         metadata = state.getMetadata();
     }
 
+    private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {
+        Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
+        return (req, handler) -> {
+            originClient.execute(
+                EnrichCoordinatorProxyAction.INSTANCE,
+                req,
+                ActionListener.wrap(resp -> { handler.accept(resp, null); }, e -> { handler.accept(null, e); })
+            );
+        };
+    }
 }

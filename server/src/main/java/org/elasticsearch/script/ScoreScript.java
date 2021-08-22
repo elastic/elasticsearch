@@ -92,7 +92,7 @@ public abstract class ScoreScript extends DocBasedScript {
             params = new HashMap<>(params);
             params.putAll(docReader.docAsMap());
             this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
-            this.docBase = docReader.getDocBase();
+            this.docBase = ((DocValuesDocReader)docReader).getLeafReaderContext().docBase;
         }
     }
 
@@ -207,16 +207,4 @@ public abstract class ScoreScript extends DocBasedScript {
     }
 
     public static final ScriptContext<ScoreScript.Factory> CONTEXT = new ScriptContext<>("score", ScoreScript.Factory.class);
-
-    public static class FieldAccess {
-        private final ScoreScript script;
-
-        public FieldAccess(ScoreScript script) {
-            this.script = script;
-        }
-
-        public Field<?> field(String fieldName) {
-            return script.field(fieldName);
-        }
-    }
 }

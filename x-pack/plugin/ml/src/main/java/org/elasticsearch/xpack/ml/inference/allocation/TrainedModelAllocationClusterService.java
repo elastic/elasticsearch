@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
@@ -192,8 +195,32 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         });
     }
 
-    private static ClusterState update(ClusterState currentState, TrainedModelAllocationMetadata.Builder modelAllocations) {
-        if (modelAllocations.isChanged()) {
+    // Used by the reset action directly
+    public void removeAllModelAllocations(ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("delete all model allocations", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return removeAllAllocations(currentState);
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        });
+    }
+
+    private static ClusterState update(
+        ClusterState currentState,
+        TrainedModelAllocationMetadata.Builder modelAllocations,
+        boolean force
+    ) {
+        if (force || modelAllocations.isChanged()) {
             return ClusterState.builder(currentState)
                 .metadata(
                     Metadata.builder(currentState.metadata()).putCustom(TrainedModelAllocationMetadata.NAME, modelAllocations.build())
@@ -204,25 +231,37 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         }
     }
 
+    private static ClusterState update(ClusterState currentState, TrainedModelAllocationMetadata.Builder modelAllocations) {
+        return update(currentState, modelAllocations, false);
+    }
+
     ClusterState createModelAllocation(ClusterState currentState, StartTrainedModelDeploymentAction.TaskParams params) {
+        if (MlMetadata.getMlMetadata(currentState).isResetMode()) {
+            throw new ElasticsearchStatusException(
+                "cannot create new allocation for model [{}] while feature reset is in progress.",
+                RestStatus.CONFLICT,
+                params.getModelId()
+            );
+        }
         TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
         if (builder.hasModel(params.getModelId())) {
-            throw new ResourceAlreadyExistsException("allocation for model with id [" + params.getModelId() + "] already exist");
+            throw new ResourceAlreadyExistsException("allocation for model with id [{}] already exist", params.getModelId());
         }
+        TrainedModelAllocation.Builder allocationBuilder = TrainedModelAllocation.Builder.empty(params);
 
         Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
-        builder.addNewAllocation(params);
         for (DiscoveryNode node : currentState.getNodes().getAllNodes()) {
             if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)
                 && shuttingDownNodes.contains(node.getId()) == false) {
                 Optional<String> maybeError = nodeHasCapacity(currentState, params, node);
                 if (maybeError.isPresent()) {
-                    builder.addFailedNode(params.getModelId(), node.getId(), maybeError.get());
+                    allocationBuilder.addNewFailedRoutingEntry(node.getId(), maybeError.get());
                 } else {
-                    builder.addNode(params.getModelId(), node.getId());
+                    allocationBuilder.addNewRoutingEntry(node.getId());
                 }
             }
         }
+        builder.addNewAllocation(params.getModelId(), allocationBuilder);
         return update(currentState, builder);
     }
 
@@ -236,10 +275,9 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         if (existingAllocation.getAllocationState().equals(AllocationState.STOPPING)) {
             return clusterState;
         }
-
         TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(clusterState);
-        builder.setAllocationToStopping(modelId);
-        return update(clusterState, builder);
+        final boolean isChanged = builder.getAllocation(modelId).stopAllocation().isChanged();
+        return update(clusterState, builder, isChanged);
     }
 
     static ClusterState updateModelRoutingTable(ClusterState currentState, UpdateTrainedModelAllocationStateAction.Request request) {
@@ -250,13 +288,14 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             () -> new ParameterizedMessage("[{}] [{}] current metadata before update {}", modelId, nodeId, Strings.toString(metadata))
         );
         final TrainedModelAllocation existingAllocation = metadata.getModelAllocation(modelId);
-
+        final TrainedModelAllocationMetadata.Builder builder =  TrainedModelAllocationMetadata.builder(currentState);
         // If state is stopped, this indicates the node process is closed, remove the node from the allocation
         if (request.getRoutingState().getState().equals(RoutingState.STOPPED)) {
             if (existingAllocation == null || existingAllocation.isRoutedToNode(nodeId) == false) {
                 return currentState;
             }
-            return update(currentState, TrainedModelAllocationMetadata.builder(currentState).removeNode(modelId, nodeId));
+            final boolean isChanged = builder.getAllocation(modelId).removeRoutingEntry(nodeId).isChanged();
+            return update(currentState, builder, isChanged);
         }
 
         if (existingAllocation == null) {
@@ -275,9 +314,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         if (existingAllocation.isRoutedToNode(nodeId) == false) {
             throw new ResourceNotFoundException("allocation for model with id [{}]] is not routed to node [{}]", modelId, nodeId);
         }
-        TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
-        builder.updateAllocation(modelId, nodeId, request.getRoutingState());
-        return update(currentState, builder);
+        final boolean isChanged = builder.getAllocation(modelId).updateExistingRoutingEntry(nodeId, request.getRoutingState()).isChanged();
+        return update(currentState, builder, isChanged);
     }
 
     static ClusterState removeAllocation(ClusterState currentState, String modelId) {
@@ -288,15 +326,29 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         return update(currentState, builder.removeAllocation(modelId));
     }
 
+    static ClusterState removeAllAllocations(ClusterState currentState) {
+        if (TrainedModelAllocationMetadata.fromState(currentState).modelAllocations().isEmpty()) {
+            return currentState;
+        };
+        return ClusterState.builder(currentState)
+            .metadata(
+                Metadata.builder(currentState.metadata())
+                    .putCustom(TrainedModelAllocationMetadata.NAME, TrainedModelAllocationMetadata.Builder.empty().build())
+                    .build()
+            )
+            .build();
+    }
+
     ClusterState addRemoveAllocationNodes(ClusterState currentState) {
-        TrainedModelAllocationMetadata previousState = TrainedModelAllocationMetadata.fromState(currentState);
-        TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
+        final TrainedModelAllocationMetadata previousState = TrainedModelAllocationMetadata.fromState(currentState);
+        final TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
         Map<String, List<String>> removedNodeModelLookUp = new HashMap<>();
         Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
         // TODO: make more efficient, right now this is O(nm) where n = sizeof(models) and m = sizeof(nodes)
         // It could probably be O(max(n, m))
         // Add nodes and keep track of currently routed nodes
         // Should we indicate a partial allocation somehow if some nodes don't have space?
+        boolean isChanged = false;
         for (Map.Entry<String, TrainedModelAllocation> modelAllocationEntry : previousState.modelAllocations().entrySet()) {
             // Don't bother adding/removing nodes if this allocation is stopping
             if (modelAllocationEntry.getValue().getAllocationState().equals(AllocationState.STOPPING)) {
@@ -308,10 +360,14 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                 if (shuttingDownNodes.contains(node.getId()) == false
                     && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)
                     && modelAllocationEntry.getValue().isRoutedToNode(node.getId()) == false) {
-                    nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node).ifPresentOrElse(
-                        (error) -> builder.addFailedNode(modelAllocationEntry.getKey(), node.getId(), error),
-                        () -> builder.addNode(modelAllocationEntry.getKey(), node.getId())
-                    );
+                    Optional<String> failure = nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node);
+                    if (failure.isPresent()) {
+                        isChanged |= builder.getAllocation(modelAllocationEntry.getKey())
+                            .addNewFailedRoutingEntry(node.getId(), failure.get())
+                            .isChanged();
+                    } else {
+                        isChanged |= builder.getAllocation(modelAllocationEntry.getKey()).addNewRoutingEntry(node.getId()).isChanged();
+                    }
                 }
             }
             for (String nodeId : modelAllocationEntry.getValue().getNodeRoutingTable().keySet()) {
@@ -333,10 +389,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         for (Map.Entry<String, List<String>> nodeToModels : removedNodeModelLookUp.entrySet()) {
             final String nodeId = nodeToModels.getKey();
             for (String modelId : nodeToModels.getValue()) {
-                builder.removeNode(modelId, nodeId);
+                isChanged |= Optional.ofNullable(builder.getAllocation(modelId))
+                    .map(allocation -> allocation.removeRoutingEntry(nodeId).isChanged())
+                    .orElse(false);
             }
         }
-        return update(currentState, builder);
+        return update(currentState, builder, isChanged);
     }
 
     static boolean shouldAllocateModels(final ClusterChangedEvent event) {
@@ -386,7 +444,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                         load.getAssignedJobMemory(),
                         ByteSizeValue.ofBytes(load.getAssignedJobMemory()).toString(),
                         params.estimateMemoryUsageBytes(),
-                        ByteSizeValue.ofBytes(params.estimateMemoryUsageBytes()).toString() }
+                        ByteSizeValue.ofBytes(params.estimateMemoryUsageBytes()).toString()
+                    }
                 )
             );
         }

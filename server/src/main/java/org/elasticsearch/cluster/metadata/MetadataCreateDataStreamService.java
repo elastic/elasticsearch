@@ -223,7 +223,7 @@ public class MetadataCreateDataStreamService {
             hidden,
             false,
             isSystem,
-            template.getDataStreamTemplate().getAllowCustomRouting()
+            template.getDataStreamTemplate().isAllowCustomRouting()
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 

@@ -271,20 +271,20 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         private final boolean hidden;
-        private final Boolean allowCustomRouting;
+        private final boolean allowCustomRouting;
 
         public DataStreamTemplate() {
-            this(false, null);
+            this(false, false);
         }
 
-        public DataStreamTemplate(boolean hidden, Boolean allowCustomRouting) {
+        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting) {
             this.hidden = hidden;
             this.allowCustomRouting = allowCustomRouting;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
-            allowCustomRouting = in.readOptionalBoolean();
+            allowCustomRouting = in.readBoolean();
         }
 
         public String getTimestampField() {
@@ -303,7 +303,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return hidden;
         }
 
-        public Boolean getAllowCustomRouting() {
+        public boolean isAllowCustomRouting() {
             return allowCustomRouting;
         }
 
@@ -317,9 +317,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("hidden", hidden);
-            if (allowCustomRouting != null) {
-                builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
-            }
+            builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
             builder.endObject();
             return builder;
         }
@@ -329,7 +327,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden && Objects.equals(this.allowCustomRouting, that.allowCustomRouting);
+            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting;
         }
 
         @Override

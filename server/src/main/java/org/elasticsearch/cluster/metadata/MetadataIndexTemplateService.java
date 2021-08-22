@@ -1235,8 +1235,7 @@ public class MetadataIndexTemplateService {
                     if (mapperService.documentMapper() != null
                         && mapperService.documentMapper().routingFieldMapper() != null
                         && mapperService.documentMapper().routingFieldMapper().required()) {
-                        if (template.getDataStreamTemplate().getAllowCustomRouting() == null
-                            || template.getDataStreamTemplate().getAllowCustomRouting() == false) {
+                        if (template.getDataStreamTemplate().isAllowCustomRouting() == false) {
                             throw new IllegalArgumentException(
                                 "allow_custom_routing within data_stream field must be true when custom routing is enabled"
                             );

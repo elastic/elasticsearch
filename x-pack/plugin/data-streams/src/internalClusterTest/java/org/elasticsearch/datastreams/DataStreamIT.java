@@ -1664,7 +1664,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, null)
+            new ComposableIndexTemplate.DataStreamTemplate(false, false)
         );
         ComposableIndexTemplate finalTemplate1 = template;
         e = expectThrows(

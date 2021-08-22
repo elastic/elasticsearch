@@ -184,9 +184,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 builder.field(HIDDEN_FIELD.getPreferredName(), dataStream.isHidden());
                 builder.field(SYSTEM_FIELD.getPreferredName(), dataStream.isSystem());
-                if (dataStream.getAllowCustomRouting() != null) {
-                    builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.getAllowCustomRouting());
-                }
+                builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.endObject();
                 return builder;
             }

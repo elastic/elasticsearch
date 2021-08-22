@@ -46,25 +46,25 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     private final boolean hidden;
     private final boolean replicated;
     private final boolean system;
-    private final Boolean allowCustomRouting;
+    private final boolean allowCustomRouting;
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata) {
-        this(name, timeStampField, indices, generation, metadata, false, false, false, null);
+        this(name, timeStampField, indices, generation, metadata, false, false, false, false);
     }
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata,
-                      boolean hidden, boolean replicated, Boolean allowCustomRouting) {
+                      boolean hidden, boolean replicated, boolean allowCustomRouting) {
         this(name, timeStampField, indices, generation, metadata, hidden, replicated, false, System::currentTimeMillis, allowCustomRouting);
     }
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata,
-                      boolean hidden, boolean replicated, boolean system, Boolean allowCustomRouting) {
+                      boolean hidden, boolean replicated, boolean system, boolean allowCustomRouting) {
         this(name, timeStampField, indices, generation, metadata, hidden, replicated, system, System::currentTimeMillis, allowCustomRouting);
     }
 
     // visible for testing
     DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata,
-        boolean hidden, boolean replicated, boolean system, LongSupplier timeProvider, Boolean allowCustomRouting) {
+        boolean hidden, boolean replicated, boolean system, LongSupplier timeProvider, boolean allowCustomRouting) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = Collections.unmodifiableList(indices);
@@ -125,7 +125,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return system;
     }
 
-    public Boolean getAllowCustomRouting() {
+    public boolean isAllowCustomRouting() {
         return allowCustomRouting;
     }
 
@@ -259,7 +259,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public DataStream(StreamInput in) throws IOException {
         this(in.readString(), new TimestampField(in), in.readList(Index::new), in.readVLong(),
-            in.readMap(), in.readBoolean(), in.readBoolean(), in.readBoolean(), in.readOptionalBoolean());
+            in.readMap(), in.readBoolean(), in.readBoolean(), in.readBoolean(), in.readBoolean());
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -276,7 +276,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
         out.writeBoolean(system);
-        out.writeOptionalBoolean(allowCustomRouting);
+        out.writeBoolean(allowCustomRouting);
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -293,7 +293,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
         args -> new DataStream((String) args[0], (TimestampField) args[1], (List<Index>) args[2], (Long) args[3],
             (Map<String, Object>) args[4], args[5] != null && (boolean) args[5], args[6] != null && (boolean) args[6],
-            args[7] != null && (boolean) args[7], (Boolean) args[8]));
+            args[7] != null && (boolean) args[7], args[8] != null && (boolean) args[8]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -324,9 +324,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         builder.field(HIDDEN_FIELD.getPreferredName(), hidden);
         builder.field(REPLICATED_FIELD.getPreferredName(), replicated);
         builder.field(SYSTEM_FIELD.getPreferredName(), system);
-        if (allowCustomRouting != null) {
-            builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
-        }
+        builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
         builder.endObject();
         return builder;
     }
@@ -343,7 +341,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             Objects.equals(metadata, that.metadata) &&
             hidden == that.hidden &&
             replicated == that.replicated &&
-            Objects.equals(allowCustomRouting, that.allowCustomRouting);
+            allowCustomRouting == that.allowCustomRouting;
     }
 
     @Override

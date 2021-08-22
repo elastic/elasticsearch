@@ -240,10 +240,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void resolveEnrichMapping(final EnrichPolicy policy, ActionListener<XContentBuilder> resultListener) {
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
-            createEnrichMappingBuilder(
-                (builder) -> builder.field("type", "keyword").field("doc_values", false),
-                resultListener
-            );
+            createEnrichMappingBuilder((builder) -> builder.field("type", "keyword").field("doc_values", false), resultListener);
         } else if (EnrichPolicy.RANGE_TYPE.equals(policy.getType())) {
             resolveRangeTypeEnrichMapping(policy, resultListener);
         } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(policy.getType())) {
@@ -286,7 +283,7 @@ public class EnrichPolicyRunner implements Runnable {
                 );
             } else {
                 String matchType = resolveMatchType(types.get(0));
-                if(matchType==null) {
+                if (matchType == null) {
                     resultListener.onFailure(
                         new ElasticsearchException(
                             "Field '{}' has type [{}] which doesn't appear to be a range type",
@@ -295,10 +292,7 @@ public class EnrichPolicyRunner implements Runnable {
                         )
                     );
                 } else {
-                    createEnrichMappingBuilder(
-                        (builder) -> builder.field("type", matchType).field("doc_values", false),
-                        resultListener
-                    );
+                    createEnrichMappingBuilder((builder) -> builder.field("type", matchType).field("doc_values", false), resultListener);
                 }
             }
         }));
@@ -306,10 +300,8 @@ public class EnrichPolicyRunner implements Runnable {
 
     @SuppressWarnings("unchecked")
     private Function<GetFieldMappingsResponse.FieldMappingMetadata, String> toFieldMappingType(String field) {
-        return data -> ((Map<String, String>) data.sourceAsMap().getOrDefault(
-            field.substring(field.lastIndexOf('.')+1),
-            Map.of("type", "unknown")
-        )).get("type");
+        return data -> ((Map<String, String>) data.sourceAsMap()
+            .getOrDefault(field.substring(field.lastIndexOf('.') + 1), Map.of("type", "unknown"))).get("type");
     }
 
     private String resolveMatchType(String type) {

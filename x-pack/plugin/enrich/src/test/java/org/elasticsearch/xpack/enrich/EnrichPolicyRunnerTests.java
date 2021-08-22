@@ -1124,7 +1124,13 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             new IndexRequest().index(sourceIndex)
                 .id("id")
                 .source(
-                    "{" + "\"data\":{" + "\"subnet\":\"10.0.0.0/8\"," + "\"department\":\"research\"," + "\"field3\":\"ignored\"" + "}" + "}",
+                    "{"
+                        + "\"data\":{"
+                        + "\"subnet\":\"10.0.0.0/8\","
+                        + "\"department\":\"research\","
+                        + "\"field3\":\"ignored\""
+                        + "}"
+                        + "}",
                     XContentType.JSON
                 )
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -1188,7 +1194,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(field1.get("doc_values"), is(false));
 
         SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.subnet", "10.0.0.1")))
+            new SearchRequest(".enrich-test1").source(
+                SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.subnet", "10.0.0.1"))
+            )
         ).actionGet();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));

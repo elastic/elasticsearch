@@ -44,9 +44,9 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
@@ -336,9 +336,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         if (writeRequest.routing() != null) {
             IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
-            if(dataStream.getDataStream().isAllowCustomRouting() == false){
-                throw new IllegalArgumentException("index request targeting data stream [" + dataStream.getName() + "] specifies a custom " +
-                    "routing. allow_custom_routing within data_stream field must be true when custom routing is enabled.");
+            if (dataStream.getDataStream().isAllowCustomRouting() == false) {
+                throw new IllegalArgumentException(
+                    "index request targeting data stream ["
+                        + dataStream.getName()
+                        + "] specifies a custom routing. allow_custom_routing within "
+                        + "data_stream field must be true when custom routing is enabled."
+                );
             }
         }
     }

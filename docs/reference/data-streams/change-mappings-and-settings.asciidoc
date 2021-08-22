@@ -577,7 +577,8 @@ stream's oldest backing index.
       "status": "GREEN",
       "template": "my-data-stream-template",
       "hidden": false,
-      "system": false
+      "system": false,
+      "allow_custom_routing": false
     }
   ]
 }

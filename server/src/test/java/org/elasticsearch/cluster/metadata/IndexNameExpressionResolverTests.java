@@ -2373,7 +2373,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(index2, false)
                 .put(justAnIndex, false)
                 .put(new DataStream(dataStream1, createTimestampField("@timestamp"),
-                    List.of(index1.getIndex(), index2.getIndex()), 2, Collections.emptyMap(), true, false))).build();
+                    List.of(index1.getIndex(), index2.getIndex()), 2, Collections.emptyMap(), true, false, false))).build();
 
         Index[] result = indexNameExpressionResolver.concreteIndices(state, IndicesOptions.strictExpandHidden(), true, "logs-*");
         assertThat(result, arrayContainingInAnyOrder(index1.getIndex(), index2.getIndex(), justAnIndex.getIndex() ));

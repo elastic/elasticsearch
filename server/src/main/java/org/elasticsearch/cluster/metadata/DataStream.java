@@ -9,16 +9,16 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
@@ -59,7 +59,18 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata,
                       boolean hidden, boolean replicated, boolean system, boolean allowCustomRouting) {
-        this(name, timeStampField, indices, generation, metadata, hidden, replicated, system, System::currentTimeMillis, allowCustomRouting);
+        this(
+            name,
+            timeStampField,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            System::currentTimeMillis,
+            allowCustomRouting
+        );
     }
 
     // visible for testing
@@ -195,7 +206,18 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public DataStream promoteDataStream() {
-        return new DataStream(name, timeStampField, indices, getGeneration(), metadata, hidden, false, system, timeProvider, allowCustomRouting);
+        return new DataStream(
+            name,
+            timeStampField,
+            indices,
+            getGeneration(),
+            metadata,
+            hidden,
+            false,
+            system,
+            timeProvider,
+            allowCustomRouting
+        );
     }
 
     /**

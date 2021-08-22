@@ -144,7 +144,7 @@ public class Shell {
         logger.warn("Running command with env: " + env);
         Result result = runScriptIgnoreExitCode(command);
         if (result.isSuccess() == false) {
-            throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result.toString());
+            throw new ShellException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result.toString());
         }
         return result;
     }
@@ -156,7 +156,6 @@ public class Shell {
             setWorkingDirectory(builder, workingDirectory);
         }
         builder.environment().keySet().remove("ES_JAVA_HOME"); // start with a fresh environment
-        builder.environment().keySet().remove("JAVA_HOME");
         for (Map.Entry<String, String> entry : env.entrySet()) {
             builder.environment().put(entry.getKey(), entry.getValue());
         }
@@ -253,4 +252,17 @@ public class Shell {
         }
     }
 
+    /**
+     * An exception to model failures to run a shell command. This exists so that calling code can differentiate between
+     * shell / command errors, and other runtime errors.
+     */
+    public static class ShellException extends RuntimeException {
+        public ShellException(String message) {
+            super(message);
+        }
+
+        public ShellException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
 }

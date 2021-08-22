@@ -149,12 +149,12 @@ public class DockerTests extends PackagingTestCase {
         );
 
         final Installation.Executables bin = installation.executables();
-        final List<String> plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
+        final List<String> plugins = Arrays.asList(sh.run(bin.pluginTool + " list").stdout.split("\n"));
 
         assertThat(
             "Expected standard plugins to be listed",
             plugins,
-            equalTo(List.of("repository-azure", "repository-gcs", "repository-s3"))
+            equalTo(Arrays.asList("repository-azure", "repository-gcs", "repository-s3"))
         );
     }
 
@@ -167,7 +167,7 @@ public class DockerTests extends PackagingTestCase {
         final String plugin = "analysis-icu";
 
         final Installation.Executables bin = installation.executables();
-        List<String> plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
+        List<String> plugins = Arrays.asList(sh.run(bin.pluginTool + " list").stdout.split("\n"));
 
         assertThat("Expected " + plugin + " to not be installed", plugins, not(hasItems(plugin)));
 
@@ -176,7 +176,7 @@ public class DockerTests extends PackagingTestCase {
             .put("ES_JAVA_OPTS", "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999");
         sh.run("/opt/plugins/plugin-wrapper.sh install --batch analysis-icu");
 
-        plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
+        plugins = Arrays.asList(sh.run(bin.pluginTool + " list").stdout.split("\n"));
 
         assertThat("Expected " + plugin + " to be installed", plugins, hasItems(plugin));
     }
@@ -988,10 +988,10 @@ public class DockerTests extends PackagingTestCase {
         assertThat("Expected beats in /opt", contents, hasItems("filebeat", "metricbeat"));
 
         Stream.of("filebeat", "metricbeat").forEach(beat -> {
-            assertThat(Path.of("/opt/" + beat), file(Directory, "root", "root", p755));
-            assertThat(Path.of("/opt/" + beat + "/" + beat), file(File, "root", "root", p755));
-            assertThat(Path.of("/opt/" + beat + "/module"), file(Directory, "root", "root", p755));
-            assertThat(Path.of("/opt/" + beat + "/modules.d"), file(Directory, "root", "root", p755));
+            assertThat(Paths.get("/opt/" + beat), file(Directory, "root", "root", p755));
+            assertThat(Paths.get("/opt/" + beat + "/" + beat), file(File, "root", "root", p755));
+            assertThat(Paths.get("/opt/" + beat + "/module"), file(Directory, "root", "root", p755));
+            assertThat(Paths.get("/opt/" + beat + "/modules.d"), file(Directory, "root", "root", p755));
         });
     }
 }

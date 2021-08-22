@@ -435,7 +435,7 @@ public class Docker {
     }
 
     private static void verifyCloudContainerInstallation(Installation es) {
-        assertThat(Path.of("/opt/plugins/plugin-wrapper.sh"), file("root", "root", p555));
+        assertThat(Paths.get("/opt/plugins/plugin-wrapper.sh"), file("root", "root", p555));
 
         final String pluginArchive = "/opt/plugins/archive";
         final List<String> plugins = listContents(pluginArchive);
@@ -590,7 +590,7 @@ public class Docker {
      * @return the listing
      */
     public static List<String> listContents(String path) {
-        return dockerShell.run("ls -1 --color=never " + path).stdout.lines().collect(Collectors.toList());
+        return Arrays.asList(dockerShell.run("ls -1 --color=never " + path).stdout.split("\n"));
     }
 
     public static List<String> listContents(Path path) {

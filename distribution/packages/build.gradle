@@ -268,7 +268,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
   }
 }
 
-// this is package indepdendent configuration
+// this is package independent configuration
 ospackage {
   maintainer 'Elasticsearch Team <info@elastic.co>'
   summary 'Distributed RESTful search engine built for the cloud'

@@ -97,7 +97,11 @@ public class Packages {
         }
         // https://github.com/elastic/elasticsearch/issues/75940
         // TODO Figure out how to run all packaging tests with security enabled which is now the default behavior
-        ServerUtils.possiblyDisableSecurityFeatures(installation);
+        if (Version.fromString(distribution.baseVersion).onOrAfter(Version.CURRENT)) {
+            ServerUtils.disableSecurityFeatures(installation);
+        } else {
+            ServerUtils.possiblyDisableSecurityFeatures(installation);
+        }
         return installation;
     }
 

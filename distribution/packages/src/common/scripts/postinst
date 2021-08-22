@@ -56,7 +56,7 @@ if command -v systemctl > /dev/null; then
 fi
 
 if [ "x$IS_UPGRADE" != "xtrue" ]; then
-
+    # Auto-configure security, this seems to be an installation
     ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
@@ -66,7 +66,6 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
         ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
         ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
         /usr/share/elasticsearch/bin/elasticsearch-cli)
-        md5sum "${ES_PATH_CONF}"/elasticsearch.keystore > "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
         if [ $? -eq 0 ]; then
             echo "##########                 Security autoconfiguration information                ############"
             echo "#                                                                                           #"
@@ -83,6 +82,8 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
             echo "#                                                                                           #"
             echo "#############################################################################################"
         fi
+        chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
+        md5sum "${ES_PATH_CONF}"/elasticsearch.keystore > "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
     else
         echo "##########                 Security autoconfiguration information                ############"
         echo "#                                                                                           #"

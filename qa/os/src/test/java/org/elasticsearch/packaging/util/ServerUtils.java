@@ -329,14 +329,17 @@ public class ServerUtils {
      * Explicitly disables security features
      */
     public static void disableSecurityFeatures(Installation installation) throws IOException {
-        List<String> disabledSecurityFeatures =
-            List.of("xpack.security.http.ssl.enabled: false", "xpack.security.transport.ssl.enabled: false", "xpack.security.enabled: false");
+        List<String> disabledSecurityFeatures = List.of(
+            "xpack.security.http.ssl.enabled: false",
+            "xpack.security.transport.ssl.enabled: false",
+            "xpack.security.enabled: false"
+        );
         Path yamlFile = installation.config("elasticsearch.yml");
         List<String> lines;
         try (Stream<String> allLines = Files.readAllLines(yamlFile).stream()) {
-            lines = allLines.filter(l -> l.startsWith("xpack.security.http.ssl.enabled:")
-                || l.startsWith("xpack.security.transport.ssl.enabled:")
-                || l.startsWith("xpack.security.enabled:")).collect(Collectors.toList());
+            lines = allLines.filter(l -> l.startsWith("xpack.security.http.ssl.enabled:") == false
+                && l.startsWith("xpack.security.transport.ssl.enabled:") == false
+                && l.startsWith("xpack.security.enabled:") == false).collect(Collectors.toList());
         }
         lines.addAll(disabledSecurityFeatures);
         Files.write(yamlFile, lines, TRUNCATE_EXISTING);

@@ -63,15 +63,11 @@ Submit the following request:
 ----
 GET seats/_search
 {
+  "size":1,
   "query": {
     "match_all": {}
   },
   "script_fields": {
-    "day-of-week": {
-      "script": {
-        "source": "doc['datetime'].value.getDayOfWeekEnum()"
-      }
-    },
     "number-of-actors": {
       "script": {
         "source": "params['_source']['actors'].size()"

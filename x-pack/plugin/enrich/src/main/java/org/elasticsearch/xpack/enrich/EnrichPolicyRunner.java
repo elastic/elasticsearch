@@ -240,43 +240,12 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void resolveEnrichMapping(final EnrichPolicy policy, ActionListener<XContentBuilder> resultListener) {
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
-            GetFieldMappingsRequest fieldMappingsRequest = new GetFieldMappingsRequest().indices(
-                policy.getIndices().stream().toArray(String[]::new)
-            ).fields(policy.getMatchField());
-            client.execute(GetFieldMappingsAction.INSTANCE, fieldMappingsRequest, listener.delegateFailure((l, response) -> {
-                List<String> types = response.mappings()
-                    .values()
-                    .stream()
-                    .map(Map::values)
-                    .flatMap(Collection::stream)
-                    .map(toFieldMappingType(policy.getMatchField()))
-                    .distinct()
-                    .collect(Collectors.toList());
-                if (types.isEmpty()) {
-                    resultListener.onFailure(
-                        new ElasticsearchException(
-                            "No mapping type found for match field '{}' - indices({})",
-                            policy.getMatchField(),
-                            Strings.collectionToCommaDelimitedString(policy.getIndices())
-                        )
-                    );
-                } else if (types.size() > 1) {
-                    resultListener.onFailure(
-                        new ElasticsearchException(
-                            "Multiple distinct mapping types for match field '{}' - indices({})  types({})",
-                            policy.getMatchField(),
-                            Strings.collectionToCommaDelimitedString(policy.getIndices()),
-                            Strings.collectionToCommaDelimitedString(types)
-                        )
-                    );
-                } else {
-                    createEnrichMappingBuilder(
-                        (builder) -> builder.field("type", resolveMatchType(types.get(0))).field("doc_values", false),
-                        resultListener
-                    );
-                }
-            }));
-            // No need to also configure index_options, because keyword type defaults to 'docs'.
+            createEnrichMappingBuilder(
+                (builder) -> builder.field("type", "keyword").field("doc_values", false),
+                resultListener
+            );
+        } else if (EnrichPolicy.RANGE_TYPE.equals(policy.getType())) {
+            resolveRangeTypeEnrichMapping(policy, resultListener);
         } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(policy.getType())) {
             createEnrichMappingBuilder((builder) -> builder.field("type", "geo_shape"), resultListener);
         } else {
@@ -284,9 +253,63 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
+    private void resolveRangeTypeEnrichMapping(EnrichPolicy policy, ActionListener<XContentBuilder> resultListener) {
+        GetFieldMappingsRequest fieldMappingsRequest = new GetFieldMappingsRequest().indices(
+            policy.getIndices().stream().toArray(String[]::new)
+        ).fields(policy.getMatchField());
+
+        client.execute(GetFieldMappingsAction.INSTANCE, fieldMappingsRequest, listener.delegateFailure((l, response) -> {
+            List<String> types = response.mappings()
+                .values()
+                .stream()
+                .map(Map::values)
+                .flatMap(Collection::stream)
+                .map(toFieldMappingType(policy.getMatchField()))
+                .distinct()
+                .collect(Collectors.toList());
+            if (types.isEmpty()) {
+                resultListener.onFailure(
+                    new ElasticsearchException(
+                        "No mapping type found for match field '{}' - indices({})",
+                        policy.getMatchField(),
+                        Strings.collectionToCommaDelimitedString(policy.getIndices())
+                    )
+                );
+            } else if (types.size() > 1) {
+                resultListener.onFailure(
+                    new ElasticsearchException(
+                        "Multiple distinct mapping types for match field '{}' - indices({})  types({})",
+                        policy.getMatchField(),
+                        Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                        Strings.collectionToCommaDelimitedString(types)
+                    )
+                );
+            } else {
+                String matchType = resolveMatchType(types.get(0));
+                if(matchType==null) {
+                    resultListener.onFailure(
+                        new ElasticsearchException(
+                            "Field '{}' has type [{}] which doesn't appear to be a range type",
+                            policy.getMatchField(),
+                            types.get(0)
+                        )
+                    );
+                } else {
+                    createEnrichMappingBuilder(
+                        (builder) -> builder.field("type", matchType).field("doc_values", false),
+                        resultListener
+                    );
+                }
+            }
+        }));
+    }
+
     @SuppressWarnings("unchecked")
     private Function<GetFieldMappingsResponse.FieldMappingMetadata, String> toFieldMappingType(String field) {
-        return data -> ((Map<String, String>) data.sourceAsMap().getOrDefault(field, Map.of("type", "unknown"))).get("type");
+        return data -> ((Map<String, String>) data.sourceAsMap().getOrDefault(
+            field.substring(field.lastIndexOf('.')+1),
+            Map.of("type", "unknown")
+        )).get("type");
     }
 
     private String resolveMatchType(String type) {
@@ -298,9 +321,8 @@ public class EnrichPolicyRunner implements Runnable {
             case "date_range":
             case "ip_range":
                 return type;
-            case "text": // exact matching only ?
             default:
-                return "keyword";
+                return null;
         }
     }
 

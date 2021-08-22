@@ -367,6 +367,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     private static void stopIndexFollowing(RestClient client, String followerIndex) throws IOException {
         pauseIndexFollowing(client, followerIndex);
+        // https://github.com/elastic/elasticsearch/pull/67158
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_close?wait_for_active_shards=index-setting")));
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/unfollow")));
     }

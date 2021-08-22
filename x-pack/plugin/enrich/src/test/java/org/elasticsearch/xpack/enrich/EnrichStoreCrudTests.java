@@ -107,7 +107,10 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
                 IllegalArgumentException.class,
                 () -> saveEnrichPolicy("name", invalidPolicy, clusterService)
             );
-            assertThat(error.getMessage(), equalTo("unsupported policy type [unsupported_type], supported types are [match, geo_match, range]"));
+            assertThat(
+                error.getMessage(),
+                equalTo("unsupported policy type [unsupported_type], supported types are [match, geo_match, range]")
+            );
         }
     }
 

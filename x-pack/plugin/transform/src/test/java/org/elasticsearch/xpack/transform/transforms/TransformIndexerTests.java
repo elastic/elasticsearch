@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
@@ -238,7 +239,7 @@ public class TransformIndexerTests extends ESTestCase {
             assert state == IndexerState.STARTED || state == IndexerState.INDEXING || state == IndexerState.STOPPED;
 
             assertTrue(saveStateInProgress.compareAndSet(true, false));
-            next.run();
+            super.doSaveState(state, position, next);
         }
 
         @Override
@@ -265,6 +266,11 @@ public class TransformIndexerTests extends ESTestCase {
 
         public int getDeleteByQueryCallCount() {
             return deleteByQueryCallCount;
+        }
+
+        @Override
+        void persistState(TransformState state, ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
     }
 

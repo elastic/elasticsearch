@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -23,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
-    
+
     public void testUniDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
 
@@ -91,7 +90,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59625")
     public void testAutoFollowing() throws Exception {
         String leaderIndex1 = "logs-20200101";
         String leaderIndex2 = "logs-20200102";
@@ -210,7 +208,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59625")
     public void testCannotFollowLeaderInUpgradedCluster() throws Exception {
         if (upgradeState != UpgradeState.ALL) {
             return;
@@ -238,7 +235,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59625")
     public void testBiDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
 
@@ -299,10 +295,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     private static void createLeaderIndex(RestClient client, String indexName) throws IOException {
         Settings.Builder indexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0);
-        if (UPGRADE_FROM_VERSION.before(Version.V_7_0_0) || randomBoolean()) {
-            indexSettings.put("index.soft_deletes.enabled", true);
-        }
+            .put("index.number_of_replicas", 0)
+            .put("index.soft_deletes.enabled", true);
         createIndex(client, indexName, indexSettings.build());
     }
 
@@ -373,7 +367,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     private static void stopIndexFollowing(RestClient client, String followerIndex) throws IOException {
         pauseIndexFollowing(client, followerIndex);
-        assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_close")));
+        // https://github.com/elastic/elasticsearch/pull/67158
+        assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_close?wait_for_active_shards=index-setting")));
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/unfollow")));
     }
 

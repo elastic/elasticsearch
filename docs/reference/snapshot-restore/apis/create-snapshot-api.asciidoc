@@ -152,6 +152,7 @@ If `false`, the entire snapshot will fail if one or more indices included in the
 +
 If `true`, allows taking a partial snapshot of indices with unavailable shards.
 // end::snapshot-config[]
+
 // Unset the attribute
 :!page-id:
 

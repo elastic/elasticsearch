@@ -67,6 +67,12 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);
+
+        final String search = request.param("search");
+        if (search != null) {
+            getSnapshotsRequest.search(search);
+        }
+
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin().cluster()
                 .getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));

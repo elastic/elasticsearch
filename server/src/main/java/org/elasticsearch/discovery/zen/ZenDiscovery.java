@@ -317,6 +317,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         assert newState.getNodes().isLocalNodeElectedMaster()
             : "Shouldn't publish state when not master " + clusterStatePublicationEvent.getSummary();
 
+        // don't record timing stats in legacy discovery
+        clusterStatePublicationEvent.setPublicationContextConstructionElapsedMillis(0L);
+        clusterStatePublicationEvent.setPublicationCommitElapsedMillis(0L);
+        clusterStatePublicationEvent.setMasterApplyElapsedMillis(0L);
+        clusterStatePublicationEvent.setPublicationCompletionElapsedMillis(0L);
+
         try {
 
             // state got changed locally (maybe because another master published to us)

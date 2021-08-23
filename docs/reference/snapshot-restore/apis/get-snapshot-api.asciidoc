@@ -297,6 +297,11 @@ The total number of snapshots that match the request when ignoring size limit or
 The number of remaining snapshots that were not returned due to size limits and that can be fetched by additional requests using the `next`
 field value.
 
+`search`::
+(string)
+A search string to filter snapshots by.
+//TODO spell out all the functionality implemented so far here
+
 [[get-snapshot-api-example]]
 ==== {api-examples-title}
 

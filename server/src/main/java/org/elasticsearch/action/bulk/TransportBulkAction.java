@@ -44,7 +44,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -89,7 +89,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
-    private static final long ONE_MEGABYTE = ByteSizeValue.ofMb(1).getBytes();
+    private static final long ONE_MEGABYTE = ByteSizeUnit.MB.toBytes(1);
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -164,7 +164,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         };
         // We dispatch large bulk requests as coordinating these bytes can occur on the transport thread and might involve
         // compression.
-        if (indexingBytes > ONE_MEGABYTE) {
+        if (indexingBytes >= ONE_MEGABYTE) {
             threadPool.executor(executorName).execute(internalExecute);
         } else {
             internalExecute.run();

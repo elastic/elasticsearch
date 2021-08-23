@@ -1331,7 +1331,7 @@ public final class PainlessLookupBuilder {
         Objects.requireNonNull(originalPainlessClassBuilder);
         Objects.requireNonNull(targetPainlessClassBuilder);
 
-        for (Map.Entry<String, PainlessMethod> painlessMethodEntry : originalPainlessClassBuilder.methods.entrySet()) {
+        /*for (Map.Entry<String, PainlessMethod> painlessMethodEntry : originalPainlessClassBuilder.methods.entrySet()) {
             String painlessMethodKey = painlessMethodEntry.getKey();
             PainlessMethod newPainlessMethod = painlessMethodEntry.getValue();
             PainlessMethod existingPainlessMethod = targetPainlessClassBuilder.methods.get(painlessMethodKey);
@@ -1340,7 +1340,7 @@ public final class PainlessLookupBuilder {
                     existingPainlessMethod.targetClass.isAssignableFrom(newPainlessMethod.targetClass)) {
                 targetPainlessClassBuilder.methods.put(painlessMethodKey.intern(), newPainlessMethod);
             }
-        }
+        }*/
 
         for (Map.Entry<String, PainlessField> painlessFieldEntry : originalPainlessClassBuilder.fields.entrySet()) {
             String painlessFieldKey = painlessFieldEntry.getKey();

@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
-import static org.elasticsearch.packaging.util.FileMatcher.p664;
+import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
@@ -101,7 +101,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         assertThat(autoConfigDirName.isPresent(), is(true));
         assertThat(es.config(autoConfigDirName.get()), file(Directory, "root", "elasticsearch", p750));
         Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
-            .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), file(File, "root", "elasticsearch", p664)));
+            .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), file(File, "root", "elasticsearch", p660)));
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
 
         // This will change when we change all packaging tests to work with security enabled in a follow-up PR.

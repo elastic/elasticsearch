@@ -526,7 +526,7 @@ public class ConfigInitialNode extends EnvironmentAwareCommand {
                     "will not be replaced", filePath));
         }
         // the default permission
-        Set<PosixFilePermission> permission = PosixFilePermissions.fromString("rw-rw-r--");
+        Set<PosixFilePermission> permission = PosixFilePermissions.fromString("rw-rw----");
         // if replacing, use the permission of the replaced file
         if (Files.exists(filePath)) {
             PosixFileAttributeView view = Files.getFileAttributeView(filePath, PosixFileAttributeView.class);

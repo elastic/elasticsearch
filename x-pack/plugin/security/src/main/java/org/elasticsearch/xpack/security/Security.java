@@ -32,7 +32,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -391,8 +390,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
-    private final SetOnce<SecureString> elasticPasswordHash = new SetOnce<>();
-    private final SetOnce<NativeUsersStore> nativeUsersStore = new SetOnce<>();
 
     public Security(Settings settings, final Path configPath) {
         this(settings, configPath, Collections.emptyList());
@@ -426,8 +423,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
     protected SSLService getSslService() { return XPackPlugin.getSharedSslService(); }
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
-    protected SecureString getElasticPasswordHash() { return this.elasticPasswordHash.get(); }
-    protected SecurityIndexManager getSecurityIndexManager() { return securityIndex.get(); }
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
@@ -480,7 +475,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         securityIndex.set(SecurityIndexManager.buildSecurityIndexManager(client, clusterService, SECURITY_MAIN_INDEX_DESCRIPTOR));
 
-        // Store this because when the listener we register will be called, secure settings will be closed
         final TokenService tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
@@ -496,7 +490,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
-        this.nativeUsersStore.set(nativeUsersStore);
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);

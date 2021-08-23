@@ -766,7 +766,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // If we are testing the current version of Elasticsearch, use the configured runtime Java, otherwise use the bundled JDK
         if (getTestDistribution() == TestDistribution.INTEG_TEST || getVersion().equals(VersionProperties.getElasticsearchVersion())) {
             defaultEnv.put("ES_JAVA_HOME", runtimeJava.get().getAbsolutePath());
-            defaultEnv.put("AUTO_CONFIG", "false");
         }
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";

@@ -651,11 +651,6 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    public void testNoElasticPasswordHashInKeystore() throws Exception {
-        createComponents(Settings.EMPTY);
-        assertNull(security.getElasticPasswordHash());
-    }
-
     private void logAndFail(Exception e) {
         logger.error("unexpected exception", e);
         fail("unexpected exception " + e.getMessage());

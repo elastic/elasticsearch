@@ -15,5 +15,14 @@
             JAVA15_HOME=$HOME/.java/openjdk15
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
+
+          # Fetch beats artifacts
+          export ES_VERSION=$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $3}')
+          export BEATS_DIR=$(pwd)/distribution/docker/build/artifacts/beats
+
+          mkdir -p ${BEATS_DIR}
+          curl -o "${BEATS_DIR}/metricbeat-${ES_VERSION}-linux-x86_64.tar.gz" https://snapshots-no-kpi.elastic.co/downloads/beats/metricbeat/metricbeat-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
+          curl -o "${BEATS_DIR}/filebeat-${ES_VERSION}-linux-x86_64.tar.gz" https://snapshots-no-kpi.elastic.co/downloads/beats/filebeat/filebeat-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz
+
           $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dbuild.snapshot=false \
-            -Dtests.jvm.argline=-Dbuild.snapshot=false -Dlicense.key=${WORKSPACE}/x-pack/license-tools/src/test/resources/public.key build
+            -Dtests.jvm.argline=-Dbuild.snapshot=false -Dlicense.key=${WORKSPACE}/x-pack/license-tools/src/test/resources/public.key -Dbuild.id=deadbeef build

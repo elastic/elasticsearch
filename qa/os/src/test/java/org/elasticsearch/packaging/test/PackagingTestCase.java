@@ -59,7 +59,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
@@ -448,6 +450,16 @@ public abstract class PackagingTestCase extends Assert {
         } else {
             sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
         }
+        // Security auto-configuration related paths are absolute, replace these in the config so that they points to the right path now
+        Path elasticsearchYaml = tempConf.resolve("elasticsearch.yml");
+        List<String> lines = Files.readAllLines(elasticsearchYaml).stream().map(l -> {
+            if (l.contains(installation.config.toString())) {
+                return l.replace(installation.config.toString(), tempConf.toString());
+            } else {
+                return l;
+            }
+        }).collect(Collectors.toList());
+        Files.write(elasticsearchYaml, lines, TRUNCATE_EXISTING);
 
         action.accept(tempConf);
         if (distribution.isPackage()) {

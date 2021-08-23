@@ -61,6 +61,7 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
     /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""
+    chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
     if [ $? -eq 0 ]; then
         INITIAL_PASSWORD=$(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHash \
         ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
@@ -82,8 +83,6 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
             echo "#                                                                                           #"
             echo "#############################################################################################"
         fi
-        chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
-        md5sum "${ES_PATH_CONF}"/elasticsearch.keystore > "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
     else
         echo "##########                 Security autoconfiguration information                ############"
         echo "#                                                                                           #"
@@ -117,7 +116,6 @@ if [ "$PACKAGE" = "deb" ]; then
         /usr/share/elasticsearch/bin/elasticsearch-keystore create
         chown root:elasticsearch "${ES_PATH_CONF}"/elasticsearch.keystore
         chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
-        md5sum "${ES_PATH_CONF}"/elasticsearch.keystore > "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
     else
         if /usr/share/elasticsearch/bin/elasticsearch-keystore has-passwd --silent ; then
           echo "### Warning: unable to upgrade encrypted keystore" 1>&2

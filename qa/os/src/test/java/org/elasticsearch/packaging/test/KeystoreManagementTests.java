@@ -58,6 +58,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public static final String ERROR_KEYSTORE_NOT_FOUND = "ERROR: Elasticsearch keystore not found";
     private static final String USERNAME = "elastic";
     private static final String PASSWORD = "nothunter2";
+    private static final String KEYSTORE_DEFAULT_PASSWORD = "^|<>\\&exit"; // code insertion on Windows if special characters are not
+                                                                           // escaped
 
     /** Test initial archive state */
     public void test10InstallArchiveDistribution() throws Exception {
@@ -113,13 +115,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
-        String password = "^|<>\\&exit"; // code insertion on Windows if special characters are not escaped
-        //TODO Change this to setKeystorePassword(password);, when we merge the code to auto-configure security for archives
-        createKeystore(password);
+        // TODO Change this to setKeystorePassword(password);, when we merge the code to auto-configure security for archives
+        createKeystore(KEYSTORE_DEFAULT_PASSWORD);
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, false));
+        awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_DEFAULT_PASSWORD, true, false));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
@@ -140,13 +141,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
-        String password = "keystorepass";
-
-        setKeystorePassword(password);
-
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
+        awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_DEFAULT_PASSWORD, true, true));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
@@ -171,10 +168,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test24EncryptedKeystoreAllowsHelpMessage() throws Exception {
         assumeTrue("users call elasticsearch directly in archive case", distribution.isArchive());
 
-        String password = "keystorepass";
-
-        setKeystorePassword(password);
-
         assertPasswordProtectedKeystore();
         Shell.Result r = installation.executables().elasticsearch.run("--help");
         assertThat(r.stdout, startsWith("Starts Elasticsearch"));
@@ -182,10 +175,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     public void test30KeystorePasswordFromFile() throws Exception {
         assumeTrue("only for systemd", Platforms.isSystemd() && distribution().isPackage());
-        String password = "!@#$%^&*()|\\<>/?";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
-        // retain existing keystore so that ES can successfully start, even if it was already configured with some secure settings
-        setKeystorePassword(password);
 
         assertPasswordProtectedKeystore();
 
@@ -193,7 +183,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile);
 
             Files.createFile(esKeystorePassphraseFile);
-            Files.write(esKeystorePassphraseFile, List.of(password));
+            Files.write(esKeystorePassphraseFile, List.of(KEYSTORE_DEFAULT_PASSWORD));
 
             startElasticsearch();
             ServerUtils.runElasticsearchTests();

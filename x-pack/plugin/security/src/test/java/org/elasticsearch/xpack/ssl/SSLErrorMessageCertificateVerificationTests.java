@@ -33,7 +33,6 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -118,7 +117,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             Loggers.addAppender(diagnosticLogger, mockAppender);
 
             String fileName = "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt"
-                .replace('/', File.separatorChar);
+                .replace('/', platformFileSeparator());
             mockAppender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
                 "ssl diagnostic",
                 DiagnosticTrustManager.class.getName(),
@@ -205,6 +204,11 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             builder.putList(prefix + ".certificate_authorities", getPath(caPath));
         }
         return builder;
+    }
+
+    @SuppressForbidden(reason = "Checking error message that outputs platform file separator")
+    private static char platformFileSeparator() {
+        return java.io.File.separatorChar;
     }
 
     private static String randomCapitalization(Enum<?> enumValue) {

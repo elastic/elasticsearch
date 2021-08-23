@@ -1055,7 +1055,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             @Nullable
             private final TimeAdvancer timeAdvancer;
 
-            public DelayedCustom(TimeAdvancer timeAdvancer) {
+            DelayedCustom(TimeAdvancer timeAdvancer) {
                 super();
                 this.timeAdvancer = timeAdvancer;
             }

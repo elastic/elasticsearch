@@ -31,7 +31,7 @@ case "$1" in
     purge)
         REMOVE_DIRS=true
         REMOVE_JVM_OPTIONS_DIRECTORY=true
-        REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY=false
+        REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY=true
         REMOVE_USER_AND_GROUP=true
     ;;
     failed-upgrade|abort-install|abort-upgrade|disappear|upgrade|disappear)
@@ -100,10 +100,10 @@ if [ "$REMOVE_DIRS" = "true" ]; then
     fi
 
     # delete the security auto config directory if we are purging
-    if [ "$REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY" = "true"]; then
-      if [ -d "${ES_PATH_CONF}"/auto_config_on* ]; then
+    if [ "$REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY" = "true" ]; then
+      if compgen -G "${ES_PATH_CONF}/auto_config_on*" > /dev/null; then
         echo -n "Deleting security auto-configuration directory..."
-        rm -rf "${ES_PATH_CONF}"/auto_config_on*
+        rm -rf "${ES_PATH_CONF}/auto_config_on*"
         echo "OK"
       fi
     fi

@@ -32,6 +32,7 @@ import org.elasticsearch.packaging.util.docker.Docker;
 import org.elasticsearch.packaging.util.docker.DockerShell;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -56,9 +57,11 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -71,6 +74,9 @@ import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -540,4 +546,18 @@ public abstract class PackagingTestCase extends Assert {
             throw e;
         }
     }
+
+    public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
+        assertThat(getAutoConfigPathDir(es).isPresent(), is(false));
+        assertThat(sh.run(es.bin("elasticsearch-keystore") + " list").stdout, not(Matchers.containsString("autoconfig.password_hash")));
+        List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
+        assertThat(configLines, not(hasItem("# have been automatically generated in order to configure Security.               #")));
+    }
+
+    public static Optional<String> getAutoConfigPathDir(Installation es) {
+        final Shell.Result lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
+        assertNotNull(lsResult.stdout);
+        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("auto_config_on")).findFirst();
+    }
+
 }

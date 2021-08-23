@@ -8,16 +8,12 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
-import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -35,7 +31,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
@@ -52,47 +47,20 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution(), sh);
         verifySecurityAutoConfigured(installation);
         assertNotNull(installation.getElasticPassword());
-        cleanup();
     }
 
-    public void test20SecurityNotAutoConfiguredOnPackageUpgrade() throws Exception {
-        assertRemoved(distribution());
-        final Distribution bwcDistribution = new Distribution(Paths.get(System.getProperty("tests.bwc-distribution")));
-        installation = installPackage(sh, bwcDistribution);
-        assertInstalled(bwcDistribution);
+    public void test20SecurityNotAutoConfiguredOnReInstallation() throws Exception {
+        // we are testing force upgrading in the current version
+        // In such a case, security remains configured from the initial installation, we don't run it again.
         Optional<String> autoConfigDir = getAutoConfigPathDir(installation);
-        if (bwcDistribution.path.equals(distribution.path)) {
-            // the old and new distributions are the same, so we are testing force upgrading in the current version
-            // In such a case, security remains configured from the initial installation, we don't run it again.
-            installation = Packages.forceUpgradePackage(sh, distribution);
-            assertInstalled(distribution);
-            verifyPackageInstallation(installation, distribution, sh);
-            verifySecurityAutoConfigured(installation);
-            // Since we did not auto-configure the second time, the directory name should be the same
-            assertThat(autoConfigDir.isPresent(), is(true));
-            assertThat(getAutoConfigPathDir(installation).isPresent(), is(true));
-            assertThat(getAutoConfigPathDir(installation).get(), equalTo(autoConfigDir));
-
-        } else {
-            installation = Packages.upgradePackage(sh, distribution);
-            assertInstalled(distribution);
-            verifyPackageInstallation(installation, distribution, sh);
-            verifySecurityNotAutoConfigured(installation);
-        }
-
-    }
-
-    private static Optional<String> getAutoConfigPathDir(Installation es) {
-        final Shell.Result lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
-        assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("auto_config_on")).findFirst();
-    }
-
-    private static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
-        assertThat(getAutoConfigPathDir(es).isPresent(), is(false));
-        assertThat(sh.run(es.bin("elasticsearch-keystore") + " list").stdout, not(containsString("autoconfig.password_hash")));
-        List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        assertThat(configLines, not(hasItem("# have been automatically generated in order to configure Security.               #")));
+        installation = Packages.forceUpgradePackage(sh, distribution);
+        assertInstalled(distribution);
+        verifyPackageInstallation(installation, distribution, sh);
+        verifySecurityAutoConfigured(installation);
+        // Since we did not auto-configure the second time, the directory name should be the same
+        assertThat(autoConfigDir.isPresent(), is(true));
+        assertThat(getAutoConfigPathDir(installation).isPresent(), is(true));
+        assertThat(getAutoConfigPathDir(installation).get(), equalTo(autoConfigDir));
     }
 
     private static void verifySecurityAutoConfigured(Installation es) throws IOException {

@@ -32,9 +32,9 @@ import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
@@ -93,7 +93,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         assertThat(getAutoConfigPathDir(es).isPresent(), is(false));
         assertThat(sh.run(es.bin("elasticsearch-keystore") + " list").stdout, not(containsString("autoconfig.password_hash")));
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        assertThat(configLines, not(contains("# have been automatically generated in order to configure Security.               #")));
+        assertThat(configLines, not(hasItem("# have been automatically generated in order to configure Security.               #")));
     }
 
     private static void verifySecurityAutoConfigured(Installation es) throws IOException {
@@ -109,22 +109,22 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         // assertThat(configLines, contains("xpack.security.enabled: true"));
         // assertThat(configLines, contains("xpack.security.http.ssl.enabled: true"));
         // assertThat(configLines, contains("xpack.security.transport.ssl.enabled: true"));
-        assertThat(configLines, contains("xpack.security.enabled: false"));
-        assertThat(configLines, contains("xpack.security.http.ssl.enabled: false"));
-        assertThat(configLines, contains("xpack.security.transport.ssl.enabled: false"));
+        assertThat(configLines, hasItem("xpack.security.enabled: false"));
+        assertThat(configLines, hasItem("xpack.security.http.ssl.enabled: false"));
+        assertThat(configLines, hasItem("xpack.security.transport.ssl.enabled: false"));
 
-        assertThat(configLines, contains("xpack.security.enrollment.enabled: true"));
-        assertThat(configLines, contains("xpack.security.transport.ssl.verification_mode: certificate"));
+        assertThat(configLines, hasItem("xpack.security.enrollment.enabled: true"));
+        assertThat(configLines, hasItem("xpack.security.transport.ssl.verification_mode: certificate"));
         assertThat(
             configLines,
-            contains(
+            hasItem(
                 "xpack.security.transport.ssl.keystore.path: "
                     + es.config(autoConfigDirName.get()).resolve("transport_keystore_all_nodes.p12")
             )
         );
         assertThat(
             configLines,
-            contains(
+            hasItem(
                 "xpack.security.transport.ssl.truststore.path: "
                     + es.config(autoConfigDirName.get()).resolve("transport_keystore_all_nodes.p12")
             )
@@ -132,13 +132,13 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
 
         assertThat(
             configLines,
-            contains("xpack.security.http.ssl.keystore.path: " + es.config(autoConfigDirName.get()).resolve("http_keystore_local_node.p12"))
+            hasItem("xpack.security.http.ssl.keystore.path: " + es.config(autoConfigDirName.get()).resolve("http_keystore_local_node.p12"))
         );
         assertThat(
             configLines,
-            contains("xpack.security.http.ssl.truststore.path: " + "/etc/elasticsearch/auto_generated_certs/http_truststore.p12")
+            hasItem("xpack.security.http.ssl.truststore.path: " + "/etc/elasticsearch/auto_generated_certs/http_truststore.p12")
         );
-        assertThat(configLines, contains("http.host: [_local_, _site_]"));
+        assertThat(configLines, hasItem("http.host: [_local_, _site_]"));
         assertThat(sh.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("autoconfig.password_hash"));
     }
 

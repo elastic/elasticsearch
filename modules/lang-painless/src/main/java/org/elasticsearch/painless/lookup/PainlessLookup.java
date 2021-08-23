@@ -147,23 +147,11 @@ public final class PainlessLookup {
         }
 
         String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
-        Function<PainlessClass, PainlessMethod> objectLookup =
-                targetPainlessClass -> isStatic ?
-                        targetPainlessClass.staticMethods.get(painlessMethodKey) :
-                        targetPainlessClass.methods.get(painlessMethodKey);
+        Function<PainlessClass, PainlessMethod> objectLookup = isStatic ?
+                targetPainlessClass -> targetPainlessClass.staticMethods.get(painlessMethodKey) :
+                targetPainlessClass -> targetPainlessClass.methods.get(painlessMethodKey);
 
-        return lookupRuntimePainlessObject(targetClass, objectLookup);
-
-        /*PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
-        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
-
-        if (targetPainlessClass == null) {
-            return null;
-        }
-
-        return isStatic ?
-                targetPainlessClass.staticMethods.get(painlessMethodKey) :
-                targetPainlessClass.methods.get(painlessMethodKey);*/
+        return lookupPainlessObject(targetClass, objectLookup);
     }
 
     public PainlessField lookupPainlessField(String targetCanonicalClassName, boolean isStatic, String fieldName) {
@@ -182,22 +170,12 @@ public final class PainlessLookup {
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(fieldName);
 
-        PainlessClass targetPainlessClass = classesToPainlessClasses.get(targetClass);
         String painlessFieldKey = buildPainlessFieldKey(fieldName);
+        Function<PainlessClass, PainlessField> objectLookup = isStatic ?
+                targetPainlessClass -> targetPainlessClass.staticFields.get(painlessFieldKey) :
+                targetPainlessClass -> targetPainlessClass.fields.get(painlessFieldKey);
 
-        if (targetPainlessClass == null) {
-            return null;
-        }
-
-        PainlessField painlessField = isStatic ?
-                targetPainlessClass.staticFields.get(painlessFieldKey) :
-                targetPainlessClass.fields.get(painlessFieldKey);
-
-        if (painlessField == null) {
-            return null;
-        }
-
-        return painlessField;
+        return lookupPainlessObject(targetClass, objectLookup);
     }
 
     public PainlessMethod lookupImportedPainlessMethod(String methodName, int arity) {
@@ -242,7 +220,7 @@ public final class PainlessLookup {
         Function<PainlessClass, PainlessMethod> objectLookup =
                 targetPainlessClass -> targetPainlessClass.runtimeMethods.get(painlessMethodKey);
 
-        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
+        return lookupPainlessObject(originalTargetClass, objectLookup);
     }
 
     public MethodHandle lookupRuntimeGetterMethodHandle(Class<?> originalTargetClass, String getterName) {
@@ -251,7 +229,7 @@ public final class PainlessLookup {
 
         Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.getterMethodHandles.get(getterName);
 
-        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
+        return lookupPainlessObject(originalTargetClass, objectLookup);
     }
 
     public MethodHandle lookupRuntimeSetterMethodHandle(Class<?> originalTargetClass, String setterName) {
@@ -260,10 +238,10 @@ public final class PainlessLookup {
 
         Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.setterMethodHandles.get(setterName);
 
-        return lookupRuntimePainlessObject(originalTargetClass, objectLookup);
+        return lookupPainlessObject(originalTargetClass, objectLookup);
     }
 
-    private <T> T lookupRuntimePainlessObject(Class<?> originalTargetClass, Function<PainlessClass, T> objectLookup) {
+    private <T> T lookupPainlessObject(Class<?> originalTargetClass, Function<PainlessClass, T> objectLookup) {
         Objects.requireNonNull(originalTargetClass);
         Objects.requireNonNull(objectLookup);
 

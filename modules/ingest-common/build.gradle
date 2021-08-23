@@ -47,3 +47,9 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("transformV7RestTests").configure({ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
 })
+
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', ([
+    'ingest/120_grok/Test Grok Patterns Retrieval' // un-mute this test after backporting
+  ]).join(',')
+}

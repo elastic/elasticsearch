@@ -62,7 +62,12 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
     /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""
     chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
     # Above command runs as root and TLS keystores are created group-owned by root. It's simple to correct the ownership here
-    chown root:elasticsearch -R /etc/elasticsearch/auto_config_on_*/*
+    for dir in "${ES_PATH_CONF}"/auto_config_on*
+    do
+      chown root:elasticsearch "{$dir}"/http_keystore_local_node.p12
+      chown root:elasticsearch "{$dir}"/http_ca.crt
+      chown root:elasticsearch "{$dir}"/transport_keystore_all_nodes.p12
+    done
     if [ $? -eq 0 ]; then
         INITIAL_PASSWORD=$(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHash \
         ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \

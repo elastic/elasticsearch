@@ -134,10 +134,6 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
             configLines,
             hasItem("xpack.security.http.ssl.keystore.path: " + es.config(autoConfigDirName.get()).resolve("http_keystore_local_node.p12"))
         );
-        assertThat(
-            configLines,
-            hasItem("xpack.security.http.ssl.truststore.path: " + "/etc/elasticsearch/auto_generated_certs/http_truststore.p12")
-        );
         assertThat(configLines, hasItem("http.host: [_local_, _site_]"));
         assertThat(sh.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("autoconfig.password_hash"));
     }

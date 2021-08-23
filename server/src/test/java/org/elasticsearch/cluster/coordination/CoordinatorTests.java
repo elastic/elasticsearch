@@ -14,6 +14,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -26,15 +27,17 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.MasterServiceTimingStatistics;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.monitor.NodeHealthService;
@@ -1045,7 +1048,49 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testMasterStatsOnSuccessfulUpdate() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+
+        final String customName = "delayed";
+
+        class DelayedCustom extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
+            @Nullable
+            private final TimeAdvancer timeAdvancer;
+
+            public DelayedCustom(TimeAdvancer timeAdvancer) {
+                super();
+                this.timeAdvancer = timeAdvancer;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                builder.endObject();
+                return builder;
+            }
+
+            @Override
+            public String getWriteableName() {
+                return customName;
+            }
+
+            @Override
+            public Version getMinimalSupportedVersion() {
+                return Version.CURRENT;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                if (timeAdvancer != null) {
+                    timeAdvancer.advanceTime();
+                }
+            }
+        }
+
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5)) {
+            @Override
+            protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
+                return List.of(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, customName, in -> new DelayedCustom(null)));
+            }
+        }) {
             cluster.runRandomly();
             cluster.stabilise();
 
@@ -1054,9 +1099,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             final TimeAdvancer computeAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
             final TimeAdvancer notifyAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
+            final TimeAdvancer contextAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
             leader.submitUpdateTask("update", cs -> {
                 computeAdvancer.advanceTime();
-                return ClusterState.builder(cs).build();
+                return ClusterState.builder(cs)
+                    .putCustom(customName, new DelayedCustom(contextAdvancer))
+                    .build();
             }, new ClusterStateTaskListener() {
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
@@ -1087,10 +1135,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 description,
                 stats1.getSuccessfulPublicationElapsedMillis() - stats0.getSuccessfulPublicationElapsedMillis(),
                 greaterThanOrEqualTo(notifyAdvancer.getElapsedTime()));
-
-            // this action is atomic actions, no simulated time can elapse
-            assertThat(description, stats0.getSuccessfulContextConstructionElapsedMillis(), equalTo(0L));
-            assertThat(description, stats1.getSuccessfulContextConstructionElapsedMillis(), equalTo(0L));
+            assertThat(
+                description,
+                stats1.getSuccessfulContextConstructionElapsedMillis() - stats0.getSuccessfulContextConstructionElapsedMillis(),
+                greaterThanOrEqualTo(contextAdvancer.getElapsedTime()));
 
             // this is atomic up to some scheduling delay
             assertThat(

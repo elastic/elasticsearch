@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -277,6 +278,87 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(queueStats.getTotal(), deserializedDiscoveryStats.getQueueStats().getTotal());
                         assertEquals(queueStats.getPending(), deserializedDiscoveryStats.getQueueStats().getPending());
                     }
+
+                    final PublishClusterStateStats publishStats = discoveryStats.getPublishStats();
+                    if (publishStats == null) {
+                        assertNull(deserializedDiscoveryStats.getPublishStats());
+                    } else {
+                        final PublishClusterStateStats deserializedPublishStats = deserializedDiscoveryStats.getPublishStats();
+                        assertEquals(
+                            publishStats.getFullClusterStateReceivedCount(),
+                            deserializedPublishStats.getFullClusterStateReceivedCount());
+                        assertEquals(
+                            publishStats.getCompatibleClusterStateDiffReceivedCount(),
+                            deserializedPublishStats.getCompatibleClusterStateDiffReceivedCount());
+                        assertEquals(
+                            publishStats.getIncompatibleClusterStateDiffReceivedCount(),
+                            deserializedPublishStats.getIncompatibleClusterStateDiffReceivedCount());
+                    }
+
+                    final ClusterStateUpdateStats clusterStateUpdateStats = discoveryStats.getClusterStateUpdateStats();
+                    if (clusterStateUpdateStats == null) {
+                        assertNull(deserializedDiscoveryStats.getClusterStateUpdateStats());
+                    } else {
+                        final ClusterStateUpdateStats deserializedClusterStateUpdateStats
+                            = deserializedDiscoveryStats.getClusterStateUpdateStats();
+                        assertEquals(
+                            clusterStateUpdateStats.getUnchangedTaskCount(),
+                            deserializedClusterStateUpdateStats.getUnchangedTaskCount());
+                        assertEquals(
+                            clusterStateUpdateStats.getPublicationSuccessCount(),
+                            deserializedClusterStateUpdateStats.getPublicationSuccessCount());
+                        assertEquals(
+                            clusterStateUpdateStats.getPublicationFailureCount(),
+                            deserializedClusterStateUpdateStats.getPublicationFailureCount());
+                        assertEquals(
+                            clusterStateUpdateStats.getUnchangedComputationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getUnchangedComputationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getUnchangedNotificationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getUnchangedNotificationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulComputationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulComputationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulPublicationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulPublicationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulContextConstructionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulContextConstructionElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulCommitElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulCommitElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulCompletionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulCompletionElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulMasterApplyElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulMasterApplyElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulNotificationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulNotificationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedComputationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedComputationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedPublicationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedPublicationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedContextConstructionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedContextConstructionElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedCommitElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedCommitElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedCompletionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedCompletionElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedMasterApplyElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedMasterApplyElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedNotificationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedNotificationElapsedMillis());
+                    }
                 }
                 IngestStats ingestStats = nodeStats.getIngestStats();
                 IngestStats deserializedIngestStats = deserializedNodeStats.getIngestStats();
@@ -483,14 +565,36 @@ public class NodeStatsTests extends ESTestCase {
         }
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
-                randomBoolean()
+            randomBoolean()
                 ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt())
                 : null,
-                randomBoolean()
+            randomBoolean()
                 ? new PublishClusterStateStats(
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong())
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong())
+                : null,
+            randomBoolean()
+                ? new ClusterStateUpdateStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong())
                 : null)
             : null;
         IngestStats ingestStats = null;

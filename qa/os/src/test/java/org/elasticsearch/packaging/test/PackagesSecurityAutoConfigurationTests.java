@@ -60,7 +60,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         // Since we did not auto-configure the second time, the directory name should be the same
         assertThat(autoConfigDir.isPresent(), is(true));
         assertThat(getAutoConfigPathDir(installation).isPresent(), is(true));
-        assertThat(getAutoConfigPathDir(installation).get(), equalTo(autoConfigDir));
+        assertThat(getAutoConfigPathDir(installation).get(), equalTo(autoConfigDir.get()));
     }
 
     private static void verifySecurityAutoConfigured(Installation es) throws IOException {

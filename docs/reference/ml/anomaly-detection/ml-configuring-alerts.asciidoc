@@ -116,8 +116,8 @@ following health checkers are available:
   reaches the soft or hard model memory limit. Optimize your job by following 
   <<detector-configuration, these guidelines>> or consider 
   <<set-model-memory-limit, amending the model memory limit>>. 
-* _Data delay has occurred_: notifies when the job missed to analyzed data. 
-  You can define the threshold for the amount of missing documents you get 
+* _Data delay has occurred_: notifies when the job missed to analyze data. You 
+  can define the threshold for the amount of missing documents you get 
   alerted on by setting _Number of documents_. You can control the lookback 
   interval for checking delayed data with _Time interval_. Refer to the 
   <<ml-delayed-data-detection>> page to see what to do about delayed data.

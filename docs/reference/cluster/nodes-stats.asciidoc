@@ -2136,28 +2136,33 @@ ultimately successful since the node started.
 `publication_time`::
 (<<time-units,time value>>)
 The cumulative amount of time spent publishing cluster state updates which
-ultimately succeeded, which includes everything from the end of the computation
-of the new cluster state until the publication has finished and the master node
-is ready to start processing the next state update.
+ultimately succeeded, which includes everything from the start of the
+publication (i.e. just after the computation of the new cluster state) until
+the publication has finished and the master node is ready to start processing
+the next state update. This includes the time measured by
+`context_construction_time`, `commit_time`, `completion_time` and
+`master_apply_time`.
 
 `context_construction_time`::
 (<<time-units,time value>>)
 The cumulative amount of time spent constructing a _publication context_ since
 the node started for publications that ultimately succeeded. This statistic
-includes the time spent computing the difference between cluster states and
-preparing a serialized representation of the state.
+includes the time spent computing the difference between the current and new
+cluster state preparing a serialized representation of this difference.
 
 `commit_time`::
 (<<time-units,time value>>)
 The cumulative amount of time spent waiting for a successful cluster state
-update to _commit_, which happens when a majority of the master nodes have
-written the state to disk.
+update to _commit_, which measures the time from the start of each publication
+until a majority of the master-eligible nodes have written the state to disk
+and confirmed the write to the elected master.
 
 `completion_time`::
 (<<time-units,time value>>)
 The cumulative amount of time spent waiting for a successful cluster state
-update to _complete_, which happens when all the nodes have applied the cluster
-state except for the elected master.
+update to _complete_, which measures the time from the start of each
+publication until all the other nodes have notified the elected master that
+they have applied the cluster state.
 
 `master_apply_time`::
 (<<time-units,time value>>)
@@ -2193,28 +2198,33 @@ ultimately unsuccessful since the node started.
 `publication_time`::
 (<<time-units,time value>>)
 The cumulative amount of time spent publishing cluster state updates which
-ultimately failed, which includes everything from the end of the computation of
-the new cluster state until the publication has finished and the master node is
-ready to start processing the next state update.
+ultimately failed, which includes everything from the start of the
+publication (i.e. just after the computation of the new cluster state) until
+the publication has finished and the master node is ready to start processing
+the next state update. This includes the time measured by
+`context_construction_time`, `commit_time`, `completion_time` and
+`master_apply_time`.
 
 `context_construction_time`::
 (<<time-units,time value>>)
 The cumulative amount of time spent constructing a _publication context_ since
 the node started for publications that ultimately failed. This statistic
-includes the time spent computing the difference between cluster states and
-preparing a serialized representation of the state.
+includes the time spent computing the difference between the current and new
+cluster state preparing a serialized representation of this difference.
 
 `commit_time`::
 (<<time-units,time value>>)
 The cumulative amount of time spent waiting for an unsuccessful cluster state
-update to _commit_, which happens when a majority of the master nodes have
-written the state to disk.
+update to _commit_, which measures the time from the start of each publication
+until a majority of the master-eligible nodes have written the state to disk
+and confirmed the write to the elected master.
 
 `completion_time`::
 (<<time-units,time value>>)
 The cumulative amount of time spent waiting for an unsuccessful cluster state
-update to _complete_, which happens when all the nodes have applied the cluster
-state except for the elected master.
+update to _complete_, which measures the time from the start of each
+publication until all the other nodes have notified the elected master that
+they have applied the cluster state.
 
 `master_apply_time`::
 (<<time-units,time value>>)

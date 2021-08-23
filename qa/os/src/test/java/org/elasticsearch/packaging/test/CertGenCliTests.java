@@ -129,7 +129,7 @@ public class CertGenCliTests extends PackagingTestCase {
 
     private String setElasticPassword() {
         final Pattern userpassRegex = Pattern.compile("PASSWORD (\\w+) = ([^\\s]+)");
-        Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
+        Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch -u https://127.0.0.1:9200", null);
         Matcher matcher = userpassRegex.matcher(result.stdout);
         assertNotNull(matcher);
         while (matcher.find()) {

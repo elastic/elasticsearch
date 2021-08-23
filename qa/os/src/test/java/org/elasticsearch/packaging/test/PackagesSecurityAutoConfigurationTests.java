@@ -30,7 +30,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
-import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,7 +52,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution(), sh);
         verifySecurityAutoConfigured(installation);
         assertNotNull(installation.getElasticPassword());
-        remove(distribution());
+        cleanup();
     }
 
     public void test20SecurityNotAutoConfiguredOnPackageUpgrade() throws Exception {

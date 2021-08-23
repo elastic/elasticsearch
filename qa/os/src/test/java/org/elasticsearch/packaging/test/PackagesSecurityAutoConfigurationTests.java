@@ -86,9 +86,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
     private static Optional<String> getAutoConfigPathDir(Installation es) {
         final Shell.Result lsResult = sh.run("find \"" + es.config + "\" -type d");
         assertNotNull(lsResult.stdout);
-        return  Arrays.stream(lsResult.stdout.split("\n"))
-            .filter(f -> f.startsWith("auto_config_on"))
-            .findFirst();
+        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.startsWith("auto_config_on")).findFirst();
     }
 
     private static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
@@ -114,7 +112,6 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         assertThat(configLines, contains("xpack.security.enabled: false"));
         assertThat(configLines, contains("xpack.security.http.ssl.enabled: false"));
         assertThat(configLines, contains("xpack.security.transport.ssl.enabled: false"));
-
 
         assertThat(configLines, contains("xpack.security.enrollment.enabled: true"));
         assertThat(configLines, contains("xpack.security.transport.ssl.verification_mode: certificate"));

@@ -63,8 +63,10 @@ public class DebPreservationTests extends PackagingTestCase {
             installation.config("users_roles")
         );
 
-        // doc files were removed
+        // keystore was not removed
+        assertPathsExist(installation.config("elasticsearch.keystore"));
 
+        // doc files were removed
         assertPathsDoNotExist(Paths.get("/usr/share/doc/elasticsearch"), Paths.get("/usr/share/doc/elasticsearch/copyright"));
 
         // defaults file was not removed

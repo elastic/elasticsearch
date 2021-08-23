@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 
 import static org.hamcrest.Matchers.containsString;
@@ -41,7 +42,6 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
      */
     public void testBodyConsumed() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         final RestHasPrivilegesAction action =
             new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject();
@@ -59,10 +59,10 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
 
     public void testSecurityDisabled() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
+        final Settings securityDisabledSettings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
         final RestHasPrivilegesAction action =
-            new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
+            new RestHasPrivilegesAction(securityDisabledSettings, mock(SecurityContext.class), licenseState);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject();
             NodeClient client = new NoOpNodeClient(this.getTestName())) {
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
@@ -75,7 +75,7 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
             assertThat(channel.capturedResponse().status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
             assertThat(
                 channel.capturedResponse().content().utf8ToString(),
-                containsString("Security must be explicitly enabled when using a [basic] license"));
+                containsString("Security is not enabled but a security rest handler is registered"));
         }
     }
 }

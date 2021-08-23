@@ -161,6 +161,12 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_IRONBANK) {
             return projectName + "ironbank-docker" + archString + "-export";
         }
+        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_CLOUD) {
+            return projectName + "cloud-docker" + archString + "-export";
+        }
+        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_CLOUD_ESS) {
+            return projectName + "cloud-ess-docker" + archString + "-export";
+        }
         return projectName + distribution.getType().getName();
     }
 

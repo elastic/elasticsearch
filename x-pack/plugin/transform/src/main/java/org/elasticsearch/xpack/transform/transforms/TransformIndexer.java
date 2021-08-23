@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.TransformServices;
@@ -144,7 +146,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.auditor = transformServices.getAuditor();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
-        this.progress = progress != null ? progress : new TransformProgress();
+        this.progress = transformProgress != null ? transformProgress : new TransformProgress();
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
@@ -163,6 +165,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
 
     abstract void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener);
+
+    abstract void persistState(TransformState state, ActionListener<Void> listener);
 
     public int getPageSize() {
         return pageSize;
@@ -639,6 +643,119 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         context.shutdown();
     }
 
+    @Override
+    protected void doSaveState(IndexerState indexerState, TransformIndexerPosition position, Runnable next) {
+        if (context.getTaskState() == TransformTaskState.FAILED) {
+            logger.debug("[{}] attempted to save state and stats while failed.", getJobId());
+            // If we are failed, we should call next to allow failure handling to occur if necessary.
+            next.run();
+            return;
+        }
+        if (indexerState.equals(IndexerState.ABORTING)) {
+            // If we're aborting, just invoke `next` (which is likely an onFailure handler)
+            next.run();
+            return;
+        }
+
+        // getting the listeners that registered till now, in theory a new listener could sneak in between this line
+        // and the next, however this is benign: we would store `shouldStopAtCheckpoint = true` twice which is ok
+        Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.getAndSet(null);
+        boolean shouldStopAtCheckpoint = context.shouldStopAtCheckpoint();
+
+        // If we should stop at the next checkpoint, are STARTED, and with `initialRun()` we are in one of two states
+        // 1. We have just called `onFinish` completing our request, but `shouldStopAtCheckpoint` was set to `true` before our check
+        // there and now
+        // 2. We are on the very first run of a NEW checkpoint and got here either through a failure, or the very first save state call.
+        //
+        // In either case, we should stop so that we guarantee a consistent state and that there are no partially completed checkpoints
+        if (shouldStopAtCheckpoint && initialRun() && indexerState.equals(IndexerState.STARTED)) {
+            indexerState = IndexerState.STOPPED;
+            auditor.info(transformConfig.getId(), "Transform is no longer in the middle of a checkpoint, initiating stop.");
+            logger.info("[{}] transform is no longer in the middle of a checkpoint, initiating stop.", transformConfig.getId());
+        }
+
+        // This means that the indexer was triggered to discover changes, found none, and exited early.
+        // If the state is `STOPPED` this means that TransformTask#stop was called while we were checking for changes.
+        // Allow the stop call path to continue
+        if (hasSourceChanged == false && indexerState.equals(IndexerState.STOPPED) == false) {
+            if (saveStateListenersAtTheMomentOfCalling != null) {
+                ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, null);
+            }
+            next.run();
+            return;
+        }
+
+        TransformTaskState taskState = context.getTaskState();
+
+        if (indexerState.equals(IndexerState.STARTED) && context.getCheckpoint() == 1 && this.isContinuous() == false) {
+            // set both to stopped so they are persisted as such
+            indexerState = IndexerState.STOPPED;
+
+            auditor.info(transformConfig.getId(), "Transform finished indexing all data, initiating stop");
+            logger.info("[{}] transform finished indexing all data, initiating stop.", transformConfig.getId());
+        }
+
+        // If we are `STOPPED` on a `doSaveState` call, that indicates we transitioned to `STOPPED` from `STOPPING`
+        // OR we called `doSaveState` manually as the indexer was not actively running.
+        // Since we save the state to an index, we should make sure that our task state is in parity with the indexer state
+        if (indexerState.equals(IndexerState.STOPPED)) {
+            // If we are going to stop after the state is saved, we should NOT persist `shouldStopAtCheckpoint: true` as this may
+            // cause problems if the task starts up again.
+            // Additionally, we don't have to worry about inconsistency with the ClusterState (if it is persisted there) as the
+            // when we stop, we mark the task as complete and that state goes away.
+            shouldStopAtCheckpoint = false;
+
+            // We don't want adjust the stored taskState because as soon as it is `STOPPED` a user could call
+            // .start again.
+            taskState = TransformTaskState.STOPPED;
+        }
+
+        final TransformState state = new TransformState(
+            taskState,
+            indexerState,
+            position,
+            context.getCheckpoint(),
+            context.getStateReason(),
+            getProgress(),
+            null,
+            shouldStopAtCheckpoint
+        );
+        logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
+
+        // we might need to call the save state listeners, but do not want to stop rolling
+        persistStateWithAutoStop(state, ActionListener.wrap(r -> {
+            try {
+                if (saveStateListenersAtTheMomentOfCalling != null) {
+                    ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, r);
+                }
+            } catch (Exception onResponseException) {
+                String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
+                logger.warn(msg, onResponseException);
+            } finally {
+                next.run();
+            }
+        }, e -> {
+            try {
+                if (saveStateListenersAtTheMomentOfCalling != null) {
+                    ActionListener.onFailure(saveStateListenersAtTheMomentOfCalling, e);
+                }
+            } catch (Exception onFailureException) {
+                String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
+                logger.warn(msg, onFailureException);
+            } finally {
+                next.run();
+            }
+        }));
+    }
+
+    private void persistStateWithAutoStop(TransformState state, ActionListener<Void> listener) {
+        persistState(state, ActionListener.runBefore(listener, () -> {
+            if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
+                context.shutdown();
+            }
+        }));
+    }
+
     /**
      * Let the indexer stop at the next checkpoint and call the listener after the flag has been persisted in state.
      *
@@ -679,7 +796,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         boolean shouldStopAtCheckpoint,
         ActionListener<Void> shouldStopAtCheckpointListener
     ) throws InterruptedException {
-
         // in case the indexer is already shutting down
         if (indexerThreadShuttingDown) {
             context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
@@ -691,14 +807,37 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         // in case the indexer isn't running, respond immediately
         if (state == IndexerState.STARTED && context.shouldStopAtCheckpoint() != shouldStopAtCheckpoint) {
-            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+            IndexerState newIndexerState = IndexerState.STARTED;
+            TransformTaskState newtaskState = context.getTaskState();
+
+            // check if the transform is at a checkpoint, if so, we will shortcut and stop it below
+            // otherwise we set shouldStopAtCheckpoint, for this case the transform needs to get
+            // triggered, complete the checkpoint and stop
+            if (shouldStopAtCheckpoint && initialRun()) {
+                newIndexerState = IndexerState.STOPPED;
+                newtaskState = TransformTaskState.STOPPED;
+                logger.debug("[{}] transform is at a checkpoint, initiating stop.", transformConfig.getId());
+            } else {
+                context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+            }
+
+            final TransformState newTransformState = new TransformState(
+                newtaskState,
+                newIndexerState,
+                getPosition(),
+                context.getCheckpoint(),
+                context.getStateReason(),
+                getProgress(),
+                null,
+                newIndexerState == IndexerState.STARTED
+            );
 
             // because save state is async we need to block the call until state is persisted, so that the job can not
             // be triggered (ensured by synchronized)
             CountDownLatch latch = new CountDownLatch(1);
-            logger.debug("[{}] persisiting stop at checkpoint", getJobId());
+            logger.debug("[{}] persisting stop at checkpoint", getJobId());
 
-            doSaveState(IndexerState.STARTED, getPosition(), () -> { latch.countDown(); });
+            persistState(newTransformState, ActionListener.wrap(() -> latch.countDown()));
 
             if (latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
                 logger.error(
@@ -709,6 +848,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     )
                 );
             }
+
+            // stop the transform if the decision was to stop it above
+            if (newtaskState.equals(TransformTaskState.STOPPED)) {
+                context.shutdown();
+            }
+
             return false;
         }
 
@@ -755,7 +900,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
     }
 
-    synchronized void handleFailure(Exception e) {
+    /**
+     * Checks the given exception and handles the error based on it.
+     *
+     * In case the error is permanent or the number for failures exceed the number of retries, sets the indexer
+     * to `FAILED`.
+     *
+     * Important: Might call into TransformTask, this should _only_ be called with an acquired indexer lock if and only if
+     * the lock for TransformTask has been acquired, too. See gh#75846
+     *
+     * (Note: originally this method was synchronized, which is not necessary)
+     */
+    void handleFailure(Exception e) {
         logger.warn(new ParameterizedMessage("[{}] transform encountered an exception: ", getJobId()), e);
         Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
 

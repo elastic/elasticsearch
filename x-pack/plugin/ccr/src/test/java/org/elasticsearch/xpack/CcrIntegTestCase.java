@@ -259,6 +259,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             clusterGroup.leaderCluster.wipe(Collections.emptySet());
             clusterGroup.followerCluster.wipe(Collections.emptySet());
         }
+
+        clusterGroup.leaderCluster.assertAfterTest();
+        clusterGroup.followerCluster.assertAfterTest();
     }
 
     private NodeConfigurationSource createNodeConfigurationSource(final String leaderSeedAddress, final boolean leaderCluster) {

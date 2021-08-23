@@ -60,6 +60,7 @@ if [[ $AUTO_CONFIG = true ]]; then
   # most likely an auto-configuration failure will leave the configuration untouched, optionally printing a message
   # if the error is unexpected, but the node will start as usual
   # TODO get error code to see if auto config really worked
+  # TODO this can return non-zero exit code!!
   ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigInitialNode \
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
@@ -77,18 +78,23 @@ fi
 #   - fourth, ergonomic JVM options are applied
 ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF" "$ES_HOME/plugins"`
 
-# manual parsing to find out, if process should be detached
+# manual parsing to find out if process should be detached
 if [[ $DAEMONIZE = false ]]; then
-# TODO check terminfo and verify that OutputBanner started successfully before redirecting
 # TODO only run if auto config successfully
-  if [[ ("$AUTO_CONFIG" = true) && ("$QUIET" = false) && (-t 1) ]]; then
-    exec > >(exec "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TerminalOutputController "EOF" \
-      <(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.BootstrapPasswordAndEnrollmentTokenForInitialNode \
-      ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
-      ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-      "$(dirname "$0")/elasticsearch-cli" \
-      "$@" \
-      <<<"$KEYSTORE_PASSWORD"))
+  if [[ ("$AUTO_CONFIG" = true) && ("$QUIET" = false) ]]; then
+# First check if the banner can be displayed given the OS and terminal type
+    if "$JAVA" "$XSHARE" -cp "$ES_HOME/lib/jansi-2.3.4.jar:$ES_HOME/lib/elasticsearch-launchers-@project.version@.jar" \
+      org.elasticsearch.tools.launchers.TerminalOutputFormatter; then
+# redirect the ES node's output to the formatter code in order to output the bottom persistent banner
+        exec > >(exec "$JAVA" "$XSHARE" -cp "$ES_HOME/lib/jansi-2.3.4.jar:$ES_HOME/lib/elasticsearch-launchers-@project.version@.jar" \
+        org.elasticsearch.tools.launchers.TerminalOutputFormatter "EOF" \
+          <(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.BootstrapPasswordAndEnrollmentTokenForInitialNode \
+          ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
+          ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+          "$(dirname "$0")/elasticsearch-cli" \
+          "$@" \
+          <<<"$KEYSTORE_PASSWORD"))
+    fi
   fi
   exec \
     "$JAVA" \

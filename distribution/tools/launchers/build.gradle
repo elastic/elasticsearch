@@ -10,7 +10,7 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  api "org.fusesource.jansi:jansi:2.3.4"
+  implementation "org.fusesource.jansi:jansi:2.3.4"
   compileOnly project(':distribution:tools:java-version-checker')
   compileOnly "org.yaml:snakeyaml:${versions.snakeyaml}"
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"

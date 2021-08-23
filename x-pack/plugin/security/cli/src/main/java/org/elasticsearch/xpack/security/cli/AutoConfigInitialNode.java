@@ -197,6 +197,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 return; // if a different user runs ES compared to the user that installed it, auto configuration will not run
             }
         }
+        // TODO check group ownership as well
 
         // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
         final X500Principal certificatePrincipal = new X500Principal(buildDnFromDomain(System.getenv("HOSTNAME")));

@@ -648,7 +648,8 @@ public class RestoreService implements ClusterStateApplier {
             dataStream.getMetadata(),
             dataStream.isHidden(),
             dataStream.isReplicated(),
-            dataStream.isSystem()
+            dataStream.isSystem(),
+            dataStream.isAllowCustomRouting()
         );
     }
 

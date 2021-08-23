@@ -117,7 +117,7 @@ public class ClusterStateUpdateStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getVersion().onOrAfter(Version.V_8_0_0) : out.getVersion();
+        assert out.getVersion().onOrAfter(Version.V_7_16_0) : out.getVersion();
         out.writeVLong(unchangedTaskCount);
         out.writeVLong(publicationSuccessCount);
         out.writeVLong(publicationFailureCount);

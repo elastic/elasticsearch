@@ -561,8 +561,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 }
                 infos = infos.filter(search.not() ? filter.negate() : filter);
             } else {
-                assert search.field().equals("repo") : "expected repo";
-                throw new AssertionError("repo not yet supported");
+                final String repositoryName = search.value();
+                final Predicate<SnapshotInfo> filter;
+                if (search.exact()) {
+                    filter = snapshotInfo -> repositoryName.equals(snapshotInfo.repository());
+                } else {
+                    filter = snapshotInfo -> snapshotInfo.repository().contains(repositoryName);
+                }
+                infos = infos.filter(search.not() ? filter.negate() : filter);
             }
         }
 

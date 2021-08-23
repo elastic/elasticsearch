@@ -184,12 +184,14 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSearchParameter() throws Exception {
-        final String repoName = "tst-repo";
-        createRepository(repoName, "fs");
+        final String repoName1 = "tst-repo-1";
+        final String repoName2 = "tst-repo-2";
+        createRepository(repoName1, "fs");
+        createRepository(repoName2, "fs");
         final String policyA = "policy-A";
         final String snapshot1PolicyA = RANDOM_SNAPSHOT_NAME_PREFIX + "1-a";
         assertSuccessful(
-            clusterAdmin().prepareCreateSnapshot(repoName, snapshot1PolicyA)
+            clusterAdmin().prepareCreateSnapshot(repoName1, snapshot1PolicyA)
                 .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyA))
                 .setWaitForCompletion(true)
                 .execute()
@@ -197,21 +199,21 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String policyB = "policy-B";
         final String snapshot1PolicyB = RANDOM_SNAPSHOT_NAME_PREFIX + "1-b";
         assertSuccessful(
-            clusterAdmin().prepareCreateSnapshot(repoName, snapshot1PolicyB)
+            clusterAdmin().prepareCreateSnapshot(repoName2, snapshot1PolicyB)
                 .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyB))
                 .setWaitForCompletion(true)
                 .execute()
         );
         final String snapshot2PolicyA = RANDOM_SNAPSHOT_NAME_PREFIX + "2-a";
         assertSuccessful(
-            clusterAdmin().prepareCreateSnapshot(repoName, snapshot2PolicyA)
+            clusterAdmin().prepareCreateSnapshot(repoName1, snapshot2PolicyA)
                 .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyA))
                 .setWaitForCompletion(true)
                 .execute()
         );
         final String snapshot2PolicyB = RANDOM_SNAPSHOT_NAME_PREFIX + "2-b";
         assertSuccessful(
-            clusterAdmin().prepareCreateSnapshot(repoName, snapshot2PolicyB)
+            clusterAdmin().prepareCreateSnapshot(repoName2, snapshot2PolicyB)
                 .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyB))
                 .setWaitForCompletion(true)
                 .execute()
@@ -220,13 +222,13 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final SortOrder order = randomFrom(SortOrder.values());
         final List<SnapshotInfo> allSnapshots = allSnapshotsSorted(
             Set.of(snapshot1PolicyA, snapshot1PolicyB, snapshot2PolicyA, snapshot2PolicyB),
-            repoName,
+            "*",
             sortBy,
             order
         );
 
         final List<SnapshotInfo> snapshotsPolicyA = sortedWithLimit(
-            repoName,
+            "*",
             sortBy,
             null,
             GetSnapshotsRequest.NO_LIMIT,
@@ -235,7 +237,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).getSnapshots();
         assertThat(snapshotsPolicyA, iterableWithSize(2));
         final List<SnapshotInfo> snapshotsPolicyB = sortedWithLimit(
-            repoName,
+            "*",
             sortBy,
             null,
             GetSnapshotsRequest.NO_LIMIT,
@@ -246,7 +248,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(allSnapshots, containsInRelativeOrder(snapshotsPolicyA.toArray()));
         assertThat(allSnapshots, containsInRelativeOrder(snapshotsPolicyB.toArray()));
         final List<SnapshotInfo> snapshotsNotPolicyA = sortedWithLimit(
-            repoName,
+            "*",
             sortBy,
             null,
             GetSnapshotsRequest.NO_LIMIT,
@@ -255,7 +257,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).getSnapshots();
 
         final List<SnapshotInfo> snapshotsNotPolicyB = sortedWithLimit(
-            repoName,
+            "*",
             sortBy,
             null,
             GetSnapshotsRequest.NO_LIMIT,
@@ -267,54 +269,34 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(
             snapshotsPolicyA,
-            sortedWithLimit(
-                repoName,
-                sortBy,
-                null,
-                GetSnapshotsRequest.NO_LIMIT,
-                order,
-                "-" + SnapshotsService.POLICY_ID_METADATA_FIELD + ":-B"
-            ).getSnapshots()
-        );
-        assertEquals(
-            snapshotsPolicyB,
-            sortedWithLimit(
-                repoName,
-                sortBy,
-                null,
-                GetSnapshotsRequest.NO_LIMIT,
-                order,
-                "-" + SnapshotsService.POLICY_ID_METADATA_FIELD + ":-A"
-            ).getSnapshots()
-        );
-        assertEquals(
-            snapshotsPolicyA,
-            sortedWithLimit(repoName, sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, SnapshotsService.POLICY_ID_METADATA_FIELD + ":-A")
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-" + SnapshotsService.POLICY_ID_METADATA_FIELD + ":-B")
                 .getSnapshots()
         );
         assertEquals(
             snapshotsPolicyB,
-            sortedWithLimit(repoName, sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, SnapshotsService.POLICY_ID_METADATA_FIELD + ":-B")
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-" + SnapshotsService.POLICY_ID_METADATA_FIELD + ":-A")
+                .getSnapshots()
+        );
+        assertEquals(
+            snapshotsPolicyA,
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, SnapshotsService.POLICY_ID_METADATA_FIELD + ":-A")
+                .getSnapshots()
+        );
+        assertEquals(
+            snapshotsPolicyB,
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, SnapshotsService.POLICY_ID_METADATA_FIELD + ":-B")
                 .getSnapshots()
         );
 
-        assertEquals(
-            snapshotsPolicyA,
-            sortedWithLimit(repoName, sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-name:-b").getSnapshots()
-        );
-        assertEquals(
-            snapshotsPolicyB,
-            sortedWithLimit(repoName, sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-name:-a").getSnapshots()
-        );
-        assertEquals(
-            snapshotsPolicyA,
-            sortedWithLimit(repoName, sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "name:-a").getSnapshots()
-        );
-        assertEquals(
-            snapshotsPolicyB,
-            sortedWithLimit(repoName, sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "name:-b").getSnapshots()
-        );
+        assertEquals(snapshotsPolicyA, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-name:-b").getSnapshots());
+        assertEquals(snapshotsPolicyB, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-name:-a").getSnapshots());
+        assertEquals(snapshotsPolicyA, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "name:-a").getSnapshots());
+        assertEquals(snapshotsPolicyB, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "name:-b").getSnapshots());
 
+        assertEquals(snapshotsPolicyA, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-repo:-2").getSnapshots());
+        assertEquals(snapshotsPolicyB, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-repo:-1").getSnapshots());
+        assertEquals(snapshotsPolicyA, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "repo:-1").getSnapshots());
+        assertEquals(snapshotsPolicyB, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "repo:-2").getSnapshots());
     }
 
     private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsRequest.SortBy sort) {

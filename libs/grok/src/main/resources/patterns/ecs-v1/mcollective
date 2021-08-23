@@ -1,0 +1,4 @@
+# Remember, these can be multi-line events.
+MCOLLECTIVE ., \[%{TIMESTAMP_ISO8601:timestamp} #%{POSINT:[process][pid]:int}\]%{SPACE}%{LOGLEVEL:[log][level]}
+
+MCOLLECTIVEAUDIT %{TIMESTAMP_ISO8601:timestamp}:

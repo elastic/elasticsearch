@@ -1,0 +1,13 @@
+# JUNOS 11.4 RT_FLOW patterns
+RT_FLOW_TAG (?:RT_FLOW_SESSION_CREATE|RT_FLOW_SESSION_CLOSE|RT_FLOW_SESSION_DENY)
+# deprecated legacy name:
+RT_FLOW_EVENT RT_FLOW_TAG
+
+RT_FLOW1 %{RT_FLOW_TAG:[juniper][srx][tag]}: %{GREEDYDATA:[juniper][srx][reason]}: %{IP:[source][ip]}/%{INT:[source][port]:int}->%{IP:[destination][ip]}/%{INT:[destination][port]:int} %{DATA:[juniper][srx][service_name]} %{IP:[source][nat][ip]}/%{INT:[source][nat][port]:int}->%{IP:[destination][nat][ip]}/%{INT:[destination][nat][port]:int} (?:(?:None)|(?:%{DATA:[juniper][srx][src_nat_rule_name]})) (?:(?:None)|(?:%{DATA:[juniper][srx][dst_nat_rule_name]})) %{INT:[network][iana_number]} %{DATA:[rule][name]} %{DATA:[observer][ingress][zone]} %{DATA:[observer][egress][zone]} %{INT:[juniper][srx][session_id]} \d+\(%{INT:[source][bytes]:int}\) \d+\(%{INT:[destination][bytes]:int}\) %{INT:[juniper][srx][elapsed_time]:int} .*
+# :long - %{INT:[source][bytes]:int}
+# :long - %{INT:[destination][bytes]:int}
+
+RT_FLOW2 %{RT_FLOW_TAG:[juniper][srx][tag]}: session created %{IP:[source][ip]}/%{INT:[source][port]:int}->%{IP:[destination][ip]}/%{INT:[destination][port]:int} %{DATA:[juniper][srx][service_name]} %{IP:[source][nat][ip]}/%{INT:[source][nat][port]:int}->%{IP:[destination][nat][ip]}/%{INT:[destination][nat][port]:int} (?:(?:None)|(?:%{DATA:[juniper][srx][src_nat_rule_name]})) (?:(?:None)|(?:%{DATA:[juniper][srx][dst_nat_rule_name]})) %{INT:[network][iana_number]} %{DATA:[rule][name]} %{DATA:[observer][ingress][zone]} %{DATA:[observer][egress][zone]} %{INT:[juniper][srx][session_id]} .*
+
+RT_FLOW3 %{RT_FLOW_TAG:[juniper][srx][tag]}: session denied %{IP:[source][ip]}/%{INT:[source][port]:int}->%{IP:[destination][ip]}/%{INT:[destination][port]:int} %{DATA:[juniper][srx][service_name]} %{INT:[network][iana_number]}\(\d\) %{DATA:[rule][name]} %{DATA:[observer][ingress][zone]} %{DATA:[observer][egress][zone]} .*
+

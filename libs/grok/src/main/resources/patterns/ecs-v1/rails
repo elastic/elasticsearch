@@ -1,0 +1,13 @@
+RUUID \h{32}
+# rails controller with action
+RCONTROLLER (?<[rails][controller][class]>[^#]+)#(?<[rails][controller][action]>\w+)
+
+# this will often be the only line:
+RAILS3HEAD (?m)Started %{WORD:[http][request][method]} "%{URIPATHPARAM:[url][original]}" for %{IPORHOST:[source][address]} at (?<timestamp>%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:%{MINUTE}:%{SECOND} %{ISO8601_TIMEZONE})
+# for some a strange reason, params are stripped of {} - not sure that's a good idea.
+RPROCESSING \W*Processing by %{RCONTROLLER} as (?<[rails][request][format]>\S+)(?:\W*Parameters: {%{DATA:[rails][request][params]}}\W*)?
+RAILS3FOOT Completed %{POSINT:[http][response][status_code]:int}%{DATA} in %{NUMBER:[rails][request][duration][total]:float}ms %{RAILS3PROFILE}%{GREEDYDATA}
+RAILS3PROFILE (?:\(Views: %{NUMBER:[rails][request][duration][view]:float}ms \| ActiveRecord: %{NUMBER:[rails][request][duration][active_record]:float}ms|\(ActiveRecord: %{NUMBER:[rails][request][duration][active_record]:float}ms)?
+
+# putting it all together
+RAILS3 %{RAILS3HEAD}(?:%{RPROCESSING})?(?<[rails][request][explain][original]>(?:%{DATA}\n)*)(?:%{RAILS3FOOT})?

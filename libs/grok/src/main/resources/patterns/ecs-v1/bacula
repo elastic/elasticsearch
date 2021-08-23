@@ -1,0 +1,53 @@
+BACULA_TIMESTAMP %{MONTHDAY}-%{MONTH}(?:-%{YEAR})? %{HOUR}:%{MINUTE}
+BACULA_HOST %{HOSTNAME}
+BACULA_VOLUME %{USER}
+BACULA_DEVICE %{USER}
+BACULA_DEVICEPATH %{UNIXPATH}
+BACULA_CAPACITY %{INT}{1,3}(,%{INT}{3})*
+BACULA_VERSION %{USER}
+BACULA_JOB %{USER}
+
+BACULA_LOG_MAX_CAPACITY User defined maximum volume capacity %{BACULA_CAPACITY:[bacula][volume][max_capacity]} exceeded on device \"%{BACULA_DEVICE:[bacula][volume][device]}\" \(%{BACULA_DEVICEPATH:[bacula][volume][path]}\).?
+BACULA_LOG_END_VOLUME End of medium on Volume \"%{BACULA_VOLUME:[bacula][volume][name]}\" Bytes=%{BACULA_CAPACITY:[bacula][volume][bytes]} Blocks=%{BACULA_CAPACITY:[bacula][volume][blocks]} at %{BACULA_TIMESTAMP:[bacula][timestamp]}.
+BACULA_LOG_NEW_VOLUME Created new Volume \"%{BACULA_VOLUME:[bacula][volume][name]}\" in catalog.
+BACULA_LOG_NEW_LABEL Labeled new Volume \"%{BACULA_VOLUME:[bacula][volume][name]}\" on (?:file )?device \"%{BACULA_DEVICE:[bacula][volume][device]}\" \(%{BACULA_DEVICEPATH:[bacula][volume][path]}\).
+BACULA_LOG_WROTE_LABEL Wrote label to prelabeled Volume \"%{BACULA_VOLUME:[bacula][volume][name]}\" on device \"%{BACULA_DEVICE:[bacula][volume][device]}\" \(%{BACULA_DEVICEPATH:[bacula][volume][path]}\)
+BACULA_LOG_NEW_MOUNT New volume \"%{BACULA_VOLUME:[bacula][volume][name]}\" mounted on device \"%{BACULA_DEVICE:[bacula][volume][device]}\" \(%{BACULA_DEVICEPATH:[bacula][volume][path]}\) at %{BACULA_TIMESTAMP:[bacula][timestamp]}.
+BACULA_LOG_NOOPEN \s*Cannot open %{DATA}: ERR=%{GREEDYDATA:[error][message]}
+BACULA_LOG_NOOPENDIR \s*Could not open directory \"?%{DATA:[file][path]}\"?: ERR=%{GREEDYDATA:[error][message]}
+BACULA_LOG_NOSTAT \s*Could not stat %{DATA:[file][path]}: ERR=%{GREEDYDATA:[error][message]}
+BACULA_LOG_NOJOBS There are no more Jobs associated with Volume \"%{BACULA_VOLUME:[bacula][volume][name]}\". Marking it purged.
+BACULA_LOG_ALL_RECORDS_PRUNED .*?All records pruned from Volume \"%{BACULA_VOLUME:[bacula][volume][name]}\"; marking it \"Purged\"
+BACULA_LOG_BEGIN_PRUNE_JOBS Begin pruning Jobs older than %{INT} month %{INT} days .
+BACULA_LOG_BEGIN_PRUNE_FILES Begin pruning Files.
+BACULA_LOG_PRUNED_JOBS Pruned %{INT} Jobs* for client %{BACULA_HOST:[bacula][client][name]} from catalog.
+BACULA_LOG_PRUNED_FILES Pruned Files from %{INT} Jobs* for client %{BACULA_HOST:[bacula][client][name]} from catalog.
+BACULA_LOG_ENDPRUNE End auto prune.
+BACULA_LOG_STARTJOB Start Backup JobId %{INT}, Job=%{BACULA_JOB:[bacula][job][name]}
+BACULA_LOG_STARTRESTORE Start Restore Job %{BACULA_JOB:[bacula][job][name]}
+BACULA_LOG_USEDEVICE Using Device \"%{BACULA_DEVICE:[bacula][volume][device]}\"
+BACULA_LOG_DIFF_FS \s*%{UNIXPATH} is a different filesystem. Will not descend from %{UNIXPATH} into it.
+BACULA_LOG_JOBEND Job write elapsed time = %{DATA:[bacula][job][elapsed_time]}, Transfer rate = %{NUMBER} (K|M|G)? Bytes/second
+BACULA_LOG_NOPRUNE_JOBS No Jobs found to prune.
+BACULA_LOG_NOPRUNE_FILES No Files found to prune.
+BACULA_LOG_VOLUME_PREVWRITTEN Volume \"?%{BACULA_VOLUME:[bacula][volume][name]}\"? previously written, moving to end of data.
+BACULA_LOG_READYAPPEND Ready to append to end of Volume \"%{BACULA_VOLUME:[bacula][volume][name]}\" size=%{INT:[bacula][volume][size]:int}
+# :long - %{INT:[bacula][volume][size]:int}
+BACULA_LOG_CANCELLING Cancelling duplicate JobId=%{INT:[bacula][job][other_id]}.
+BACULA_LOG_MARKCANCEL JobId %{INT:[bacula][job][id]}, Job %{BACULA_JOB:[bacula][job][name]} marked to be canceled.
+BACULA_LOG_CLIENT_RBJ shell command: run ClientRunBeforeJob \"%{GREEDYDATA:[bacula][job][client_run_before_command]}\"
+BACULA_LOG_VSS (Generate )?VSS (Writer)?
+BACULA_LOG_MAXSTART Fatal [eE]rror: Job canceled because max start delay time exceeded.
+BACULA_LOG_DUPLICATE Fatal [eE]rror: JobId %{INT:[bacula][job][other_id]} already running. Duplicate job not allowed.
+BACULA_LOG_NOJOBSTAT Fatal [eE]rror: No Job status returned from FD.
+BACULA_LOG_FATAL_CONN Fatal [eE]rror: bsock.c:133 Unable to connect to (Client: %{BACULA_HOST:[bacula][client][name]}|Storage daemon) on %{IPORHOST:[client][address]}:%{POSINT:[client][port]:int}. ERR=%{GREEDYDATA:[error][message]}
+BACULA_LOG_NO_CONNECT Warning: bsock.c:127 Could not connect to (Client: %{BACULA_HOST:[bacula][client][name]}|Storage daemon) on %{IPORHOST:[client][address]}:%{POSINT:[client][port]:int}. ERR=%{GREEDYDATA:[error][message]}
+BACULA_LOG_NO_AUTH Fatal error: Unable to authenticate with File daemon at \"?%{IPORHOST:[client][address]}(?::%{POSINT:[client][port]:int})?\"?. Possible causes:
+BACULA_LOG_NOSUIT No prior or suitable Full backup found in catalog. Doing FULL backup.
+BACULA_LOG_NOPRIOR No prior Full backup Job record found.
+
+BACULA_LOG_JOB (Error: )?Bacula %{BACULA_HOST} %{BACULA_VERSION} \(%{BACULA_VERSION}\):
+
+BACULA_LOG %{BACULA_TIMESTAMP:timestamp} %{BACULA_HOST:[host][hostname]}(?: JobId %{INT:[bacula][job][id]})?:? (%{BACULA_LOG_MAX_CAPACITY}|%{BACULA_LOG_END_VOLUME}|%{BACULA_LOG_NEW_VOLUME}|%{BACULA_LOG_NEW_LABEL}|%{BACULA_LOG_WROTE_LABEL}|%{BACULA_LOG_NEW_MOUNT}|%{BACULA_LOG_NOOPEN}|%{BACULA_LOG_NOOPENDIR}|%{BACULA_LOG_NOSTAT}|%{BACULA_LOG_NOJOBS}|%{BACULA_LOG_ALL_RECORDS_PRUNED}|%{BACULA_LOG_BEGIN_PRUNE_JOBS}|%{BACULA_LOG_BEGIN_PRUNE_FILES}|%{BACULA_LOG_PRUNED_JOBS}|%{BACULA_LOG_PRUNED_FILES}|%{BACULA_LOG_ENDPRUNE}|%{BACULA_LOG_STARTJOB}|%{BACULA_LOG_STARTRESTORE}|%{BACULA_LOG_USEDEVICE}|%{BACULA_LOG_DIFF_FS}|%{BACULA_LOG_JOBEND}|%{BACULA_LOG_NOPRUNE_JOBS}|%{BACULA_LOG_NOPRUNE_FILES}|%{BACULA_LOG_VOLUME_PREVWRITTEN}|%{BACULA_LOG_READYAPPEND}|%{BACULA_LOG_CANCELLING}|%{BACULA_LOG_MARKCANCEL}|%{BACULA_LOG_CLIENT_RBJ}|%{BACULA_LOG_VSS}|%{BACULA_LOG_MAXSTART}|%{BACULA_LOG_DUPLICATE}|%{BACULA_LOG_NOJOBSTAT}|%{BACULA_LOG_FATAL_CONN}|%{BACULA_LOG_NO_CONNECT}|%{BACULA_LOG_NO_AUTH}|%{BACULA_LOG_NOSUIT}|%{BACULA_LOG_JOB}|%{BACULA_LOG_NOPRIOR})
+# old (deprecated) name :
+BACULA_LOGLINE %{BACULA_LOG}

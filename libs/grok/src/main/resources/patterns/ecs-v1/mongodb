@@ -1,0 +1,7 @@
+MONGO_LOG %{SYSLOGTIMESTAMP:timestamp} \[%{WORD:[mongodb][component]}\] %{GREEDYDATA:message}
+MONGO_QUERY \{ (?<={ ).*(?= } ntoreturn:) \}
+MONGO_SLOWQUERY %{WORD:[mongodb][profile][op]} %{MONGO_WORDDASH:[mongodb][database]}\.%{MONGO_WORDDASH:[mongodb][collection]} %{WORD}: %{MONGO_QUERY:[mongodb][query][original]} ntoreturn:%{NONNEGINT:[mongodb][profile][ntoreturn]:int} ntoskip:%{NONNEGINT:[mongodb][profile][ntoskip]:int} nscanned:%{NONNEGINT:[mongodb][profile][nscanned]:int}.*? nreturned:%{NONNEGINT:[mongodb][profile][nreturned]:int}.*? %{INT:[mongodb][profile][duration]:int}ms
+MONGO_WORDDASH \b[\w-]+\b
+MONGO3_SEVERITY \w
+MONGO3_COMPONENT %{WORD}
+MONGO3_LOG %{TIMESTAMP_ISO8601:timestamp} %{MONGO3_SEVERITY:[log][level]} (?:-|%{MONGO3_COMPONENT:[mongodb][component]})%{SPACE}(?:\[%{DATA:[mongodb][context]}\])? %{GREEDYDATA:message}

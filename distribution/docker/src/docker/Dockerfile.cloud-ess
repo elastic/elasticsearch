@@ -1,0 +1,12 @@
+FROM ${base_image} AS builder
+
+USER root
+
+COPY plugins/*.zip /opt/plugins/archive/
+
+RUN chown root.root /opt/plugins/archive/*
+RUN chmod 0444 /opt/plugins/archive/*
+
+FROM ${base_image}
+
+COPY --from=builder /opt/plugins /opt/plugins

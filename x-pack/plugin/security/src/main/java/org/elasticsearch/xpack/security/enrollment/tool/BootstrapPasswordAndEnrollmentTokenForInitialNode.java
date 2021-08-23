@@ -34,17 +34,16 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.security.SecureRandom;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.tool.CommandLineHttpClient.createURL;
+import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
 public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreAwareCommand {
     private final CheckedFunction<Environment, EnrollmentTokenGenerator, Exception> createEnrollmentTokenFunction;
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
     private final OptionSpec<Void> includeNodeEnrollmentToken;
-    private final SecureRandom secureRandom = new SecureRandom();
 
     BootstrapPasswordAndEnrollmentTokenForInitialNode() {
         this(
@@ -141,14 +140,5 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
     public static URL setElasticUserPasswordUrl(CommandLineHttpClient client) throws MalformedURLException, URISyntaxException {
         return createURL(new URL(client.getDefaultURL()), "/_security/user/" + ElasticUser.NAME + "/_password",
             "?pretty");
-    }
-
-    protected char[] generatePassword(int passwordLength) {
-        final char[] passwordChars = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~!@#$%^&*-_=+?").toCharArray();
-        char[] characters = new char[passwordLength];
-        for (int i = 0; i < passwordLength; ++i) {
-            characters[i] = passwordChars[secureRandom.nextInt(passwordChars.length)];
-        }
-        return characters;
     }
 }

@@ -58,8 +58,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public static final String ERROR_KEYSTORE_NOT_FOUND = "ERROR: Elasticsearch keystore not found";
     private static final String USERNAME = "elastic";
     private static final String PASSWORD = "nothunter2";
-    private static final String KEYSTORE_DEFAULT_PASSWORD = "^|<>\\&exit"; // code insertion on Windows if special characters are not
-                                                                           // escaped
+    private static final String KEYSTORE_PASSWORD = "keystore-password";
 
     /** Test initial archive state */
     public void test10InstallArchiveDistribution() throws Exception {
@@ -116,11 +115,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assumeThat(installation, is(notNullValue()));
 
         // TODO Change this to setKeystorePassword(password);, when we merge the code to auto-configure security for archives
-        createKeystore(KEYSTORE_DEFAULT_PASSWORD);
+        createKeystore(KEYSTORE_PASSWORD);
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_DEFAULT_PASSWORD, true, false));
+        awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, false));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
@@ -143,7 +142,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_DEFAULT_PASSWORD, true, true));
+        awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, true));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
@@ -176,14 +175,14 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test30KeystorePasswordFromFile() throws Exception {
         assumeTrue("only for systemd", Platforms.isSystemd() && distribution().isPackage());
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
-
+        setKeystorePassword(KEYSTORE_PASSWORD);
         assertPasswordProtectedKeystore();
 
         try {
             sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile);
 
             Files.createFile(esKeystorePassphraseFile);
-            Files.write(esKeystorePassphraseFile, List.of(KEYSTORE_DEFAULT_PASSWORD));
+            Files.write(esKeystorePassphraseFile, List.of(KEYSTORE_PASSWORD));
 
             startElasticsearch();
             ServerUtils.runElasticsearchTests();
@@ -224,15 +223,14 @@ public class KeystoreManagementTests extends PackagingTestCase {
     @AwaitsFix(bugUrl = "Keystore fails to save with resource busy")
     public void test40DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "keystore-password";
 
-        Path localConfigDir = getMountedLocalConfDirWithKeystore(password, installation.config);
+        Path localConfigDir = getMountedLocalConfDirWithKeystore(KEYSTORE_PASSWORD, installation.config);
 
         // restart ES with password and mounted config dir containing password protected keystore
         Map<Path, Path> volumes = Map.of(localConfigDir.resolve("config"), installation.config);
         Map<String, String> envVars = Map.of(
             "KEYSTORE_PASSWORD",
-            password,
+            KEYSTORE_PASSWORD,
             "ingest.geoip.downloader.enabled",
             "false",
             "ELASTIC_PASSWORD",
@@ -255,12 +253,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
         try {
             tempDir = createTempDir(KeystoreManagementTests.class.getSimpleName());
 
-            String password = "keystore-password";
             String passwordFilename = "password.txt";
-            Files.writeString(tempDir.resolve(passwordFilename), password + "\n");
+            Files.writeString(tempDir.resolve(passwordFilename), KEYSTORE_PASSWORD + "\n");
             Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
-            Path localConfigDir = getMountedLocalConfDirWithKeystore(password, installation.config);
+            Path localConfigDir = getMountedLocalConfDirWithKeystore(KEYSTORE_PASSWORD, installation.config);
 
             // restart ES with password and mounted config dir containing password protected keystore
             Map<Path, Path> volumes = Map.of(localConfigDir.resolve("config"), installation.config, tempDir, Path.of("/run/secrets"));
@@ -291,9 +288,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
     @AwaitsFix(bugUrl = "Keystore fails to save with resource busy")
     public void test42DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "keystore-password";
 
-        Path localConfigPath = getMountedLocalConfDirWithKeystore(password, installation.config);
+        Path localConfigPath = getMountedLocalConfDirWithKeystore(KEYSTORE_PASSWORD, installation.config);
 
         // restart ES with password and mounted config dir containing password protected keystore
         Map<Path, Path> volumes = Map.of(localConfigPath.resolve("config"), installation.config);

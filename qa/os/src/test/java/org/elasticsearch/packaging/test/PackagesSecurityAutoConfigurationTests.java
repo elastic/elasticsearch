@@ -26,7 +26,7 @@ import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
-import static org.elasticsearch.packaging.util.FileMatcher.p755;
+import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
@@ -99,7 +99,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
     private static void verifySecurityAutoConfigured(Installation es) throws IOException {
         Optional<String> autoConfigDirName = getAutoConfigPathDir(es);
         assertThat(autoConfigDirName.isPresent(), is(true));
-        assertThat(es.config(autoConfigDirName.get()), file(Directory, "root", "elasticsearch", p755));
+        assertThat(es.config(autoConfigDirName.get()), file(Directory, "root", "elasticsearch", p750));
         Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
             .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), file(File, "root", "elasticsearch", p664)));
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));

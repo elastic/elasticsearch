@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.MasterServiceTimingStatistics;
+import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -295,69 +295,69 @@ public class NodeStatsTests extends ESTestCase {
                             deserializedPublishStats.getIncompatibleClusterStateDiffReceivedCount());
                     }
 
-                    final MasterServiceTimingStatistics masterTimingStats = discoveryStats.getMasterTimingStats();
-                    if (masterTimingStats == null) {
-                        assertNull(deserializedDiscoveryStats.getMasterTimingStats());
+                    final ClusterStateUpdateStats clusterStateUpdateStats = discoveryStats.getClusterStateUpdateStats();
+                    if (clusterStateUpdateStats == null) {
+                        assertNull(deserializedDiscoveryStats.getClusterStateUpdateStats());
                     } else {
-                        final MasterServiceTimingStatistics deserializedMasterTimingStats
-                            = deserializedDiscoveryStats.getMasterTimingStats();
+                        final ClusterStateUpdateStats deserializedClusterStateUpdateStats
+                            = deserializedDiscoveryStats.getClusterStateUpdateStats();
                         assertEquals(
-                            masterTimingStats.getUnchangedTaskCount(),
-                            deserializedMasterTimingStats.getUnchangedTaskCount());
+                            clusterStateUpdateStats.getUnchangedTaskCount(),
+                            deserializedClusterStateUpdateStats.getUnchangedTaskCount());
                         assertEquals(
-                            masterTimingStats.getPublicationSuccessCount(),
-                            deserializedMasterTimingStats.getPublicationSuccessCount());
+                            clusterStateUpdateStats.getPublicationSuccessCount(),
+                            deserializedClusterStateUpdateStats.getPublicationSuccessCount());
                         assertEquals(
-                            masterTimingStats.getPublicationFailureCount(),
-                            deserializedMasterTimingStats.getPublicationFailureCount());
+                            clusterStateUpdateStats.getPublicationFailureCount(),
+                            deserializedClusterStateUpdateStats.getPublicationFailureCount());
                         assertEquals(
-                            masterTimingStats.getUnchangedComputationElapsedMillis(),
-                            deserializedMasterTimingStats.getUnchangedComputationElapsedMillis());
+                            clusterStateUpdateStats.getUnchangedComputationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getUnchangedComputationElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getUnchangedNotificationElapsedMillis(),
-                            deserializedMasterTimingStats.getUnchangedNotificationElapsedMillis());
+                            clusterStateUpdateStats.getUnchangedNotificationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getUnchangedNotificationElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getSuccessfulComputationElapsedMillis(),
-                            deserializedMasterTimingStats.getSuccessfulComputationElapsedMillis());
+                            clusterStateUpdateStats.getSuccessfulComputationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulComputationElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getSuccessfulPublicationElapsedMillis(),
-                            deserializedMasterTimingStats.getSuccessfulPublicationElapsedMillis());
+                            clusterStateUpdateStats.getSuccessfulPublicationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulPublicationElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getSuccessfulContextConstructionElapsedMillis(),
-                            deserializedMasterTimingStats.getSuccessfulContextConstructionElapsedMillis());
+                            clusterStateUpdateStats.getSuccessfulContextConstructionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulContextConstructionElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getSuccessfulCommitElapsedMillis(),
-                            deserializedMasterTimingStats.getSuccessfulCommitElapsedMillis());
+                            clusterStateUpdateStats.getSuccessfulCommitElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulCommitElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getSuccessfulCompletionElapsedMillis(),
-                            deserializedMasterTimingStats.getSuccessfulCompletionElapsedMillis());
+                            clusterStateUpdateStats.getSuccessfulCompletionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulCompletionElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getSuccessfulMasterApplyElapsedMillis(),
-                            deserializedMasterTimingStats.getSuccessfulMasterApplyElapsedMillis());
+                            clusterStateUpdateStats.getSuccessfulMasterApplyElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulMasterApplyElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getSuccessfulNotificationElapsedMillis(),
-                            deserializedMasterTimingStats.getSuccessfulNotificationElapsedMillis());
+                            clusterStateUpdateStats.getSuccessfulNotificationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulNotificationElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getFailedComputationElapsedMillis(),
-                            deserializedMasterTimingStats.getFailedComputationElapsedMillis());
+                            clusterStateUpdateStats.getFailedComputationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedComputationElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getFailedPublicationElapsedMillis(),
-                            deserializedMasterTimingStats.getFailedPublicationElapsedMillis());
+                            clusterStateUpdateStats.getFailedPublicationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedPublicationElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getFailedContextConstructionElapsedMillis(),
-                            deserializedMasterTimingStats.getFailedContextConstructionElapsedMillis());
+                            clusterStateUpdateStats.getFailedContextConstructionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedContextConstructionElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getFailedCommitElapsedMillis(),
-                            deserializedMasterTimingStats.getFailedCommitElapsedMillis());
+                            clusterStateUpdateStats.getFailedCommitElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedCommitElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getFailedCompletionElapsedMillis(),
-                            deserializedMasterTimingStats.getFailedCompletionElapsedMillis());
+                            clusterStateUpdateStats.getFailedCompletionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedCompletionElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getFailedMasterApplyElapsedMillis(),
-                            deserializedMasterTimingStats.getFailedMasterApplyElapsedMillis());
+                            clusterStateUpdateStats.getFailedMasterApplyElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedMasterApplyElapsedMillis());
                         assertEquals(
-                            masterTimingStats.getFailedNotificationElapsedMillis(),
-                            deserializedMasterTimingStats.getFailedNotificationElapsedMillis());
+                            clusterStateUpdateStats.getFailedNotificationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedNotificationElapsedMillis());
                     }
                 }
                 IngestStats ingestStats = nodeStats.getIngestStats();
@@ -575,7 +575,7 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong())
                 : null,
             randomBoolean()
-                ? new MasterServiceTimingStatistics(
+                ? new ClusterStateUpdateStats(
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),

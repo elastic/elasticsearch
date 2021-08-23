@@ -19,7 +19,10 @@ import org.elasticsearch.core.TimeValue;
 import java.io.IOException;
 import java.util.Objects;
 
-public class MasterServiceTimingStatistics implements Writeable, ToXContentFragment {
+/**
+ * Various statistics (timing information etc) about cluster state updates coordinated by this node.
+ */
+public class ClusterStateUpdateStats implements Writeable, ToXContentFragment {
 
     private final long unchangedTaskCount;
     private final long publicationSuccessCount;
@@ -43,7 +46,7 @@ public class MasterServiceTimingStatistics implements Writeable, ToXContentFragm
     private final long failedMasterApplyElapsedMillis;
     private final long failedNotificationElapsedMillis;
 
-    public MasterServiceTimingStatistics(
+    public ClusterStateUpdateStats(
         long unchangedTaskCount,
         long publicationSuccessCount,
         long publicationFailureCount,
@@ -90,7 +93,7 @@ public class MasterServiceTimingStatistics implements Writeable, ToXContentFragm
         return v;
     }
 
-    public MasterServiceTimingStatistics(StreamInput in) throws IOException {
+    public ClusterStateUpdateStats(StreamInput in) throws IOException {
         this.unchangedTaskCount = in.readVLong();
         this.publicationSuccessCount = in.readVLong();
         this.publicationFailureCount = in.readVLong();
@@ -136,7 +139,7 @@ public class MasterServiceTimingStatistics implements Writeable, ToXContentFragm
         out.writeVLong(failedNotificationElapsedMillis);
     }
 
-    public static MasterServiceTimingStatistics EMPTY = new MasterServiceTimingStatistics(
+    public static ClusterStateUpdateStats EMPTY = new ClusterStateUpdateStats(
         0L,
         0L,
         0L,
@@ -236,7 +239,7 @@ public class MasterServiceTimingStatistics implements Writeable, ToXContentFragm
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("master_timing");
+        builder.startObject("cluster_state_update");
 
         builder.startObject("unchanged");
         builder.field("count", unchangedTaskCount);
@@ -278,7 +281,7 @@ public class MasterServiceTimingStatistics implements Writeable, ToXContentFragm
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        MasterServiceTimingStatistics that = (MasterServiceTimingStatistics) o;
+        ClusterStateUpdateStats that = (ClusterStateUpdateStats) o;
         return unchangedTaskCount == that.unchangedTaskCount
             && publicationSuccessCount == that.publicationSuccessCount
             && publicationFailureCount == that.publicationFailureCount

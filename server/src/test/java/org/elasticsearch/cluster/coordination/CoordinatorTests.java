@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.MasterServiceTimingStatistics;
+import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -1006,12 +1006,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             for (ClusterNode clusterNode : cluster.getAllNodesExcept()) {
                 assertThat(
-                    clusterNode.coordinator.stats().getMasterTimingStats() != null,
+                    clusterNode.coordinator.stats().getClusterStateUpdateStats() != null,
                     equalTo(clusterNode.getLocalNode().isMasterNode()));
             }
 
             final ClusterNode leader = cluster.getAnyLeader();
-            final MasterServiceTimingStatistics stats0 = leader.coordinator.stats().getMasterTimingStats();
+            final ClusterStateUpdateStats stats0 = leader.coordinator.stats().getClusterStateUpdateStats();
 
             final TimeAdvancer computeAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
             final TimeAdvancer notifyAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
@@ -1032,7 +1032,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
 
-            final MasterServiceTimingStatistics stats1 = leader.coordinator.stats().getMasterTimingStats();
+            final ClusterStateUpdateStats stats1 = leader.coordinator.stats().getClusterStateUpdateStats();
 
             final String description = Strings.toString(stats1) + " vs " + Strings.toString(stats0);
             assertThat(description, stats1.getUnchangedTaskCount() - stats0.getUnchangedTaskCount(), greaterThanOrEqualTo(1L));
@@ -1095,7 +1095,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             final ClusterNode leader = cluster.getAnyLeader();
-            final MasterServiceTimingStatistics stats0 = leader.coordinator.stats().getMasterTimingStats();
+            final ClusterStateUpdateStats stats0 = leader.coordinator.stats().getClusterStateUpdateStats();
 
             final TimeAdvancer computeAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
             final TimeAdvancer notifyAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
@@ -1119,7 +1119,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
 
-            final MasterServiceTimingStatistics stats1 = leader.coordinator.stats().getMasterTimingStats();
+            final ClusterStateUpdateStats stats1 = leader.coordinator.stats().getClusterStateUpdateStats();
 
             final String description = Strings.toString(stats1) + " vs " + Strings.toString(stats0);
             assertThat(description, stats1.getPublicationSuccessCount() - stats0.getPublicationSuccessCount(), greaterThanOrEqualTo(1L));
@@ -1154,7 +1154,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             final ClusterNode leader = cluster.getAnyLeader();
-            final MasterServiceTimingStatistics stats0 = leader.coordinator.stats().getMasterTimingStats();
+            final ClusterStateUpdateStats stats0 = leader.coordinator.stats().getClusterStateUpdateStats();
 
             final TimeAdvancer computeAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
             final TimeAdvancer notifyAdvancer = new TimeAdvancer(cluster.deterministicTaskQueue);
@@ -1176,7 +1176,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.blackhole();
             cluster.stabilise(DEFAULT_STABILISATION_TIME);
 
-            final MasterServiceTimingStatistics stats1 = leader.coordinator.stats().getMasterTimingStats();
+            final ClusterStateUpdateStats stats1 = leader.coordinator.stats().getClusterStateUpdateStats();
 
             final String description = Strings.toString(stats1) + " vs " + Strings.toString(stats0);
             assertThat(description, stats1.getPublicationFailureCount() - stats0.getPublicationFailureCount(), greaterThanOrEqualTo(1L));

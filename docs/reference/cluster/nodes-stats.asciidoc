@@ -2078,16 +2078,16 @@ Number of incompatible differences between published cluster states.
 Number of compatible differences between published cluster states.
 =======
 
-`master_timing`::
+`cluster_state_update`::
 (object)
-Contains low-level statistics about how long various activities took while the
-node was the elected master. Omitted if the node is not master-eligible. Every
-field whose name ends in `_time` within this object is also represented as a
-raw number of milliseconds in a field whose name ends in `_time_millis`. The
-human-readable fields with a `_time` suffix are only returned if requested with
-the `?human=true` query parameter.
+Contains low-level statistics about how long various activities took during
+cluster state updates while the node was the elected master. Omitted if the
+node is not master-eligible. Every field whose name ends in `_time` within this
+object is also represented as a raw number of milliseconds in a field whose
+name ends in `_time_millis`. The human-readable fields with a `_time` suffix
+are only returned if requested with the `?human=true` query parameter.
 +
-.Properties of `master_timing`
+.Properties of `cluster_state_update`
 [%collapsible]
 =======
 `unchanged`::

@@ -90,7 +90,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
 
-    private final TimingStatisticsTracker timingStatisticsTracker = new TimingStatisticsTracker();
+    private final ClusterStateUpdateStatsTracker clusterStateUpdateStatsTracker = new ClusterStateUpdateStatsTracker();
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
@@ -135,8 +135,8 @@ public class MasterService extends AbstractLifecycleComponent {
                 () -> threadPoolExecutor));
     }
 
-    public MasterServiceTimingStatistics getTimingStats() {
-        return timingStatisticsTracker.getStatistics();
+    public ClusterStateUpdateStats getClusterStateUpdateStats() {
+        return clusterStateUpdateStatsTracker.getStatistics();
     }
 
     @SuppressWarnings("unchecked")
@@ -231,7 +231,7 @@ public class MasterService extends AbstractLifecycleComponent {
             taskOutputs.notifySuccessfulTasksOnUnchangedClusterState();
             final TimeValue executionTime = getTimeSince(notificationStartTime);
             logExecutionTime(executionTime, "notify listeners on unchanged cluster state", summary);
-            timingStatisticsTracker.onUnchangedClusterState(computationTime.millis(), executionTime.millis());
+            clusterStateUpdateStatsTracker.onUnchangedClusterState(computationTime.millis(), executionTime.millis());
         } else {
             final ClusterState newClusterState = taskOutputs.newClusterState;
             if (logger.isTraceEnabled()) {
@@ -308,7 +308,7 @@ public class MasterService extends AbstractLifecycleComponent {
             "notify listeners on successful publication of cluster state (version: " + clusterStatePublicationEvent.getNewState().version()
                 + ", uuid: " + clusterStatePublicationEvent.getNewState().stateUUID() + ')',
             clusterStatePublicationEvent.getSummary());
-        timingStatisticsTracker.onPublicationSuccess(
+        clusterStateUpdateStatsTracker.onPublicationSuccess(
             threadPool.rawRelativeTimeInMillis(),
             clusterStatePublicationEvent,
             executionTime.millis());
@@ -326,13 +326,13 @@ public class MasterService extends AbstractLifecycleComponent {
                 exception);
             taskOutputs.publishingFailed((FailedToCommitClusterStateException) exception);
             final long notificationMillis = threadPool.rawRelativeTimeInMillis() - notificationStartTime;
-            timingStatisticsTracker.onPublicationFailure(
+            clusterStateUpdateStatsTracker.onPublicationFailure(
                 threadPool.rawRelativeTimeInMillis(),
                 clusterStatePublicationEvent,
                 notificationMillis);
         } else {
             assert false : exception;
-            timingStatisticsTracker.onPublicationFailure(threadPool.rawRelativeTimeInMillis(), clusterStatePublicationEvent, 0L);
+            clusterStateUpdateStatsTracker.onPublicationFailure(threadPool.rawRelativeTimeInMillis(), clusterStatePublicationEvent, 0L);
             handleException(
                 clusterStatePublicationEvent.getSummary(),
                 clusterStatePublicationEvent.getPublicationStartTimeMillis(),
@@ -900,7 +900,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class TimingStatisticsTracker {
+    private static class ClusterStateUpdateStatsTracker {
 
         private long unchangedTaskCount;
         private long publicationSuccessCount;
@@ -961,8 +961,8 @@ public class MasterService extends AbstractLifecycleComponent {
             failedNotificationElapsedMillis += notificationMillis;
         }
 
-        synchronized MasterServiceTimingStatistics getStatistics() {
-            return new MasterServiceTimingStatistics(
+        synchronized ClusterStateUpdateStats getStatistics() {
+            return new ClusterStateUpdateStats(
                 unchangedTaskCount,
                 publicationSuccessCount,
                 publicationFailureCount,

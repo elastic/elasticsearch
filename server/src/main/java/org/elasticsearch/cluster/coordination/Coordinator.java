@@ -686,7 +686,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return new DiscoveryStats(
             new PendingClusterStateStats(0, 0, 0),
             publicationHandler.stats(),
-            getLocalNode().isMasterNode() ? masterService.getTimingStats() : null
+            getLocalNode().isMasterNode() ? masterService.getClusterStateUpdateStats() : null
         );
     }
 

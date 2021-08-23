@@ -14,16 +14,16 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class MasterServiceTimingStatisticsWireSerializationTests extends AbstractWireSerializingTestCase<MasterServiceTimingStatistics> {
+public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireSerializingTestCase<ClusterStateUpdateStats> {
 
     @Override
-    protected Writeable.Reader<MasterServiceTimingStatistics> instanceReader() {
-        return MasterServiceTimingStatistics::new;
+    protected Writeable.Reader<ClusterStateUpdateStats> instanceReader() {
+        return ClusterStateUpdateStats::new;
     }
 
     @Override
-    protected MasterServiceTimingStatistics createTestInstance() {
-        return new MasterServiceTimingStatistics(
+    protected ClusterStateUpdateStats createTestInstance() {
+        return new ClusterStateUpdateStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -50,10 +50,10 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
     }
 
     @Override
-    protected MasterServiceTimingStatistics mutateInstance(MasterServiceTimingStatistics instance) throws IOException {
+    protected ClusterStateUpdateStats mutateInstance(ClusterStateUpdateStats instance) throws IOException {
         switch (between(1,19)) {
             case 1:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     not(instance.getUnchangedTaskCount()),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -74,7 +74,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 2:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     not(instance.getPublicationSuccessCount()),
                     instance.getPublicationFailureCount(),
@@ -95,7 +95,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 3:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     not(instance.getPublicationFailureCount()),
@@ -116,7 +116,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 4:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -137,7 +137,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 5:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -158,7 +158,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 6:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -179,7 +179,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 7:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -200,7 +200,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 8:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -221,7 +221,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 9:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -242,7 +242,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 10:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -263,7 +263,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 11:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -284,7 +284,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 12:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -305,7 +305,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 13:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -326,7 +326,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 14:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -347,7 +347,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 15:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -368,7 +368,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 16:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -389,7 +389,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 17:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -410,7 +410,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     instance.getFailedMasterApplyElapsedMillis(),
                     instance.getFailedNotificationElapsedMillis());
             case 18:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),
@@ -431,7 +431,7 @@ public class MasterServiceTimingStatisticsWireSerializationTests extends Abstrac
                     not(instance.getFailedMasterApplyElapsedMillis()),
                     instance.getFailedNotificationElapsedMillis());
             case 19:
-                return new MasterServiceTimingStatistics(
+                return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
                     instance.getPublicationSuccessCount(),
                     instance.getPublicationFailureCount(),

@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -378,7 +379,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             GetRolesResponse getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue("any cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/foo", request, authentication));
+                    Role.builder(getRolesResponse.roles()[0], null, Automatons.EMPTY).build()
+                        .cluster()
+                        .check("cluster:admin/foo", request, authentication));
 
             preparePutRole("test_role")
                     .cluster("none")
@@ -389,7 +392,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
 
             assertFalse("no cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/bar", request, authentication));
+                    Role.builder(getRolesResponse.roles()[0], null, Automatons.EMPTY).build()
+                        .cluster()
+                        .check("cluster:admin/bar", request, authentication));
         }
     }
 

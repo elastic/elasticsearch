@@ -60,15 +60,14 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
     /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""
-    chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
-    # Above command runs as root and TLS keystores are created group-owned by root. It's simple to correct the ownership here
-    for dir in "${ES_PATH_CONF}"/auto_config_on*
-    do
-      chown root:elasticsearch "${dir}"/http_keystore_local_node.p12
-      chown root:elasticsearch "${dir}"/http_ca.crt
-      chown root:elasticsearch "${dir}"/transport_keystore_all_nodes.p12
-    done
     if [ $? -eq 0 ]; then
+        # Above command runs as root and TLS keystores are created group-owned by root. It's simple to correct the ownership here
+        for dir in "${ES_PATH_CONF}"/auto_config_on*
+        do
+          chown root:elasticsearch "${dir}"/http_keystore_local_node.p12
+          chown root:elasticsearch "${dir}"/http_ca.crt
+          chown root:elasticsearch "${dir}"/transport_keystore_all_nodes.p12
+        done
         INITIAL_PASSWORD=$(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHash \
         ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
         ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
@@ -79,7 +78,6 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
             echo "# The password of the elastic superuser will be set to: ${INITIAL_PASSWORD} #"
             echo "# upon starting elasticsearch for the first time                             #"
             echo "#                                                                            #"
-            echo "#                                                                            #"
             echo "##############################################################################"
         else
             echo "##########         Security autoconfiguration information         ############"
@@ -87,6 +85,7 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
             echo "# Failed to auto-configure the password for the elastic user upon            #"
             echo "# installation. You can use elasticsearch-reset-elastic-password to set a    #"
             echo "# password for the elastic user.                                             #"
+            echo "#                                                                            #"
             echo "##############################################################################"
         fi
     else
@@ -96,6 +95,7 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
         echo "# enabled. You can use elasticsearch-reset-elastic-password to set a         #"
         echo "# password for the elastic user.                                             #"
         echo "# See <link_here> for instructions on how to configure TLS manually          #"
+        echo "#                                                                            #"
         echo "##############################################################################"
     fi
     if command -v systemctl >/dev/null; then

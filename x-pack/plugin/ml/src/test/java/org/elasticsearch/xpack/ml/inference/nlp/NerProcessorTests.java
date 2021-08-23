@@ -80,14 +80,16 @@ public class NerProcessorTests extends ESTestCase {
     }
 
     public void testProcessResults_GivenNoTokens() {
-        NerProcessor.NerResultProcessor processor = createProcessor(Collections.emptyList(), "");
-        NerResults result = (NerResults) processor.processResult(new PyTorchResult("test", null, 0L, null));
+        NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(NerProcessor.IobTag.values());
+        BertTokenizer.TokenizationResult tokenization = tokenize(Collections.emptyList(), "");
+        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("test", null, 0L, null));
         assertThat(result.getEntityGroups(), is(empty()));
     }
 
     public void testProcessResults() {
-        NerProcessor.NerResultProcessor processor =
-            createProcessor(Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"), "Many use Elasticsearch in London");
+        NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(NerProcessor.IobTag.values());
+        BertTokenizer.TokenizationResult tokenization = tokenize(Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
+            "Many use Elasticsearch in London");
         double[][] scores = {
             { 7, 0, 0, 0, 0, 0, 0, 0, 0}, // many
             { 7, 0, 0, 0, 0, 0, 0, 0, 0}, // use
@@ -97,7 +99,7 @@ public class NerProcessorTests extends ESTestCase {
             { 0, 0, 0, 0, 0, 0, 0, 0, 0}, // in
             { 0, 0, 0, 0, 0, 0, 0, 6, 0} // london
         };
-        NerResults result = (NerResults) processor.processResult(new PyTorchResult("1", scores, 1L, null));
+        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 1L, null));
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));
@@ -120,11 +122,9 @@ public class NerProcessorTests extends ESTestCase {
             NerProcessor.IobTag.O
         };
 
-        NerProcessor.NerResultProcessor processor = createProcessor(
-            Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
-            "Elasticsearch in London",
-            iobMap
-        );
+        NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(iobMap);
+        BertTokenizer.TokenizationResult tokenization = tokenize(Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
+            "Elasticsearch in London");
 
         double[][] scores = {
             { 0.01, 0.01, 0, 0.01, 0, 0, 7, 3, 0}, // el
@@ -133,7 +133,7 @@ public class NerProcessorTests extends ESTestCase {
             { 0, 0, 0, 0, 0, 0, 0, 0, 5}, // in
             { 6, 0, 0, 0, 0, 0, 0, 0, 0} // london
         };
-        NerResults result = (NerResults) processor.processResult(new PyTorchResult("1", scores, 1L, null));
+        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 1L, null));
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));
@@ -210,21 +210,11 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(entityGroups.get(2).getLabel(), equalTo("organisation"));
     }
 
-    private static NerProcessor.NerResultProcessor createProcessor(List<String> vocab, String input){
+    private static BertTokenizer.TokenizationResult tokenize(List<String> vocab, String input) {
         BertTokenizer tokenizer = BertTokenizer.builder(vocab)
             .setDoLowerCase(true)
             .setWithSpecialTokens(false)
             .build();
-        BertTokenizer.TokenizationResult tokenizationResult = tokenizer.tokenize(input);
-        return new NerProcessor.NerResultProcessor(tokenizationResult, NerProcessor.IobTag.values());
-    }
-
-    private static NerProcessor.NerResultProcessor createProcessor(List<String> vocab, String input, NerProcessor.IobTag[] iobMap){
-        BertTokenizer tokenizer = BertTokenizer.builder(vocab)
-            .setDoLowerCase(true)
-            .setWithSpecialTokens(false)
-            .build();
-        BertTokenizer.TokenizationResult tokenizationResult = tokenizer.tokenize(input);
-        return new NerProcessor.NerResultProcessor(tokenizationResult, iobMap);
+        return tokenizer.tokenize(input);
     }
 }

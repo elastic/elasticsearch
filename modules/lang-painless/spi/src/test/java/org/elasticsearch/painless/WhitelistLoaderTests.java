@@ -8,7 +8,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.spi.AnnotationTestObject;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistClass;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -22,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class WhitelistLoaderTests extends ESTestCase {
+
     public void testUnknownAnnotations() {
         Map<String, WhitelistAnnotationParser> parsers = new HashMap<>(WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS);
 
@@ -37,7 +37,7 @@ public class WhitelistLoaderTests extends ESTestCase {
             WhitelistLoader.loadFromResourceFiles(Whitelist.class, parsers, "org.elasticsearch.painless.annotation.unknown_with_options");
         });
         assertEquals(
-            "invalid annotation: parser not found for [unknownAnootationWithMessage] [@unknownAnootationWithMessage[arg=\"arg value\"]]",
+            "invalid annotation: parser not found for [unknownAnnotationWithMessage] [@unknownAnnotationWithMessage[arg=\"arg value\"]]",
             expected.getCause().getMessage()
         );
         assertEquals(IllegalArgumentException.class, expected.getCause().getClass());

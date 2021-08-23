@@ -241,7 +241,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 task,
                 sortBy,
                 after,
-                0,
                 order,
                 search,
                 listener
@@ -250,6 +249,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         );
     }
 
+    /**
+     * Returns a list of currently running snapshots from repository sorted by snapshot creation date
+     *
+     * @param snapshotsInProgress snapshots in progress in the cluster state
+     * @param repositoryName repository name
+     * @return list of snapshots
+     */
     private static List<SnapshotInfo> currentSnapshots(SnapshotsInProgress snapshotsInProgress, String repositoryName) {
         List<SnapshotInfo> snapshotList = new ArrayList<>();
         List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
@@ -275,7 +281,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         CancellableTask task,
         GetSnapshotsRequest.SortBy sortBy,
         @Nullable final GetSnapshotsRequest.After after,
-        int size,
         SortOrder order,
         @Nullable GetSnapshotsRequest.Search search,
         ActionListener<SnapshotsInRepo> listener
@@ -334,17 +339,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final SnapshotsInRepo snapshotInfos;
             if (repositoryData != null) {
                 // want non-current snapshots as well, which are found in the repository data
-                snapshotInfos = buildSimpleSnapshotInfos(
-                    toResolve,
-                    repo,
-                    repositoryData,
-                    currentSnapshots,
-                    sortBy,
-                    after,
-                    size,
-                    order,
-                    search
-                );
+                snapshotInfos = buildSimpleSnapshotInfos(toResolve, repo, repositoryData, currentSnapshots, sortBy, after, order, search);
             } else {
                 // only want current snapshots
                 snapshotInfos = sortSnapshots(
@@ -456,7 +451,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<SnapshotInfo> currentSnapshots,
         final GetSnapshotsRequest.SortBy sortBy,
         @Nullable final GetSnapshotsRequest.After after,
-        final int size,
         final SortOrder order,
         @Nullable GetSnapshotsRequest.Search search
     ) {

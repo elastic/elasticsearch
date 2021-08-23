@@ -442,9 +442,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // This is for performance testing.  It's not exposed to the end user.
     // Recompile if you want to compare performance with C++ tokenization.
     public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
-    public static final String ML_FEATURE_FAMILY = "machine_learning";
+    public static final String ML_FEATURE_FAMILY = "machine-learning";
 
-    public static final LicensedFeature.Persistent ML_JOBS_FEATURE = LicensedFeature.persistent(
+    public static final LicensedFeature.Persistent ML_ANOMALY_JOBS_FEATURE = LicensedFeature.persistent(
         ML_FEATURE_FAMILY,
         "anomaly-detection-job",
         License.OperationMode.PLATINUM

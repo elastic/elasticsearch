@@ -44,7 +44,7 @@ public class JobTask extends LicensedAllocatedPersistentTask implements OpenJobA
         Map<String, String> headers,
         XPackLicenseState licenseState
     ) {
-        super(id, type, action, "job-" + jobId, parentTask, headers, MachineLearning.ML_JOBS_FEATURE, "job-" + jobId, licenseState);
+        super(id, type, action, "job-" + jobId, parentTask, headers, MachineLearning.ML_ANOMALY_JOBS_FEATURE, "job-" + jobId, licenseState);
         this.jobId = jobId;
     }
 

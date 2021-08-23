@@ -71,7 +71,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
         GetFeatureUsageResponse.FeatureUsageInfo mlFeatureUsage = getFeatureUsageInfo()
             .stream()
             .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
-            .filter(f -> f.getName().equals(MachineLearning.ML_JOBS_FEATURE.getName()))
+            .filter(f -> f.getName().equals(MachineLearning.ML_ANOMALY_JOBS_FEATURE.getName()))
             .findAny()
             .orElse(null);
         assertThat(mlFeatureUsage, is(not(nullValue())));
@@ -82,7 +82,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
             ZonedDateTime recentUsage = getFeatureUsageInfo()
                 .stream()
                 .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
-                .filter(f -> f.getName().equals(MachineLearning.ML_JOBS_FEATURE.getName()))
+                .filter(f -> f.getName().equals(MachineLearning.ML_ANOMALY_JOBS_FEATURE.getName()))
                 .map(GetFeatureUsageResponse.FeatureUsageInfo::getLastUsedTime)
                 .findAny()
                 .orElse(null);
@@ -95,7 +95,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
         mlFeatureUsage = getFeatureUsageInfo()
             .stream()
             .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
-            .filter(f -> f.getName().equals(MachineLearning.ML_JOBS_FEATURE.getName()))
+            .filter(f -> f.getName().equals(MachineLearning.ML_ANOMALY_JOBS_FEATURE.getName()))
             .findAny()
             .orElse(null);
         assertThat(mlFeatureUsage, is(not(nullValue())));
@@ -108,7 +108,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
             ZonedDateTime recentUsage =getFeatureUsageInfo()
                 .stream()
                 .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
-                .filter(f -> f.getName().equals(MachineLearning.ML_JOBS_FEATURE.getName()))
+                .filter(f -> f.getName().equals(MachineLearning.ML_ANOMALY_JOBS_FEATURE.getName()))
                 .map(GetFeatureUsageResponse.FeatureUsageInfo::getLastUsedTime)
                 .findAny()
                 .orElse(null);

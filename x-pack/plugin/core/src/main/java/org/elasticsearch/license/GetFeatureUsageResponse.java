@@ -27,11 +27,11 @@ import java.util.Objects;
 public class GetFeatureUsageResponse extends ActionResponse implements ToXContentObject {
 
     public static class FeatureUsageInfo implements Writeable {
-        final String family;
-        final String name;
-        final ZonedDateTime lastUsedTime;
-        final String context;
-        final String licenseLevel;
+        private final String family;
+        private final String name;
+        private final ZonedDateTime lastUsedTime;
+        private final String context;
+        private final String licenseLevel;
 
         public FeatureUsageInfo(@Nullable String family, String name, ZonedDateTime lastUsedTime,
                                 @Nullable String context, String licenseLevel) {

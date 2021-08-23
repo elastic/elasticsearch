@@ -76,10 +76,10 @@ public abstract class LicensedFeature {
         }
     }
 
-    final String family;
-    final String name;
-    final License.OperationMode minimumOperationMode;
-    final boolean needsActive;
+    private final String family;
+    private final String name;
+    private final License.OperationMode minimumOperationMode;
+    private final boolean needsActive;
 
     protected LicensedFeature(String family, String name, License.OperationMode minimumOperationMode, boolean needsActive) {
         this.family = family;

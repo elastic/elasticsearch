@@ -37,7 +37,7 @@ public class SnapshotUpgradeTask extends LicensedAllocatedPersistentTask {
             MlTasks.snapshotUpgradeTaskId(jobId, snapshotId),
             parentTask,
             headers,
-            MachineLearning.ML_JOBS_FEATURE,
+            MachineLearning.ML_ANOMALY_JOBS_FEATURE,
             MlTasks.snapshotUpgradeTaskId(jobId, snapshotId),
             licenseState
         );

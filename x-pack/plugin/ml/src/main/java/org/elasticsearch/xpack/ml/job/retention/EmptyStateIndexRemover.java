@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 
 import static java.util.stream.Collectors.toSet;
 
@@ -36,9 +36,9 @@ public class EmptyStateIndexRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(float requestsPerSec, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+    public void remove(float requestsPerSec, ActionListener<Boolean> listener, BooleanSupplier isTimedOutSupplier) {
         try {
-            if (isTimedOutSupplier.get()) {
+            if (isTimedOutSupplier.getAsBoolean()) {
                 listener.onResponse(false);
                 return;
             }

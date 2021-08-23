@@ -41,7 +41,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 
 /**
  * Removes up to {@link #MAX_FORECASTS} forecasts (stats + forecasts docs) that have expired.
@@ -71,7 +71,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(float requestsPerSec, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+    public void remove(float requestsPerSec, ActionListener<Boolean> listener, BooleanSupplier isTimedOutSupplier) {
         LOGGER.debug("Removing forecasts that expire before [{}]", cutoffEpochMs);
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
                 searchResponse -> deleteForecasts(searchResponse, requestsPerSec, listener, isTimedOutSupplier),
@@ -100,10 +100,10 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     }
 
     private void deleteForecasts(
-        SearchResponse searchResponse,
-        float requestsPerSec,
-        ActionListener<Boolean> listener,
-        Supplier<Boolean> isTimedOutSupplier
+            SearchResponse searchResponse,
+            float requestsPerSec,
+            ActionListener<Boolean> listener,
+            BooleanSupplier isTimedOutSupplier
     ) {
         List<JobForecastId> forecastsToDelete = findForecastsToDelete(searchResponse);
         if (forecastsToDelete.isEmpty()) {
@@ -111,7 +111,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
             return;
         }
 
-        if (isTimedOutSupplier.get()) {
+        if (isTimedOutSupplier.getAsBoolean()) {
             listener.onResponse(false);
             return;
         }

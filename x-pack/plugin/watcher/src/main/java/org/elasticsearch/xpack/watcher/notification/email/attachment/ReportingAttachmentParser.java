@@ -71,9 +71,11 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     private static final ObjectParser<KibanaReportingPayload, Void> PAYLOAD_PARSER =
             new ObjectParser<>("reporting_attachment_kibana_payload", true, null);
 
-    static final Map<String, String> WARNINGS = Collections.singletonMap("kbn-csv-contains-formulas",
-        "Warning: The attachment [%s] contains characters which spreadsheet applications may interpret as formulas." +
-        "Please ensure that the attachment is safe prior to opening.");
+    static final Map<String, String> WARNINGS = Collections.singletonMap(
+        "kbn-csv-contains-formulas",
+        "Warning: The attachment [%s] contains characters which spreadsheet applications may interpret as formulas."
+            + "Please ensure that the attachment is safe prior to opening."
+    );
 
     static {
         PARSER.declareInt(Builder::retries, ReportingAttachment.RETRIES);

@@ -378,6 +378,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             toInnerXContent(indexTemplateMetadata, builder, params, true);
         }
 
+        @SuppressWarnings("unchecked")
         private static void toInnerXContent(IndexTemplateMetadata indexTemplateMetadata,
                                             XContentBuilder builder,
                                             ToXContent.Params params,

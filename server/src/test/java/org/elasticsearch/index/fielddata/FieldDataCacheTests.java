@@ -101,6 +101,7 @@ public class FieldDataCacheTests extends ESTestCase {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
                                                                                           IFD indexFieldData) throws Exception {
             cachedGlobally++;

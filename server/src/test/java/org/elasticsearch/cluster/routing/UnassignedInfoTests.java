@@ -10,12 +10,14 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.IndexId;
@@ -36,6 +39,9 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -66,7 +72,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 UnassignedInfo.Reason.PRIMARY_FAILED,
                 UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
                 UnassignedInfo.Reason.MANUAL_ALLOCATION,
-                UnassignedInfo.Reason.INDEX_CLOSED,};
+                UnassignedInfo.Reason.INDEX_CLOSED,
+                UnassignedInfo.Reason.NODE_RESTARTING};
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }
@@ -78,10 +85,41 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         int failedAllocations = randomIntBetween(1, 100);
         Set<String> failedNodes = IntStream.range(0, between(0, failedAllocations))
             .mapToObj(n -> "failed-node-" + n).collect(Collectors.toSet());
-        UnassignedInfo meta = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
-            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null, null,
-                failedAllocations, System.nanoTime(), System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT, failedNodes):
-            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
+
+        UnassignedInfo meta;
+        if (reason == UnassignedInfo.Reason.ALLOCATION_FAILED) {
+            meta = new UnassignedInfo(
+                reason,
+                randomBoolean() ? randomAlphaOfLength(4) : null,
+                null,
+                failedAllocations,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                AllocationStatus.NO_ATTEMPT,
+                failedNodes,
+                null);
+        } else if (reason == UnassignedInfo.Reason.NODE_LEFT || reason == UnassignedInfo.Reason.NODE_RESTARTING) {
+            String lastAssignedNodeId = randomAlphaOfLength(10);
+            if (reason == UnassignedInfo.Reason.NODE_LEFT && randomBoolean()) {
+                // If the reason is `NODE_LEFT`, sometimes we'll have an empty lastAllocatedNodeId due to BWC
+                lastAssignedNodeId = null;
+            }
+            meta = new UnassignedInfo(
+                reason,
+                randomBoolean() ? randomAlphaOfLength(4) : null,
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet(),
+                lastAssignedNodeId
+            );
+        } else {
+            meta = new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
+        }
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
         out.close();
@@ -93,6 +131,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
         assertThat(read.getNumFailedAllocations(), equalTo(meta.getNumFailedAllocations()));
         assertThat(read.getFailedNodeIds(), equalTo(meta.getFailedNodeIds()));
+        assertThat(read.getLastAllocatedNodeId(), equalTo(meta.getLastAllocatedNodeId()));
     }
 
     public void testBwcSerialization() throws Exception {
@@ -314,23 +353,168 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     /**
-     * Verifies that delayed allocation calculation are correct.
+     * Verifies that delayed allocation calculation are correct when there are no registered node shutdowns.
      */
-    public void testRemainingDelayCalculation() throws Exception {
+    public void testRemainingDelayCalculationWithNoShutdowns() throws Exception {
+        checkRemainingDelayCalculation(
+            "bogusNodeId",
+            TimeValue.timeValueNanos(10),
+            Collections.emptyMap(),
+            TimeValue.timeValueNanos(10),
+            false
+        );
+    }
+
+    /**
+     * Verifies that delayed allocation calculations are correct when there are registered node shutdowns for nodes which are not relevant
+     * to the shard currently being evaluated.
+     */
+    public void testRemainingDelayCalculationsWithUnrelatedShutdowns() throws Exception {
+        String lastNodeId = "bogusNodeId";
+        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+        int numberOfShutdowns = randomIntBetween(1,15);
+        for (int i = 0; i <= numberOfShutdowns; i++) {
+            SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+                .setNodeId(randomValueOtherThan(lastNodeId, () -> randomAlphaOfLengthBetween(5,10)))
+                .setReason(this.getTestName())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setType(randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class)))
+                .build();
+            shutdowns.put(shutdown.getNodeId(), shutdown);
+        }
+        checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueNanos(10), false);
+    }
+
+    /**
+     * Verifies that delay calculation is not impacted when the node the shard was last assigned to was registered for removal.
+     */
+    public void testRemainingDelayCalculationWhenNodeIsShuttingDownForRemoval() throws Exception {
+        String lastNodeId = "bogusNodeId";
+        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId(lastNodeId)
+            .setReason(this.getTestName())
+            .setStartedAtMillis(randomNonNegativeLong())
+            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+            .build();
+        shutdowns.put(shutdown.getNodeId(), shutdown);
+
+        checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueNanos(10), false);
+    }
+
+    /**
+     * Verifies that the delay calculation uses the configured delay value for nodes known to be restarting, because they are registered for
+     * a `RESTART`-type shutdown, rather than the default global delay.
+     */
+    public void testRemainingDelayCalculationWhenNodeIsKnownToBeRestartingWithCustomDelay() throws Exception {
+        String lastNodeId = "bogusNodeId";
+        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId(lastNodeId)
+            .setReason(this.getTestName())
+            .setStartedAtMillis(randomNonNegativeLong())
+            .setType(SingleNodeShutdownMetadata.Type.RESTART)
+            .setAllocationDelay(TimeValue.timeValueMinutes(1))
+            .build();
+        shutdowns.put(shutdown.getNodeId(), shutdown);
+
+        // Use a different index-level delay so this test will fail if that one gets used instead of the one from the shutdown metadata
+        checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueMinutes(1), true);
+    }
+
+    /**
+     * Verifies that the delay calculation uses the default delay value for nodes known to be restarting, because they are registered for
+     * a `RESTART`-type shutdown, rather than the default global delay.
+     */
+    public void testRemainingDelayCalculationWhenNodeIsKnownToBeRestartingWithDefaultDelay() throws Exception {
+        String lastNodeId = "bogusNodeId";
+        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+
+        // Note that we do not explicitly configure the reallocation delay here.
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId(lastNodeId)
+            .setReason(this.getTestName())
+            .setStartedAtMillis(randomNonNegativeLong())
+            .setType(SingleNodeShutdownMetadata.Type.RESTART)
+            .build();
+        shutdowns.put(shutdown.getNodeId(), shutdown);
+
+        // Use a different index-level delay so this test will fail if that one gets used instead of the one from the shutdown metadata
+        checkRemainingDelayCalculation(
+            lastNodeId,
+            TimeValue.timeValueNanos(10),
+            shutdowns,
+            SingleNodeShutdownMetadata.DEFAULT_RESTART_SHARD_ALLOCATION_DELAY,
+            true
+        );
+    }
+
+    public void testRemainingDelayUsesIndexLevelDelayIfNodeWasNotRestartingWhenShardBecameUnassigned() throws Exception {
+        String lastNodeId = "bogusNodeId";
+        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+
+        // Generate a random time value - but don't use nanos as extremely small values of nanos can break assertion calculations
+        final TimeValue shutdownDelay = TimeValue.parseTimeValue(
+            randomTimeValue(100, 1000, "d", "h", "ms", "s", "m", "micros"),
+            this.getTestName()
+        );
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId(lastNodeId)
+            .setReason(this.getTestName())
+            .setStartedAtMillis(randomNonNegativeLong())
+            .setType(SingleNodeShutdownMetadata.Type.RESTART)
+            .setAllocationDelay(shutdownDelay)
+            .build();
+        shutdowns.put(shutdown.getNodeId(), shutdown);
+
+        // We want an index level delay that's less than the shutdown delay to avoid picking the index-level delay because it's larger
+        final TimeValue indexLevelDelay = randomValueOtherThanMany(
+            tv -> shutdownDelay.compareTo(tv) < 0,
+            () -> TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m", "micros"), this.getTestName())
+        );
+
+        logger.info("index level delay: {}, shutdown delay: {}", indexLevelDelay, shutdownDelay);
+        checkRemainingDelayCalculation(
+            lastNodeId,
+            indexLevelDelay,
+            shutdowns,
+            indexLevelDelay,
+            false
+        );
+    }
+
+    private void checkRemainingDelayCalculation(
+        String lastNodeId,
+        TimeValue indexLevelTimeoutSetting,
+        Map<String, SingleNodeShutdownMetadata> nodeShutdowns,
+        TimeValue expectedTotalDelay,
+        boolean nodeRestarting
+    ) throws Exception {
         final long baseTime = System.nanoTime();
-        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, 0, baseTime,
-            System.currentTimeMillis(), randomBoolean(), AllocationStatus.NO_ATTEMPT, Collections.emptySet());
-        final long totalDelayNanos = TimeValue.timeValueMillis(10).nanos();
+        UnassignedInfo unassignedInfo = new UnassignedInfo(
+            nodeRestarting ? UnassignedInfo.Reason.NODE_RESTARTING : UnassignedInfo.Reason.NODE_LEFT,
+            "test",
+            null,
+            0,
+            baseTime,
+            System.currentTimeMillis(),
+            randomBoolean(),
+            AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            lastNodeId
+        );
+        final long totalDelayNanos = expectedTotalDelay.nanos();
         final Settings indexSettings = Settings.builder()
-            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueNanos(totalDelayNanos)).build();
-        long delay = unassignedInfo.getRemainingDelay(baseTime, indexSettings);
+            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), indexLevelTimeoutSetting)
+            .build();
+        long delay = unassignedInfo.getRemainingDelay(baseTime, indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(totalDelayNanos));
-        long delta1 = randomIntBetween(1, (int) (totalDelayNanos - 1));
-        delay = unassignedInfo.getRemainingDelay(baseTime + delta1, indexSettings);
+        long delta1 = randomLongBetween(1, (totalDelayNanos - 1));
+        delay = unassignedInfo.getRemainingDelay(baseTime + delta1, indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(totalDelayNanos - delta1));
-        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos, indexSettings);
+        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos, indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(0L));
-        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), indexSettings);
+        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(0L));
     }
 
@@ -409,5 +593,40 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             AllocationStatus readStatus = AllocationStatus.readFrom(in);
             assertThat(readStatus, equalTo(allocationStatus));
         }
+    }
+
+    public static UnassignedInfo randomUnassignedInfo(String message) {
+        return randomUnassignedInfo(message, null);
+    }
+
+    /**
+     * Randomly generates an UnassignedInfo.
+     * @param message The message to be used.
+     * @param delayed Used for the `delayed` flag if provided.
+     * @return A randomly-generated UnassignedInfo with the given message and delayed value (if any)
+     */
+    public static UnassignedInfo randomUnassignedInfo(String message, @Nullable Boolean delayed) {
+        UnassignedInfo.Reason reason = randomFrom(UnassignedInfo.Reason.values());
+        String lastAllocatedNodeId = null;
+        boolean delayedFlag = delayed == null ? false : delayed;
+        if (reason == UnassignedInfo.Reason.NODE_LEFT || reason == UnassignedInfo.Reason.NODE_RESTARTING) {
+            if (randomBoolean() && delayed == null) {
+                delayedFlag = true;
+            }
+            lastAllocatedNodeId = randomAlphaOfLength(10);
+        }
+        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
+        return new UnassignedInfo(
+            reason,
+            message,
+            null,
+            failedAllocations,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            delayedFlag,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            lastAllocatedNodeId
+        );
     }
 }

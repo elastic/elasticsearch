@@ -8,6 +8,9 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -18,14 +21,17 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.MockLogAppender;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -877,5 +883,35 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                     + "]"
             )
         );
+    }
+
+    public void testNoWarningsOnRestoreOverClosedIndex() throws IllegalAccessException {
+        final String repoName = "test-repo";
+        createRepository(repoName, FsRepository.TYPE);
+        final String indexName = "test-idx";
+        createIndexWithContent(indexName);
+        final String snapshotName = "test-snapshot";
+        createSnapshot(repoName, snapshotName, org.elasticsearch.core.List.of(indexName));
+        index(indexName, "_doc", "some_id", org.elasticsearch.core.Map.of("foo", "bar"));
+        assertAcked(admin().indices().prepareClose(indexName).get());
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
+        );
+        mockAppender.start();
+        final Logger logger = LogManager.getLogger(FileRestoreContext.class);
+        Loggers.addAppender(logger, mockAppender);
+        try {
+            final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName)
+                .setIndices(indexName)
+                .setRestoreGlobalState(false)
+                .setWaitForCompletion(true)
+                .get();
+            assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+        }
     }
 }

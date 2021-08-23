@@ -14,10 +14,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,7 +37,6 @@ import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
@@ -118,7 +118,7 @@ public class PublishClusterStateAction {
      * if the change is not committed and should be rejected.
      * Any other exception signals the something wrong happened but the change is committed.
      */
-    public void publish(final ClusterChangedEvent clusterChangedEvent, final int minMasterNodes,
+    public void publish(final ClusterStatePublicationEvent clusterStatePublicationEvent, final int minMasterNodes,
                         final Discovery.AckListener ackListener) throws FailedToCommitClusterStateException {
         final DiscoveryNodes nodes;
         final SendingController sendingController;
@@ -127,7 +127,7 @@ public class PublishClusterStateAction {
         final Map<Version, BytesReference> serializedDiffs;
         final boolean sendFullVersion;
         try {
-            nodes = clusterChangedEvent.state().nodes();
+            nodes = clusterStatePublicationEvent.getNewState().nodes();
             nodesToPublishTo = new HashSet<>(nodes.getSize());
             DiscoveryNode localNode = nodes.getLocalNode();
             final int totalMasterNodes = nodes.getMasterNodes().size();
@@ -136,7 +136,7 @@ public class PublishClusterStateAction {
                     nodesToPublishTo.add(node);
                 }
             }
-            sendFullVersion = discoverySettings.getPublishDiff() == false || clusterChangedEvent.previousState() == null;
+            sendFullVersion = discoverySettings.getPublishDiff() == false || clusterStatePublicationEvent.getOldState() == null;
             serializedStates = new HashMap<>();
             serializedDiffs = new HashMap<>();
 
@@ -144,19 +144,19 @@ public class PublishClusterStateAction {
             // sadly this is not water tight as it may that a failed diff based publishing to a node
             // will cause a full serialization based on an older version, which may fail after the
             // change has been committed.
-            buildDiffAndSerializeStates(clusterChangedEvent.state(), clusterChangedEvent.previousState(),
+            buildDiffAndSerializeStates(clusterStatePublicationEvent.getNewState(), clusterStatePublicationEvent.getOldState(),
                     nodesToPublishTo, sendFullVersion, serializedStates, serializedDiffs);
 
             final BlockingClusterStatePublishResponseHandler publishResponseHandler =
                 new AckClusterStatePublishResponseHandler(nodesToPublishTo, ackListener);
-            sendingController = new SendingController(clusterChangedEvent.state(), minMasterNodes,
+            sendingController = new SendingController(clusterStatePublicationEvent.getNewState(), minMasterNodes,
                 totalMasterNodes, publishResponseHandler);
         } catch (Exception e) {
             throw new FailedToCommitClusterStateException("unexpected error while preparing to publish", e);
         }
 
         try {
-            innerPublish(clusterChangedEvent, nodesToPublishTo, sendingController, ackListener, sendFullVersion, serializedStates,
+            innerPublish(clusterStatePublicationEvent, nodesToPublishTo, sendingController, ackListener, sendFullVersion, serializedStates,
                 serializedDiffs);
         } catch (FailedToCommitClusterStateException t) {
             throw t;
@@ -171,13 +171,13 @@ public class PublishClusterStateAction {
         }
     }
 
-    private void innerPublish(final ClusterChangedEvent clusterChangedEvent, final Set<DiscoveryNode> nodesToPublishTo,
+    private void innerPublish(final ClusterStatePublicationEvent clusterStatePublicationEvent, final Set<DiscoveryNode> nodesToPublishTo,
                               final SendingController sendingController, final Discovery.AckListener ackListener,
                               final boolean sendFullVersion, final Map<Version, BytesReference> serializedStates,
                               final Map<Version, BytesReference> serializedDiffs) {
 
-        final ClusterState clusterState = clusterChangedEvent.state();
-        final ClusterState previousState = clusterChangedEvent.previousState();
+        final ClusterState clusterState = clusterStatePublicationEvent.getNewState();
+        final ClusterState previousState = clusterStatePublicationEvent.getOldState();
         final TimeValue publishTimeout = discoverySettings.getPublishTimeout();
 
         final long publishingStartInNanos = System.nanoTime();
@@ -216,7 +216,7 @@ public class PublishClusterStateAction {
             Set<DiscoveryNode> failedNodes = publishResponseHandler.getFailedNodes();
             if (failedNodes.isEmpty() == false) {
                 logger.warn("publishing cluster state with version [{}] failed for the following nodes: [{}]",
-                    clusterChangedEvent.state().version(), failedNodes);
+                    clusterStatePublicationEvent.getNewState().version(), failedNodes);
             }
         } catch (InterruptedException e) {
             // ignore & restore interrupt
@@ -354,7 +354,7 @@ public class PublishClusterStateAction {
         return bStream.bytes();
     }
 
-    public static BytesReference serializeDiffClusterState(Diff diff, Version nodeVersion) throws IOException {
+    public static BytesReference serializeDiffClusterState(Diff<?> diff, Version nodeVersion) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
         try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream))) {
             stream.setVersion(nodeVersion);

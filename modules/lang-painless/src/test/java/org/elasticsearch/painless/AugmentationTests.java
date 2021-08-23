@@ -26,7 +26,7 @@ public class AugmentationTests extends ScriptTestCase {
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
         List<Whitelist> digestWhitelist = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
-        digestWhitelist.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.ingest.txt"));
+        digestWhitelist.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.ingest.txt"));
         contexts.put(DigestTestScript.CONTEXT, digestWhitelist);
 
         return contexts;
@@ -280,5 +280,12 @@ public class AugmentationTests extends ScriptTestCase {
     public void testToEpochMilli() {
         assertEquals(0L, exec("ZonedDateTime.parse('1970-01-01T00:00:00Z').toEpochMilli()"));
         assertEquals(1602097376782L, exec("ZonedDateTime.parse('2020-10-07T19:02:56.782Z').toEpochMilli()"));
+    }
+
+    public void testAugmentedField() {
+        assertEquals(Integer.MAX_VALUE, exec("org.elasticsearch.painless.FeatureTestObject.MAX_VALUE"));
+        assertEquals("test_string", exec("Integer.STRINGS[0]"));
+        assertEquals("test_value", exec("Map.STRINGS['test_key']"));
+        assertTrue((boolean)exec("Integer.STRINGS[0].substring(0, 4) == Map.STRINGS['test_key'].substring(0, 4)"));
     }
 }

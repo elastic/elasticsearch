@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
@@ -55,8 +55,10 @@ public class NodeJoinController {
         this.masterService = masterService;
         joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
             @Override
-            public void clusterStatePublished(ClusterChangedEvent event) {
-                electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());
+            public void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+                electMaster.logMinimumMasterNodesWarningIfNecessary(
+                    clusterStatePublicationEvent.getOldState(),
+                    clusterStatePublicationEvent.getNewState());
             }
         };
     }

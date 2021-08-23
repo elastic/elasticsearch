@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -225,8 +226,10 @@ public class MetadataCreateDataStreamService {
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 
         List<String> aliases = new ArrayList<>();
-        if (template.template() != null && template.template().aliases() != null) {
-            for (AliasMetadata alias : template.template().aliases().values()) {
+        List<Map<String, AliasMetadata>> resolvedAliases =
+            MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
+        for (Map<String, AliasMetadata> resolvedAliasMap : resolvedAliases) {
+            for (AliasMetadata alias : resolvedAliasMap.values()) {
                 aliases.add(alias.getAlias());
                 builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
             }

@@ -594,6 +594,7 @@ public final class DiffableUtils {
      * @param <V> type of map values
      */
     public abstract static class DiffableValueSerializer<K, V extends Diffable<V>> implements ValueSerializer<K, V> {
+        @SuppressWarnings("rawtypes")
         private static final DiffableValueSerializer WRITE_ONLY_INSTANCE = new DiffableValueSerializer() {
             @Override
             public Object read(StreamInput in, Object key) throws IOException {
@@ -606,6 +607,7 @@ public final class DiffableUtils {
             }
         };
 
+        @SuppressWarnings("unchecked")
         private static <K, V extends Diffable<V>> DiffableValueSerializer<K, V> getWriteOnlyInstance() {
             return WRITE_ONLY_INSTANCE;
         }
@@ -689,8 +691,10 @@ public final class DiffableUtils {
      * @param <K> type of map key
      */
     public static class StringSetValueSerializer<K> extends NonDiffableValueSerializer<K, Set<String>> {
+        @SuppressWarnings("rawtypes")
         private static final StringSetValueSerializer INSTANCE = new StringSetValueSerializer();
 
+        @SuppressWarnings("unchecked")
         public static <K> StringSetValueSerializer<K> getInstance() {
             return INSTANCE;
         }

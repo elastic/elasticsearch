@@ -176,6 +176,7 @@ public interface SearchPlugin {
     /**
      * Specification for a {@link Suggester}.
      */
+    @SuppressWarnings("rawtypes")
     class SuggesterSpec<T extends SuggestionBuilder<T>> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
 
         private Writeable.Reader<? extends Suggest.Suggestion> suggestionReader;

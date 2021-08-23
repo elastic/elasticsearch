@@ -11,10 +11,10 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -244,11 +244,11 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             ).build();
 
             // publishing a new cluster state
-            ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
+            ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent("testing", state, newState);
             AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
             expectedFDNodes = masterZen.getFaultDetectionNodes();
             AwaitingPublishListener awaitingPublishListener = new AwaitingPublishListener();
-            masterZen.publish(clusterChangedEvent, awaitingPublishListener, listener);
+            masterZen.publish(clusterStatePublicationEvent, awaitingPublishListener, listener);
             awaitingPublishListener.await();
             if (awaitingPublishListener.getException() == null) {
                 // publication succeeded, wait for acks
@@ -303,10 +303,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             ).build();
 
             // publishing a new cluster state
-            ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
+            ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent("testing", state, newState);
             AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
             AwaitingPublishListener awaitingPublishListener = new AwaitingPublishListener();
-            masterZen.publish(clusterChangedEvent, awaitingPublishListener, listener);
+            masterZen.publish(clusterStatePublicationEvent, awaitingPublishListener, listener);
             awaitingPublishListener.await();
             if (awaitingPublishListener.getException() == null) {
                 // publication succeeded, wait for acks
@@ -540,6 +540,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         ZenDiscovery.validateIncomingState(logger, state, higherVersionState);
     }
 
+    @SuppressWarnings("unchecked")
     public void testNotEnoughMasterNodesAfterRemove() throws Exception {
         final ElectMasterService electMasterService = mock(ElectMasterService.class);
         when(electMasterService.hasEnoughMasterNodes(any(Iterable.class))).thenReturn(false);

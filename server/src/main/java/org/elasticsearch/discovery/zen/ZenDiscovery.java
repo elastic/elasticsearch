@@ -14,9 +14,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -37,12 +37,12 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.Discovery;
@@ -307,20 +307,25 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     @Override
-    public void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener) {
-        ClusterState newState = clusterChangedEvent.state();
-        assert newState.getNodes().isLocalNodeElectedMaster() : "Shouldn't publish state when not master " + clusterChangedEvent.source();
+    public void publish(
+        ClusterStatePublicationEvent clusterStatePublicationEvent,
+        ActionListener<Void> publishListener,
+        AckListener ackListener
+    ) {
+        ClusterState newState = clusterStatePublicationEvent.getNewState();
+        assert newState.getNodes().isLocalNodeElectedMaster()
+            : "Shouldn't publish state when not master " + clusterStatePublicationEvent.getSummary();
 
         try {
 
             // state got changed locally (maybe because another master published to us)
-            if (clusterChangedEvent.previousState() != this.committedState.get()) {
+            if (clusterStatePublicationEvent.getOldState() != this.committedState.get()) {
                 throw new FailedToCommitClusterStateException("state was mutated while calculating new CS update");
             }
 
             pendingStatesQueue.addPending(newState);
 
-            publishClusterState.publish(clusterChangedEvent, electMaster.minimumMasterNodes(), ackListener);
+            publishClusterState.publish(clusterStatePublicationEvent, electMaster.minimumMasterNodes(), ackListener);
         } catch (FailedToCommitClusterStateException t) {
             // cluster service logs a WARN message
             logger.debug("failed to publish cluster state version [{}] (not enough nodes acknowledged, min master nodes [{}])",
@@ -354,26 +359,26 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                     publishListener.onFailure(e);
                     ackListener.onNodeAck(localNode, e);
                     logger.warn(() -> new ParameterizedMessage(
-                            "failed while applying cluster state locally [{}]", clusterChangedEvent.source()), e);
+                        "failed while applying cluster state locally [{}]", clusterStatePublicationEvent.getSummary()), e);
                 }
             });
 
         synchronized (stateMutex) {
-            if (clusterChangedEvent.previousState() != this.committedState.get()) {
+            if (clusterStatePublicationEvent.getOldState() != this.committedState.get()) {
                 publishListener.onFailure(
-                        new FailedToCommitClusterStateException("local state was mutated while CS update was published to other nodes")
+                    new FailedToCommitClusterStateException("local state was mutated while CS update was published to other nodes")
                 );
                 return;
             }
 
             boolean sentToApplier = processNextCommittedClusterState("master " + newState.nodes().getMasterNode() +
-                " committed version [" + newState.version() + "] source [" + clusterChangedEvent.source() + "]");
+                " committed version [" + newState.version() + "] source [" + clusterStatePublicationEvent.getSummary() + "]");
             if (sentToApplier == false && processedOrFailed.get() == false) {
                 assert false : "cluster state published locally neither processed nor failed: " + newState;
                 logger.warn("cluster state with version [{}] that is published locally has neither been processed nor failed",
                     newState.version());
                 publishListener.onFailure(new FailedToCommitClusterStateException("cluster state that is published locally has neither " +
-                        "been processed nor failed"));
+                    "been processed nor failed"));
             }
         }
     }

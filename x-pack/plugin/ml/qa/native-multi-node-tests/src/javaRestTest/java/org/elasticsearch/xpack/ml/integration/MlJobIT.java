@@ -725,8 +725,8 @@ public class MlJobIT extends ESRestTestCase {
         String jobId = "delete-job-multiple-times";
         createFarequoteJob(jobId);
 
-        ConcurrentMapLong<Response> responses = ConcurrentCollections.newConcurrentMapLong();
-        ConcurrentMapLong<ResponseException> responseExceptions = ConcurrentCollections.newConcurrentMapLong();
+        Map<Long, Response> responses = ConcurrentCollections.newConcurrentMap();
+        Map<Long, ResponseException> responseExceptions = ConcurrentCollections.newConcurrentMap();
         AtomicReference<IOException> ioe = new AtomicReference<>();
         AtomicInteger recreationGuard = new AtomicInteger(0);
         AtomicReference<Response> recreationResponse = new AtomicReference<>();

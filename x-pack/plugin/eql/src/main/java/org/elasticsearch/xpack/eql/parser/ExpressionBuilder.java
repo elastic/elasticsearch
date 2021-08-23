@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Great
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -58,6 +57,9 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 
 public class ExpressionBuilder extends IdentifierBuilder {
@@ -69,11 +71,11 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     protected Expression expression(ParseTree ctx) {
-        return typedParsing(ctx, Expression.class);
+        return typedParsing(this, ctx, Expression.class);
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
-        return visitList(contexts, Expression.class);
+        return visitList(this, contexts, Expression.class);
     }
 
     @Override
@@ -84,7 +86,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public List<Attribute> visitJoinKeys(JoinKeysContext ctx) {
         try {
-            return ctx != null ? visitList(ctx.expression(), Attribute.class) : emptyList();
+            return ctx != null ? visitList(this, ctx.expression(), Attribute.class) : emptyList();
         } catch (ClassCastException ex) {
             Source source = source(ctx);
             throw new ParsingException(source, "Unsupported join key ", source.text());
@@ -142,7 +144,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
             case EqlBaseParser.EQ:
                 return new Equals(source, left, right, zoneId);
             case EqlBaseParser.NEQ:
-                return new NotEquals(source, left, right, zoneId);
+                return new Not(source, new Equals(source, left, right, zoneId));
             case EqlBaseParser.LT:
                 return new LessThan(source, left, right, zoneId);
             case EqlBaseParser.LTE:
@@ -203,7 +205,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
         List<? extends ParserRuleContext> expressions,
         java.util.function.Function<Expression, Expression> mapper
     ) {
-        return Predicates.combineOr(expressions(expressions).stream().map(mapper::apply).collect(toList()));
+        return Predicates.combineOr(expressions(expressions).stream().map(mapper).collect(toList()));
     }
 
     @Override

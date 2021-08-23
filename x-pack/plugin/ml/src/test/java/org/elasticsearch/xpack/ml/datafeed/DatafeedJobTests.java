@@ -519,7 +519,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     private static BulkItemResponse bulkItemSuccess(String docId) {
-        return new BulkItemResponse(
+        return BulkItemResponse.success(
             1,
             DocWriteRequest.OpType.INDEX,
             new IndexResponse(new ShardId(AnnotationIndex.WRITE_ALIAS_NAME, "uuid", 1), "doc", docId, 0, 0, 1, true));

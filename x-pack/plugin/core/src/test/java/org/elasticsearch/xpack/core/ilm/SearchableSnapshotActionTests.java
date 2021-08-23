@@ -53,12 +53,12 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         if (action.isForceMergeIndex()) {
             assertThat(steps.get(16).getKey(), is(expectedSteps.get(16)));
             assertThat(steps.get(17).getKey(), is(expectedSteps.get(17)));
-            AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(8);
-            assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedSteps.get(7)));
+            CreateSnapshotStep createSnapshotStep = (CreateSnapshotStep) steps.get(8);
+            assertThat(createSnapshotStep.getNextKeyOnIncomplete(), is(expectedSteps.get(7)));
             validateWaitForDataTierStep(phase, steps, 9, 10);
         } else {
-            AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(6);
-            assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedSteps.get(5)));
+            CreateSnapshotStep createSnapshotStep = (CreateSnapshotStep) steps.get(6);
+            assertThat(createSnapshotStep.getNextKeyOnIncomplete(), is(expectedSteps.get(5)));
             validateWaitForDataTierStep(phase, steps, 7, 8);
         }
     }

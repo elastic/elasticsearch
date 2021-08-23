@@ -102,7 +102,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
 
     private void testSearchCase(Query query, List<Long> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
-                                Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
+                                Consumer<InternalMappedTerms<?, ?>> verify, ValueType valueType) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
@@ -126,7 +126,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType binaryFieldType = new BinaryFieldMapper.BinaryFieldType(BINARY_FIELD);
 
-                InternalMappedTerms rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, binaryFieldType);
+                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, binaryFieldType);
                 verify.accept(rareTerms);
             }
         }

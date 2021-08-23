@@ -18,12 +18,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
-@SuppressWarnings({"unchecked","varargs"})
 @Deprecated
 public class MockTransportClient extends TransportClient {
     private static final Settings DEFAULT_SETTINGS = Settings.builder().put("transport.type.default",
         MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME).build();
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public MockTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
         this(settings, Arrays.asList(plugins));
     }

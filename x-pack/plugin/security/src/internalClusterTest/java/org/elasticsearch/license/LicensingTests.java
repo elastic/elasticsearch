@@ -21,6 +21,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -48,6 +49,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -58,6 +60,9 @@ import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVE
 import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -269,10 +274,19 @@ public class LicensingTests extends SecurityIntegTestCase {
             getRestClient().performRequest(request);
         } catch (ResponseException e) {
             headers = e.getResponse().getHeaders();
-            List<String> afterWarningHeaders= getWarningHeaders(e.getResponse().getHeaders());
+            List<String> afterWarningHeaders = getWarningHeaders(headers);
             assertThat(afterWarningHeaders, Matchers.hasSize(0));
         }
-        assertThat(headers != null && headers.length == 3, is(true));
+        assertThat(headers, notNullValue());
+        assertThat(Strings.arrayToCommaDelimitedString(headers), headers, arrayWithSize(4));
+
+        Arrays.sort(headers, Comparator.comparing((Header h) -> h.getName().toLowerCase(Locale.ROOT)).thenComparing(Header::getValue));
+        assertThat(headers[0].getName(), equalToIgnoringCase("content-length"));
+        assertThat(headers[1].getName(), equalToIgnoringCase("content-type"));
+        assertThat(headers[2].getName(), equalToIgnoringCase("WWW-Authenticate"));
+        assertThat(headers[2].getValue(), containsStringIgnoringCase("ApiKey"));
+        assertThat(headers[3].getName(), equalToIgnoringCase("WWW-Authenticate"));
+        assertThat(headers[3].getValue(), containsStringIgnoringCase("Basic"));
     }
 
     private static void assertElasticsearchSecurityException(ThrowingRunnable runnable) {

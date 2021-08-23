@@ -47,8 +47,10 @@ NOTE: The number of shards are limited to `1024` per index. This limitation is a
 `index.number_of_routing_shards`::
 +
 ====
-Number of routing shards used to <<indices-split-index,split>> an index.
+Integer value used with <<index-number-of-shards,`index.number_of_shards`>> to
+route documents to a primary shard. See <<mapping-routing-field>>.
 
+{es} uses this value when <<indices-split-index,splitting>> an index.
 For example, a 5 shard index with `number_of_routing_shards` set to `30` (`5 x
 2 x 3`) could be split by a factor of `2` or `3`. In other words, it could be
 split as follows:
@@ -168,6 +170,7 @@ specific index module:
 
     The number of replicas each primary shard has. Defaults to 1.
 
+[[dynamic-index-auto-expand-replicas]]
 `index.auto_expand_replicas`::
 Auto-expand the number of replicas based on the number of data nodes in the
 cluster. Set to a dash delimited lower and upper bound (e.g. `0-5`) or use `all`
@@ -183,6 +186,7 @@ awareness>> and
 <<cluster-routing-allocation-same-shard-host,`cluster.routing.allocation.same_shard.host`>>
 are ignored for this index.
 
+[[dynamic-index-search-idle-after]]
 `index.search.idle.after`::
     How long a shard can not receive a search or get request until it's considered
     search idle. (default is `30s`)
@@ -331,8 +335,8 @@ Defaults to `*`, which matches all fields eligible for
 
 [[index-mapping-dimension-fields-limit]]
 `index.mapping.dimension_fields.limit`::
-For internal use by {kib} only. Maximum number of time series dimensions for the
-index. Defaults to `16`.
+For internal use by Elastic only. Maximum number of time series dimensions for
+the index. Defaults to `16`.
 +
 You can mark a field as a dimension using the `dimension` mapping parameter.
 

@@ -28,76 +28,68 @@ testClusters.all {
 
 tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
-def v7compatibilityNotSupportedTests = {
-  return [
-          // Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API
-          'cat*/*/*',
-          // type information about the type is removed and not passed down. The logic to check for this is also removed.
-          'delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types',
-          // WILL NOT BE FIXED - failing due to not recognising missing type (the type path param is ignored)
-          'get/100_mix_typeless_typeful/GET with typeless API on an index that has types',
-          // type information about the type is removed and not passed down. The logic to check for this is also removed.
-          'indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template',
-          'indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template',
-          //
-          // This test returns test_index.mappings:{} when {} was expected. difference between 20_missing_field and 21_missing_field_with_types?
-          'indices.get_field_mapping/21_missing_field_with_types/Return empty object if field doesn\'t exist, but type and index do',
-          // The information about the type is not present in the index. hence it cannot know if the type exist or not.
-          'indices.get_field_mapping/30_missing_type/Raise 404 when type doesn\'t exist',
-          // The information about the type is not present in the index. hence it cannot know if the type exist or not.
-          'indices.get_mapping/20_missing_type/Existent and non-existent type returns 404 and the existing type',
-          'indices.get_mapping/20_missing_type/Existent and non-existent types returns 404 and the existing type',
-          'indices.get_mapping/20_missing_type/No type matching pattern returns 404',
-          'indices.get_mapping/20_missing_type/Non-existent type returns 404',
-          'indices.get_mapping/20_missing_type/Type missing when no types exist',
-          //
-          // The information about the type is not present in the index. hence it cannot know if the type was already used or not
-          'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with _doc on an index that has types',
-          'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with typeless API on an index that has types',
-          // there is a small distinction between empty mappings and no mappings at all. The code to implement this test was refactored #54003
-          // field search on _type field- not implementing. The data for _type is considered incorrect in this search
-          'search/160_exists_query/Test exists query on _type field',
-          //type information is not stored, hence the the index will be found
-          'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
-          // mget - these use cases are no longer valid, because we always default to _doc.
-          // This mean test cases where there is assertion on not finging by type won't work
-          'mget/11_default_index_type/Default index/type',
-          'mget/16_basic_with_types/Basic multi-get',
-          // asserting about type not found won't work as we ignore the type information
-          'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
-          // translog settings removal is not supported under compatible api
-          'indices.stats/20_translog/Translog retention settings are deprecated',
-          'indices.stats/20_translog/Translog retention without soft_deletes',
-          'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
-
-          // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
-          'indices.upgrade/*/*',
-
-          'search.aggregation/20_terms/*profiler*', // The profiler results aren't backwards compatible.
-          'search.aggregation/370_doc_count_field/Test filters agg with doc_count', // Uses profiler for assertions which is not backwards compatible
-
-          'indices.create/10_basic/Create index without soft deletes', //Make soft-deletes mandatory in 8.0 #51122 - settings changes are note supported in Rest Api compatibility
-
-          'field_caps/30_filter/Field caps with index filter', //behaviour change after #63692 4digits dates are parsed as epoch and in quotes as year
-
-          'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set', //#44761 bug fix
-  ]
-}
 tasks.named("yamlRestCompatTest").configure {
   onlyIf {
     // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
     OS.current() != OS.WINDOWS
   }
-  systemProperty 'tests.rest.blacklist', ([
-    'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
-    'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion without specifying nodes',
-    'indices.flush/10_basic/Index synced flush rest test',
-    'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
-    'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
-    'search/340_type_query/type query', // type_query - probably should behave like match_all
-  ] + v7compatibilityNotSupportedTests())
-    .join(',')
+  systemProperty 'tests.rest.blacklist',  [
+            // Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API
+            'cat*/*/*',
+            // type information about the type is removed and not passed down. The logic to check for this is also removed.
+            'delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types',
+            // WILL NOT BE FIXED - failing due to not recognising missing type (the type path param is ignored)
+            'get/100_mix_typeless_typeful/GET with typeless API on an index that has types',
+            // type information about the type is removed and not passed down. The logic to check for this is also removed.
+            'indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template',
+            'indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template',
+            //
+            // This test returns test_index.mappings:{} when {} was expected. difference between 20_missing_field and 21_missing_field_with_types?
+            'indices.get_field_mapping/21_missing_field_with_types/Return empty object if field doesn\'t exist, but type and index do',
+            // The information about the type is not present in the index. hence it cannot know if the type exist or not.
+            'indices.get_field_mapping/30_missing_type/Raise 404 when type doesn\'t exist',
+            // The information about the type is not present in the index. hence it cannot know if the type exist or not.
+            'indices.get_mapping/20_missing_type/Existent and non-existent type returns 404 and the existing type',
+            'indices.get_mapping/20_missing_type/Existent and non-existent types returns 404 and the existing type',
+            'indices.get_mapping/20_missing_type/No type matching pattern returns 404',
+            'indices.get_mapping/20_missing_type/Non-existent type returns 404',
+            'indices.get_mapping/20_missing_type/Type missing when no types exist',
+            //
+            // The information about the type is not present in the index. hence it cannot know if the type was already used or not
+            'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with _doc on an index that has types',
+            'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with typeless API on an index that has types',
+            // there is a small distinction between empty mappings and no mappings at all. The code to implement this test was refactored #54003
+            // field search on _type field- not implementing. The data for _type is considered incorrect in this search
+            'search/160_exists_query/Test exists query on _type field',
+            //type information is not stored, hence the the index will be found
+            'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
+            // mget - these use cases are no longer valid, because we always default to _doc.
+            // This mean test cases where there is assertion on not finging by type won't work
+            'mget/11_default_index_type/Default index/type',
+            'mget/16_basic_with_types/Basic multi-get',
+            // asserting about type not found won't work as we ignore the type information
+            'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
+            // translog settings removal is not supported under compatible api
+            'indices.stats/20_translog/Translog retention settings are deprecated',
+            'indices.stats/20_translog/Translog retention without soft_deletes',
+            'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
 
+            // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
+            'indices.upgrade/*/*',
+
+            'search.aggregation/20_terms/*profiler*', // The profiler results aren't backwards compatible.
+            'search.aggregation/370_doc_count_field/Test filters agg with doc_count', // Uses profiler for assertions which is not backwards compatible
+
+            'indices.create/10_basic/Create index without soft deletes', //Make soft-deletes mandatory in 8.0 #51122 - settings changes are note supported in Rest Api compatibility
+
+            'field_caps/30_filter/Field caps with index filter', //behaviour change after #63692 4digits dates are parsed as epoch and in quotes as year
+
+            'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set', //#44761 bug fix,
+
+            'search/340_type_query/type query', //#47207 type query throws exception in compatible mode
+            'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers', // #42809 the use nested path and filter sort throws an exception
+            'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //#42654 cutoff_frequency, common terms are not supported. Throwing an exception
+    ].join(',')
 }
 
 tasks.named("transformV7RestTests").configure({ task ->
@@ -222,6 +214,17 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.removeWarningForTest("the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; " +
     "specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
     , "?wait_for_active_shards default is deprecated")
+
+  // override for exception message change in #55291 tests cluster.voting_config_exclusions/10_basic/
+  // 'Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
+  // 'Throw exception when adding voting config exclusion without specifying nodes',
+  task.replaceValueTextByKeyValue("catch",
+    '/Please set node identifiers correctly. One and only one of \\[node_name\\], \\[node_names\\] and \\[node_ids\\] has to be set/',
+    '/You must set \\[node_names\\] or \\[node_ids\\] but not both/')
+
+  // sync_id is no longer available in SegmentInfos.userData // "indices.flush/10_basic/Index synced flush rest test"
+  task.replaceIsTrue("indices.testing.shards.0.0.commit.user_data.sync_id", "indices.testing.shards.0.0.commit.user_data")
+
 })
 
 tasks.register('enforceYamlTestConvention').configure {

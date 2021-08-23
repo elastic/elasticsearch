@@ -68,7 +68,6 @@ import java.util.function.BiFunction;
 
 import static java.lang.Math.signum;
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineAnd;
@@ -127,7 +126,7 @@ public final class OptimizerRules {
         }
     }
 
-    public static final class BooleanSimplification extends OptimizerExpressionRule<ScalarFunction> {
+    public static class BooleanSimplification extends OptimizerExpressionRule<ScalarFunction> {
 
         public BooleanSimplification() {
             super(TransformDirection.UP);
@@ -239,8 +238,9 @@ public final class OptimizerRules {
                 return new Literal(n.source(), Boolean.TRUE, DataTypes.BOOLEAN);
             }
 
-            if (c instanceof Negatable) {
-                return ((Negatable) c).negate();
+            Expression negated = maybeSimplifyNegatable(c);
+            if (negated != null) {
+                return negated;
             }
 
             if (c instanceof Not) {
@@ -248,6 +248,17 @@ public final class OptimizerRules {
             }
 
             return n;
+        }
+
+        /**
+         * @param e
+         * @return the negated expression or {@code null} if the parameter is not an instance of {@code Negatable}
+         */
+        protected Expression maybeSimplifyNegatable(Expression e) {
+            if (e instanceof Negatable) {
+                return ((Negatable<?>) e).negate();
+            }
+            return null;
         }
     }
 
@@ -1195,7 +1206,6 @@ public final class OptimizerRules {
                 UnaryPlan unary = (UnaryPlan) child;
                 // in case of aggregates, worry about filters that contain aggregations
                 if (unary instanceof Aggregate && condition.anyMatch(Functions::isAggregate)) {
-                    Aggregate agg = (Aggregate) unary;
                     List<Expression> conjunctions = new ArrayList<>(splitAnd(condition));
                     List<Expression> inPlace = new ArrayList<>();
                     // extract all conjunctions containing aggregates
@@ -1208,14 +1218,12 @@ public final class OptimizerRules {
                     }
                     // if at least one expression can be pushed down, update the tree
                     if (conjunctions.size() > 0) {
-                        child = child.replaceChildrenSameSize(
-                            singletonList(filter.with(unary.child(), Predicates.combineAnd(conjunctions)))
-                        );
+                        child = unary.replaceChild(filter.with(unary.child(), Predicates.combineAnd(conjunctions)));
                         plan = filter.with(child, Predicates.combineAnd(inPlace));
                     }
                 } else {
                     // push down filter
-                    plan = child.replaceChildrenSameSize(singletonList(filter.with(unary.child(), condition)));
+                    plan = unary.replaceChild(filter.with(unary.child(), condition));
                 }
             }
 

@@ -78,9 +78,14 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
         final Decision decision = executeAllocation(clusterState, primary);
         assertEquals(Decision.Type.NO, decision.type());
-        assertThat(decision.getExplanation(), equalTo("shard has failed to be restored from the snapshot " +
-            "[_repository:_missing/_uuid] - manually close or delete the index [test] in order to retry to restore the snapshot again " +
-            "or use the reroute API to force the allocation of an empty primary shard. Details: [restore_source[_repository/_missing]]"));
+        assertThat(
+            decision.getExplanation(),
+            equalTo(
+                "shard has failed to be restored from the snapshot [_repository:_missing/_uuid] - manually close or "
+                    + "delete the index [test] in order to retry to restore the snapshot again or use the reroute API "
+                    + "to force the allocation of an empty primary shard. Details: [restore_source[_repository/_missing]]"
+            )
+        );
     }
 
     public void testCanAllocatePrimaryExistingInRestoreInProgress() {
@@ -108,9 +113,17 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             shardState = RestoreInProgress.State.FAILURE;
 
             UnassignedInfo currentInfo = primary.unassignedInfo();
-            UnassignedInfo newInfo = new UnassignedInfo(currentInfo.getReason(), currentInfo.getMessage(), new IOException("i/o failure"),
-                currentInfo.getNumFailedAllocations(), currentInfo.getUnassignedTimeInNanos(), currentInfo.getUnassignedTimeInMillis(),
-                currentInfo.isDelayed(), currentInfo.getLastAllocationStatus(), currentInfo.getFailedNodeIds());
+            UnassignedInfo newInfo = new UnassignedInfo(
+                currentInfo.getReason(),
+                currentInfo.getMessage(),
+                new IOException("i/o failure"),
+                currentInfo.getNumFailedAllocations(),
+                currentInfo.getUnassignedTimeInNanos(),
+                currentInfo.getUnassignedTimeInMillis(),
+                currentInfo.isDelayed(),
+                currentInfo.getLastAllocationStatus(),
+                currentInfo.getFailedNodeIds(),
+                currentInfo.getLastAllocatedNodeId());
             primary = primary.updateUnassigned(newInfo, primary.recoverySource());
 
             IndexRoutingTable indexRoutingTable = routingTable.index("test");
@@ -144,10 +157,15 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         Decision decision = executeAllocation(clusterState, primary);
         if (shardState == RestoreInProgress.State.FAILURE) {
             assertEquals(Decision.Type.NO, decision.type());
-            assertThat(decision.getExplanation(), startsWith("shard has failed to be restored from the snapshot " +
-                "[_repository:_existing/_uuid] - manually close or delete the index " +
-                "[test] in order to retry to restore the snapshot again or use the reroute API to force the allocation of " +
-                "an empty primary shard. Details: [restore_source[_repository/_existing], failure java.io.IOException: i/o failure"));
+            assertThat(
+                decision.getExplanation(),
+                startsWith(
+                    "shard has failed to be restored from the snapshot [_repository:_existing/_uuid] - manually close or delete the index "
+                        + "[test] in order to retry to restore the snapshot again or use the reroute API to force the allocation of "
+                        + "an empty primary shard. Details: [restore_source[_repository/_existing], failure "
+                        + "java.io.IOException: i/o failure"
+                )
+            );
         } else {
             assertEquals(Decision.Type.YES, decision.type());
             assertEquals("shard is currently being restored", decision.getExplanation());

@@ -372,7 +372,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
-                0
+                null
             );
         }
 
@@ -390,7 +390,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 0,
                 emptyList(),
-                0
+                0L
             );
         }
     }
@@ -454,7 +454,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
-                0
+                null
             );
         }
 
@@ -472,7 +472,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 0,
                 emptyList(),
-                0
+                0L
             );
         }
     }
@@ -573,8 +573,6 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         SignificantLongTerms buildEmptyResult() {
-            // We need to account for the significance of a miss in our global stats - provide corpus size as context
-            int supersetSize = searcher().getIndexReader().numDocs();
             return new SignificantLongTerms(
                 name,
                 bucketCountThresholds.getRequiredSize(),

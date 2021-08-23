@@ -54,7 +54,6 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
@@ -93,9 +92,9 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertNull(indicesPrivileges.getDeniedFields());
     }
 
+    @SuppressWarnings("unchecked")
     public void testRoleDescriptorWithFlsDlsLicensing() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().privileges("READ").indices("*")
@@ -268,7 +267,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);
         }
 
-        Index index = new Index(securityIndexName, UUID.randomUUID().toString());
+        Index index = metadata.index(securityIndexName).getIndex();
         ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(Reason.INDEX_CREATED, ""));
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0))

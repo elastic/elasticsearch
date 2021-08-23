@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -231,10 +231,12 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
         }
 
         return Objects.equals(this.transformId, that.transformId)
-                && this.indicesCheckpoints.size() == that.indicesCheckpoints.size() // quick check
-                // do the expensive deep equal operation last
-                && this.indicesCheckpoints.entrySet().stream()
-                        .allMatch(e -> Arrays.equals(e.getValue(), that.indicesCheckpoints.get(e.getKey())));
+            // quick check
+            && this.indicesCheckpoints.size() == that.indicesCheckpoints.size()
+            // do the expensive deep equal operation last
+            && this.indicesCheckpoints.entrySet()
+                .stream()
+                .allMatch(e -> Arrays.equals(e.getValue(), that.indicesCheckpoints.get(e.getKey())));
     }
 
     @Override

@@ -75,7 +75,7 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<Updat
             .build();
     }
 
-    public void testPerformAction() {
+    public void testPerformAction() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata();
         UpdateRollupIndexPolicyStep step = createRandomInstance();
         Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, step.getRollupPolicy()).build();
@@ -90,7 +90,7 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<Updat
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -116,7 +116,7 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<Updat
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
         assertSame(exception, expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))));
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -133,7 +133,7 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<Updat
         UpdateRollupIndexPolicyStep step = createRandomInstance();
         step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<>() {
             @Override
-            public void onResponse(Boolean complete) {
+            public void onResponse(Void unused) {
                 fail("expecting a failure as the index doesn't have any rollup index name in its ILM execution state");
             }
 

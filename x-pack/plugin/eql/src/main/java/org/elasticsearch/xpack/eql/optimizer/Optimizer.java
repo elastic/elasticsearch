@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
@@ -40,12 +39,10 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
@@ -65,9 +62,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -86,14 +81,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
                 // boolean
-                new BooleanSimplification(),
+                new EqlBooleanSimplification(),
                 new LiteralsOnTheRight(),
                 new BinaryComparisonSimplification(),
                 new BooleanFunctionEqualsElimination(),
-                // needs to occur before BinaryComparison combinations
-                new PropagateEquals(),
-                new PropagateNullable(),
-                new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
                 new SimplifyComparisonsArithmetics(DataTypes::areCompatible),
                 // prune/elimination
@@ -180,10 +171,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         comparableToNull = cmp.right();
                     }
                     if (comparableToNull != null) {
-                        if (cmp instanceof Equals) {
-                            result = new IsNull(cmp.source(), comparableToNull);
-                        } else {
-                            result = new IsNotNull(cmp.source(), comparableToNull);
+                        result = new IsNull(cmp.source(), comparableToNull);
+                        if (cmp instanceof Equals == false) {
+                            result = new Not(cmp.source(), result);
                         }
                     }
                 }
@@ -199,6 +189,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 ? new InsensitiveEquals(regexMatch.source(), regexMatch.field(), literal, null)
                 : new Equals(regexMatch.source(), regexMatch.field(), literal);
         }
+    }
+
+    private static class EqlBooleanSimplification extends BooleanSimplification {
+
+        EqlBooleanSimplification() {
+            super();
+        }
+
+        @Override
+        protected Expression maybeSimplifyNegatable(Expression e) {
+            return null;
+        }
+
     }
 
     static class PruneFilters extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters {
@@ -448,13 +451,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         // preserve the order for the base query, everything else needs to be ascending
                         List<Order> pushedOrder = baseFilter ? orderBy.order() : ascendingOrders;
                         OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
-                        orderedQueries.add((KeyedFilter) filter.replaceChildrenSameSize(singletonList(order)));
+                        orderedQueries.add(filter.replaceChild(order));
                         baseFilter = false;
                     }
 
                     KeyedFilter until = join.until();
                     OrderBy order = new OrderBy(until.source(), until.child(), ascendingOrders);
-                    until = (KeyedFilter) until.replaceChildrenSameSize(singletonList(order));
+                    until = until.replaceChild(order);
 
                     OrderDirection direction = orderBy.order().get(0).direction();
                     plan = join.with(orderedQueries, until, direction);

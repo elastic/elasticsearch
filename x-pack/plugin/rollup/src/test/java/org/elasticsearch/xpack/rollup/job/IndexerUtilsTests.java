@@ -55,6 +55,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomDateHistogramGroupConfig;
@@ -113,7 +114,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         final GroupConfig groupConfig = randomGroupConfig(random());
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo");
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo").collect(Collectors.toList());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -174,7 +175,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         final GroupConfig groupConfig = randomGroupConfig(random());
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo");
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo").collect(Collectors.toList());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -227,7 +228,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         final GroupConfig groupConfig = randomGroupConfig(random());
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo");
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo").collect(Collectors.toList());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -287,7 +288,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         final GroupConfig groupConfig = randomGroupConfig(random());
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo");
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo").collect(Collectors.toList());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -337,7 +338,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         });
 
         GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), new HistogramGroupConfig(1L, "abc"), null);
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupIndexerJobStats(), groupConfig, "foo");
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupIndexerJobStats(), groupConfig, "foo")
+            .collect(Collectors.toList());
         assertThat(docs.size(), equalTo(1));
         assertThat(docs.get(0).id(), equalTo("foo$c9LcrFqeFW92uN_Z7sv1hA"));
     }
@@ -387,7 +389,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         });
 
         GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), new HistogramGroupConfig(1, "abc"), null);
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupIndexerJobStats(), groupConfig, "foo");
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupIndexerJobStats(), groupConfig, "foo")
+            .collect(Collectors.toList());
         assertThat(docs.size(), equalTo(1));
         assertThat(docs.get(0).id(), equalTo("foo$VAFKZpyaEqYRPLyic57_qw"));
     }
@@ -414,7 +417,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         });
 
         GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), randomHistogramGroupConfig(random()), null);
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupIndexerJobStats(), groupConfig, "foo");
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupIndexerJobStats(), groupConfig, "foo")
+            .collect(Collectors.toList());
         assertThat(docs.size(), equalTo(1));
         assertFalse(Strings.isNullOrEmpty(docs.get(0).id()));
     }
@@ -471,7 +475,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         final GroupConfig groupConfig = randomGroupConfig(random());
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo");
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo").collect(Collectors.toList());
 
         assertThat(docs.size(), equalTo(6));
         for (IndexRequest doc : docs) {
@@ -524,7 +528,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
             .field(timestampField)
             .calendarInterval(new DateHistogramInterval("1d"))
-            .timeZone(ZoneId.of("-01:00", ZoneId.SHORT_IDS));  // adds a timezone so that we aren't on default UTC
+            // adds a timezone so that we aren't on default UTC
+            .timeZone(ZoneId.of("-01:00", ZoneId.SHORT_IDS));
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
             singletonList(dateHisto));
@@ -542,23 +547,23 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         final GroupConfig groupConfig = randomGroupConfig(random());
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo");
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo").collect(Collectors.toList());
 
         assertThat(docs.size(), equalTo(2));
 
         Map<String, Object> map = docs.get(0).sourceAsMap();
         assertNotNull(map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
         assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
+        // 2015-09-30T00:00:00.000-01:00
         assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.TIMESTAMP),
-            equalTo(1443574800000L)); // 2015-09-30T00:00:00.000-01:00
+            equalTo(1443574800000L));
 
         map = docs.get(1).sourceAsMap();
         assertNotNull(map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
         assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
+        // 2015-10-01T00:00:00.000-01:00
         assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.TIMESTAMP),
-            equalTo(1443661200000L)); // 2015-10-01T00:00:00.000-01:00
-
-
+            equalTo(1443661200000L));
     }
 
     interface Mock {

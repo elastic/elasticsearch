@@ -135,8 +135,10 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterStatePublisher createClusterStatePublisher(ClusterApplier clusterApplier) {
-        return (event, publishListener, ackListener) ->
-            clusterApplier.onNewClusterState("mock_publish_to_self[" + event.source() + "]", () -> event.state(),
+        return (clusterStatePublicationEvent, publishListener, ackListener) ->
+            clusterApplier.onNewClusterState(
+                "mock_publish_to_self[" + clusterStatePublicationEvent.getSummary() + "]",
+                clusterStatePublicationEvent::getNewState,
                 new ClusterApplyListener() {
                     @Override
                     public void onSuccess(String source) {

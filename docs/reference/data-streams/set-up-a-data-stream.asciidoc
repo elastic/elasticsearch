@@ -4,11 +4,11 @@
 
 To set up a data stream, follow these steps:
 
-* <<create-index-lifecycle-policy>>
-* <<create-component-templates>>
-* <<create-index-template>>
-* <<create-data-stream>>
-* <<secure-data-stream>>
+. <<create-index-lifecycle-policy>>
+. <<create-component-templates>>
+. <<create-index-template>>
+. <<create-data-stream>>
+. <<secure-data-stream>>
 
 You can also <<convert-index-alias-to-data-stream,convert an index alias to
 a data stream>>.
@@ -19,7 +19,7 @@ IMPORTANT: If you use {fleet} or {agent}, skip this tutorial. {fleet} and
 
 [discrete]
 [[create-index-lifecycle-policy]]
-=== Step 1. Create an index lifecycle policy
+=== Create an index lifecycle policy
 
 While optional, we recommend using {ilm-init} to automate the management of your
 data stream's backing indices. {ilm-init} requires an index lifecycle policy.
@@ -84,7 +84,7 @@ PUT _ilm/policy/my-lifecycle-policy
 
 [discrete]
 [[create-component-templates]]
-=== Step 2. Create component templates
+=== Create component templates
 
 // tag::ds-create-component-templates[]
 A data stream requires a matching index template. In most cases, you compose
@@ -162,7 +162,7 @@ PUT _component_template/my-settings
 
 [discrete]
 [[create-index-template]]
-=== Step 3. Create an index template
+=== Create an index template
 
 // tag::ds-create-index-template[]
 Use your component templates to create an index template. Specify:
@@ -204,7 +204,7 @@ PUT _index_template/my-index-template
 
 [discrete]
 [[create-data-stream]]
-=== Step 4. Create the data stream
+=== Create the data stream
 
 // tag::ds-create-data-stream[]
 <<add-documents-to-a-data-stream,Indexing requests>> add documents to a data
@@ -245,7 +245,7 @@ PUT _data_stream/my-data-stream
 
 [discrete]
 [[secure-data-stream]]
-=== Step 5. Secure the data stream
+=== Secure the data stream
 
 include::{xes-repo-dir}/security/authorization/alias-privileges.asciidoc[tag=data-stream-security]
 

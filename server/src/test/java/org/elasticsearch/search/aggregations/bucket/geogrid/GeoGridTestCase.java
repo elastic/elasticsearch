@@ -72,6 +72,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
         Map<Long, List<B>> map = new HashMap<>();
         for (T input : inputs) {
             for (GeoGrid.Bucket bucketBase : input.getBuckets()) {
+                @SuppressWarnings("unchecked")
                 B bucket = (B) bucketBase;
                 List<B> buckets = map.get(bucket.hashAsLong);
                 if (buckets == null) {
@@ -144,7 +145,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     }
 
     public void testCreateFromBuckets() {
-       InternalGeoGrid original = createTestInstance();
+       InternalGeoGrid<?> original = createTestInstance();
        assertThat(original, equalTo(original.create(original.buckets)));
     }
 }

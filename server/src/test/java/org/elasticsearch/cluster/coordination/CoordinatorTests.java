@@ -972,6 +972,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     private static class TimeAdvancer {
+
+        public static final int MAX_ADVANCE_MILLIS = 2000;
+
         private final DeterministicTaskQueue deterministicTaskQueue;
         private long elapsedTime;
 
@@ -981,18 +984,16 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
         void advanceTime() {
             final long startTime = deterministicTaskQueue.getCurrentTimeMillis();
-            if (deterministicTaskQueue.hasDeferredTasks() == false) {
-                deterministicTaskQueue.scheduleAt(startTime + between(1000, 2000), new Runnable() {
-                    @Override
-                    public void run() {
-                    }
+            deterministicTaskQueue.scheduleAt(startTime + between(1000, MAX_ADVANCE_MILLIS), new Runnable() {
+                @Override
+                public void run() {
+                }
 
-                    @Override
-                    public String toString() {
-                        return "no-op task to advance time";
-                    }
-                });
-            }
+                @Override
+                public String toString() {
+                    return "no-op task to advance time";
+                }
+            });
             deterministicTaskQueue.advanceTime();
             elapsedTime += deterministicTaskQueue.getCurrentTimeMillis() - startTime;
         }
@@ -1033,7 +1034,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 }
             });
 
-            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY + TimeAdvancer.MAX_ADVANCE_MILLIS * 2);
 
             final ClusterStateUpdateStats stats1 = leader.coordinator.stats().getClusterStateUpdateStats();
 
@@ -1050,7 +1051,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76840")
     public void testMasterStatsOnSuccessfulUpdate() {
 
         final String customName = "delayed";
@@ -1124,7 +1124,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 }
             });
 
-            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY + TimeAdvancer.MAX_ADVANCE_MILLIS * 3);
 
             final ClusterStateUpdateStats stats1 = leader.coordinator.stats().getClusterStateUpdateStats();
 
@@ -1181,7 +1181,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             });
 
             leader.blackhole();
-            cluster.stabilise(DEFAULT_STABILISATION_TIME);
+            cluster.stabilise(DEFAULT_STABILISATION_TIME + TimeAdvancer.MAX_ADVANCE_MILLIS * 2);
 
             final ClusterStateUpdateStats stats1 = leader.coordinator.stats().getClusterStateUpdateStats();
 

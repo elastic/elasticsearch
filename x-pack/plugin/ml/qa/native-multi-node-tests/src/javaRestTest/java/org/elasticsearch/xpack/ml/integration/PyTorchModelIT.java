@@ -261,17 +261,16 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetDeploymentStats_WithStartedStoppedDeployments() throws IOException {
+        putVocabulary(List.of("once", "twice"));
         String modelFoo = "foo";
-        putTaskConfig(modelFoo, List.of("once", "twice"));
         putModelDefinition(modelFoo);
         createTrainedModel(modelFoo);
 
         String modelBar = "bar";
-        putTaskConfig(modelBar, List.of("once", "twice"));
         putModelDefinition(modelBar);
         createTrainedModel(modelBar);
 
-        refreshModelStoreIndex();
+        refreshModelStoreAndVocabIndex();
 
         startDeployment(modelFoo);
         startDeployment(modelBar);

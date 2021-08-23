@@ -472,9 +472,5 @@ subprojects { Project subProject ->
       name artifactName
       builtBy exportTaskName
     }
-
-    tasks.named("assemble").configure {
-      dependsOn(exportTaskName)
-    }
   }
 }

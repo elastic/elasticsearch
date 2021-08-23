@@ -1050,6 +1050,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76840")
     public void testMasterStatsOnSuccessfulUpdate() {
 
         final String customName = "delayed";

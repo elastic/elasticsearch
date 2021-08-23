@@ -101,11 +101,12 @@ if [ "$REMOVE_DIRS" = "true" ]; then
 
     # delete the security auto config directory if we are purging
     if [ "$REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY" = "true" ]; then
-      if compgen -G "${ES_PATH_CONF}/auto_config_on*" > /dev/null; then
+      for dir in "${ES_PATH_CONF}"/auto_config_on*
+      do
         echo -n "Deleting security auto-configuration directory..."
-        rm -rf "${ES_PATH_CONF}/auto_config_on*"
+        rm -rf "${dir}"
         echo "OK"
-      fi
+      done
     fi
 
     # delete the conf directory if and only if empty

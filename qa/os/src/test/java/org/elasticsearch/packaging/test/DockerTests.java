@@ -838,6 +838,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that Elasticsearch reports per-node cgroup information.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76812")
     public void test140CgroupOsStatsAreAvailable() throws Exception {
         waitForElasticsearch(installation);
 

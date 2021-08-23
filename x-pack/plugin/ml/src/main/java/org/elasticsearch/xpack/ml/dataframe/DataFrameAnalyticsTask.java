@@ -133,12 +133,12 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             isMarkAsCompletedCalled = true;
         }
 
-        persistProgress(client, taskParams.getId(), () -> super.markAsCompleted());
+        persistProgress(client, taskParams.getId(), super::doMarkAsCompleted);
     }
 
     @Override
     public void doMarkAsFailed(Exception e) {
-        persistProgress(client, taskParams.getId(), () -> super.markAsFailed(e));
+        persistProgress(client, taskParams.getId(), () -> super.doMarkAsFailed(e));
     }
 
     public void stop(String reason, TimeValue timeout) {

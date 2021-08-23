@@ -43,6 +43,7 @@ public class ClusterServiceUtils {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            setAllElapsedMillis(clusterStatePublicationEvent);
             clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             publishListener.onResponse(null);
         });

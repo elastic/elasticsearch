@@ -263,12 +263,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     new ClusterApplyListener() {
 
                         @Override
-                        public void onFailure(String source, Exception e) {
+                        public void onFailure(Exception e) {
                             applyListener.onFailure(e);
                         }
 
                         @Override
-                        public void onSuccess(String source) {
+                        public void onSuccess() {
                             applyListener.onResponse(null);
                         }
                     });
@@ -532,7 +532,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             if (applierState.nodes().getMasterNodeId() != null) {
                 applierState = clusterStateWithNoMasterBlock(applierState);
-                clusterApplier.onNewClusterState("becoming candidate: " + method, () -> applierState, (source, e) -> {
+                clusterApplier.onNewClusterState("becoming candidate: " + method, () -> applierState, e -> {
                 });
             }
         }
@@ -1359,7 +1359,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     clusterApplier.onNewClusterState(CoordinatorPublication.this.toString(), () -> applierState,
                         new ClusterApplyListener() {
                             @Override
-                            public void onFailure(String source, Exception e) {
+                            public void onFailure(Exception e) {
                                 synchronized (mutex) {
                                     removePublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
                                 }
@@ -1369,7 +1369,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             }
 
                             @Override
-                            public void onSuccess(String source) {
+                            public void onSuccess() {
                                 synchronized (mutex) {
                                     assert currentPublication.get() == CoordinatorPublication.this;
                                     currentPublication = Optional.empty();

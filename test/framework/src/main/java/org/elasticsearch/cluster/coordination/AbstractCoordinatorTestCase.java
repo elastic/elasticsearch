@@ -1310,6 +1310,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     static class DisruptableClusterApplierService extends ClusterApplierService {
         private final String nodeName;
         private final DeterministicTaskQueue deterministicTaskQueue;
+        private final ThreadPool threadPool;
         ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
         private boolean applicationMayFail;
 
@@ -1318,6 +1319,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             super(nodeName, settings, clusterSettings, threadPool);
             this.nodeName = nodeName;
             this.deterministicTaskQueue = deterministicTaskQueue;
+            this.threadPool = threadPool;
             addStateApplier(event -> {
                 switch (clusterStateApplyResponse) {
                     case SUCCEED:
@@ -1343,7 +1345,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             if (clusterStateApplyResponse == ClusterStateApplyResponse.HANG) {
                 if (randomBoolean()) {
                     // apply cluster state, but don't notify listener
-                    super.onNewClusterState(source, clusterStateSupplier, (source1, e) -> {
+                    super.onNewClusterState(source, clusterStateSupplier, e -> {
                         // ignore result
                     });
                 }

@@ -33,17 +33,24 @@ public interface ClusterApplier {
      */
     interface ClusterApplyListener {
         /**
-         * Called on successful cluster state application
-         * @param source information where the cluster state came from
+         * Called on successful cluster state application.
+         *
+         * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the cluster applier service
+         * at {@code ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so
+         * themselves, typically using a more specific logger and at a less dramatic log level.
          */
-        default void onSuccess(String source) {
+        default void onSuccess() {
         }
 
         /**
-         * Called on failure during cluster state application
-         * @param source information where the cluster state came from
+         * Called on failure during cluster state application.
+         *
+         * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the cluster applier service
+         * at {@code ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so
+         * themselves, typically using a more specific logger and at a less dramatic log level.
+         *
          * @param e exception that occurred
          */
-        void onFailure(String source, Exception e);
+        void onFailure(Exception e);
     }
 }

@@ -114,8 +114,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assumeThat(installation, is(notNullValue()));
 
         String password = "^|<>\\&exit"; // code insertion on Windows if special characters are not escaped
-
-        setKeystorePassword(password);
+        //TODO Change this to setKeystorePassword(password);, when we merge the code to auto-configure security for archives
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
 

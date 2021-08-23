@@ -119,7 +119,11 @@ public class Packages {
             throw new RuntimeException("Upgrading distribution " + distribution + " failed: " + result);
         }
 
-        return Installation.ofPackage(sh, distribution);
+        Installation installation = Installation.ofPackage(sh, distribution);
+        // https://github.com/elastic/elasticsearch/issues/75940
+        // TODO Figure out how to run all packaging tests with security enabled which is now the default behavior
+        ServerUtils.possiblyDisableSecurityFeatures(installation);
+        return installation;
     }
 
     public static Installation forceUpgradePackage(Shell sh, Distribution distribution) throws IOException {

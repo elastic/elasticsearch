@@ -232,6 +232,21 @@ public class RoundingTests extends ESTestCase {
         }
     }
 
+    /**
+     * This test chooses a date in the middle of the transition, so that we can test
+     * if the transition which is before the minLookup, but still should be applied
+     * is not skipped
+     */
+    public void testRoundingAroundDST() {
+        Rounding.DateTimeUnit unit = Rounding.DateTimeUnit.DAY_OF_MONTH;
+        ZoneId tz = ZoneId.of("Canada/Newfoundland");
+        long minLookup = 688618001000L; // 1991-10-28T02:46:41.527Z
+        long maxLookup = 688618001001L; // +1sec
+        // there is a Transition[Overlap at 1991-10-27T00:01-02:30 to -03:30] ”
+        long[] bounds =  new long[]{minLookup, maxLookup};
+        assertUnitRoundingSameAsJavaUtilTimeImplementation(unit, tz, bounds[0], bounds[1]);
+    }
+
     private void assertUnitRoundingSameAsJavaUtilTimeImplementation(Rounding.DateTimeUnit unit, ZoneId tz, long start, long end) {
         Rounding rounding = new Rounding.TimeUnitRounding(unit, tz);
         Rounding.Prepared prepared = rounding.prepare(start, end);

@@ -29,8 +29,9 @@ import java.util.Locale;
  * utc. So converting from utc is as simple as adding the offset.
  * <p>
  * Getting from local time back to utc is harder. Most local times happen once.
- * But some local times happen twice. And some don't happen at all. Take, for
- * example, the time in my house. Most days I don't touch my clocks and I'm a
+ * But some local times happen twice (DST overlap).
+ * And some don't happen at all (DST gap).  Take, for example,
+ * the time in my house. Most days I don't touch my clocks and I'm a
  * constant offset from UTC. But once in the fall at 2am I roll my clock back.
  * So at 5am utc my clocks say 1am. Then at 6am utc my clocks say 1am AGAIN.
  * I do similarly terrifying things again in the spring when I skip my clocks
@@ -38,6 +39,8 @@ import java.util.Locale;
  * <p>
  * So there are two methods to convert from local time back to utc,
  * {@link #localToUtc(long, Strategy)} and {@link #localToUtcInThisOffset(long)}.
+ * @see ZoneOffsetTransition#isGap()
+ * @see ZoneOffsetTransition#isOverlap()
  */
 public abstract class LocalTimeOffset {
     /**
@@ -637,15 +640,15 @@ public abstract class LocalTimeOffset {
         // Skip all transitions that are before our start time
         while (itr.hasNext()) {
             t = itr.next();
-            final int diff = Math.max(t.getOffsetBefore().getTotalSeconds()-t.getOffsetAfter().getTotalSeconds() , 0);
-            if ((t.toEpochSecond() + diff) >= minSecond) {
+            final int duration = transitionDurationSeconds(t);
+            if ((t.toEpochSecond() + duration) >= minSecond) { // checking if the transition affects minUtcMillis
                 break;
             }
         }
         if (false == itr.hasNext()) {
-            final int diff = Math.max(t.getOffsetBefore().getTotalSeconds()-t.getOffsetAfter().getTotalSeconds() , 0);
+            final int duration = transitionDurationSeconds(t);
 
-            if (minSecond < (t.toEpochSecond()+diff)  && t.toEpochSecond() < maxSecond) {
+            if (minSecond < (t.toEpochSecond() + duration) && t.toEpochSecond() < maxSecond) {
                 transitions.add(t);
                 /*
                  * Sometimes the rules duplicate the transitions. And
@@ -676,6 +679,10 @@ public abstract class LocalTimeOffset {
             }
         }
         return buildTransitionsFromRules(transitions, zone, rules, t.toEpochSecond() + 1, maxSecond);
+    }
+
+    private static int transitionDurationSeconds(ZoneOffsetTransition t) {
+        return Math.max(t.getOffsetBefore().getTotalSeconds() - t.getOffsetAfter().getTotalSeconds(), 0);
     }
 
     /**

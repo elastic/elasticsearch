@@ -429,8 +429,7 @@ public abstract class Rounding implements Writeable {
                  * to the last value we calculated. If it doesn't then we're
                  * probably doing something wrong here....
                  */
-                assert values[i - 1] == round(rounded - 1);
-
+                assert values[i - 1] == round(ingestrounded - 1);
                 values = ArrayUtil.grow(values, i + 1);
                 values[i++]= rounded;
             }

@@ -18,6 +18,7 @@ export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 REMOVE_DIRS=false
 REMOVE_JVM_OPTIONS_DIRECTORY=false
+REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY=false
 REMOVE_USER_AND_GROUP=false
 
 case "$1" in
@@ -30,6 +31,7 @@ case "$1" in
     purge)
         REMOVE_DIRS=true
         REMOVE_JVM_OPTIONS_DIRECTORY=true
+        REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY=false
         REMOVE_USER_AND_GROUP=true
     ;;
     failed-upgrade|abort-install|abort-upgrade|disappear|upgrade|disappear)
@@ -94,6 +96,15 @@ if [ "$REMOVE_DIRS" = "true" ]; then
         echo -n "Deleting jvm.options.d directory..."
         rm -rf "${ES_PATH_CONF}/jvm.options.d"
         echo " OK"
+      fi
+    fi
+
+    # delete the security auto config directory if we are purging
+    if [ "$REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY" = "true"]; then
+      if [ -d "${ES_PATH_CONF}"/auto_config_on* ]; then
+        echo -n "Deleting security auto-configuration directory..."
+        rm -rf "${ES_PATH_CONF}"/auto_config_on*
+        echo "OK"
       fi
     fi
 

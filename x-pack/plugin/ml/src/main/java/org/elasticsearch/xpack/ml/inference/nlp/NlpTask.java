@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class NlpTask {
 
@@ -43,11 +44,11 @@ public class NlpTask {
     }
 
     public interface RequestBuilder {
-        BytesReference buildRequest(String inputs, String requestId) throws IOException;
+        Request buildRequest(String inputs, String requestId) throws IOException;
     }
 
     public interface ResultProcessor {
-        InferenceResults processResult(PyTorchResult pyTorchResult);
+        InferenceResults processResult(BertTokenizer.TokenizationResult tokenization, PyTorchResult pyTorchResult);
     }
 
     public interface Processor {
@@ -74,5 +75,15 @@ public class NlpTask {
             return (String) inputValue;
         }
         throw ExceptionsHelper.badRequestException("input value [{}] for field [{}] is not a string", inputValue, inputField);
+    }
+
+    public static class Request {
+        public final BertTokenizer.TokenizationResult tokenization;
+        public final BytesReference processInput;
+
+        public Request(BertTokenizer.TokenizationResult tokenization, BytesReference processInput) {
+            this.tokenization = Objects.requireNonNull(tokenization);
+            this.processInput = Objects.requireNonNull(processInput);
+        }
     }
 }

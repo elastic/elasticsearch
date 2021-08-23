@@ -33,10 +33,9 @@ public interface ClusterStateTaskExecutor<T> {
      *
      * Note that this method will be executed using system context.
      *
-     * @param clusterChangedEvent the change event for this cluster state change, containing
-     *                            both old and new states
+     * @param clusterStatePublicationEvent the change event for this cluster state publication, containing both old and new states
      */
-    default void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+    default void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
     }
 
     /**

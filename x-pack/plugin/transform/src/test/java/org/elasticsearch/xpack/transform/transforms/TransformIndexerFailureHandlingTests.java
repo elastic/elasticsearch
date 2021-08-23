@@ -280,7 +280,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }
 
         @Override
-        void persistState(TransformState state, ActionListener<Void> listener) {
+        protected void persistState(TransformState state, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
     }

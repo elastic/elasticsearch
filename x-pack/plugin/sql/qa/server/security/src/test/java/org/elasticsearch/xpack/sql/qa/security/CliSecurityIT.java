@@ -29,23 +29,19 @@ public class CliSecurityIT extends SqlSecurityTestCase {
 
     @Override
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76806")
-    public void testDescribeWorksAsFullAccess() {
-    }
+    public void testDescribeWorksAsFullAccess() {}
 
     @Override
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76806")
-    public void testQuerySingleFieldGranted() {
-    }
+    public void testQuerySingleFieldGranted() {}
 
     @Override
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76806")
-    public void testScrollWithSingleFieldExcepted() {
-    }
+    public void testScrollWithSingleFieldExcepted() {}
 
     @Override
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76806")
-    public void testQueryWorksAsAdmin() {
-    }
+    public void testQueryWorksAsAdmin() {}
 
     static SecurityConfig adminSecurityConfig() {
         String keystoreLocation;

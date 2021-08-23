@@ -6,7 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.packaging.util;
+package org.elasticsearch.packaging.util.docker;
+
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Platforms;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -148,6 +151,14 @@ public class DockerRun {
 
             case DOCKER_IRON_BANK:
                 suffix = "-ironbank";
+                break;
+
+            case DOCKER_CLOUD:
+                suffix = "-cloud";
+                break;
+
+            case DOCKER_CLOUD_ESS:
+                suffix = "-cloud-ess";
                 break;
 
             default:

@@ -46,6 +46,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     private final boolean hidden;
     private final boolean replicated;
     private final boolean system;
+    private boolean test;
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata) {
         this(name, timeStampField, indices, generation, metadata, false, false, false);

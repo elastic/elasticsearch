@@ -157,11 +157,11 @@ If possible, run the search on the specified nodes IDs. If not, select shards
 using the default method.
 
 `_shards:<shard>,<shard>`::
-Run the search only on the specified shards. This value can be combined with
-other `preference` values, but this value must come first. For example:
-`_shards:2,3|_local`
+Run the search only on the specified shards. You can combine this value with
+other `preference` values, excluding `<custom-string>`. However, the `_shards`
+value must come first. For example: `_shards:2,3|_local`.
 
-<custom-string>::
+`<custom-string>`::
 Any string that does not start with `_`. If the cluster state and selected
 shards do not change, searches using the same `<custom-string>` value are routed
 to the same shards in the same order.

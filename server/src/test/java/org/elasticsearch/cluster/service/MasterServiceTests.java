@@ -87,6 +87,11 @@ public class MasterServiceTests extends ESTestCase {
             public long relativeTimeInMillis() {
                 return relativeTimeInMillis;
             }
+
+            @Override
+            public long rawRelativeTimeInMillis() {
+                return relativeTimeInMillis();
+            }
         };
     }
 

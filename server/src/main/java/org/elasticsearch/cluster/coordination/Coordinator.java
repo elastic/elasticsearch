@@ -1066,11 +1066,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert getLocalNode().equals(clusterState.getNodes().get(getLocalNode().getId())) :
                     getLocalNode() + " should be in published " + clusterState;
 
-                final long publicationContextConstructionStartMillis = transportService.getThreadPool().relativeTimeInMillis();
+                final long publicationContextConstructionStartMillis = transportService.getThreadPool().rawRelativeTimeInMillis();
                 final PublicationTransportHandler.PublicationContext publicationContext =
                     publicationHandler.newPublicationContext(clusterStatePublicationEvent);
                 clusterStatePublicationEvent.setPublicationContextConstructionElapsedMillis(
-                    transportService.getThreadPool().relativeTimeInMillis() - publicationContextConstructionStartMillis);
+                    transportService.getThreadPool().rawRelativeTimeInMillis() - publicationContextConstructionStartMillis);
 
                 final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
                 final CoordinatorPublication publication = new CoordinatorPublication(
@@ -1308,7 +1308,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         }
                     }
                 },
-                transportService.getThreadPool()::relativeTimeInMillis);
+                transportService.getThreadPool()::rawRelativeTimeInMillis);
             this.clusterStatePublicationEvent = clusterStatePublicationEvent;
             this.publishRequest = publishRequest;
             this.publicationContext = publicationContext;
@@ -1366,7 +1366,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         @Override
         protected void onCompletion(boolean committed) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-            final long completionTimeMillis = transportService.getThreadPool().relativeTimeInMillis();
+            final long completionTimeMillis = transportService.getThreadPool().rawRelativeTimeInMillis();
             clusterStatePublicationEvent.setPublicationCompletionElapsedMillis(completionTimeMillis - getStartTime());
 
             localNodeAckEvent.addListener(new ActionListener<Void>() {
@@ -1394,7 +1394,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             @Override
                             public void onSuccess(String source) {
                                 clusterStatePublicationEvent.setMasterApplyElapsedMillis(
-                                    transportService.getThreadPool().relativeTimeInMillis() - completionTimeMillis);
+                                    transportService.getThreadPool().rawRelativeTimeInMillis() - completionTimeMillis);
                                 synchronized (mutex) {
                                     assert currentPublication.get() == CoordinatorPublication.this;
                                     currentPublication = Optional.empty();

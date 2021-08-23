@@ -220,14 +220,14 @@ public class MasterService extends AbstractLifecycleComponent {
             return;
         }
 
-        final long computationStartTime = threadPool.relativeTimeInMillis();
+        final long computationStartTime = threadPool.rawRelativeTimeInMillis();
         final TaskOutputs taskOutputs = calculateTaskOutputs(taskInputs, previousClusterState);
         taskOutputs.notifyFailedTasks();
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", summary);
 
         if (taskOutputs.clusterStateUnchanged()) {
-            final long notificationStartTime = threadPool.relativeTimeInMillis();
+            final long notificationStartTime = threadPool.rawRelativeTimeInMillis();
             taskOutputs.notifySuccessfulTasksOnUnchangedClusterState();
             final TimeValue executionTime = getTimeSince(notificationStartTime);
             logExecutionTime(executionTime, "notify listeners on unchanged cluster state", summary);
@@ -239,7 +239,7 @@ public class MasterService extends AbstractLifecycleComponent {
             } else {
                 logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), summary);
             }
-            final long publicationStartTime = threadPool.relativeTimeInMillis();
+            final long publicationStartTime = threadPool.rawRelativeTimeInMillis();
             try {
                 final ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent(
                     summary,
@@ -267,7 +267,7 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private TimeValue getTimeSince(long startTimeMillis) {
-        return TimeValue.timeValueMillis(Math.max(0, threadPool.relativeTimeInMillis() - startTimeMillis));
+        return TimeValue.timeValueMillis(Math.max(0, threadPool.rawRelativeTimeInMillis() - startTimeMillis));
     }
 
     protected void publish(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs) {
@@ -292,7 +292,7 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     void onPublicationSuccess(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs) {
-        final long notificationStartTime = threadPool.relativeTimeInMillis();
+        final long notificationStartTime = threadPool.rawRelativeTimeInMillis();
         taskOutputs.processedDifferentClusterState(clusterStatePublicationEvent.getOldState(), clusterStatePublicationEvent.getNewState());
 
         try {
@@ -309,14 +309,14 @@ public class MasterService extends AbstractLifecycleComponent {
                 + ", uuid: " + clusterStatePublicationEvent.getNewState().stateUUID() + ')',
             clusterStatePublicationEvent.getSummary());
         timingStatisticsTracker.onPublicationSuccess(
-            threadPool.relativeTimeInMillis(),
+            threadPool.rawRelativeTimeInMillis(),
             clusterStatePublicationEvent,
             executionTime.millis());
     }
 
     void onPublicationFailed(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs, Exception exception) {
         if (exception instanceof FailedToCommitClusterStateException) {
-            final long notificationStartTime = threadPool.relativeTimeInMillis();
+            final long notificationStartTime = threadPool.rawRelativeTimeInMillis();
             final long version = clusterStatePublicationEvent.getNewState().version();
             logger.warn(
                 () -> new ParameterizedMessage(
@@ -325,14 +325,14 @@ public class MasterService extends AbstractLifecycleComponent {
                     version),
                 exception);
             taskOutputs.publishingFailed((FailedToCommitClusterStateException) exception);
-            final long notificationMillis = threadPool.relativeTimeInMillis() - notificationStartTime;
+            final long notificationMillis = threadPool.rawRelativeTimeInMillis() - notificationStartTime;
             timingStatisticsTracker.onPublicationFailure(
-                threadPool.relativeTimeInMillis(),
+                threadPool.rawRelativeTimeInMillis(),
                 clusterStatePublicationEvent,
                 notificationMillis);
         } else {
             assert false : exception;
-            timingStatisticsTracker.onPublicationFailure(threadPool.relativeTimeInMillis(), clusterStatePublicationEvent, 0L);
+            timingStatisticsTracker.onPublicationFailure(threadPool.rawRelativeTimeInMillis(), clusterStatePublicationEvent, 0L);
             handleException(
                 clusterStatePublicationEvent.getSummary(),
                 clusterStatePublicationEvent.getPublicationStartTimeMillis(),

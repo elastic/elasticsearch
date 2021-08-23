@@ -271,6 +271,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     /**
+     * Returns a value of milliseconds that may be used for relative time calculations. Similar to {@link #relativeTimeInMillis()} except
+     * that this method is more expensive: the return value is computed directly from {@link System#nanoTime} and is not cached. You should
+     * use {@link #relativeTimeInMillis()} unless the extra accuracy offered by this method is worth the costs.
+     */
+    public long rawRelativeTimeInMillis() {
+        return TimeValue.nsecToMSec(System.nanoTime());
+    }
+
+    /**
      * Returns the value of milliseconds since UNIX epoch.
      *
      * This method should only be used for exact date/time formatting. For calculating

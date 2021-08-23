@@ -80,10 +80,6 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
             return deploymentId;
         }
 
-        public List<String> getExpandedIds() {
-            return expandedIds;
-        }
-
         public void setExpandedIds(List<String> expandedIds) {
             this.expandedIds = expandedIds;
         }

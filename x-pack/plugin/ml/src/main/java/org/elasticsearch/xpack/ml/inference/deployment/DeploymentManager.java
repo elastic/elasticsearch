@@ -87,15 +87,12 @@ public class DeploymentManager {
     }
 
     public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
-        ProcessContext processContext = processContextByAllocation.get(task.getId());
-        if (processContext == null) {
-            return Optional.empty();
-        }
-
-        Long modelSizeBytes = processContext.getModelSizeBytes() < 0 ? null : (long) processContext.getModelSizeBytes();
-        return Optional.of(new ModelStats(processContext.resultProcessor.getTimingStats(),
-            processContext.resultProcessor.getLastUsed(),
-            modelSizeBytes));
+        return Optional.ofNullable(processContextByAllocation.get(task.getId()))
+            .map(processContext ->
+                new ModelStats(processContext.resultProcessor.getTimingStats(),
+                    processContext.resultProcessor.getLastUsed(),
+                    (long)processContext.getModelSizeBytes())
+            );
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {

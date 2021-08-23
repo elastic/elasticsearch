@@ -30,13 +30,13 @@ import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTas
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -63,12 +63,10 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
                 (l, r) -> {
                     l.getNodeStats().addAll(r.getNodeStats());
                     return l;
-                }));
+                },
+                TreeMap::new));
 
-        List<GetDeploymentStatsAction.Response.AllocationStats> bunchedAndSorted =
-            mergedNodeStatsByModel.values().stream()
-                .sorted(Comparator.comparing(GetDeploymentStatsAction.Response.AllocationStats::getModelId))
-                .collect(Collectors.toList());
+        List<GetDeploymentStatsAction.Response.AllocationStats> bunchedAndSorted = new ArrayList<>(mergedNodeStatsByModel.values());
 
         return new GetDeploymentStatsAction.Response(taskOperationFailures,
             failedNodeExceptions,
@@ -149,8 +147,9 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
         } else {
             // if there are no stats the process is missing.
             // Either because it is starting or stopped
-            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(clusterService.localNode(),
-                RoutingState.STOPPED, "");
+            nodeStats.add(GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
+                clusterService.localNode(),
+                RoutingState.STOPPED, ""));
         }
 
         var modelSize = stats.map(ModelStats::getModelSize).orElse(null);

@@ -179,7 +179,6 @@ public class PyTorchModelIT extends ESRestTestCase {
         infer("once", modelA);
         infer("twice", modelA);
         Response response = getDeploymentStats(modelA);
-        logger.info(EntityUtils.toString(response.getEntity()));
         List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
         assertThat(stats, hasSize(1));
         assertThat(stats.get(0).get("model_id"), equalTo(modelA));
@@ -368,7 +367,7 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         Request request = new Request("PUT", "/" + VOCAB_INDEX + "/_doc/test_vocab");
         request.setJsonEntity("{  " +
-                "\"vocab\": [\"" + quotedWords + "\"]\n" +
+                "\"vocab\": [" + quotedWords + "]\n" +
             "}");
         client().performRequest(request);
     }

@@ -45,8 +45,8 @@
 "Master timing stats":
   - skip:
       features: [arbitrary_key]
-      version: "- 7.99.99"
-      reason: "master timing stats added in 8.0.0"
+      version: "- 7.15.99"
+      reason: "master timing stats added in 7.16.0"
 
   - do:
       nodes.info:

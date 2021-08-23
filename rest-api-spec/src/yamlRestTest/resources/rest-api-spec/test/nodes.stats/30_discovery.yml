@@ -40,3 +40,99 @@
   - gte: { nodes.$master.discovery.published_cluster_states.incompatible_diffs: 0 }
   - gte: { nodes.$master.discovery.published_cluster_states.compatible_diffs: 0 }
   - is_false:  nodes.$master.roles
+
+---
+"Master timing stats":
+  - skip:
+      features: [arbitrary_key]
+      version: "- 7.99.99"
+      reason: "master timing stats added in 8.0.0"
+
+  - do:
+      nodes.info:
+        node_id: _master
+  - set:
+      nodes._arbitrary_key_: master
+
+  - do:
+      nodes.stats:
+        metric: [ discovery ]
+
+  - gte: { nodes.$master.discovery.cluster_state_update.unchanged.count: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.unchanged.computation_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.unchanged.notification_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.count: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.computation_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.publication_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.context_construction_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.commit_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.completion_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.master_apply_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.notification_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.count: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.computation_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.publication_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.context_construction_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.commit_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.completion_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.master_apply_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.notification_time_millis: 0 }
+
+  - is_false: nodes.$master.discovery.cluster_state_update.unchanged.computation_time
+  - is_false: nodes.$master.discovery.cluster_state_update.unchanged.notification_time
+  - is_false: nodes.$master.discovery.cluster_state_update.success.computation_time
+  - is_false: nodes.$master.discovery.cluster_state_update.success.publication_time
+  - is_false: nodes.$master.discovery.cluster_state_update.success.context_construction_time
+  - is_false: nodes.$master.discovery.cluster_state_update.success.commit_time
+  - is_false: nodes.$master.discovery.cluster_state_update.success.completion_time
+  - is_false: nodes.$master.discovery.cluster_state_update.success.master_apply_time
+  - is_false: nodes.$master.discovery.cluster_state_update.success.notification_time
+  - is_false: nodes.$master.discovery.cluster_state_update.failure.computation_time
+  - is_false: nodes.$master.discovery.cluster_state_update.failure.publication_time
+  - is_false: nodes.$master.discovery.cluster_state_update.failure.context_construction_time
+  - is_false: nodes.$master.discovery.cluster_state_update.failure.commit_time
+  - is_false: nodes.$master.discovery.cluster_state_update.failure.completion_time
+  - is_false: nodes.$master.discovery.cluster_state_update.failure.master_apply_time
+  - is_false: nodes.$master.discovery.cluster_state_update.failure.notification_time
+
+  - do:
+      nodes.stats:
+        metric: [ discovery ]
+        human: true
+
+  - gte: { nodes.$master.discovery.cluster_state_update.unchanged.count: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.unchanged.computation_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.unchanged.notification_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.count: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.computation_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.publication_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.context_construction_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.commit_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.completion_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.master_apply_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.success.notification_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.count: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.computation_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.publication_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.context_construction_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.commit_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.completion_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.master_apply_time_millis: 0 }
+  - gte: { nodes.$master.discovery.cluster_state_update.failure.notification_time_millis: 0 }
+
+  - is_true: nodes.$master.discovery.cluster_state_update.unchanged.computation_time
+  - is_true: nodes.$master.discovery.cluster_state_update.unchanged.notification_time
+  - is_true: nodes.$master.discovery.cluster_state_update.success.computation_time
+  - is_true: nodes.$master.discovery.cluster_state_update.success.publication_time
+  - is_true: nodes.$master.discovery.cluster_state_update.success.context_construction_time
+  - is_true: nodes.$master.discovery.cluster_state_update.success.commit_time
+  - is_true: nodes.$master.discovery.cluster_state_update.success.completion_time
+  - is_true: nodes.$master.discovery.cluster_state_update.success.master_apply_time
+  - is_true: nodes.$master.discovery.cluster_state_update.success.notification_time
+  - is_true: nodes.$master.discovery.cluster_state_update.failure.computation_time
+  - is_true: nodes.$master.discovery.cluster_state_update.failure.publication_time
+  - is_true: nodes.$master.discovery.cluster_state_update.failure.context_construction_time
+  - is_true: nodes.$master.discovery.cluster_state_update.failure.commit_time
+  - is_true: nodes.$master.discovery.cluster_state_update.failure.completion_time
+  - is_true: nodes.$master.discovery.cluster_state_update.failure.master_apply_time
+  - is_true: nodes.$master.discovery.cluster_state_update.failure.notification_time

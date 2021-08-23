@@ -84,9 +84,9 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
     }
 
     private static Optional<String> getAutoConfigPathDir(Installation es) {
-        final Shell.Result lsResult = sh.run("find \"" + es.config + "\" -type d");
+        final Shell.Result lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
         assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.startsWith("auto_config_on")).findFirst();
+        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("auto_config_on")).findFirst();
     }
 
     private static void verifySecurityNotAutoConfigured(Installation es) throws Exception {

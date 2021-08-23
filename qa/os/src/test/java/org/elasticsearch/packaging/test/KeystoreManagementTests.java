@@ -214,9 +214,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assumeTrue("only for systemd", Platforms.isSystemd() && distribution().isPackage());
         String password = "!@#$%^&*()|\\<>/?";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
-
-        rmKeystoreIfExists();
-        createKeystore(password);
+        // retain existing keystore so that ES can successfully start, even if it was configured
+        setKeystorePassword(password);
 
         assertPasswordProtectedKeystore();
 

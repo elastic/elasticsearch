@@ -18,7 +18,7 @@ import org.apache.logging.log4j.Logger;
  * result in a deprecation logger with name <code>org.elasticsearch.deprecation.test.SomeClass</code>. This allows to use a
  * <code>deprecation</code> logger defined in log4j2.properties.
  * <p>
- * Logs are emitted at the custom {@link #DEPRECATION} level, and routed wherever they need to go using log4j. For example,
+ * Logs are emitted at the custom {@link #CRITICAL} level, and routed wherever they need to go using log4j. For example,
  * to disk using a rolling file appender, or added as a response header using {@link HeaderWarningAppender}.
  * <p>
  * Deprecation messages include a <code>key</code>, which is used for rate-limiting purposes. The log4j configuration
@@ -31,7 +31,7 @@ public class DeprecationLogger {
     /**
      * Deprecation messages are logged at this level.
      */
-    public static Level DEPRECATION = Level.forName("DEPRECATION", Level.WARN.intLevel() + 1);
+    public static Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1); // corresponding to
 
     private final Logger logger;
 
@@ -79,30 +79,29 @@ public class DeprecationLogger {
         final DeprecationCategory category,
         final String key,
         final String msg,
-        final Object... params
-    ) {
-        assert category != DeprecationCategory.COMPATIBLE_API :
-            "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
-        ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
-        logger.log(Level.WARN, deprecationMessage);
-        return this;
+        final Object... params) {
+        return logDeprecation(CRITICAL, category, key, msg, params);
     }
+
     /**
      * Logs a message at the {@link Level#INFO} level for less critical deprecations
      * that likely won't break in next version.
      * The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
-    public DeprecationLogger deprecateAtInfo(
+    public DeprecationLogger deprecateAtWarnLevel(
         final DeprecationCategory category,
         final String key,
         final String msg,
-        final Object... params
-    ) {
+        final Object... params) {
+        return logDeprecation(Level.WARN, category, key, msg, params);
+    }
+
+    private DeprecationLogger logDeprecation(Level level, DeprecationCategory category, String key, String msg, Object[] params) {
         assert category != DeprecationCategory.COMPATIBLE_API :
             "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
         ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
-        logger.log(Level.INFO, deprecationMessage);
+        logger.log(level, deprecationMessage);
         return this;
     }
 
@@ -112,7 +111,7 @@ public class DeprecationLogger {
         final Object... params) {
         String opaqueId = HeaderWarning.getXOpaqueId();
         ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, msg, params);
-        logger.log(Level.WARN, deprecationMessage);
+        logger.log(CRITICAL, deprecationMessage);
         return this;
     }
 

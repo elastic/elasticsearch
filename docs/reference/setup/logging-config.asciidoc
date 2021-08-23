@@ -200,12 +200,12 @@ By default, {es} rolls and compresses deprecation logs at 1GB. The default
 configuration preserves a maximum of five log files: four rolled logs and an
 active log.
 
-{es} emits deprecation log messages at the `DEPRECATION` level. To stop writing
-deprecation log messages, set `logger.deprecation.level` to `error`:
+{es} emits deprecation log messages at the `CRITICAL` level. To stop writing
+deprecation log messages, set `logger.deprecation.level` to `OFF`:
 
 [source,properties]
 ----
-logger.deprecation.level = error
+logger.deprecation.level = OFF
 ----
 
 You can identify what is triggering deprecated functionality if `X-Opaque-Id` was used as an HTTP header.

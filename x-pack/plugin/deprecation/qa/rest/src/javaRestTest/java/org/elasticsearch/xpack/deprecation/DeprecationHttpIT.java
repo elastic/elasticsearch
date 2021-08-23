@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class DeprecationHttpIT extends ESRestTestCase {
 
     /**
-     * Same as <code>DeprecationIndexingAppender#DEPRECATION_MESSAGES_DATA_STREAM</code>, but that class isn't visible from here.
+     * Same as <code>DeprecationIndexingAppender#CRITICAL_MESSAGES_DATA_STREAM</code>, but that class isn't visible from here.
      */
     private static final String DATA_STREAM_NAME = ".logs-deprecation.elasticsearch-default";
 
@@ -376,7 +376,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasEntry("ecs.version", "1.7"),
                             hasEntry(KEY_FIELD_NAME, "deprecated_settings"),
                             hasEntry("event.dataset", "deprecation.elasticsearch"),
-                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("log.level", "CRITICAL"),
                             hasKey("log.logger"),
                             hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead")
                         ),
@@ -394,7 +394,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasEntry("ecs.version", "1.7"),
                             hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
                             hasEntry("event.dataset", "deprecation.elasticsearch"),
-                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("log.level", "CRITICAL"),
                             hasKey("log.logger"),
                             hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
                         )
@@ -491,7 +491,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasEntry("ecs.version", "1.7"),
                             hasEntry(KEY_FIELD_NAME, "compatible_key"),
                             hasEntry("event.dataset", "deprecation.elasticsearch"),
-                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("log.level", "CRITICAL"),
                             hasKey("log.logger"),
                             hasEntry("message", "You are using a compatible API for this request")
                         ),
@@ -509,7 +509,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasEntry("ecs.version", "1.7"),
                             hasEntry(KEY_FIELD_NAME, "deprecated_settings"),
                             hasEntry("event.dataset", "deprecation.elasticsearch"),
-                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("log.level", "CRITICAL"),
                             hasKey("log.logger"),
                             hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead")
                         ),
@@ -527,7 +527,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasEntry("ecs.version", "1.7"),
                             hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
                             hasEntry("event.dataset", "deprecation.elasticsearch"),
-                            hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("log.level", "CRITICAL"),
                             hasKey("log.logger"),
                             hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
                         )

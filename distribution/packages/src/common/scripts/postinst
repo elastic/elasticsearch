@@ -62,6 +62,8 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
     /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""
     chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
+    # Above command runs as root and TLS keystores are created group-owned by root. It's simple to correct the ownership here
+    chown root:elasticsearch -R /etc/elasticsearch/auto_config_on_*/*
     if [ $? -eq 0 ]; then
         INITIAL_PASSWORD=$(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHash \
         ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \

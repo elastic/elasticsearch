@@ -820,27 +820,12 @@ use the EQL search API's <<eql-search-filter-query-dsl,Query DSL `filter`>>
 parameter.
 
 [discrete]
-[[eql-array-fields]]
-==== Array field values are not supported
-
-EQL does not support <<array,array>> field values, also known as
-multi-value fields. EQL searches on array field values may return inconsistent
-results.
-
-[discrete]
 [[eql-nested-fields]]
 ==== EQL search on nested fields
 
 You cannot use EQL to search the values of a <<nested,`nested`>> field or the
 sub-fields of a `nested` field. However, data streams and indices containing
 `nested` field mappings are otherwise supported.
-
-[discrete]
-[[eql-ccs-support]]
-==== {ccs-cap} is not supported
-
-EQL search APIs do not support <<modules-cross-cluster-search,{ccs}
-({ccs-init})>>.
 
 [discrete]
 [[eql-unsupported-syntax]]

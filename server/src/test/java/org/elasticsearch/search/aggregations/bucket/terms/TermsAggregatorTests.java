@@ -616,6 +616,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         return doc;
     }
 
+    @SuppressWarnings("unchecked")
     public void testNumericIncludeExclude() throws Exception {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -666,7 +667,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
                     assertEquals(5L, result.getBuckets().get(1).getKey());
                     assertEquals(1L, result.getBuckets().get(1).getDocCount());
-                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms)result));
+                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms<?, ?>) result));
 
                     aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.LONG)
                         .executionHint(executionHint)
@@ -688,7 +689,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(2).getDocCount());
                     assertEquals(4L, result.getBuckets().get(3).getKey());
                     assertEquals(1L, result.getBuckets().get(3).getDocCount());
-                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms)result));
+                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms<?, ?>) result));
 
                     fieldType
                         = new NumberFieldMapper.NumberFieldType("double_field", NumberFieldMapper.NumberType.DOUBLE);
@@ -708,7 +709,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
                     assertEquals(5.0, result.getBuckets().get(1).getKey());
                     assertEquals(1L, result.getBuckets().get(1).getDocCount());
-                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms)result));
+                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms<?, ?>) result));
 
                     aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.DOUBLE)
                         .executionHint(executionHint)
@@ -730,7 +731,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(2).getDocCount());
                     assertEquals(4.0, result.getBuckets().get(3).getKey());
                     assertEquals(1L, result.getBuckets().get(3).getDocCount());
-                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms)result));
+                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms<?, ?>) result));
                 }
             }
         }
@@ -1074,7 +1075,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         Terms result = reduce(aggregator, context.bigArrays());
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
-                        assertFalse(AggregationInspectionHelper.hasValue((InternalTerms)result));
+                        assertFalse(AggregationInspectionHelper.hasValue((InternalTerms<?, ?>) result));
                     }
                 }
             }
@@ -1595,7 +1596,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
-        }, (Consumer<InternalTerms>) terms -> {
+        }, (Consumer<InternalTerms<?, ?>>) terms -> {
             assertTrue(AggregationInspectionHelper.hasValue(terms));
         }, fieldType);
     }
@@ -1928,7 +1929,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .add(new TermQuery(new Term("k", "b")), Occur.SHOULD)
             .add(new TermQuery(new Term("k", "c")), Occur.SHOULD)
             .build();
-        debugTestCase(builder, topLevel, buildIndex, 
+        debugTestCase(builder, topLevel, buildIndex,
             (StringTerms terms, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("b", "c")));
                 assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()), equalTo(List.of(1L, 1L)));
@@ -2037,7 +2038,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             new BytesRef("stuff"), new BytesRef("more_stuff"), new BytesRef("other_stuff"),
         };
         MappedFieldType keywordFt = new KeywordFieldType("k", true, true, Collections.emptyMap());
-        MappedFieldType dummyFt = new KeywordScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of(), null);
+        MappedFieldType dummyFt = new KeywordScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of());
         debugTestCase(new TermsAggregationBuilder("t").field("dummy"), new MatchAllDocsQuery(), iw -> {
             for (int d = 0; d < totalDocs; d++) {
                 BytesRef value = values[d % values.length];
@@ -2171,7 +2172,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
             bigArrays, getMockScriptService(), reduceBucketConsumer, PipelineTree.EMPTY);
 
+        @SuppressWarnings("unchecked")
         T topLevel  = (T) agg.buildTopLevel();
+        @SuppressWarnings("unchecked")
         T result = (T) topLevel.reduce(Collections.singletonList(topLevel), context);
         doAssertReducedMultiBucketConsumer(result, reduceBucketConsumer);
         return result;

@@ -30,6 +30,8 @@ import static org.elasticsearch.common.Strings.hasText;
 
 public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
+    private static final long CLIENT_TIMEOUT = 40L; // upped from 10s to accomodate for max measured throughput decline
+
     // client used for loading data on a remote cluster only.
     private static RestClient remoteClient;
 
@@ -82,13 +84,17 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
     }
 
     protected static TimeValue timeout() {
-        return TimeValue.timeValueSeconds(10);
+        return TimeValue.timeValueSeconds(CLIENT_TIMEOUT);
     }
 
     // returned client is used to load the test data, either in the local cluster (for rest/javaRestTests) or a remote one (for
     // multi-cluster). note: the client()/adminClient() will always connect to the local cluster.
     protected static RestClient provisioningClient() {
         return remoteClient == null ? client() : remoteClient;
+    }
+
+    protected Boolean ccsMinimizeRoundtrips() {
+        return remoteClient == null ? null : randomBoolean();
     }
 
     protected static RestClient provisioningAdminClient() {

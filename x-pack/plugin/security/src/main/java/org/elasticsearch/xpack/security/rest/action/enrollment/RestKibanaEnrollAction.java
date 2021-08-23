@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.rest.action.enrollment;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -20,12 +19,11 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentRequest;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
 
-public class RestKibanaEnrollAction extends SecurityBaseRestHandler {
+public class RestKibanaEnrollAction extends EnrollmentBaseRestHandler {
 
     /**
      * @param settings the node's settings
@@ -43,19 +41,15 @@ public class RestKibanaEnrollAction extends SecurityBaseRestHandler {
         return List.of(new Route(RestRequest.Method.GET, "/_security/enroll/kibana"));
     }
 
-    @Override protected RestChannelConsumer innerPrepareRequest(
-        RestRequest request, NodeClient client) throws IOException {
-        try (XContentParser parser = request.contentParser()) {
-            return restChannel -> client.execute(
-                KibanaEnrollmentAction.INSTANCE, new KibanaEnrollmentRequest(),
-                new RestBuilderListener<>(restChannel) {
-                    @Override public RestResponse buildResponse(
-                        KibanaEnrollmentResponse kibanaEnrollmentResponse, XContentBuilder builder) throws Exception {
-                        kibanaEnrollmentResponse.toXContent(builder, channel.request());
-                        return new BytesRestResponse(RestStatus.OK, builder);
-                    }
-                });
-        }
+    @Override protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+        return restChannel -> client.execute(KibanaEnrollmentAction.INSTANCE,
+            new KibanaEnrollmentRequest(),
+            new RestBuilderListener<KibanaEnrollmentResponse>(restChannel) {
+                @Override public RestResponse buildResponse(
+                    KibanaEnrollmentResponse kibanaEnrollmentResponse, XContentBuilder builder) throws Exception {
+                    kibanaEnrollmentResponse.toXContent(builder, channel.request());
+                    return new BytesRestResponse(RestStatus.OK, builder);
+                }
+            });
     }
-
 }

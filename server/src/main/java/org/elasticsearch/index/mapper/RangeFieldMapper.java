@@ -12,7 +12,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -300,7 +300,7 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         Range range;
         XContentParser parser = context.parser();
         final XContentParser.Token start = parser.currentToken();

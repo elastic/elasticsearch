@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -96,34 +95,26 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     FieldCapabilities(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = in.readString();
-        this.isMetadataField = in.getVersion().onOrAfter(Version.V_7_13_0) ? in.readBoolean() : false;
+        this.isMetadataField = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
         this.indices = in.readOptionalStringArray();
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
-        } else {
-            meta = Collections.emptyMap();
-        }
+        meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(type);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeBoolean(isMetadataField);
-        }
+        out.writeBoolean(isMetadataField);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
         out.writeOptionalStringArray(indices);
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeString));
-        }
+        out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeString));
     }
 
     @Override

@@ -959,6 +959,18 @@ Time by which recovery operations were delayed due to throttling.
 Time in milliseconds
 recovery operations were delayed due to throttling.
 =======
+
+`shards`::
+(object)
+Contains statistics about all shards assigned to the node.
++
+.Properties of `shards`
+[%collapsible%open]
+=======
+`total_count`::
+(integer)
+The total number of shards assigned to the node.
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-os]]
@@ -1264,7 +1276,8 @@ Last time JVM statistics were refreshed.
 
 `uptime`::
 (<<time-units,time value>>)
-JVM uptime.
+Human-readable JVM uptime. Only returned if the
+<<_human_readable_output,`human`>> query parameter is `true`.
 
 `uptime_in_millis`::
 (integer)

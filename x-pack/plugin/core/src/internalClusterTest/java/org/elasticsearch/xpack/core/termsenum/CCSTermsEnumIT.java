@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
@@ -27,6 +28,13 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
     @Override
     protected Collection<String> remoteClusterAlias() {
         return List.of("remote_cluster");
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        // TODO Change this to run with security enabled
+        // https://github.com/elastic/elasticsearch/issues/75940
+        return Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
     }
 
     @Override
@@ -58,6 +66,9 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
             .field("foo.keyword");
         TermsEnumResponse response = client().execute(TermsEnumAction.INSTANCE, req).actionGet();
         assertTrue(response.isComplete());
+        assertThat(response.getTotalShards(), equalTo(1));
+        assertThat(response.getSuccessfulShards(), equalTo(1));
+        assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getTerms().size(), equalTo(3));
         assertThat(response.getTerms().get(0), equalTo("bar"));
         assertThat(response.getTerms().get(1), equalTo("foobar"));
@@ -68,6 +79,9 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
             .field("foo.keyword");
         response = client().execute(TermsEnumAction.INSTANCE, req).actionGet();
         assertTrue(response.isComplete());
+        assertThat(response.getTotalShards(), equalTo(2));
+        assertThat(response.getSuccessfulShards(), equalTo(2));
+        assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getTerms().size(), equalTo(4));
         assertThat(response.getTerms().get(0), equalTo("bar"));
         assertThat(response.getTerms().get(1), equalTo("foo"));
@@ -79,6 +93,9 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
             .searchAfter("foobar");
         response = client().execute(TermsEnumAction.INSTANCE, req).actionGet();
         assertTrue(response.isComplete());
+        assertThat(response.getTotalShards(), equalTo(2));
+        assertThat(response.getSuccessfulShards(), equalTo(2));
+        assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getTerms().size(), equalTo(1));
         assertThat(response.getTerms().get(0), equalTo("zar"));
 
@@ -87,6 +104,9 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
             .searchAfter("bar");
         response = client().execute(TermsEnumAction.INSTANCE, req).actionGet();
         assertTrue(response.isComplete());
+        assertThat(response.getTotalShards(), equalTo(2));
+        assertThat(response.getSuccessfulShards(), equalTo(2));
+        assertThat(response.getFailedShards(), equalTo(0));
         assertThat(response.getTerms().size(), equalTo(3));
         assertThat(response.getTerms().get(0), equalTo("foo"));
         assertThat(response.getTerms().get(1), equalTo("foobar"));

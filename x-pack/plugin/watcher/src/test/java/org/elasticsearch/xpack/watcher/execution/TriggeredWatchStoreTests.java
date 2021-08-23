@@ -206,6 +206,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
 
         doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
             listener.onResponse(mockRefreshResponse(1, 1));
             return null;
@@ -223,6 +224,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(searchResponse1.getHits()).thenReturn(hits);
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
         doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             listener.onResponse(searchResponse1);
             return null;
@@ -240,6 +242,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
         doAnswer(invocation -> {
             SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];
+            @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             if (request.scrollId().equals("_scrollId")) {
                 listener.onResponse(searchResponse2);
@@ -255,6 +258,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(parser.parse(eq("_id"), eq(1L), any(BytesReference.class))).thenReturn(triggeredWatch);
 
         doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<ClearScrollResponse> listener = (ActionListener<ClearScrollResponse>) invocation.getArguments()[2];
             listener.onResponse(new ClearScrollResponse(true, 1));
             return null;
@@ -378,6 +382,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         Watch watch = mock(Watch.class);
 
         doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
             listener.onFailure(new IndexNotFoundException(TriggeredWatchStoreField.INDEX_NAME));
             return null;
@@ -401,7 +406,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         triggeredWatch.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(Collections.singleton(new CronSchedule.Parser()));
-        TriggerEngine triggerEngine = new WatchTests.ParseOnlyScheduleTriggerEngine(scheduleRegistry, new ClockMock());
+        TriggerEngine<?, ?> triggerEngine = new WatchTests.ParseOnlyScheduleTriggerEngine(scheduleRegistry, new ClockMock());
         TriggerService triggerService = new TriggerService(singleton(triggerEngine));
 
         TriggeredWatch.Parser parser = new TriggeredWatch.Parser(triggerService);
@@ -424,6 +429,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
         doAnswer(invocation -> {
             BulkRequest bulkRequest = (BulkRequest) invocation.getArguments()[1];
+            @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
 
             int size = bulkRequest.requests().size();
@@ -432,7 +438,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 DocWriteRequest<?> writeRequest = bulkRequest.requests().get(i);
                 ShardId shardId = new ShardId(TriggeredWatchStoreField.INDEX_NAME, "uuid", 0);
                 IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.id(), 1, 1, 1, true);
-                bulkItemResponse[i] = new BulkItemResponse(0, writeRequest.opType(), indexResponse);
+                bulkItemResponse[i] = BulkItemResponse.success(0, writeRequest.opType(), indexResponse);
             }
 
             listener.onResponse(new BulkResponse(bulkItemResponse, 123));
@@ -450,6 +456,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
         doAnswer(invocation -> {
             BulkRequest bulkRequest = (BulkRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
 
             int size = bulkRequest.requests().size();
@@ -458,7 +465,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 DocWriteRequest<?> writeRequest = bulkRequest.requests().get(i);
                 ShardId shardId = new ShardId(TriggeredWatchStoreField.INDEX_NAME, "uuid", 0);
                 IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.id(), 1, 1, 1, true);
-                bulkItemResponse[i] = new BulkItemResponse(0, writeRequest.opType(), indexResponse);
+                bulkItemResponse[i] = BulkItemResponse.success(0, writeRequest.opType(), indexResponse);
             }
 
             listener.onResponse(new BulkResponse(bulkItemResponse, 123));

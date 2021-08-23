@@ -12,7 +12,7 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
-import org.gradle.api.plugins.BasePluginConvention;
+import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.ProviderFactory;
@@ -50,10 +50,10 @@ public class InternalTestArtifactExtension {
         // PolicyUtil doesn't handle classifier notation well probably.
         // Instead of fixing PoliceUtil we stick to the pattern of changing
         // the basename here to indicate its a test artifacts jar.
-        BasePluginConvention convention = (BasePluginConvention) project.getConvention().getPlugins().get("base");
+        BasePluginExtension pluginExtension = project.getExtensions().getByType(BasePluginExtension.class);
         project.getTasks().named(name + "Jar", Jar.class).configure(jar -> {
             jar.getArchiveBaseName()
-                .convention(providerFactory.provider(() -> convention.getArchivesBaseName() + "-" + name + "-artifacts"));
+                .convention(providerFactory.provider(() -> pluginExtension.getArchivesName().get() + "-" + name + "-artifacts"));
             jar.getArchiveClassifier().set("");
         });
     }

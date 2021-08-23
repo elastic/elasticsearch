@@ -36,11 +36,11 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
-
 tasks.named("yamlRestCompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
-    'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter'
-  ].join(',')
+      //marked as not needing compatible api
+      'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter' // Cleanup versioned deprecations in analysis #41560
+    ].join(',')
 }
 
 tasks.named('splitPackagesAudit').configure {

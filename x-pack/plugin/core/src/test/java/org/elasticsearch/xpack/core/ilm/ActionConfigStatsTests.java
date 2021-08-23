@@ -68,13 +68,16 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
         ActionConfigStats.Builder builder = ActionConfigStats.builder(instance);
         switch (between(0, 8)) {
             case 0:
-                builder.setAllocateNumberOfReplicas(randomIntBetween(0, 10000));
+                int numberOfReplicas = randomValueOtherThan(instance.getAllocateNumberOfReplicas(), () -> randomIntBetween(0, 10000));
+                builder.setAllocateNumberOfReplicas(numberOfReplicas);
                 break;
             case 1:
-                builder.setForceMergeMaxNumberOfSegments(randomIntBetween(0, 10000));
+                int numberOfSegments = randomValueOtherThan(instance.getForceMergeMaxNumberOfSegments(), () -> randomIntBetween(0, 10000));
+                builder.setForceMergeMaxNumberOfSegments(numberOfSegments);
                 break;
             case 2:
-                TimeValue randomAge = TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests");
+                TimeValue randomAge = randomValueOtherThan(instance.getRolloverMaxAge(),
+                    () -> TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests"));
                 builder.setRolloverMaxAge(randomAge);
                 break;
             case 3:
@@ -89,14 +92,14 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
                 builder.setRolloverMaxSize(randomMaxByteSize);
                 break;
             case 6:
-                builder.setPriority(randomIntBetween(0, 50));
+                builder.setPriority(randomValueOtherThan(instance.getSetPriorityPriority(), () -> randomIntBetween(0, 50)));
                 break;
             case 7:
                 ByteSizeValue randomPrimaryByteSize = ByteSizeValue.ofBytes(randomLongBetween(0, 1024L*1024L*1024L*50L));
                 builder.setShrinkMaxPrimaryShardSize(randomPrimaryByteSize);
                 break;
             case 8:
-                builder.setShrinkNumberOfShards(randomIntBetween(0, 50));
+                builder.setShrinkNumberOfShards(randomValueOtherThan(instance.getShrinkNumberOfShards(), () -> randomIntBetween(0, 50)));
                 break;
             default:
                 throw new IllegalStateException("Illegal randomization branch");

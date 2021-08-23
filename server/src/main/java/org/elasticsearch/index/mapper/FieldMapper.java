@@ -184,9 +184,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Parse the field value using the provided {@link ParseContext}.
+     * Parse the field value using the provided {@link DocumentParserContext}.
      */
-    public void parse(ParseContext context) throws IOException {
+    public void parse(DocumentParserContext context) throws IOException {
         try {
             if (hasScript) {
                 throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
@@ -216,12 +216,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Parse the field value and populate the fields on {@link ParseContext#doc()}.
+     * Parse the field value and populate the fields on {@link DocumentParserContext#doc()}.
      *
      * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
      * current failing token
      */
-    protected abstract void parseCreateField(ParseContext context) throws IOException;
+    protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
     /**
      * @return whether this field mapper uses a script to generate its values
@@ -237,14 +237,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @param searchLookup  a SearchLookup to be passed the script
      * @param readerContext a LeafReaderContext exposing values from an incoming document
      * @param doc           the id of the document to execute the script against
-     * @param parseContext  the ParseContext over the incoming document
+     * @param documentParserContext  the ParseContext over the incoming document
      */
-    public final void executeScript(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
+    public final void executeScript(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                    DocumentParserContext documentParserContext) {
         try {
-            indexScriptValues(searchLookup, readerContext, doc, parseContext);
+            indexScriptValues(searchLookup, readerContext, doc, documentParserContext);
         } catch (Exception e) {
             if ("continue".equals(onScriptError)) {
-                parseContext.addIgnoredField(name());
+                documentParserContext.addIgnoredField(name());
             } else {
                 throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
             }
@@ -258,9 +259,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @param searchLookup  a SearchLookup to be passed the script
      * @param readerContext a LeafReaderContext exposing values from an incoming document
      * @param doc           the id of the document to execute the script against
-     * @param parseContext  the ParseContext over the incoming document
+     * @param documentParserContext  the ParseContext over the incoming document
      */
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
         throw new UnsupportedOperationException("FieldMapper " + name() + " does not support [script]");
     }
 
@@ -438,7 +440,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             this.mappers = mappers;
         }
 
-        public void parse(FieldMapper mainField, ParseContext context) throws IOException {
+        public void parse(FieldMapper mainField, DocumentParserContext context) throws IOException {
             // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
             // of the mappings
             if (mappers.isEmpty()) {
@@ -738,7 +740,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        private void validate() {
+        void validate() {
             if (validator != null) {
                 validator.accept(getValue());
             }

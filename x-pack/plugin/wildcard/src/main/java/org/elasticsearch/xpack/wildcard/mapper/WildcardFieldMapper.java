@@ -55,11 +55,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -330,19 +330,15 @@ public class WildcardFieldMapper extends FieldMapper {
             Automaton automaton = caseInsensitive
                 ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern), Integer.MAX_VALUE)
                 : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
-            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), wildcardPattern, automaton);
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
-                BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
-                verifyingBuilder.add(new BooleanClause(approxQuery, Occur.MUST));
-                verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
-                return new ConstantScoreQuery(verifyingBuilder.build());
+                return new BinaryDvConfirmedAutomatonQuery(approxQuery, name(), wildcardPattern, automaton);                
             } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
                 return new DocValuesFieldExistsQuery(name());
             }
-            return verifyingQuery;
+            return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), wildcardPattern, automaton);
 
         }
 
@@ -365,19 +361,15 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
             Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
-            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), value, automaton);
 
             // MatchAllButRequireVerificationQuery is a special case meaning the regex is reduced to a single
             // clause which we can't accelerate at all and needs verification. Example would be ".."
             if (approxNgramQuery instanceof MatchAllButRequireVerificationQuery) {
-                return verifyingQuery;
+                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), value, automaton);            
             }
 
             // We can accelerate execution with the ngram query
-            BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
-            verifyingBuilder.add(new BooleanClause(approxNgramQuery, Occur.MUST));
-            verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
-            return verifyingBuilder.build();
+            return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, name(), value, automaton);            
         }
 
         // Convert a regular expression to a simplified query consisting of BooleanQuery and TermQuery objects
@@ -745,16 +737,12 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
             }
             Automaton automaton =  TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
-            AutomatonQueryOnBinaryDv slowQuery = new AutomatonQueryOnBinaryDv(name(), lower + "-" + upper, automaton);
 
             if (accelerationQuery == null) {
-                return slowQuery;
+                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+                    name(), lower + "-" + upper, automaton);            
             }
-
-            BooleanQuery.Builder qBuilder = new BooleanQuery.Builder();
-            qBuilder.add(accelerationQuery, Occur.MUST);
-            qBuilder.add(slowQuery, Occur.MUST);
-            return qBuilder.build();
+            return new BinaryDvConfirmedAutomatonQuery(accelerationQuery, name(), lower + "-" + upper, automaton);            
         }
 
         @Override
@@ -768,7 +756,6 @@ public class WildcardFieldMapper extends FieldMapper {
         ) {
             String searchTerm = BytesRefs.toString(value);
             try {
-                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
                 //The approximation query can have a prefix and any number of ngrams.
                 BooleanQuery.Builder approxBuilder = new BooleanQuery.Builder();
 
@@ -824,9 +811,6 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
 
                 BooleanQuery ngramQ = approxBuilder.build();
-                if (ngramQ.clauses().size()>0) {
-                    bqBuilder.add(ngramQ, Occur.MUST);
-                }
 
                 // Verification query
                 FuzzyQuery fq = new FuzzyQuery(
@@ -836,9 +820,12 @@ public class WildcardFieldMapper extends FieldMapper {
                     maxExpansions,
                     transpositions
                 );
-                bqBuilder.add(new AutomatonQueryOnBinaryDv(name(), searchTerm, fq.getAutomata().automaton), Occur.MUST);
+                if (ngramQ.clauses().size() == 0) {
+                    return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+                        name(), searchTerm, fq.getAutomata().automaton);            
+                }
 
-                return bqBuilder.build();
+                return new BinaryDvConfirmedAutomatonQuery(ngramQ, name(), searchTerm, fq.getAutomata().automaton);            
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }
@@ -953,7 +940,7 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value;
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {

@@ -161,6 +161,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
+        @SuppressWarnings("unchecked")
         AbstractAggregationBuilder<AB> other = (AbstractAggregationBuilder<AB>) obj;
 
         return Objects.equals(name, other.name)

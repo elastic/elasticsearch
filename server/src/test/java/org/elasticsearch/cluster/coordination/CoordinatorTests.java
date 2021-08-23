@@ -28,6 +28,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -1313,9 +1314,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             // cf. DEFAULT_STABILISATION_TIME, but stabilisation is quicker when there's a single node - there's no meaningful fault
             // detection and ongoing publications do not time out
             cluster.runFor(ELECTION_INITIAL_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + delayVariabilityMillis
-                + 4 * delayVariabilityMillis // two round trips for pre-voting and voting
-                + 7 * delayVariabilityMillis, // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
-                "stabilising");
+                // two round trips for pre-voting and voting
+                + 4 * delayVariabilityMillis
+                // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+                + 7 * delayVariabilityMillis, "stabilising");
 
             assertThat(cluster.getAnyLeader(), sameInstance(clusterNode));
         }
@@ -1432,12 +1434,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                 startsWith("master not discovered or elected yet, an election requires at least 2 nodes with ids from ["));
 
                             final List<ClusterNode> matchingNodes = cluster.clusterNodes.stream()
-                                .filter(n -> event.getContextData().<String>getValue(NODE_ID_LOG_CONTEXT_KEY)
-                                    .equals(getNodeIdForLogContext(n.getLocalNode()))).collect(Collectors.toList());
+                                .filter(n -> event.getContextData().<String>getValue(DeterministicTaskQueue.NODE_ID_LOG_CONTEXT_KEY)
+                                    .equals(DeterministicTaskQueue.getNodeIdForLogContext(n.getLocalNode()))).collect(Collectors.toList());
                             assertThat(matchingNodes, hasSize(1));
 
-                            assertTrue(Regex.simpleMatch(
-                                "*have discovered *" + matchingNodes.get(0).toString() + "*discovery will continue*",
+                            assertTrue(
+                                message,
+                                Regex.simpleMatch(
+                                    "*have only discovered non-quorum *" + matchingNodes.get(0).toString() + "*discovery will continue*",
                                 message));
 
                             nodesLogged.add(matchingNodes.get(0).getLocalNode());

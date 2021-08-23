@@ -237,14 +237,16 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 BytesReference blob = blobs.get(blobName);
                 final String range = exchange.getRequestHeaders().getFirst("Content-Range");
                 final Integer limit = getContentRangeLimit(range);
-                final int start = getContentRangeStart(range);
-                final int end = getContentRangeEnd(range);
 
                 blob = CompositeBytesReference.of(blob, requestBody);
                 blobs.put(blobName, blob);
 
                 if (limit == null) {
-                    exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d/%d", start, end));
+                    if ("bytes */*".equals(range) == false) {
+                        final int start = getContentRangeStart(range);
+                        final int end = getContentRangeEnd(range);
+                        exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d-%d", start, end));
+                    }
                     exchange.getResponseHeaders().add("Content-Length", "0");
                     exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
                 } else {

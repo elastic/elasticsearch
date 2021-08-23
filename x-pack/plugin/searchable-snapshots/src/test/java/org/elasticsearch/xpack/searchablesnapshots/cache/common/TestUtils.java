@@ -12,7 +12,6 @@ import org.apache.lucene.mockfile.FilterPath;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -54,12 +54,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.synchronizedNavigableSet;
-import static org.apache.lucene.util.LuceneTestCase.random;
-import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertTrue;
@@ -75,10 +72,7 @@ public final class TestUtils {
     public static SortedSet<ByteRange> randomPopulateAndReads(CacheFile cacheFile, TriConsumer<FileChannel, Long, Long> consumer) {
         final SortedSet<ByteRange> ranges = synchronizedNavigableSet(new TreeSet<>());
         final List<Future<Integer>> futures = new ArrayList<>();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
-            builder().put(NODE_NAME_SETTING.getKey(), "_node").build(),
-            random()
-        );
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         for (int i = 0; i < between(0, 10); i++) {
             final long start = randomLongBetween(0L, Math.max(0L, cacheFile.getLength() - 1L));
             final long end = randomLongBetween(Math.min(start + 1L, cacheFile.getLength()), cacheFile.getLength());

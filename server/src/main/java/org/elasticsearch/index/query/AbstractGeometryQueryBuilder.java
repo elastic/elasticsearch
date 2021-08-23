@@ -22,7 +22,6 @@ import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeometryIO;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -79,21 +78,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     protected boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     /**
-     * Creates a new ShapeQueryBuilder whose Query will be against the given
-     * field name using the given Shape
-     *
-     * @param fieldName
-     *            Name of the field that will be queried
-     * @param shape
-     *            Shape used in the Query
-     * @deprecated use {@link #AbstractGeometryQueryBuilder(String, Geometry)} instead
-     */
-    @Deprecated
-    protected AbstractGeometryQueryBuilder(String fieldName, ShapeBuilder shape) {
-        this(fieldName, shape == null ? null : shape.buildGeometry(), null);
-    }
-
-    /**
      * Creates a new AbstractGeometryQueryBuilder whose Query will be against the given
      * field name using the given Shape
      *
@@ -142,7 +126,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         this.fieldName = fieldName;
         this.shape = null;
         this.supplier = supplier;
-        this.indexedShapeId = indexedShapeId;;
+        this.indexedShapeId = indexedShapeId;
     }
 
     /**
@@ -206,6 +190,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * @param geometry the geometry
      * @return this
      */
+    @SuppressWarnings("unchecked")
     public QB shape(Geometry geometry) {
         if (geometry == null) {
             throw new IllegalArgumentException("No geometry defined");
@@ -234,6 +219,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * @param indexedShapeIndex Name of the index where the indexed Shape is
      * @return this
      */
+    @SuppressWarnings("unchecked")
     public QB indexedShapeIndex(String indexedShapeIndex) {
         this.indexedShapeIndex = indexedShapeIndex;
         return (QB)this;
@@ -253,6 +239,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * @param indexedShapePath Path of the field where the Shape itself is defined
      * @return this
      */
+    @SuppressWarnings("unchecked")
     public QB indexedShapePath(String indexedShapePath) {
         this.indexedShapePath = indexedShapePath;
         return (QB)this;
@@ -271,6 +258,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * @param indexedShapeRouting indexed shape routing
      * @return this
      */
+    @SuppressWarnings("unchecked")
     public QB indexedShapeRouting(String indexedShapeRouting) {
         this.indexedShapeRouting = indexedShapeRouting;
         return (QB)this;
@@ -291,6 +279,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * @param relation relation of the shapes
      * @return this
      */
+    @SuppressWarnings("unchecked")
     public QB relation(ShapeRelation relation) {
         if (relation == null) {
             throw new IllegalArgumentException("No Shape Relation defined");
@@ -443,6 +432,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     protected boolean doEquals(AbstractGeometryQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(indexedShapeId, other.indexedShapeId)
@@ -484,7 +474,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     protected abstract static class ParsedGeometryQueryParams {
         public String fieldName;
         public ShapeRelation relation;
-        public ShapeBuilder shape;
+        public Geometry shape;
 
         public String id = null;
         public String index = null;

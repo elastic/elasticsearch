@@ -65,13 +65,17 @@ public class PersistentTasksService {
     /**
      * Notifies the master node about the completion of a persistent task.
      * <p>
-     * When {@code failure} is {@code null}, the persistent task is considered as successfully completed.
+     * At most one of {@code failure} and {@code localAbortReason} may be
+     * provided. When both {@code failure} and {@code localAbortReason} are
+     * {@code null}, the persistent task is considered as successfully completed.
      */
     public void sendCompletionRequest(final String taskId,
                                       final long taskAllocationId,
                                       final @Nullable Exception taskFailure,
+                                      final @Nullable String localAbortReason,
                                       final ActionListener<PersistentTask<?>> listener) {
-        CompletionPersistentTaskAction.Request request = new CompletionPersistentTaskAction.Request(taskId, taskAllocationId, taskFailure);
+        CompletionPersistentTaskAction.Request request =
+            new CompletionPersistentTaskAction.Request(taskId, taskAllocationId, taskFailure, localAbortReason);
         execute(request, CompletionPersistentTaskAction.INSTANCE, listener);
     }
 

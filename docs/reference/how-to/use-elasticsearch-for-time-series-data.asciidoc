@@ -7,16 +7,22 @@ using {kib} and other {stack} features.
 
 [discrete]
 [[set-up-data-tiers]]
-=== Step 1. Set up data tiers
+=== Set up data tiers
 
 {es}'s <<index-lifecycle-management,{ilm-init}>> feature uses <<data-tiers,data
 tiers>> to automatically move older data to nodes with less expensive hardware
 as it ages. This helps improve performance and reduce storage costs.
 
-The hot tier is required. The warm, cold, and frozen tiers are optional. Use
-high-performance nodes in the hot and warm tiers for faster indexing and faster
-searches on your most recent data. Use slower, less expensive nodes in the cold
-and frozen tiers to reduce costs.
+The hot and content tiers are required. The warm, cold, and frozen tiers are
+optional.
+
+Use high-performance nodes in the hot and warm tiers for faster
+indexing and faster searches on your most recent data. Use slower, less
+expensive nodes in the cold and frozen tiers to reduce costs.
+
+The content tier is not typically used for time series data. However, it's
+required to create system indices and other indices that aren't part of a data
+stream.
 
 The steps for setting up data tiers vary based on your deployment type:
 
@@ -25,7 +31,7 @@ include::{es-repo-dir}/tab-widgets/data-tiers-widget.asciidoc[]
 
 [discrete]
 [[register-snapshot-repository]]
-=== Step 2. Register a snapshot repository
+=== Register a snapshot repository
 
 The cold and frozen tiers can use <<searchable-snapshots,{search-snaps}>> to
 reduce local storage costs.
@@ -38,7 +44,7 @@ include::{es-repo-dir}/tab-widgets/snapshot-repo-widget.asciidoc[]
 
 [discrete]
 [[create-edit-index-lifecycle-policy]]
-=== Step 3. Create or edit an index lifecycle policy
+=== Create or edit an index lifecycle policy
 
 A <<data-streams,data stream>> stores your data across multiple backing
 indices. {ilm-init} uses an <<ilm-index-lifecycle,index lifecycle policy>> to
@@ -57,7 +63,7 @@ include::{es-repo-dir}/tab-widgets/ilm-widget.asciidoc[]
 
 [discrete]
 [[create-ts-component-templates]]
-=== Step 4. Create component templates
+=== Create component templates
 
 TIP: If you use {fleet} or {agent}, skip to <<search-visualize-your-data>>.
 {fleet} and {agent} use built-in templates to create data streams for you.
@@ -67,19 +73,19 @@ include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-
 
 [discrete]
 [[create-ts-index-template]]
-=== Step 5. Create an index template
+=== Create an index template
 
 include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-index-template]
 
 [discrete]
 [[add-data-to-data-stream]]
-=== Step 6. Add data to a data stream
+=== Add data to a data stream
 
 include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-data-stream]
 
 [discrete]
 [[search-visualize-your-data]]
-=== Step 7. Search and visualize your data
+=== Search and visualize your data
 
 To explore and search your data in {kib}, open the main menu and select
 **Discover**. See {kib}'s {kibana-ref}/discover.html[Discover documentation].

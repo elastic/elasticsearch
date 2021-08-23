@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 public class BertRequestBuilderTests extends ESTestCase {
@@ -25,10 +26,10 @@ public class BertRequestBuilderTests extends ESTestCase {
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN)).build();
 
-        BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
-        BytesReference bytesReference = requestBuilder.buildRequest("Elasticsearch fun", "request1");
+        BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, 512);
+        NlpTask.Request request = requestBuilder.buildRequest("Elasticsearch fun", "request1");
 
-        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(bytesReference, true, XContentType.JSON).v2();
+        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
         assertEquals("request1", jsonDocAsMap.get("request_id"));
@@ -36,5 +37,25 @@ public class BertRequestBuilderTests extends ESTestCase {
         assertEquals(Arrays.asList(1, 1, 1, 1, 1), jsonDocAsMap.get("arg_1"));
         assertEquals(Arrays.asList(0, 0, 0, 0, 0), jsonDocAsMap.get("arg_2"));
         assertEquals(Arrays.asList(0, 1, 2, 3, 4), jsonDocAsMap.get("arg_3"));
+    }
+
+    public void testInputTooLarge() throws IOException {
+        BertTokenizer tokenizer = BertTokenizer.builder(
+            Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN)).build();
+
+        {
+            BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, 5);
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> requestBuilder.buildRequest("Elasticsearch fun Elasticsearch fun Elasticsearch fun", "request1"));
+
+            assertThat(e.getMessage(),
+                containsString("Input too large. The tokenized input length [11] exceeds the maximum sequence length [5]"));
+        }
+        {
+            BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer, 5);
+            // input will become 3 tokens + the Class and Separator token = 5 which is
+            // our max sequence length
+            requestBuilder.buildRequest("Elasticsearch fun", "request1");
+        }
     }
 }

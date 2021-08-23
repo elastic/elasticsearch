@@ -14,7 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -28,20 +28,20 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.Scheduler;
@@ -54,6 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -62,9 +63,16 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class MasterService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(MasterService.class);
 
-    public static final Setting<TimeValue> MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING =
-        Setting.positiveTimeSetting("cluster.service.slow_master_task_logging_threshold", TimeValue.timeValueSeconds(10),
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
+        "cluster.service.slow_master_task_logging_threshold",
+        TimeValue.timeValueSeconds(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope);
+
+    public static final Setting<TimeValue> MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
+        "cluster.service.master_service_starvation_logging_threshold",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope);
 
     static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
@@ -75,6 +83,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private java.util.function.Supplier<ClusterState> clusterStateSupplier;
 
     private volatile TimeValue slowTaskLoggingThreshold;
+    private final TimeValue starvationLoggingThreshold;
 
     protected final ThreadPool threadPool;
 
@@ -86,6 +95,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
         this.slowTaskLoggingThreshold = MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, this::setSlowTaskLoggingThreshold);
+
+        this.starvationLoggingThreshold = MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(settings);
 
         this.threadPool = threadPool;
     }
@@ -112,10 +123,14 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
         return EsExecutors.newSinglePrioritizing(
-                nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
-                daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
-                threadPool.getThreadContext(),
-                threadPool.scheduler());
+            nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
+            daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
+            threadPool.getThreadContext(),
+            threadPool.scheduler(),
+            new MasterServiceStarvationWatcher(
+                starvationLoggingThreshold.getMillis(),
+                threadPool::relativeTimeInMillis,
+                () -> threadPoolExecutor));
     }
 
     @SuppressWarnings("unchecked")
@@ -219,9 +234,10 @@ public class MasterService extends AbstractLifecycleComponent {
             }
             final long publicationStartTime = threadPool.relativeTimeInMillis();
             try {
-                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(summary, newClusterState, previousClusterState);
+                ClusterStatePublicationEvent clusterStatePublicationEvent =
+                    new ClusterStatePublicationEvent(summary, previousClusterState, newClusterState);
                 // new cluster state, notify all listeners
-                final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
+                final DiscoveryNodes.Delta nodesDelta = newClusterState.nodes().delta(previousClusterState.nodes());
                 if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
                     String nodesDeltaSummary = nodesDelta.shortSummary();
                     if (nodesDeltaSummary.length() > 0) {
@@ -231,7 +247,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
 
                 logger.debug("publishing cluster state version [{}]", newClusterState.version());
-                publish(clusterChangedEvent, taskOutputs, publicationStartTime);
+                publish(clusterStatePublicationEvent, taskOutputs, publicationStartTime);
             } catch (Exception e) {
                 handleException(summary, publicationStartTime, newClusterState, e);
             }
@@ -242,49 +258,67 @@ public class MasterService extends AbstractLifecycleComponent {
         return TimeValue.timeValueMillis(Math.max(0, threadPool.relativeTimeInMillis() - startTimeMillis));
     }
 
-    protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeMillis) {
+    protected void publish(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs, long startTimeMillis) {
         final PlainActionFuture<Void> fut = new PlainActionFuture<Void>() {
             @Override
             protected boolean blockingAllowed() {
                 return isMasterUpdateThread() || super.blockingAllowed();
             }
         };
-        clusterStatePublisher.publish(clusterChangedEvent, fut, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));
+        clusterStatePublisher.publish(
+            clusterStatePublicationEvent,
+            fut,
+            taskOutputs.createAckListener(threadPool, clusterStatePublicationEvent.getNewState()));
 
         // indefinitely wait for publication to complete
         try {
             FutureUtils.get(fut);
-            onPublicationSuccess(clusterChangedEvent, taskOutputs);
+            onPublicationSuccess(clusterStatePublicationEvent, taskOutputs);
         } catch (Exception e) {
-            onPublicationFailed(clusterChangedEvent, taskOutputs, startTimeMillis, e);
+            onPublicationFailed(clusterStatePublicationEvent, taskOutputs, startTimeMillis, e);
         }
     }
 
-    void onPublicationSuccess(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs) {
+    void onPublicationSuccess(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs) {
         final long notificationStartTime = threadPool.relativeTimeInMillis();
-        taskOutputs.processedDifferentClusterState(clusterChangedEvent.previousState(), clusterChangedEvent.state());
+        taskOutputs.processedDifferentClusterState(clusterStatePublicationEvent.getOldState(), clusterStatePublicationEvent.getNewState());
 
         try {
-            taskOutputs.clusterStatePublished(clusterChangedEvent);
+            taskOutputs.clusterStatePublished(clusterStatePublicationEvent);
         } catch (Exception e) {
             logger.error(() -> new ParameterizedMessage(
                 "exception thrown while notifying executor of new cluster state publication [{}]",
-                clusterChangedEvent.source()), e);
+                clusterStatePublicationEvent.getSummary()), e);
         }
         final TimeValue executionTime = getTimeSince(notificationStartTime);
-        logExecutionTime(executionTime, "notify listeners on successful publication of cluster state (version: "
-            + clusterChangedEvent.state().version() + ", uuid: " + clusterChangedEvent.state().stateUUID() + ')',
-            clusterChangedEvent.source());
+        logExecutionTime(
+            executionTime,
+            "notify listeners on successful publication of cluster state (version: " + clusterStatePublicationEvent.getNewState().version()
+                + ", uuid: " + clusterStatePublicationEvent.getNewState().stateUUID() + ')',
+            clusterStatePublicationEvent.getSummary());
     }
 
-    void onPublicationFailed(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeMillis, Exception exception) {
+    void onPublicationFailed(
+        ClusterStatePublicationEvent clusterStatePublicationEvent,
+        TaskOutputs taskOutputs,
+        long startTimeMillis,
+        Exception exception
+    ) {
         if (exception instanceof FailedToCommitClusterStateException) {
-            final long version = clusterChangedEvent.state().version();
-            logger.warn(() -> new ParameterizedMessage(
-                "failing [{}]: failed to commit cluster state version [{}]", clusterChangedEvent.source(), version), exception);
+            final long version = clusterStatePublicationEvent.getNewState().version();
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "failing [{}]: failed to commit cluster state version [{}]",
+                    clusterStatePublicationEvent.getSummary(),
+                    version),
+                exception);
             taskOutputs.publishingFailed((FailedToCommitClusterStateException) exception);
         } else {
-            handleException(clusterChangedEvent.source(), startTimeMillis, clusterChangedEvent.state(), exception);
+            handleException(
+                clusterStatePublicationEvent.getSummary(),
+                startTimeMillis,
+                clusterStatePublicationEvent.getNewState(),
+                exception);
         }
     }
 
@@ -405,8 +439,8 @@ public class MasterService extends AbstractLifecycleComponent {
             nonFailedTasks.forEach(task -> task.listener.clusterStateProcessed(task.source(), previousClusterState, newClusterState));
         }
 
-        void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-            taskInputs.executor.clusterStatePublished(clusterChangedEvent);
+        void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+            taskInputs.executor.clusterStatePublished(clusterStatePublicationEvent);
         }
 
         Discovery.AckListener createAckListener(ThreadPool threadPool, ClusterState newClusterState) {
@@ -786,6 +820,64 @@ public class MasterService extends AbstractLifecycleComponent {
             if (lifecycle.stoppedOrClosed() == false) {
                 throw e;
             }
+        }
+    }
+
+    private static class MasterServiceStarvationWatcher implements PrioritizedEsThreadPoolExecutor.StarvationWatcher {
+
+        private final long warnThreshold;
+        private final LongSupplier nowMillisSupplier;
+        private final Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorSupplier;
+
+        // accesses of these mutable fields are synchronized (on this)
+        private long lastLogMillis;
+        private long nonemptySinceMillis;
+        private boolean isEmpty = true;
+
+        MasterServiceStarvationWatcher(
+                long warnThreshold,
+                LongSupplier nowMillisSupplier,
+                Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorSupplier) {
+            this.nowMillisSupplier = nowMillisSupplier;
+            this.threadPoolExecutorSupplier = threadPoolExecutorSupplier;
+            this.warnThreshold = warnThreshold;
+        }
+
+        @Override
+        public synchronized void onEmptyQueue() {
+            isEmpty = true;
+        }
+
+        @Override
+        public void onNonemptyQueue() {
+            final long nowMillis = nowMillisSupplier.getAsLong();
+            final long nonemptyDurationMillis;
+            synchronized (this) {
+                if (isEmpty) {
+                    isEmpty = false;
+                    nonemptySinceMillis = nowMillis;
+                    lastLogMillis = nowMillis;
+                    return;
+                }
+
+                if (nowMillis - lastLogMillis < warnThreshold) {
+                    return;
+                }
+
+                lastLogMillis = nowMillis;
+                nonemptyDurationMillis = nowMillis - nonemptySinceMillis;
+            }
+
+            final PrioritizedEsThreadPoolExecutor threadPoolExecutor = threadPoolExecutorSupplier.get();
+            final TimeValue maxTaskWaitTime = threadPoolExecutor.getMaxTaskWaitTime();
+            logger.warn("pending task queue has been nonempty for [{}/{}ms] which is longer than the warn threshold of [{}ms];" +
+                    " there are currently [{}] pending tasks, the oldest of which has age [{}/{}ms]",
+                TimeValue.timeValueMillis(nonemptyDurationMillis),
+                nonemptyDurationMillis,
+                warnThreshold,
+                threadPoolExecutor.getNumberOfPendingTasks(),
+                maxTaskWaitTime,
+                maxTaskWaitTime.millis());
         }
     }
 

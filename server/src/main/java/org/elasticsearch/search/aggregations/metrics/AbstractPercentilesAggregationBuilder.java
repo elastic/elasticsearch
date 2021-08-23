@@ -77,6 +77,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
             PercentilesConfig tDigestConfig = (PercentilesConfig) args[1];
             PercentilesConfig hdrConfig = (PercentilesConfig) args[2];
 
+            @SuppressWarnings("unchecked")
             double[] values = args[0] != null ? ((List<Double>) args[0]).stream().mapToDouble(Double::doubleValue).toArray() : null;
             PercentilesConfig percentilesConfig;
 
@@ -171,6 +172,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     /**
      * Set whether the XContent response should be keyed
      */
+    @SuppressWarnings("unchecked")
     public T keyed(boolean keyed) {
         this.keyed = keyed;
         return (T) this;
@@ -191,6 +193,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesConfig)}
      */
     @Deprecated
+    @SuppressWarnings("unchecked")
     public T numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
         if (percentilesConfig == null || percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
             percentilesConfig = new PercentilesConfig.Hdr(numberOfSignificantValueDigits);
@@ -225,6 +228,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesConfig)}
      */
     @Deprecated
+    @SuppressWarnings("unchecked")
     public T compression(double compression) {
         if (percentilesConfig == null || percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
             percentilesConfig = new PercentilesConfig.TDigest(compression);
@@ -255,6 +259,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
      * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesConfig)}
      */
     @Deprecated
+    @SuppressWarnings("unchecked")
     public T method(PercentilesMethod method) {
         if (method == null) {
             throw new IllegalArgumentException("[method] must not be null: [" + name + "]");
@@ -299,6 +304,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     /**
      * Sets how the percentiles algorithm should be configured
      */
+    @SuppressWarnings("unchecked")
     public T percentilesConfig(PercentilesConfig percentilesConfig) {
         this.percentilesConfig = percentilesConfig;
         return (T) this;
@@ -339,7 +345,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
 
-        AbstractPercentilesAggregationBuilder other = (AbstractPercentilesAggregationBuilder) obj;
+        AbstractPercentilesAggregationBuilder<?> other = (AbstractPercentilesAggregationBuilder<?>) obj;
         return Objects.deepEquals(values, other.values)
             && Objects.equals(keyed, other.keyed)
             && Objects.equals(configOrDefault(), other.configOrDefault());

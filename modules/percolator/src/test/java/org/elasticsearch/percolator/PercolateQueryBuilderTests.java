@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -188,10 +189,12 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     @Override
-    protected Set<String> getObjectsHoldingArbitraryContent() {
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
         //document contains arbitrary content, no error expected when an object is added to it
-        return new HashSet<>(Arrays.asList(PercolateQueryBuilder.DOCUMENT_FIELD.getPreferredName(),
-                PercolateQueryBuilder.DOCUMENTS_FIELD.getPreferredName()));
+        final Map<String, String> objects = new HashMap<>();
+        objects.put(PercolateQueryBuilder.DOCUMENT_FIELD.getPreferredName(), null);
+        objects.put(PercolateQueryBuilder.DOCUMENTS_FIELD.getPreferredName(), null);
+        return objects;
     }
 
     public void testRequiredParameters() {

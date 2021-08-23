@@ -615,7 +615,7 @@ public class Setting<T> implements ToXContentObject {
          *
          * @return the setting
          */
-        Setting getSetting();
+        Setting<?> getSetting();
 
         /**
          * Validates the dependent setting value.
@@ -749,7 +749,7 @@ public class Setting<T> implements ToXContentObject {
     public interface AffixSettingDependency extends SettingDependency {
 
         @Override
-        AffixSetting getSetting();
+        AffixSetting<?> getSetting();
 
     }
 
@@ -793,7 +793,7 @@ public class Setting<T> implements ToXContentObject {
                     .map(s ->
                         new SettingDependency() {
                             @Override
-                            public Setting<Object> getSetting() {
+                            public Setting<?> getSetting() {
                                 return s.getSetting().getConcreteSettingForNamespace(namespace);
                             }
 
@@ -1606,7 +1606,7 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    static void logSettingUpdate(Setting setting, Settings current, Settings previous, Logger logger) {
+    static void logSettingUpdate(Setting<?> setting, Settings current, Settings previous, Logger logger) {
         if (logger.isInfoEnabled()) {
             if (setting.isFiltered()) {
                 logger.info("updating [{}]", setting.key);

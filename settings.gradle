@@ -13,6 +13,7 @@ List projects = [
   'docs',
   'client:rest',
   'client:rest-high-level',
+  'client:rest-high-level:qa:ssl-enabled',
   'client:sniffer',
   'client:transport',
   'client:test',
@@ -30,6 +31,10 @@ List projects = [
   'distribution:archives:linux-tar',
   'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
+  'distribution:docker:cloud-docker-export',
+  'distribution:docker:cloud-docker-aarch64-export',
+  'distribution:docker:cloud-ess-docker-export',
+  'distribution:docker:cloud-ess-docker-aarch64-export',
   'distribution:docker:docker-aarch64-export',
   'distribution:docker:docker-export',
   'distribution:docker:ironbank-docker-aarch64-export',
@@ -106,13 +111,7 @@ addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 
-List startTasks = gradle.startParameter.taskNames
-
-
 include projects.toArray(new String[0])
-
-//project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
-//project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'buildSrc/reaper')
 
 project(":libs").children.each { libsProject ->
   libsProject.name = "elasticsearch-${libsProject.name}"

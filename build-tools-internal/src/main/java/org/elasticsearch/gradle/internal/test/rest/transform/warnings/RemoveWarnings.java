@@ -10,9 +10,12 @@ package org.elasticsearch.gradle.internal.test.rest.transform.warnings;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import org.elasticsearch.gradle.internal.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformByParentObject;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,12 +31,21 @@ import java.util.Set;
 public class RemoveWarnings implements RestTestTransformByParentObject {
 
     private final Set<String> warnings;
+    private String testName;
 
     /**
      * @param warnings The allowed warnings to inject
      */
     public RemoveWarnings(Set<String> warnings) {
         this.warnings = warnings;
+    }
+    /**
+     * @param warnings The allowed warnings to inject
+     * @param testName The testName to inject
+     */
+    public RemoveWarnings(Set<String> warnings, String testName) {
+        this.warnings = warnings;
+        this.testName = testName;
     }
 
     @Override
@@ -65,5 +77,16 @@ public class RemoveWarnings implements RestTestTransformByParentObject {
     @Input
     public Set<String> getWarnings() {
         return warnings;
+    }
+
+    @Override
+    public boolean shouldApply(RestTestContext testContext) {
+        return testName == null || testContext.getTestName().equals(testName);
+    }
+
+    @Input
+    @Optional
+    public String getTestName() {
+        return testName;
     }
 }

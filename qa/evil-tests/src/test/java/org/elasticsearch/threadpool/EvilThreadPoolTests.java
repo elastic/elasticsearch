@@ -80,8 +80,12 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionErrorOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
-        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing("test",
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), threadPool.scheduler());
+        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing(
+            "test",
+            EsExecutors.daemonThreadFactory("test"),
+            threadPool.getThreadContext(),
+            threadPool.scheduler(),
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
         try {
             checkExecutionError(getExecuteRunner(prioritizedExecutor));
             checkExecutionError(getSubmitRunner(prioritizedExecutor));
@@ -177,8 +181,12 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionExceptionOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
-        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing("test",
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), threadPool.scheduler());
+        final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing(
+            "test",
+            EsExecutors.daemonThreadFactory("test"),
+            threadPool.getThreadContext(),
+            threadPool.scheduler(),
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
         try {
             checkExecutionException(getExecuteRunner(prioritizedExecutor), true);
             checkExecutionException(getSubmitRunner(prioritizedExecutor), false);

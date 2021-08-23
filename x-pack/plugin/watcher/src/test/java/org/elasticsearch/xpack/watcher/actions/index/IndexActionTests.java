@@ -164,11 +164,11 @@ public class IndexActionTests extends ESTestCase {
         expectFailure(ElasticsearchParseException.class, builder);
     }
 
-    private void expectFailure(Class clazz, XContentBuilder builder) throws Exception {
+    private void expectFailure(Class<? extends Exception> clazz, XContentBuilder builder) throws Exception {
         expectFailure(clazz, builder, null);
     }
 
-    private void expectFailure(Class clazz, XContentBuilder builder, String expectedMessage) throws Exception {
+    private void expectFailure(Class<? extends Exception> clazz, XContentBuilder builder, String expectedMessage) throws Exception {
         IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client);
         XContentParser parser = createParser(builder);
         parser.nextToken();
@@ -189,10 +189,10 @@ public class IndexActionTests extends ESTestCase {
 
         // using doc_id with bulk fails regardless of using ID
         expectThrows(IllegalStateException.class, () -> {
-            final List<Map> idList = Arrays.asList(docWithId, MapBuilder.newMapBuilder().put("foo", "bar1").put("_id", "1").map());
+            final List<Map<?, ?>> idList = Arrays.asList(docWithId, MapBuilder.newMapBuilder().put("foo", "bar1").put("_id", "1").map());
 
             final Object list = randomFrom(
-                    new Map[] { singletonMap("foo", "bar"), singletonMap("foo", "bar1") },
+                    new Map<?,?>[] { singletonMap("foo", "bar"), singletonMap("foo", "bar1") },
                     Arrays.asList(singletonMap("foo", "bar"), singletonMap("foo", "bar1")),
                     unmodifiableSet(newHashSet(singletonMap("foo", "bar"), singletonMap("foo", "bar1"))),
                     idList
@@ -259,7 +259,7 @@ public class IndexActionTests extends ESTestCase {
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
         IndexResponse indexResponse = new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", 1, 1, 1, true);
-        BulkItemResponse response = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, indexResponse);
+        BulkItemResponse response = BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, indexResponse);
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{response}, 1);
         listener.onResponse(bulkResponse);
         when(client.bulk(captor.capture())).thenReturn(listener);
@@ -361,14 +361,14 @@ public class IndexActionTests extends ESTestCase {
         PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
         BulkItemResponse.Failure failure = new BulkItemResponse.Failure("test-index", "anything",
                 new ElasticsearchException("anything"));
-        BulkItemResponse firstResponse = new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, failure);
+        BulkItemResponse firstResponse = BulkItemResponse.failure(0, DocWriteRequest.OpType.INDEX, failure);
         BulkItemResponse secondResponse;
         if (isPartialFailure) {
             ShardId shardId = new ShardId(new Index("foo", "bar"), 0);
             IndexResponse indexResponse = new IndexResponse(shardId, "whatever", 1, 1, 1, true);
-            secondResponse = new BulkItemResponse(1, DocWriteRequest.OpType.INDEX, indexResponse);
+            secondResponse = BulkItemResponse.success(1, DocWriteRequest.OpType.INDEX, indexResponse);
         } else {
-            secondResponse = new BulkItemResponse(1, DocWriteRequest.OpType.INDEX, failure);
+            secondResponse = BulkItemResponse.failure(1, DocWriteRequest.OpType.INDEX, failure);
         }
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{firstResponse, secondResponse}, 1);
         listener.onResponse(bulkResponse);

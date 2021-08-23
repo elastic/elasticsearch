@@ -27,6 +27,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -114,14 +115,13 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     private void setupFakeMasterServiceAndCoordinator(long term, ClusterState initialState, NodeHealthService nodeHealthService) {
-        deterministicTaskQueue
-            = new DeterministicTaskQueue(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), random());
+        deterministicTaskQueue = new DeterministicTaskQueue();
         final ThreadPool fakeThreadPool = deterministicTaskQueue.getThreadPool();
         FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService("test_node","test",
             fakeThreadPool, deterministicTaskQueue::scheduleNow);
         setupMasterServiceAndCoordinator(term, initialState, fakeMasterService, fakeThreadPool, Randomness.get(), nodeHealthService);
-        fakeMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
-            coordinator.handlePublishRequest(new PublishRequest(event.state()));
+        fakeMasterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            coordinator.handlePublishRequest(new PublishRequest(clusterStatePublicationEvent.getNewState()));
             publishListener.onResponse(null);
         });
         fakeMasterService.start();
@@ -131,8 +131,8 @@ public class NodeJoinTests extends ESTestCase {
         MasterService masterService = new MasterService(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
-            clusterStateRef.set(event.state());
+        masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             publishListener.onResponse(null);
         });
         setupMasterServiceAndCoordinator(term, initialState, masterService, threadPool, new Random(Randomness.get().nextLong()),

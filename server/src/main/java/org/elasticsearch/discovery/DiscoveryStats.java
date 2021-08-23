@@ -9,6 +9,7 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,10 +24,16 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
 
     private final PendingClusterStateStats queueStats;
     private final PublishClusterStateStats publishStats;
+    private final ClusterStateUpdateStats clusterStateUpdateStats;
 
-    public DiscoveryStats(PendingClusterStateStats queueStats, PublishClusterStateStats publishStats) {
+    public DiscoveryStats(
+        PendingClusterStateStats queueStats,
+        PublishClusterStateStats publishStats,
+        ClusterStateUpdateStats clusterStateUpdateStats
+    ) {
         this.queueStats = queueStats;
         this.publishStats = publishStats;
+        this.clusterStateUpdateStats = clusterStateUpdateStats;
     }
 
     public DiscoveryStats(StreamInput in) throws IOException {
@@ -37,6 +44,12 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         } else {
             publishStats = null;
         }
+
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            clusterStateUpdateStats = in.readOptionalWriteable(ClusterStateUpdateStats::new);
+        } else {
+            clusterStateUpdateStats = null;
+        }
     }
 
     @Override
@@ -45,6 +58,10 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
 
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalWriteable(publishStats);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeOptionalWriteable(clusterStateUpdateStats);
         }
     }
 
@@ -57,8 +74,15 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         if (publishStats != null) {
             publishStats.toXContent(builder, params);
         }
+        if (clusterStateUpdateStats != null) {
+            clusterStateUpdateStats.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
+    }
+
+    public ClusterStateUpdateStats getClusterStateUpdateStats() {
+        return clusterStateUpdateStats;
     }
 
     static final class Fields {

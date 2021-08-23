@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
+import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -393,7 +394,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     @Override
     public DiscoveryStats stats() {
-        return new DiscoveryStats(pendingStatesQueue.stats(), publishClusterState.stats());
+        return new DiscoveryStats(pendingStatesQueue.stats(), publishClusterState.stats(), ClusterStateUpdateStats.EMPTY);
     }
 
     public DiscoverySettings getDiscoverySettings() {

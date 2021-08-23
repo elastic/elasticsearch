@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -159,7 +160,8 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterStatePublisher createClusterStatePublisher(ClusterApplier clusterApplier) {
-        return (clusterStatePublicationEvent, publishListener, ackListener) ->
+        return (clusterStatePublicationEvent, publishListener, ackListener) -> {
+            setAllElapsedMillis(clusterStatePublicationEvent);
             clusterApplier.onNewClusterState(
                 "mock_publish_to_self[" + clusterStatePublicationEvent.getSummary() + "]",
                 clusterStatePublicationEvent::getNewState,
@@ -173,8 +175,8 @@ public class ClusterServiceUtils {
                     public void onFailure(String source, Exception e) {
                         publishListener.onFailure(e);
                     }
-                }
-        );
+                });
+        };
     }
 
     public static ClusterService createClusterService(ClusterState initialState, ThreadPool threadPool) {
@@ -193,4 +195,12 @@ public class ClusterServiceUtils {
     public static void setState(ClusterService clusterService, ClusterState clusterState) {
         setState(clusterService.getClusterApplierService(), clusterState);
     }
+
+    public static void setAllElapsedMillis(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+        clusterStatePublicationEvent.setPublicationContextConstructionElapsedMillis(0L);
+        clusterStatePublicationEvent.setPublicationCommitElapsedMillis(0L);
+        clusterStatePublicationEvent.setPublicationCompletionElapsedMillis(0L);
+        clusterStatePublicationEvent.setMasterApplyElapsedMillis(0L);
+    }
+
 }

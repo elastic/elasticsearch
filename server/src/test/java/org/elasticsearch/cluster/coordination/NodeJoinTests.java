@@ -122,6 +122,7 @@ public class NodeJoinTests extends ESTestCase {
             fakeThreadPool, deterministicTaskQueue::scheduleNow);
         setupMasterServiceAndCoordinator(term, initialState, fakeMasterService, fakeThreadPool, Randomness.get(), nodeHealthService);
         fakeMasterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
             coordinator.handlePublishRequest(new PublishRequest(clusterStatePublicationEvent.getNewState()));
             publishListener.onResponse(null);
         });
@@ -133,6 +134,7 @@ public class NodeJoinTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
             clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             publishListener.onResponse(null);
         });

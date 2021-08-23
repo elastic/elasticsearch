@@ -686,19 +686,19 @@ public class MasterServiceTests extends ESTestCase {
                 "test2",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*took [*], which is over [10s], to compute cluster state update for [test2]"));
+                "*took [*] to compute cluster state update for [test2], which exceeds the warn threshold of [10s]"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*took [*], which is over [10s], to compute cluster state update for [test3]"));
+                "*took [*] to compute cluster state update for [test3], which exceeds the warn threshold of [10s]"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test4",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*took [*], which is over [10s], to compute cluster state update for [test4]"));
+                "*took [*] to compute cluster state update for [test4], which exceeds the warn threshold of [10s]"));
         mockAppender.addExpectation(
             new MockLogAppender.UnseenEventExpectation(
                 "test5 should not log despite publishing slowly",

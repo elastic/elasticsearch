@@ -10,7 +10,7 @@
 [[start-trained-model-deployment-request]]
 == {api-request-title}
 
-`POST _ml/trained_models/<model_id>/deployent/_start` 
+`POST _ml/trained_models/<model_id>/deployent/_start`
 ////
 [[start-trained-model-deployment-prereq]]
 == {api-prereq-title}
@@ -36,6 +36,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 (Optional, time)
 Controls the amount of time to wait for the model to deploy. Defaults
 to 20 seconds.
+
+`wait_for`::
+(Optional, string)
+Which state to wait for before returning. Defaults to "started".
+Valid values are: "starting", "partially_started", and "started". Each
+indicating, respectively, deployment is starting but not yet on any
+node, the model has started on at least one node, the deployment has
+started on all valid nodes.
 ////
 [role="child_attributes"]
 [[start-trained-model-deployment-results]]

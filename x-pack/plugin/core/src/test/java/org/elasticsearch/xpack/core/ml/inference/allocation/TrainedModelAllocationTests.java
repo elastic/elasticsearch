@@ -37,6 +37,10 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
                 builder.addNewRoutingEntry(node);
             }
         }
+        builder.setAllocationState(randomFrom(AllocationState.values()));
+        if (randomBoolean()) {
+            builder.setReason(randomAlphaOfLength(10));
+        }
         return builder.build();
     }
 

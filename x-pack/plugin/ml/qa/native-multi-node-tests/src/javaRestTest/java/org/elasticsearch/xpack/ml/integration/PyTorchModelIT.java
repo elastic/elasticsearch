@@ -11,10 +11,12 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -36,6 +38,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -168,7 +171,37 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testDeploymentStats() throws IOException {
+        String model = "model_starting_test";
+        String modelPartial = "model_partially_started";
+        String modelStarted = "model_started";
+
+        createModelStoreIndex();
+        putVocabulary(List.of("once", "twice"));
+        putModelDefinition(model);
+        putModelDefinition(modelPartial);
+        putModelDefinition(modelStarted);
+        refreshModelStoreAndVocabIndex();
+        createTrainedModel(model);
+        createTrainedModel(modelPartial);
+        createTrainedModel(modelStarted);
+
+        CheckedBiConsumer<String, AllocationState, IOException> assertAtLeast = (modelId, state) -> {
+            startDeployment(modelId, state.toString());
+            Response response = getDeploymentStats(modelId);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
+            assertThat(stats, hasSize(1));
+            assertThat(AllocationState.fromString(stats.get(0).get("state").toString()), greaterThanOrEqualTo(state));
+            stopDeployment(model);
+        };
+
+        assertAtLeast.accept(model, AllocationState.STARTING);
+        assertAtLeast.accept(modelPartial, AllocationState.PARTIALLY_STARTED);
+        assertAtLeast.accept(modelStarted, AllocationState.STARTED);
+    }
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
+    @SuppressWarnings("unchecked")
     public void testLiveDeploymentStats() throws IOException {
         String modelA = "model_a";
 
@@ -407,7 +440,11 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response startDeployment(String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s");
+        return startDeployment(modelId, AllocationState.STARTED.toString());
+    }
+
+    private Response startDeployment(String modelId, String waitForState) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s&wait_for=" + waitForState);
         return client().performRequest(request);
     }
 

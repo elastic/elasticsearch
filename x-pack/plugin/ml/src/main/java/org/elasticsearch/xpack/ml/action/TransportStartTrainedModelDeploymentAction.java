@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
@@ -48,7 +49,7 @@ import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelResto
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -92,7 +93,12 @@ public class TransportStartTrainedModelDeploymentAction
 
         ActionListener<CreateTrainedModelAllocationAction.Response> waitForDeploymentToStart =
             ActionListener.wrap(
-                modelAllocation -> waitForDeploymentStarted(request.getModelId(), request.getTimeout(), listener),
+                modelAllocation -> waitForDeploymentStarted(
+                    request.getModelId(),
+                    request.getTimeout(),
+                    request.getWaitForState(),
+                    listener
+                ),
                 e -> {
                     logger.warn(() -> new ParameterizedMessage("[{}] creating new allocation failed", request.getModelId()), e);
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
@@ -180,9 +186,10 @@ public class TransportStartTrainedModelDeploymentAction
     private void waitForDeploymentStarted(
         String modelId,
         TimeValue timeout,
+        AllocationState state,
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
     ) {
-        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId);
+        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state);
         trainedModelAllocationService.waitForAllocationCondition(modelId, predicate, timeout,
             new TrainedModelAllocationService.WaitForAllocationListener() {
                 @Override
@@ -237,9 +244,11 @@ public class TransportStartTrainedModelDeploymentAction
 
         // for logging
         private final String modelId;
+        private final AllocationState waitForState;
 
-        DeploymentStartedPredicate(String modelId) {
+        DeploymentStartedPredicate(String modelId, AllocationState waitForState) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
+            this.waitForState = waitForState;
         }
 
         @Override
@@ -254,7 +263,7 @@ public class TransportStartTrainedModelDeploymentAction
                 .entrySet();
 
             Map<String, String> nodeFailuresAndReasons = new HashMap<>();
-            Set<String> nodesStillInitializing = new HashSet<>();
+            Set<String> nodesStillInitializing = new LinkedHashSet<>();
             for (Map.Entry<String, RoutingStateAndReason> nodeIdAndState : nodesAndState) {
                 if (RoutingState.FAILED.equals(nodeIdAndState.getValue().getState())) {
                     nodeFailuresAndReasons.put(nodeIdAndState.getKey(), nodeIdAndState.getValue().getReason());
@@ -273,11 +282,35 @@ public class TransportStartTrainedModelDeploymentAction
                 return true;
             }
 
+            // No nodes allocated at all!
+            // TODO when we support autoscaling for this, check for `maxLazyNodes` setting
+            if (nodesAndState.isEmpty()) {
+                String msg = "Could not start deployment because no suitable nodes were found, allocation explanation ["
+                    + trainedModelAllocation.getReason()
+                    + "]";
+                logger.warn("[{}] {}", modelId, msg);
+                Exception detail = new IllegalStateException(msg);
+                exception = new ElasticsearchStatusException(
+                    "Could not start deployment because no ML nodes with sufficient capacity were found",
+                    RestStatus.TOO_MANY_REQUESTS,
+                    detail
+                );
+                return true;
+            }
+            if (trainedModelAllocation.getAllocationState().compareTo(waitForState) >= 0) {
+                return true;
+            }
+
             if (nodesStillInitializing.isEmpty()) {
                 return true;
             }
             logger.trace(
-                () -> new ParameterizedMessage("[{}] tested and nodes {} still initializing", modelId, nodesStillInitializing)
+                () -> new ParameterizedMessage(
+                    "[{}] tested with state [{}] and nodes {} still initializing",
+                    modelId,
+                    trainedModelAllocation.getAllocationState(),
+                    nodesStillInitializing
+                )
             );
             return false;
         }

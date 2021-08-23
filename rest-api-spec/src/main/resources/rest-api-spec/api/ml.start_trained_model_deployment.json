@@ -33,6 +33,12 @@
         "required":false,
         "description":"Controls the amount of time to wait for the model to deploy.",
         "default": "20s"
+      },
+      "wait_for":{
+        "type":"string",
+        "required":false,
+        "description":"The allocation state for which to wait. Valid values are: starting, partially_started, started",
+        "default": "started"
       }
     }
   }

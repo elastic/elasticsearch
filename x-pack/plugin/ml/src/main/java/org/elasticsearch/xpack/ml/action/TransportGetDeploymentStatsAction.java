@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.inference.deployment.ModelStats;
@@ -120,10 +121,18 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
 
         ActionListener<GetDeploymentStatsAction.Response> addFailedListener = listener.delegateFailure(
             (l, response) -> {
-                var updatedResponse =
-                    GetDeploymentStatsAction.Response.addFailedRoutes(response,
-                        nonStartedAllocationsForModel,
-                        clusterService.state().nodes());
+                var updatedResponse= GetDeploymentStatsAction.Response.addFailedRoutes(response,
+                    nonStartedAllocationsForModel,
+                    clusterService.state().nodes()
+                );
+                // Set the allocation state and reason if we have it
+                for (GetDeploymentStatsAction.Response.AllocationStats stats : updatedResponse.getStats().results()) {
+                    Optional<TrainedModelAllocation> modelAllocation = Optional.ofNullable(
+                        allocation.getModelAllocation(stats.getModelId())
+                    );
+                    stats.setState(modelAllocation.map(TrainedModelAllocation::getAllocationState).orElse(null));
+                    stats.setReason(modelAllocation.flatMap(TrainedModelAllocation::getReason).orElse(null));
+                }
                 l.onResponse(updatedResponse);
             }
         );

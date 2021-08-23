@@ -41,11 +41,13 @@ import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public class TrainedModelAllocationClusterService implements ClusterStateListener {
 
@@ -161,7 +163,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         clusterService.submitStateUpdateTask("set model allocation stopping", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return setToStopping(currentState, modelId);
+                return setToStopping(currentState, modelId, "client API call");
             }
 
             @Override
@@ -250,22 +252,31 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         TrainedModelAllocation.Builder allocationBuilder = TrainedModelAllocation.Builder.empty(params);
 
         Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
+        Map<String, String> nodeToReason = new TreeMap<>();
         for (DiscoveryNode node : currentState.getNodes().getAllNodes()) {
             if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)
                 && shuttingDownNodes.contains(node.getId()) == false) {
                 Optional<String> maybeError = nodeHasCapacity(currentState, params, node);
                 if (maybeError.isPresent()) {
-                    allocationBuilder.addNewFailedRoutingEntry(node.getId(), maybeError.get());
+                    nodeToReason.put(node.getName(), maybeError.get());
                 } else {
                     allocationBuilder.addNewRoutingEntry(node.getId());
                 }
             }
         }
+        if (nodeToReason.isEmpty() == false) {
+            allocationBuilder.setReason(
+                nodeToReason.entrySet()
+                    .stream()
+                    .map(entry -> String.format(Locale.ROOT, "Not allocating on node [%s]. Reason: %s", entry.getKey(), entry.getValue()))
+                    .collect(Collectors.joining("|"))
+            );
+        }
         builder.addNewAllocation(params.getModelId(), allocationBuilder);
         return update(currentState, builder);
     }
 
-    static ClusterState setToStopping(ClusterState clusterState,  String modelId) {
+    static ClusterState setToStopping(ClusterState clusterState, String modelId, String reason) {
         TrainedModelAllocationMetadata metadata = TrainedModelAllocationMetadata.fromState(clusterState);
         final TrainedModelAllocation existingAllocation = metadata.getModelAllocation(modelId);
         if (existingAllocation == null) {
@@ -276,7 +287,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             return clusterState;
         }
         TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(clusterState);
-        final boolean isChanged = builder.getAllocation(modelId).stopAllocation().isChanged();
+        final boolean isChanged = builder.getAllocation(modelId).stopAllocation(reason).isChanged();
         return update(clusterState, builder, isChanged);
     }
 
@@ -287,6 +298,14 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         logger.trace(
             () -> new ParameterizedMessage("[{}] [{}] current metadata before update {}", modelId, nodeId, Strings.toString(metadata))
         );
+        Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
+        List<DiscoveryNode> allocatableNodes = currentState.nodes()
+            .getAllNodes()
+            .stream()
+            .filter(
+                d -> StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(d) && shuttingDownNodes.contains(d.getId()) == false
+            )
+            .collect(Collectors.toList());
         final TrainedModelAllocation existingAllocation = metadata.getModelAllocation(modelId);
         final TrainedModelAllocationMetadata.Builder builder =  TrainedModelAllocationMetadata.builder(currentState);
         // If state is stopped, this indicates the node process is closed, remove the node from the allocation
@@ -294,7 +313,10 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             if (existingAllocation == null || existingAllocation.isRoutedToNode(nodeId) == false) {
                 return currentState;
             }
-            final boolean isChanged = builder.getAllocation(modelId).removeRoutingEntry(nodeId).isChanged();
+            boolean isChanged = builder.getAllocation(modelId).removeRoutingEntry(nodeId).isChanged();
+            if (isChanged) {
+                isChanged |= builder.getAllocation(modelId).calculateAndSetAllocationState(allocatableNodes).isChanged();
+            }
             return update(currentState, builder, isChanged);
         }
 
@@ -314,7 +336,11 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         if (existingAllocation.isRoutedToNode(nodeId) == false) {
             throw new ResourceNotFoundException("allocation for model with id [{}]] is not routed to node [{}]", modelId, nodeId);
         }
-        final boolean isChanged = builder.getAllocation(modelId).updateExistingRoutingEntry(nodeId, request.getRoutingState()).isChanged();
+        boolean isChanged = builder.getAllocation(modelId).updateExistingRoutingEntry(nodeId, request.getRoutingState()).isChanged();
+        // Maybe the state has moved to STARTED or PARTIALLY_STARTED
+        if (isChanged) {
+            isChanged |= builder.getAllocation(modelId).calculateAndSetAllocationState(allocatableNodes).isChanged();
+        }
         return update(currentState, builder, isChanged);
     }
 
@@ -342,8 +368,13 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
     ClusterState addRemoveAllocationNodes(ClusterState currentState) {
         final TrainedModelAllocationMetadata previousState = TrainedModelAllocationMetadata.fromState(currentState);
         final TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
-        Map<String, List<String>> removedNodeModelLookUp = new HashMap<>();
         Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
+        Set<String> currentNotShuttingDownNodes = currentState.getNodes()
+            .getAllNodes()
+            .stream()
+            .map(DiscoveryNode::getId)
+            .filter(id -> shuttingDownNodes.contains(id) == false)
+            .collect(Collectors.toSet());
         // TODO: make more efficient, right now this is O(nm) where n = sizeof(models) and m = sizeof(nodes)
         // It could probably be O(max(n, m))
         // Add nodes and keep track of currently routed nodes
@@ -354,45 +385,53 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             if (modelAllocationEntry.getValue().getAllocationState().equals(AllocationState.STOPPING)) {
                 continue;
             }
+            final String modelId = modelAllocationEntry.getKey();
+            Map<String, String> nodeToReason = new TreeMap<>();
+            List<DiscoveryNode> allocatableNodes = new ArrayList<>();
             for (DiscoveryNode node : currentState.getNodes()) {
                 // Only add the route if the node is NOT shutting down, this would be a weird case of the node
                 // just being added to the cluster and immediately shutting down...
                 if (shuttingDownNodes.contains(node.getId()) == false
-                    && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)
-                    && modelAllocationEntry.getValue().isRoutedToNode(node.getId()) == false) {
-                    Optional<String> failure = nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node);
-                    if (failure.isPresent()) {
-                        isChanged |= builder.getAllocation(modelAllocationEntry.getKey())
-                            .addNewFailedRoutingEntry(node.getId(), failure.get())
-                            .isChanged();
-                    } else {
-                        isChanged |= builder.getAllocation(modelAllocationEntry.getKey()).addNewRoutingEntry(node.getId()).isChanged();
+                    && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)) {
+                    // We want to keep track of how many nodes that we are allocated to vs how many are possible
+                    allocatableNodes.add(node);
+                    if (modelAllocationEntry.getValue().isRoutedToNode(node.getId()) == false) {
+                        Optional<String> failure = nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node);
+                        if (failure.isPresent()) {
+                            nodeToReason.put(node.getName(), failure.get());
+                        } else {
+                            isChanged |= builder.getAllocation(modelId).addNewRoutingEntry(node.getId()).isChanged();
+                        }
                     }
                 }
+            }
+            if (nodeToReason.isEmpty() == false) {
+                isChanged |= builder.getAllocation(modelId)
+                    .setReason(
+                        nodeToReason.entrySet()
+                            .stream()
+                            .map(
+                                entry -> String.format(
+                                    Locale.ROOT,
+                                    "Not allocating on node [%s]. Reason: %s",
+                                    entry.getKey(),
+                                    entry.getValue()
+                                )
+                            )
+                            .collect(Collectors.joining("|"))
+                    )
+                    .isChanged();
+            } else {
+                isChanged |= builder.getAllocation(modelId).clearReason().isChanged();
             }
             for (String nodeId : modelAllocationEntry.getValue().getNodeRoutingTable().keySet()) {
-                removedNodeModelLookUp.computeIfAbsent(nodeId, k -> new ArrayList<>()).add(modelAllocationEntry.getKey());
-            }
-        }
-
-        // Remove nodes
-        currentState.getNodes()
-            .forEach(
-                d -> {
-                    // If a node is referenced in the current state, we shouldn't remove the node
-                    // But, if that node that is referenced is shutting down, we should remove the node
-                    if (shuttingDownNodes.contains(d.getId()) == false) {
-                        removedNodeModelLookUp.remove(d.getId());
-                    }
+                if (currentNotShuttingDownNodes.contains(nodeId) == false) {
+                    isChanged |= builder.getAllocation(modelId).removeRoutingEntry(nodeId).isChanged();
                 }
-            );
-        for (Map.Entry<String, List<String>> nodeToModels : removedNodeModelLookUp.entrySet()) {
-            final String nodeId = nodeToModels.getKey();
-            for (String modelId : nodeToModels.getValue()) {
-                isChanged |= Optional.ofNullable(builder.getAllocation(modelId))
-                    .map(allocation -> allocation.removeRoutingEntry(nodeId).isChanged())
-                    .orElse(false);
             }
+            // It may be we moved from STARTED to PARTIALLY_STARTED with the addition of new nodes
+            // Or moved from PARTIALLY_STARTED to STARTED if a node was removed
+            isChanged |= builder.getAllocation(modelId).calculateAndSetAllocationState(allocatableNodes).isChanged();
         }
         return update(currentState, builder, isChanged);
     }

@@ -34,6 +34,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -99,7 +100,6 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
 
     public void testDiagnosticTrustManagerForHostnameVerificationFailure() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/76767", Constants.WINDOWS);
         final Settings settings = getPemSSLSettings(HTTP_SERVER_SSL, "not-this-host.crt", "not-this-host.key",
             SslClientAuthenticationMode.NONE, SslVerificationMode.FULL, null)
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
@@ -118,6 +118,8 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
              SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()) {
             Loggers.addAppender(diagnosticLogger, mockAppender);
 
+            String fileName = "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt"
+                .replace('/', File.separatorChar);
             mockAppender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
                 "ssl diagnostic",
                 DiagnosticTrustManager.class.getName(),
@@ -133,9 +135,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
                     " is trusted in this ssl context " +
                     Pattern.quote("([" + HTTP_CLIENT_SSL + " (with trust configuration: PEM-trust{") +
                     "\\S+" +
-                    Pattern.quote(
-                        "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt" +
-                            "})])")
+                    Pattern.quote(fileName + "})])")
             ));
 
             enableHttpsHostnameChecking(clientSocket);

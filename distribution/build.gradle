@@ -532,7 +532,7 @@ subprojects {
       ],
 
       'es.distribution.flavor': [
-        'def': isTestDistro ? 'integ-test' : 'default'
+        'def': 'default'
       ],
 
       'es.distribution.type': [
@@ -547,7 +547,7 @@ subprojects {
       ],
 
       'license.name': [
-        'deb': isTestDistro ? 'ASL-2.0' : 'Elastic-License'
+        'deb': 'Elastic-License'
       ],
 
       'license.text': [

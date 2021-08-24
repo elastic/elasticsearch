@@ -6,10 +6,10 @@
 # While it does not, this set intends to cover all possible Nagios logs.
 #
 # Some more work needs to be done to cover all External Commands:
-# http://old.nagios.org/developerinfo/externalcommands/commandlist.php
+#	http://old.nagios.org/developerinfo/externalcommands/commandlist.php
 #
 # If you need some support on these rules please contact:
-# Jelle Smet http://smetj.net
+#	Jelle Smet http://smetj.net
 #
 #################################################################################
 #################################################################################
@@ -89,7 +89,7 @@ NAGIOS_PASSIVE_HOST_CHECK %{NAGIOS_TYPE_PASSIVE_HOST_CHECK:nagios_type}: %{DATA:
 NAGIOS_SERVICE_EVENT_HANDLER %{NAGIOS_TYPE_SERVICE_EVENT_HANDLER:nagios_type}: %{DATA:nagios_hostname};%{DATA:nagios_service};%{DATA:nagios_state};%{DATA:nagios_statelevel};%{DATA:nagios_event_handler_name}
 NAGIOS_HOST_EVENT_HANDLER %{NAGIOS_TYPE_HOST_EVENT_HANDLER:nagios_type}: %{DATA:nagios_hostname};%{DATA:nagios_state};%{DATA:nagios_statelevel};%{DATA:nagios_event_handler_name}
 
-NAGIOS_TIMEPERIOD_TRANSITION %{NAGIOS_TYPE_TIMEPERIOD_TRANSITION:nagios_type}: %{DATA:nagios_service};%{DATA:nagios_unknown1};%{DATA:nagios_unknown2}
+NAGIOS_TIMEPERIOD_TRANSITION %{NAGIOS_TYPE_TIMEPERIOD_TRANSITION:nagios_type}: %{DATA:nagios_service};%{NUMBER:nagios_unknown1};%{NUMBER:nagios_unknown2}
 
 ####################
 #### External checks

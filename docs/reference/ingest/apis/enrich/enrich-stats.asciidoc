@@ -85,6 +85,36 @@ that enrich processors have executed
 since node startup.
 --
 
+`cache_stats`::
++
+--
+(Array of objects)
+Objects containing information about the enrich
+cache stats on each ingest node.
+
+Returned parameters include:
+
+`node_id`::
+(String)
+ID of the ingest node with a enrich cache.
+
+`count`::
+(Integer)
+Number of cached entries.
+
+`hits`::
+(Integer)
+The number of enrich lookups served from cache.
+
+`missed`::
+(Integer)
+The number of time enrich lookups couldn't be
+served from cache.
+
+`evictions`::
+(Integer)
+The number cache entries evicted from the cache.
+--
 
 [[enrich-stats-api-example]]
 ==== {api-examples-title}
@@ -126,6 +156,15 @@ The API returns the following response:
       "remote_requests_total": 0,
       "executed_searches_total": 0
     }
+  ],
+  "cache_stats": [
+    {
+      "node_id": "1sFM8cmSROZYhPxVsiWew",
+      "count": 0,
+      "hits": 0,
+      "misses": 0,
+      "evictions": 0
+    }
   ]
 }
 ----
@@ -133,3 +172,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"node_id": "1sFM8cmSROZYhPxVsiWew"/"node_id" : $body.coordinator_stats.0.node_id/]
 // TESTRESPONSE[s/"remote_requests_total": 0/"remote_requests_total" : $body.coordinator_stats.0.remote_requests_total/]
 // TESTRESPONSE[s/"executed_searches_total": 0/"executed_searches_total" : $body.coordinator_stats.0.executed_searches_total/]
+// TESTRESPONSE[s/"node_id": "1sFM8cmSROZYhPxVsiWew"/"node_id" : $body.cache_stats.0.node_id/]
+// TESTRESPONSE[s/"count": 0/"count" : $body.cache_stats.0.count/]
+// TESTRESPONSE[s/"misses": 0/"misses" : $body.cache_stats.0.misses/]
+// TESTRESPONSE[s/"evictions": 0/"evictions" : $body.cache_stats.0.evictions/]

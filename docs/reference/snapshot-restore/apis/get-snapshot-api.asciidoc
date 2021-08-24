@@ -303,7 +303,7 @@ A search string to filter snapshots by. The search string can specify a query ag
 `name` (snapshot name) or `policy` (the SLM policy name that created the snapshot if it was created by SLM).
 Supported operations are `=` for exact text match and `:` for partial text match. Starting the query string on a `-`, means that all
 snapshots matching it should be excluded from the results.
-Defaults to `null`, meaning no search string filtering is applied.
+By default if this parameter is omitted then no search string filtering is applied.
 
 NOTE: The search string filtering is applied after the repository and snapshot name patterns in the url path.
 

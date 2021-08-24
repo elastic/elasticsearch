@@ -37,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
@@ -211,7 +210,7 @@ public class ClusterServiceUtils {
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    future.onFailure(new TimeoutException());
+                    assert false : "onTimeout called with no timeout set";
                 }
             }, statePredicate);
             future.get(30L, TimeUnit.SECONDS);

@@ -143,7 +143,7 @@ using the default method.
 
 `_only_nodes:<node-id>,<node-id>`::
 Run the search on only the specified nodes IDs. If suitable shards exist on more
-than one selected nodes, use shards on those nodes using the default method. If
+than one selected node, use shards on those nodes using the default method. If
 none of the specified nodes are available, select shards from any available node
 using the default method.
 

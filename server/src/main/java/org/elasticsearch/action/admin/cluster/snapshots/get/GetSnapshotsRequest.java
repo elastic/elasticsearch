@@ -150,9 +150,17 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             order.writeTo(out);
             if (out.getVersion().onOrAfter(NUMERIC_PAGINATION_VERSION)) {
                 out.writeVInt(offset);
+            } else if (offset != 0) {
+                throw new IllegalArgumentException(
+                    "can't use numeric offset in get snapshots request with node version [" + out.getVersion() + "]"
+                );
             }
             if (out.getVersion().onOrAfter(SEARCH_FIELD_VERSION)) {
                 out.writeOptionalWriteable(search);
+            } else if (search != null) {
+                throw new IllegalArgumentException(
+                    "can't use search parameter in get snapshots request with node version [" + out.getVersion() + "]"
+                );
             }
         } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC || search != null) {
             throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
@@ -183,6 +191,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             }
             if (order != SortOrder.ASC) {
                 validationException = addValidationError("can't use non-default sort order with verbose=false", validationException);
+            }
+            if (search != null) {
+                validationException = addValidationError("can't use search with verbose=false", validationException);
             }
         } else if (after != null && offset > 0) {
             validationException = addValidationError("can't use after and offset simultaneously", validationException);

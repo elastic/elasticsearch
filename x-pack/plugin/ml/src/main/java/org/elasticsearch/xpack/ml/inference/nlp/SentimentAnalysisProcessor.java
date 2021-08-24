@@ -59,9 +59,9 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
         return this::buildRequest;
     }
 
-    BytesReference buildRequest(String input, String requestId) throws IOException {
+    NlpTask.Request buildRequest(String input, String requestId) throws IOException {
         BertTokenizer.TokenizationResult tokenization = tokenizer.tokenize(input);
-        return jsonRequest(tokenization.getTokenIds(), requestId);
+        return new NlpTask.Request(tokenization, jsonRequest(tokenization.getTokenIds(), requestId));
     }
 
     @Override
@@ -69,7 +69,7 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
         return this::processResult;
     }
 
-    InferenceResults processResult(PyTorchResult pyTorchResult) {
+    InferenceResults processResult(BertTokenizer.TokenizationResult tokenization, PyTorchResult pyTorchResult) {
         if (pyTorchResult.getInferenceResult().length < 1) {
             return new WarningInferenceResults("Sentiment analysis result has no data");
         }

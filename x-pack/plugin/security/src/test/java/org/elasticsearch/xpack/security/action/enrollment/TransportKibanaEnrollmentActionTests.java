@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -27,8 +28,8 @@ import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentR
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslSettingsLoader;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -74,7 +75,7 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
             .build();
         when(env.settings()).thenReturn(settings);
         final SSLService sslService = mock(SSLService.class);
-        final SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
+        final SslConfiguration sslConfiguration = SslSettingsLoader.load(settings, null, env);
         when(sslService.getHttpTransportSSLConfiguration()).thenReturn(sslConfiguration);
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);
@@ -97,7 +98,7 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
             x -> null,
             null,
             Collections.emptySet());
-        action = new TransportKibanaEnrollmentAction(transportService, client, sslService, env, mock(ActionFilters.class));
+        action = new TransportKibanaEnrollmentAction(transportService, client, sslService, mock(ActionFilters.class));
     }
 
     public void testKibanaEnrollment() {

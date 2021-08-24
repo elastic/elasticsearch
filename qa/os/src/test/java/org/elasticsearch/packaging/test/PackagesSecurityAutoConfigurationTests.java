@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
@@ -98,7 +99,8 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
             StandardCopyOption.COPY_ATTRIBUTES
         );
         installation = installPackage(sh, distribution(), errorOutput());
-        verifySecurityNotAutoConfigured(installation);
+        List<String> configLines = Files.readAllLines(installation.config("elasticsearch.yml"));
+        assertThat(configLines, not(hasItem("# have been automatically generated in order to configure Security.               #")));
     }
 
     private static void verifySecurityAutoConfigured(Installation es) throws IOException {

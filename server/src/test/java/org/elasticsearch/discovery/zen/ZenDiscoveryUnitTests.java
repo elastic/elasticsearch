@@ -244,7 +244,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             ).build();
 
             // publishing a new cluster state
-            ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent("testing", state, newState);
+            ClusterStatePublicationEvent clusterStatePublicationEvent
+                = new ClusterStatePublicationEvent("testing", state, newState, 0L, 0L);
             AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
             expectedFDNodes = masterZen.getFaultDetectionNodes();
             AwaitingPublishListener awaitingPublishListener = new AwaitingPublishListener();
@@ -303,7 +304,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             ).build();
 
             // publishing a new cluster state
-            ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent("testing", state, newState);
+            ClusterStatePublicationEvent clusterStatePublicationEvent
+                = new ClusterStatePublicationEvent("testing", state, newState, 0L, 0L);
             AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
             AwaitingPublishListener awaitingPublishListener = new AwaitingPublishListener();
             masterZen.publish(clusterStatePublicationEvent, awaitingPublishListener, listener);

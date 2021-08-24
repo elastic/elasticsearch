@@ -44,6 +44,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -488,16 +489,18 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertEquals(expected, actual);
     }
 
-
     public void testAliasWithSynonyms() throws Exception {
-        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext());
+        MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext());
         matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
-        final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_ALIAS_FIELD_NAME, "dogs");
-        Query expected = new SynonymQuery.Builder(TEXT_FIELD_NAME)
-            .addTerm(new Term(TEXT_FIELD_NAME, "dogs"))
-            .addTerm(new Term(TEXT_FIELD_NAME, "dog"))
-            .build();
-        assertEquals(expected, actual);
+
+        for (Type type : Arrays.asList(Type.BOOLEAN, Type.PHRASE)) {
+            Query actual = matchQueryParser.parse(type, TEXT_ALIAS_FIELD_NAME, "dogs");
+            Query expected = new SynonymQuery.Builder(TEXT_FIELD_NAME)
+                .addTerm(new Term(TEXT_FIELD_NAME, "dogs"))
+                .addTerm(new Term(TEXT_FIELD_NAME, "dog"))
+                .build();
+            assertEquals(expected, actual);
+        }
     }
 
     public void testMaxBooleanClause() {

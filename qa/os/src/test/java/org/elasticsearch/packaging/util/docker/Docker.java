@@ -443,7 +443,9 @@ public class Docker {
         if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             assertThat("ESS image should come with plugins in " + pluginArchive, plugins, not(empty()));
 
-            final List<String> repositoryPlugins = plugins.stream().filter(p -> p.startsWith("repository")).collect(Collectors.toList());
+            final List<String> repositoryPlugins = plugins.stream()
+                .filter(p -> p.matches("^repository-(?:s3|gcs|azure)$"))
+                .collect(Collectors.toList());
             // Assert on equality to that the error reports the unexpected values.
             assertThat(
                 "ESS image should not have repository plugins in " + pluginArchive,

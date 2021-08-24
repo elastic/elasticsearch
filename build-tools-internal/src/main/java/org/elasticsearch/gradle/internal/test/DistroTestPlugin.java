@@ -364,26 +364,16 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            ALL_INTERNAL.stream().forEach(type -> {
-                currentDistros.add(
-                    createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
-                );
-            });
+            ALL_INTERNAL.stream().forEach(type -> currentDistros.add(
+                createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
+            ));
         }
 
         for (Architecture architecture : Architecture.values()) {
             for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
-                for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    if (bundledJdk == false && architecture != Architecture.X64) {
-                        // We will never publish distributions for non-x86 (amd64) platforms
-                        // without a bundled JDK
-                        continue;
-                    }
-
-                    currentDistros.add(
-                        createDistro(distributions, architecture, ARCHIVE, platform, bundledJdk, VersionProperties.getElasticsearch())
-                    );
-                }
+                currentDistros.add(
+                    createDistro(distributions, architecture, ARCHIVE, platform, true, VersionProperties.getElasticsearch())
+                );
             }
         }
 

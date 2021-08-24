@@ -310,7 +310,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
-            out.writeOptionalBoolean(allowCustomRouting);
+            out.writeBoolean(allowCustomRouting);
         }
 
         @Override

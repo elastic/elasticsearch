@@ -85,10 +85,18 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         bin.keystoreTool.run("passwd", "some_password\nsome_password\n");
         final Path tempDir = createTempDir("existing-keystore-config");
         final Path confPath = installation.config;
-        Files.copy(confPath.resolve("elasticsearch.keystore"), tempDir, StandardCopyOption.COPY_ATTRIBUTES);
+        Files.copy(
+            confPath.resolve("elasticsearch.keystore"),
+            tempDir.resolve("elasticsearch.keystore"),
+            StandardCopyOption.COPY_ATTRIBUTES
+        );
         cleanup();
         Files.createDirectory(confPath);
-        Files.copy(tempDir.resolve("elasticsearch.keystore"), confPath, StandardCopyOption.COPY_ATTRIBUTES);
+        Files.copy(
+            tempDir.resolve("elasticsearch.keystore"),
+            confPath.resolve("elasticsearch.keystore"),
+            StandardCopyOption.COPY_ATTRIBUTES
+        );
         installation = installPackage(sh, distribution(), errorOutput());
         verifySecurityNotAutoConfigured(installation);
     }

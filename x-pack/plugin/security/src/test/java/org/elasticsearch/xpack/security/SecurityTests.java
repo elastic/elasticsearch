@@ -541,7 +541,23 @@ public class SecurityTests extends ESTestCase {
         final IllegalStateException ise = expectThrows(IllegalStateException.class, () -> {
             security.possiblyValidateImplicitSecurityBehaviorOnUpdate(
                 Settings.EMPTY,
-                new NodeMetadata(randomAlphaOfLength(8), VersionUtils.randomVersionBetween(random(), Version.V_EMPTY, Version.V_7_15_0))
+                new NodeMetadata(randomAlphaOfLength(8), VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_15_0))
+            );
+        });
+        assertThat(ise.getMessage(), containsString("to enable security, or explicitly disable security by"));
+    }
+
+    public void testFailureUpgradeFromPre72WithImplicitSecuritySettings() throws Exception {
+        createComponents(Settings.EMPTY);
+        licenseState.update(
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL),
+            true,
+            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis()
+        );
+        final IllegalStateException ise = expectThrows(IllegalStateException.class, () -> {
+            security.possiblyValidateImplicitSecurityBehaviorOnUpdate(
+                Settings.EMPTY,
+                new NodeMetadata(randomAlphaOfLength(8), Version.V_EMPTY)
             );
         });
         assertThat(ise.getMessage(), containsString("to enable security, or explicitly disable security by"));
@@ -557,7 +573,7 @@ public class SecurityTests extends ESTestCase {
         );
         security.possiblyValidateImplicitSecurityBehaviorOnUpdate(
             settings,
-            new NodeMetadata(randomAlphaOfLength(8), VersionUtils.randomVersionBetween(random(), Version.V_EMPTY, Version.V_7_15_0))
+            new NodeMetadata(randomAlphaOfLength(8), VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_15_0))
         );
         // no exception thrown
     }

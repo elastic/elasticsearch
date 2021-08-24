@@ -72,7 +72,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         // existing data directory but the rest of the package tracked config files were removed
         final Path dataPath = installation.data;
         cleanup();
-        Files.createDirectory(installation.data);
+        Files.createDirectory(dataPath);
         append(dataPath.resolve("foo"), "some data");
         installation = installPackage(sh, distribution(), existingSecurityConfiguration());
         verifySecurityNotAutoConfigured(installation);

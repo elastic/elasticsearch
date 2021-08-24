@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -42,7 +41,12 @@ public interface NodePriorityStrategy {
     NodePriorityStrategy NO_PRIORITY = new NodePriorityStrategy() {
         @Override
         public List<List<Node>> groupByPriority(List<Node> nodes) {
-            return Collections.singletonList(nodes);
+            throw new UnsupportedOperationException("Implementation used as marker");
+        }
+
+        @Override
+        public String toString() {
+            return "NO_PRIORITY";
         }
     };
 }

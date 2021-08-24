@@ -297,6 +297,24 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         }
     }
 
+    public void testDefaultNodePriorityStrategy() throws Exception {
+        RestClient restClient = createRestClient(NodeSelector.ANY, NodePriorityStrategy.NO_PRIORITY);
+        int rounds = between(1, 10);
+        int distance = 0;
+
+        for (int i = 0; i < rounds; i++) {
+            /*
+             * Run the request more than once to verify that the
+             * default NodePriorityStrategy uses the round robin behavior.
+             */
+            Request request = new Request("GET", "/200");
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
+            List<Node> rotatedNodes = new ArrayList<>(nodes);
+            Collections.rotate(rotatedNodes, distance++);
+            assertEquals(rotatedNodes.get(0).getHost(), response.getHost());
+        }
+    }
+
     public void testSetNodes() throws Exception {
         RestClient restClient = createRestClient(NodeSelector.SKIP_DEDICATED_MASTERS);
         List<Node> newNodes = new ArrayList<>(nodes.size());

@@ -471,18 +471,19 @@ public class RestClient implements Closeable {
             List<Node> selectedLivingNodes = new ArrayList<>(livingNodes);
             nodeSelector.select(selectedLivingNodes);
             if (false == selectedLivingNodes.isEmpty()) {
-                List<List<Node>> priorityGroups = nodePriorityStrategy.groupByPriority(selectedLivingNodes);
                 /*
                  * Rotate the lists using a global counter as the distance so subsequent
                  * requests will try the nodes in a different order.
                  */
                 int distance = lastNodeIndex.getAndIncrement();
-                return priorityGroups.stream()
-                    .flatMap(group -> {
-                        Collections.rotate(group, distance);
-                        return group.stream();
-                    })
-                    .collect(Collectors.toList());
+                if (nodePriorityStrategy == NodePriorityStrategy.NO_PRIORITY) {
+                    return rotateInPlace(selectedLivingNodes, distance);
+                } else {
+                    return nodePriorityStrategy.groupByPriority(selectedLivingNodes)
+                        .stream()
+                        .flatMap(group -> rotateInPlace(group, distance).stream())
+                        .collect(Collectors.toList());
+                }
             }
         }
 
@@ -510,6 +511,11 @@ public class RestClient implements Closeable {
         }
         throw new IOException("NodeSelector [" + nodeSelector + "] rejected all nodes, "
                 + "living " + livingNodes + " and dead " + deadNodes);
+    }
+
+    private static List<Node> rotateInPlace(List<Node> nodes, int distance) {
+        Collections.rotate(nodes, distance);
+        return nodes;
     }
 
     /**

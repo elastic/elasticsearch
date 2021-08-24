@@ -440,6 +440,8 @@ public class Docker {
         final String pluginArchive = "/opt/plugins/archive";
         final List<String> plugins = listContents(pluginArchive);
 
+        logger.info("Contents of [" + pluginArchive + "] : " + pluginArchive);
+
         if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             assertThat("ESS image should come with plugins in " + pluginArchive, plugins, not(empty()));
 
@@ -453,7 +455,12 @@ public class Docker {
                 equalTo(Collections.emptyList())
             );
         } else {
-            assertThat("Cloud image should not have any plugins in " + pluginArchive, plugins, empty());
+            List<String> pluginsCopy = new ArrayList<>(plugins);
+            if (pluginsCopy.isEmpty() == false) {
+                logger.warn("plugins (and pluginsCopy) should be empty, but: " + plugins + " / " + pluginsCopy);
+                logger.warn("Contents of [" + pluginArchive + "] : " + dockerShell.run("ls -1 --color=never " + pluginArchive).stdout);
+            }
+            assertThat("Cloud image should not have any plugins in " + pluginArchive, pluginsCopy, empty());
         }
     }
 

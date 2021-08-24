@@ -21,8 +21,10 @@
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-windows
           cancel-builds-on-update: true
-          white-list-target-branches:
+          # We've removed the no-jdk distribution on master as well
+          black-list-target-branches:
             - master
+            - 6.8
           excluded-regions:
             - ^docs/.*
           white-list-labels:
@@ -42,6 +44,7 @@
           name: PACKAGING_TASK
           values:
             - 'default-windows-archive'
+            - 'default-windows-archive-no-jdk'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

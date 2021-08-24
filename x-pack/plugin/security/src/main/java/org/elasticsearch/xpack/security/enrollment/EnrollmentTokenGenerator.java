@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.security.tool.HttpResponse;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -169,13 +171,13 @@ public class EnrollmentTokenGenerator {
                 httpResponseHttp.getResponseBody());
             throw new IllegalStateException("No bound addresses found in response from calling GET " + httpInfoUrl);
         }
-        final List<String> filtered_addresses = getFilteredAddresses(addresses);
+        final List<String> filteredAddresses = getFilteredAddresses(addresses);
 
         final String stackVersion = getVersion(httpResponseHttp.getResponseBody());
         if (stackVersion == null || stackVersion.isEmpty()) {
             throw new IllegalStateException("Could not retrieve the version.");
         }
-        return new Tuple<>(filtered_addresses, stackVersion);
+        return new Tuple<>(filteredAddresses, stackVersion);
     }
 
     protected String getCaFingerprint() throws Exception {
@@ -199,14 +201,38 @@ public class EnrollmentTokenGenerator {
     }
 
     static List<String> getFilteredAddresses(List<String> addresses) throws Exception {
-        List<String> filtered_addresses = new ArrayList<>();
+        List<String> filteredAddresses = new ArrayList<>();
         for (String bound_address : addresses){
-            URI uri = new URI("http://" + bound_address);
-            InetAddress inet_address = InetAddress.getByName(uri.getHost());
-            if (inet_address.isLoopbackAddress() != true) {
-                filtered_addresses.add(bound_address);
+            InetAddress inetAddress = getInetAddressFromString(bound_address);
+            if (inetAddress.isLoopbackAddress() != true) {
+                filteredAddresses.add(bound_address);
             }
         }
-        return filtered_addresses.isEmpty() ? addresses : filtered_addresses;
+        if (filteredAddresses.isEmpty()) {
+            filteredAddresses = addresses;
+        }
+        // Sort the list prioritizing IPv4 addresses when possible, as it is more probable to be reachable when token consumer iterates
+        // addresses for the initial node and it is less surprising for users to see in the UI or config
+        filteredAddresses.sort((String a, String b) -> {
+            try {
+                final InetAddress addressA = getInetAddressFromString(a);
+                final InetAddress addressB = getInetAddressFromString(b);
+                if (addressA instanceof Inet4Address && addressB instanceof Inet6Address) {
+                    return -1;
+                } else if (addressA instanceof Inet6Address && addressB instanceof Inet4Address) {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            } catch (Exception e) {
+                return 0;
+            }
+        });
+        return filteredAddresses;
+    }
+
+    private static InetAddress getInetAddressFromString(String address) throws Exception {
+        URI uri = new URI("http://" + address);
+        return InetAddress.getByName(uri.getHost());
     }
 }

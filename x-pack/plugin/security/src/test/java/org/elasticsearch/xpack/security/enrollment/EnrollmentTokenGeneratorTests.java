@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedFunction;
 import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedSupplier;
 import static org.elasticsearch.xpack.security.enrollment.EnrollmentTokenGenerator.getFilteredAddresses;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -248,7 +249,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
             enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
         assertThat(
             ex.getMessage(),
-            Matchers.equalTo(
+            equalTo(
                 "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration Keystore doesn't "
                     + "contain any PrivateKey entries where the associated certificate is a CA certificate"
             )
@@ -304,7 +305,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
             enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
-        assertThat(ex.getMessage(), Matchers.equalTo("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL " +
+        assertThat(ex.getMessage(), equalTo("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL " +
             "configuration Keystore contains multiple PrivateKey entries where the associated certificate is a CA certificate"));
     }
 
@@ -350,7 +351,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
 
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
             enrollmentTokenGenerator.createNodeEnrollmentToken("elastic", new SecureString("elastic".toCharArray())).getEncoded());
-        assertThat(ex.getMessage(), Matchers.equalTo("[xpack.security.enrollment.enabled] must be set to `true` to " +
+        assertThat(ex.getMessage(), equalTo("[xpack.security.enrollment.enabled] must be set to `true` to " +
             "create an enrollment token"));
     }
 
@@ -358,25 +359,28 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
         List<String> addresses = Arrays.asList("[::1]:9200", "127.0.0.1:9200", "192.168.0.1:9201", "172.16.254.1:9202",
             "[2001:db8:0:1234:0:567:8:1]:9203");
         List<String> filteredAddresses = getFilteredAddresses(addresses);
-        assertThat(filteredAddresses.size(), Matchers.equalTo(3));
+        assertThat(filteredAddresses.size(), equalTo(3));
         assertThat(filteredAddresses, Matchers.containsInAnyOrder("192.168.0.1:9201", "172.16.254.1:9202",
             "[2001:db8:0:1234:0:567:8:1]:9203"));
+        assertThat(filteredAddresses.get(2), equalTo("[2001:db8:0:1234:0:567:8:1]:9203"));
 
         addresses = Arrays.asList("[::1]:9200", "127.0.0.1:9200");
         filteredAddresses = getFilteredAddresses(addresses);
-        assertThat(filteredAddresses.size(), Matchers.equalTo(2));
-        assertThat(filteredAddresses, Matchers.containsInAnyOrder("[::1]:9200", "127.0.0.1:9200"));
+        assertThat(filteredAddresses.size(), equalTo(2));
+        assertThat(filteredAddresses.get(0), equalTo("127.0.0.1:9200"));
+        assertThat(filteredAddresses.get(1), equalTo("[::1]:9200"));
 
         addresses = Arrays.asList("128.255.255.255", "[::1]:9200", "127.0.0.1:9200");
         filteredAddresses = getFilteredAddresses(addresses);
-        assertThat(filteredAddresses.size(), Matchers.equalTo(1));
+        assertThat(filteredAddresses.size(), equalTo(1));
         assertThat(filteredAddresses, Matchers.containsInAnyOrder("128.255.255.255"));
 
         addresses = Arrays.asList("8.8.8.8:9200", "192.168.0.1:9201", "172.16.254.1:9202", "[2001:db8:0:1234:0:567:8:1]:9203");
         filteredAddresses = getFilteredAddresses(addresses);
-        assertThat(filteredAddresses.size(), Matchers.equalTo(4));
+        assertThat(filteredAddresses.size(), equalTo(4));
         assertThat(filteredAddresses, Matchers.containsInAnyOrder("8.8.8.8:9200", "192.168.0.1:9201", "172.16.254.1:9202",
             "[2001:db8:0:1234:0:567:8:1]:9203"));
+        assertThat(filteredAddresses.get(3), equalTo("[2001:db8:0:1234:0:567:8:1]:9203"));
 
         final List<String> invalid_addresses = Arrays.asList("nldfnbndflbnl");
         UnknownHostException ex = expectThrows(UnknownHostException.class, () -> getFilteredAddresses(invalid_addresses));

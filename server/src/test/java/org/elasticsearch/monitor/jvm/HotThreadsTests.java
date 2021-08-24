@@ -104,9 +104,11 @@ public class HotThreadsTests extends ESTestCase {
             bottomOfStack.add(extraFrame);
             assertIdleThreadHelper(idleThread, bottomOfStack);
 
-            var middleOfStack = new ArrayList<>(testJvmStack);
-            middleOfStack.add(between(Math.min(1, testJvmStack.size()), Math.max(0, testJvmStack.size()-1)), extraFrame);
-            assertIdleThreadHelper(idleThread, middleOfStack);
+            if (testJvmStack.size() > 1) {
+                var middleOfStack = new ArrayList<>(testJvmStack);
+                middleOfStack.add(between(Math.min(1, testJvmStack.size()), Math.max(0, testJvmStack.size() - 1)), extraFrame);
+                assertIdleThreadHelper(idleThread, middleOfStack);
+            }
         }
     }
 

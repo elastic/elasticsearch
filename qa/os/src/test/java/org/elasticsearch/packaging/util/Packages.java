@@ -92,7 +92,9 @@ public class Packages {
         if (result.exitCode != 0) {
             throw new RuntimeException("Installing distribution " + distribution + " failed: " + result);
         }
-        assertThat(outputPredicate.test(result.stdout), is(true));
+        if (null != outputPredicate) {
+            assertThat(outputPredicate.test(result.stdout), is(true));
+        }
         Installation installation = Installation.ofPackage(sh, distribution);
         installation.setElasticPassword(captureElasticPasswordFromOutput(result));
         if (distribution.hasJdk == false) {

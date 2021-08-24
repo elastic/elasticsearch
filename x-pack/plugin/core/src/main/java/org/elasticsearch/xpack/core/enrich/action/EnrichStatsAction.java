@@ -104,13 +104,15 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 builder.endObject();
             }
             builder.endArray();
-            builder.startArray("cache_stats");
-            for (CacheStats cacheStat : cacheStats) {
-                builder.startObject();
-                cacheStat.toXContent(builder, params);
-                builder.endObject();
+            if (cacheStats != null) {
+                builder.startArray("cache_stats");
+                for (CacheStats cacheStat : cacheStats) {
+                    builder.startObject();
+                    cacheStat.toXContent(builder, params);
+                    builder.endObject();
+                }
+                builder.endArray();
             }
-            builder.endArray();
             builder.endObject();
             return builder;
         }

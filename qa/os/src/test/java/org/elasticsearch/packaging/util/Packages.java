@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.util;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
@@ -21,6 +22,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -76,7 +78,12 @@ public class Packages {
         return runPackageManager(distribution, new Shell(), PackageManagerCommand.QUERY);
     }
 
-    public static Installation installPackage(Shell sh, Distribution distribution) throws IOException {
+    public static Installation installPackage(Shell sh, Distribution distribution) throws Exception {
+        return installPackage(sh, distribution, null);
+    }
+
+    public static Installation installPackage(Shell sh, Distribution distribution, @Nullable Predicate<String> outputPredicate)
+        throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         if (distribution.hasJdk == false) {
             sh.getEnv().put("ES_JAVA_HOME", systemJavaHome);
@@ -85,7 +92,7 @@ public class Packages {
         if (result.exitCode != 0) {
             throw new RuntimeException("Installing distribution " + distribution + " failed: " + result);
         }
-
+        assertThat(outputPredicate.test(result.stdout), is(true));
         Installation installation = Installation.ofPackage(sh, distribution);
         installation.setElasticPassword(captureElasticPasswordFromOutput(result));
         if (distribution.hasJdk == false) {

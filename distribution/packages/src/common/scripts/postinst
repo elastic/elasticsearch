@@ -53,50 +53,54 @@ esac
 if command -v systemctl > /dev/null; then
     systemctl restart systemd-sysctl.service || true
 fi
-
 if [ "x$IS_UPGRADE" != "xtrue" ]; then
-    # Auto-configure security, this seems to be an installation
-    ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
+    # Don't exit immediately on error, we want to hopefully print some helpful banners
+    set +e
+    # Attempt to auto-configure security, this seems to be an installation
+    if ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-    /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""
-    if [ $? -eq 0 ]; then
+    /usr/share/elasticsearch/bin/elasticsearch-cli -strict <<< ""; then
         # Above command runs as root and TLS keystores are created group-owned by root. It's simple to correct the ownership here
         for dir in "${ES_PATH_CONF}"/auto_config_on*
         do
-          chown root:elasticsearch "${dir}"/http_keystore_local_node.p12
-          chown root:elasticsearch "${dir}"/http_ca.crt
-          chown root:elasticsearch "${dir}"/transport_keystore_all_nodes.p12
+            chown root:elasticsearch "${dir}"/http_keystore_local_node.p12
+            chown root:elasticsearch "${dir}"/http_ca.crt
+            chown root:elasticsearch "${dir}"/transport_keystore_all_nodes.p12
         done
-        INITIAL_PASSWORD=$(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHash \
+        if INITIAL_PASSWORD=$(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHash \
         ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
         ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-        /usr/share/elasticsearch/bin/elasticsearch-cli)
-        if [ $? -eq 0 ]; then
+        /usr/share/elasticsearch/bin/elasticsearch-cli); then
             echo "##########         Security autoconfiguration information         ############"
+            echo "#                                                                            #"
+            echo "# Authentication and Authorization are enabled.                              #"
+            echo "# TLS for the transport and the http layers is enabled and configured.       #"
             echo "#                                                                            #"
             echo "# The password of the elastic superuser will be set to: ${INITIAL_PASSWORD} #"
             echo "# upon starting elasticsearch for the first time                             #"
             echo "#                                                                            #"
             echo "##############################################################################"
+        fi
+    else
+        if [ $? -eq 63 ]; then
+            # ExitCodes.NOOP
+            echo "##########         Security autoconfiguration information         ############"
+            echo "#                                                                            #"
+            echo "# Security features appear to be already configured.                         #"
+            echo "#                                                                            #"
+            echo "##############################################################################"
         else
             echo "##########         Security autoconfiguration information         ############"
             echo "#                                                                            #"
-            echo "# Failed to auto-configure the password for the elastic user upon            #"
-            echo "# installation. You can use elasticsearch-reset-elastic-password to set a    #"
-            echo "# password for the elastic user.                                             #"
+            echo "# Failed to auto-configure security features.                                #"
+            echo "# Authentication and Authorization are enabled.                              #"
+            echo "# You can use elasticsearch-reset-elastic-password to set a password         #"
+            echo "# for the elastic user.                                                      #"
+            echo "# See <link_here> for instructions on how to configure TLS manually.          #"
             echo "#                                                                            #"
             echo "##############################################################################"
         fi
-    else
-        echo "##########         Security autoconfiguration information         ############"
-        echo "#                                                                            #"
-        echo "# Failed to auto-configure security. Authentication and Authorization is     #"
-        echo "# enabled. You can use elasticsearch-reset-elastic-password to set a         #"
-        echo "# password for the elastic user.                                             #"
-        echo "# See <link_here> for instructions on how to configure TLS manually          #"
-        echo "#                                                                            #"
-        echo "##############################################################################"
     fi
     if command -v systemctl >/dev/null; then
         echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using systemd"
@@ -105,6 +109,7 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
         echo "### You can start elasticsearch service by executing"
         echo " sudo systemctl start elasticsearch.service"
     fi
+    set -e
 
 elif [ "$RESTART_ON_UPGRADE" = "true" ]; then
 

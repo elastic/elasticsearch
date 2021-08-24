@@ -365,21 +365,9 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         for (Architecture architecture : Architecture.values()) {
             ALL_INTERNAL.stream().forEach(type -> {
-                for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    if (bundledJdk == false) {
-                        // We'll never publish an ARM (aarch64) build without a bundled JDK.
-                        if (architecture == Architecture.AARCH64) {
-                            continue;
-                        }
-                        // All our Docker images include a bundled JDK so it doesn't make sense to test without one.
-                        if (type.isDocker()) {
-                            continue;
-                        }
-                    }
-                    currentDistros.add(
-                        createDistro(distributions, architecture, type, null, bundledJdk, VersionProperties.getElasticsearch())
-                    );
-                }
+                currentDistros.add(
+                    createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
+                );
             });
         }
 

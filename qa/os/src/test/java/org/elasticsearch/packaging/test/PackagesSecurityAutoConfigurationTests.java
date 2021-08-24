@@ -83,9 +83,9 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         // existing elasticsearch.keystore file within $ES_PATH_CONF and it's password-protected
         final Installation.Executables bin = installation.executables();
         bin.keystoreTool.run("passwd", "some_password\nsome_password\n");
-        final Path tempDir = createTempDir("custom-config");
+        final Path tempDir = createTempDir("existing-keystore-config");
         final Path confPath = installation.config;
-        Files.copy(installation.config.resolve("elasticsearch.keystore"), tempDir, StandardCopyOption.COPY_ATTRIBUTES);
+        Files.copy(confPath.resolve("elasticsearch.keystore"), tempDir, StandardCopyOption.COPY_ATTRIBUTES);
         cleanup();
         Files.createDirectory(confPath);
         Files.copy(tempDir.resolve("elasticsearch.keystore"), confPath, StandardCopyOption.COPY_ATTRIBUTES);

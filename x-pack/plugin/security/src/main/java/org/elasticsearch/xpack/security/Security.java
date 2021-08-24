@@ -415,12 +415,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeMetadata, NamedWriteableRegistry namedWriteableRegistry,
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         try {
             return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
-                environment, nodeMetadata.loadLastKnownMetadata(), expressionResolver);
+                environment, nodeEnvironment.loadLastKnownMetadata(), expressionResolver);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
@@ -1054,18 +1054,32 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     void possiblyValidateImplicitSecurityBehaviorOnUpdate(Settings settings, NodeMetadata nodeMetadata) {
-         if (null != nodeMetadata) {
-             final Version lastVersion = nodeMetadata.nodeVersion();
-             final License.OperationMode license = getLicenseState().getOperationMode();
-             if (lastVersion.before(Version.V_8_0_0) && XPackSettings.SECURITY_ENABLED.exists(settings) == false
-                 && (license.equals(License.OperationMode.BASIC) || license.equals(License.OperationMode.TRIAL))) {
-                     throw new IllegalStateException("The default value for [" + XPackSettings.SECURITY_ENABLED.getKey() + "] has changed."+
-                         "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "."
-                         + Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by "
-                         + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml");
-
-             }
-         }
+        if (null == nodeMetadata) {
+            // No Node metadata for given node
+            return;
+        }
+        final XPackLicenseState licenseState = getLicenseState();
+        if (licenseState.getLicenseExpiryDate() == Long.MAX_VALUE) {
+            // License hasn't been recovered yet from disk of cluster state
+            return;
+        }
+        final License.OperationMode license = licenseState.getOperationMode();
+        final Version lastKnownVersion = nodeMetadata.nodeVersion();
+        // pre v7.2.0 nodes have Version.EMPTY and its id is 0, so Version#before handles this successfully
+        if (lastKnownVersion.before(Version.V_8_0_0)
+            && XPackSettings.SECURITY_ENABLED.exists(settings) == false
+            && (license == License.OperationMode.BASIC || license == License.OperationMode.TRIAL)) {
+            throw new IllegalStateException(
+                "The default value for ["
+                    + XPackSettings.SECURITY_ENABLED.getKey()
+                    + "] has changed. See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                    + Version.CURRENT.major
+                    + "."
+                    + Version.CURRENT.minor
+                    + "/security-minimal-setup.html to enable security, or explicitly disable security by "
+                    + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml before restarting the node"
+            );
+        }
     }
 
     @Override

@@ -503,10 +503,16 @@ public class SecurityTests extends ESTestCase {
     public void testFailureUpgradeFrom7xWithImplicitSecuritySettings() throws Exception {
         createComponents(Settings.EMPTY);
         licenseState.update(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL), true, Long.MAX_VALUE, null);
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL),
+            true,
+            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis(),
+            null
+        );
         final IllegalStateException ise = expectThrows(IllegalStateException.class, () -> {
-            security.possiblyValidateImplicitSecurityBehaviorOnUpdate(Settings.EMPTY,
-                new NodeMetadata(randomAlphaOfLength(8), Version.V_7_15_0));
+            security.possiblyValidateImplicitSecurityBehaviorOnUpdate(
+                Settings.EMPTY,
+                new NodeMetadata(randomAlphaOfLength(8), VersionUtils.randomVersionBetween(random(), Version.V_EMPTY, Version.V_7_15_0))
+            );
         });
         assertThat(ise.getMessage(), containsString("to enable security, or explicitly disable security by"));
     }
@@ -515,28 +521,53 @@ public class SecurityTests extends ESTestCase {
         final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), randomBoolean()).build();
         createComponents(settings);
         licenseState.update(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL), true, Long.MAX_VALUE, null);
-        security.possiblyValidateImplicitSecurityBehaviorOnUpdate(settings,
-            new NodeMetadata(randomAlphaOfLength(8), Version.V_7_15_0));
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL),
+            true,
+            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis(),
+            null
+        );
+        security.possiblyValidateImplicitSecurityBehaviorOnUpdate(
+            settings,
+            new NodeMetadata(randomAlphaOfLength(8), VersionUtils.randomVersionBetween(random(), Version.V_EMPTY, Version.V_7_15_0))
+        );
         // no exception thrown
     }
 
     public void testUpgradeFrom8xWithImplicitSecuritySettings() throws Exception {
         createComponents(Settings.EMPTY);
         licenseState.update(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL), true, Long.MAX_VALUE, null);
-        security.possiblyValidateImplicitSecurityBehaviorOnUpdate(Settings.EMPTY,
-                new NodeMetadata(randomAlphaOfLength(8), Version.V_8_0_0));
-       // no exception thrown
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL),
+            true,
+            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis(),
+            null
+        );
+        security.possiblyValidateImplicitSecurityBehaviorOnUpdate(
+            Settings.EMPTY,
+            new NodeMetadata(randomAlphaOfLength(8), Version.V_8_0_0)
+        );
+        // no exception thrown
     }
 
     public void testUpgradeFrom8xWithExplicitSecuritySettings() throws Exception {
         final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), randomBoolean()).build();
         createComponents(settings);
         licenseState.update(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL), true, Long.MAX_VALUE, null);
-        security.possiblyValidateImplicitSecurityBehaviorOnUpdate(settings,
-            new NodeMetadata(randomAlphaOfLength(8), Version.V_8_0_0));
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL),
+            true,
+            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis(),
+            null
+        );
+        security.possiblyValidateImplicitSecurityBehaviorOnUpdate(settings, new NodeMetadata(randomAlphaOfLength(8), Version.V_8_0_0));
+        // no exception thrown
+    }
+
+    public void testUpgradeNodeWithUnavailableLicenseAndImplicitSecuritySettings() throws Exception {
+        createComponents(Settings.EMPTY);
+        licenseState.update(License.OperationMode.TRIAL, true, Long.MAX_VALUE, null);
+        security.possiblyValidateImplicitSecurityBehaviorOnUpdate(
+            Settings.EMPTY,
+            new NodeMetadata(randomAlphaOfLength(8), Version.V_8_0_0)
+        );
         // no exception thrown
     }
 

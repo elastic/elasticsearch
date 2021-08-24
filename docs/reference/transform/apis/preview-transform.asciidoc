@@ -13,9 +13,15 @@ Previews a {transform}.
 [[preview-transform-request]]
 == {api-request-title}
 
-`POST _transform/_preview` +
 
-`POST _transform/<transform_id>/_preview`
+`GET _transform/<transform_id>/_preview` +
+
+`POST _transform/<transform_id>/_preview` +
+
+`GET _transform/_preview` +
+
+`POST _transform/_preview`
+
 
 [[preview-transform-prereq]]
 == {api-prereq-title}

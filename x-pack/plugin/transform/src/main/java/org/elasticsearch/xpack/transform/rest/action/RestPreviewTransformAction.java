@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPreviewTransformAction extends BaseRestHandler {
@@ -31,8 +32,11 @@ public class RestPreviewTransformAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
+            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS + "_preview"),
+            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_preview"),
             new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS + "_preview"),
-            new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_preview"));
+            new Route(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_preview")
+        );
     }
 
     @Override

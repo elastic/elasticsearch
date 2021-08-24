@@ -15,6 +15,7 @@
         {
           "path":"/_transform/{transform_id}/_preview",
           "methods":[
+            "GET",
             "POST"
           ],
           "parts":{
@@ -27,6 +28,7 @@
         {
           "path":"/_transform/_preview",
           "methods":[
+            "GET",
             "POST"
           ]
         }

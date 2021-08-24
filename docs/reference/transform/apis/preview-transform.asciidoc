@@ -13,7 +13,15 @@ Previews a {transform}.
 [[preview-transform-request]]
 == {api-request-title}
 
+
+`GET _transform/<transform_id>/_preview` +
+
+`POST _transform/<transform_id>/_preview` +
+
+`GET _transform/_preview` +
+
 `POST _transform/_preview`
+
 
 [[preview-transform-prereq]]
 == {api-prereq-title}
@@ -46,6 +54,17 @@ You must choose either the `latest` or `pivot` method for your {transform}; you
 cannot use both in a single {transform}.
 
 [role="child_attributes"]
+
+[[preview-transform-path-params]]
+== {api-path-parms-title}
+
+`<transform_id>`::
+(Optional, string)
+Id of the {transform} to preview.
++
+NOTE: If you provide the `<transform_id>` as a path parameter, you cannot
+provide {transform} configuration details in the request body.
+
 [[preview-transform-request-body]]
 == {api-request-body-title}
 

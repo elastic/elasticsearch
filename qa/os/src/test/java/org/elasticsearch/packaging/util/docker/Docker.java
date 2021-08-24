@@ -440,7 +440,7 @@ public class Docker {
         final String pluginArchive = "/opt/plugins/archive";
         final List<String> plugins = listContents(pluginArchive);
 
-        logger.info("Contents of [" + pluginArchive + "] : " + pluginArchive);
+        logger.info("Contents of [" + pluginArchive + "] : " + plugins);
 
         if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             assertThat("ESS image should come with plugins in " + pluginArchive, plugins, not(empty()));
@@ -599,7 +599,11 @@ public class Docker {
      * @return the listing
      */
     public static List<String> listContents(String path) {
-        return Arrays.asList(dockerShell.run("ls -1 --color=never " + path).stdout.split("\n"));
+        String stdout = dockerShell.run("ls -1 --color=never " + path).stdout;
+        if (stdout.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return Arrays.asList(stdout.split("\n"));
     }
 
     public static List<String> listContents(Path path) {

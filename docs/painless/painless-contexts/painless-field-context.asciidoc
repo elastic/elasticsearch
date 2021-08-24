@@ -103,6 +103,7 @@ GET seats/_search
     "hits" : [
       {
         "_index" : "seats",
+        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "fields" : {
@@ -116,6 +117,7 @@ GET seats/_search
       },
       {
         "_index" : "seats",
+        "_type" : "_doc",
         "_id" : "2",
         "_score" : 1.0,
         "fields" : {

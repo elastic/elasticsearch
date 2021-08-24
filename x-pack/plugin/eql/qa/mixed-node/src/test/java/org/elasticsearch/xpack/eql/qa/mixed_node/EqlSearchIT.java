@@ -105,7 +105,6 @@ public class EqlSearchIT extends ESRestTestCase {
      * if their version is lower than {@code org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION}
      * version.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76632")
     public void testMultiValueFields() throws Exception {
         final String bulkEntries = readResource(EqlSearchIT.class.getResourceAsStream("/eql_data.json"));
         Request bulkRequst = new Request("POST", index + "/_bulk?refresh");
@@ -168,8 +167,8 @@ public class EqlSearchIT extends ESRestTestCase {
                 "PROCESS where modulo(ppid, 10) == 0",
                 multiValued ? new int[] {121, 122} : new int[] {121});
             assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "multiply",
-                "PROCESS where multiply(pid, 10) == 120",
-                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119, 120, 122});
+                "PROCESS where string(multiply(pid, 10) == 120) == \\\"true\\\"",
+                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119});
             assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "number",
                 "PROCESS where number(command_line) + pid >= 360",
                 multiValued ? new int[] {122, 123} : new int[] {123});

@@ -45,7 +45,8 @@ public class FillMaskProcessorTests extends ESTestCase {
         int[] tokenMap = new int[] {0, 1, 2, 3, 4, 5};
         int[] tokenIds = new int[] {0, 1, 2, 3, 4, 5};
 
-        TokenizationResult tokenization = new TokenizationResult(input, vocab, tokens, tokenIds, tokenMap);
+        TokenizationResult tokenization = new TokenizationResult(vocab);
+        tokenization.addTokenization(input, tokens, tokenIds, tokenMap);
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
 
@@ -66,9 +67,8 @@ public class FillMaskProcessorTests extends ESTestCase {
     }
 
     public void testProcessResults_GivenMissingTokens() {
-        TokenizationResult tokenization =
-            new TokenizationResult("", Collections.emptyList(), Collections.emptyList(),
-            new int[] {}, new int[] {});
+        TokenizationResult tokenization = new TokenizationResult(Collections.emptyList());
+        tokenization.addTokenization("", Collections.emptyList(), new int[] {}, new int[] {});
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
@@ -79,7 +79,7 @@ public class FillMaskProcessorTests extends ESTestCase {
     }
 
     public void testValidate_GivenMissingMaskToken() {
-        String input = "The capital of France is Paris";
+        List<String> input = List.of("The capital of France is Paris");
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
@@ -91,7 +91,7 @@ public class FillMaskProcessorTests extends ESTestCase {
 
 
     public void testProcessResults_GivenMultipleMaskTokens() {
-        String input = "The capital of [MASK] is [MASK]";
+        List<String> input = List.of("The capital of [MASK] is [MASK]");
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);

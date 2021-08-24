@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 
 public class DistilBertRequestBuilder implements NlpTask.RequestBuilder {
@@ -31,20 +30,23 @@ public class DistilBertRequestBuilder implements NlpTask.RequestBuilder {
 
     @Override
     public NlpTask.Request buildRequest(List<String> inputs, String requestId) throws IOException {
+        if (tokenizer.getPadToken() == null) {
+            throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN +
+                " token in its vocabulary");
+        }
+
         TokenizationResult result = tokenizer.tokenize(inputs);
-        return new NlpTask.Request(result, jsonRequest(result.getTokenIds(), requestId));
+        return new NlpTask.Request(result, jsonRequest(result, tokenizer.getPadToken(), requestId));
     }
 
-    static BytesReference jsonRequest(int[] tokens, String requestId) throws IOException {
+    static BytesReference jsonRequest(TokenizationResult tokenization,
+                                      int padToken,
+                                      String requestId) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field(REQUEST_ID, requestId);
-        builder.array(TOKENS, tokens);
-
-        int[] inputMask = new int[tokens.length];
-        Arrays.fill(inputMask, 1);
-
-        builder.array(ARG1, inputMask);
+        NlpTask.RequestBuilder.writePaddedTokens(TOKENS, tokenization, padToken, (tokens, i) -> tokens.getTokenIds()[i], builder);
+        NlpTask.RequestBuilder.writePaddedTokens(ARG1, tokenization, padToken, (tokens, i) -> 1, builder);
         builder.endObject();
 
         // BytesReference.bytes closes the builder

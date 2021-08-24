@@ -50,8 +50,9 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
 
         NlpTask.RequestBuilder.writePaddedTokens(TOKENS, tokenization, padToken, (tokens, i) -> tokens.getTokenIds()[i], builder);
         NlpTask.RequestBuilder.writePaddedTokens(ARG1, tokenization, padToken, (tokens, i) -> 1, builder);
-        NlpTask.RequestBuilder.writeNonPaddedIds(ARG2, tokenization.getTokenizations().size(), tokenization.getLongestSequenceLength(), i -> 0, builder);
-        NlpTask.RequestBuilder.writeNonPaddedIds(ARG3, tokenization.getTokenizations().size(), tokenization.getLongestSequenceLength(), i -> i, builder);
+        int numRequests = tokenization.getTokenizations().size();
+        NlpTask.RequestBuilder.writeNonPaddedIds(ARG2, numRequests, tokenization.getLongestSequenceLength(), i -> 0, builder);
+        NlpTask.RequestBuilder.writeNonPaddedIds(ARG3, numRequests, tokenization.getLongestSequenceLength(), i -> i, builder);
         builder.endObject();
 
         // BytesReference.bytes closes the builder

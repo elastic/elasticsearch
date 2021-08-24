@@ -60,7 +60,8 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
 
-        if (tokenization.getTokenizations().isEmpty()) {
+        if (tokenization.getTokenizations().isEmpty() ||
+            tokenization.getTokenizations().get(0).getTokens().isEmpty()) {
             return new FillMaskResults(Collections.emptyList());
         }
 

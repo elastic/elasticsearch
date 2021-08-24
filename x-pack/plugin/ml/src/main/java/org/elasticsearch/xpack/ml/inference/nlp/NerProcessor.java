@@ -142,7 +142,8 @@ public class NerProcessor implements NlpTask.Processor {
 
         @Override
         public InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
-            if (tokenization.getTokenizations().isEmpty()) {
+            if (tokenization.getTokenizations().isEmpty() ||
+                tokenization.getTokenizations().get(0).getTokens().isEmpty()) {
                 return new NerResults(Collections.emptyList());
             }
             // TODO It might be best to do the soft max after averaging scores for

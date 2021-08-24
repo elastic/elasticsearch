@@ -503,7 +503,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final int offset,
         final int size,
         final SortOrder order,
-        @Nullable GetSnapshotsRequest.Search search
+        final @Nullable GetSnapshotsRequest.Search search
     ) {
         final Comparator<SnapshotInfo> comparator;
         switch (sortBy) {
@@ -525,10 +525,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         Stream<SnapshotInfo> infos = snapshotInfos.stream();
 
+        final int total;
         if (search != null) {
+            final Predicate<SnapshotInfo> filter;
             if (search.field().equals(SnapshotsService.POLICY_ID_METADATA_FIELD)) {
                 final String policyId = search.value();
-                final Predicate<SnapshotInfo> filter;
                 if (search.exact()) {
                     filter = snapshotInfo -> {
                         final Map<String, Object> meta = snapshotInfo.userMetadata();
@@ -550,26 +551,26 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         return ((String) policyIdFound).contains(policyId);
                     };
                 }
-                infos = infos.filter(search.not() ? filter.negate() : filter);
             } else if (search.field().equals("name")) {
                 final String snapshotName = search.value();
-                final Predicate<SnapshotInfo> filter;
                 if (search.exact()) {
                     filter = snapshotInfo -> snapshotName.equals(snapshotInfo.snapshotId().getName());
                 } else {
                     filter = snapshotInfo -> snapshotInfo.snapshotId().getName().contains(snapshotName);
                 }
-                infos = infos.filter(search.not() ? filter.negate() : filter);
             } else {
                 final String repositoryName = search.value();
-                final Predicate<SnapshotInfo> filter;
                 if (search.exact()) {
                     filter = snapshotInfo -> repositoryName.equals(snapshotInfo.repository());
                 } else {
                     filter = snapshotInfo -> snapshotInfo.repository().contains(repositoryName);
                 }
-                infos = infos.filter(search.not() ? filter.negate() : filter);
             }
+            final List<SnapshotInfo> filteredList = infos.filter(search.not() ? filter.negate() : filter).collect(Collectors.toList());
+            total = filteredList.size();
+            infos = filteredList.stream();
+        } else {
+            total = snapshotInfos.size();
         }
 
         if (after != null) {
@@ -620,7 +621,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<SnapshotInfo> resultSet = size != GetSnapshotsRequest.NO_LIMIT && size < snapshots.size()
             ? snapshots.subList(0, size)
             : snapshots;
-        return new SnapshotsInRepo(resultSet, snapshotInfos.size(), allSnapshots.size() - resultSet.size());
+        return new SnapshotsInRepo(resultSet, total, allSnapshots.size() - resultSet.size());
     }
 
     private static Predicate<SnapshotInfo> filterByLongOffset(

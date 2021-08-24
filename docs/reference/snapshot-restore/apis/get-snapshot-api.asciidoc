@@ -299,8 +299,13 @@ field value.
 
 `search`::
 (string)
-A search string to filter snapshots by.
-//TODO spell out all the functionality implemented so far here
+A search string to filter snapshots by. The search string can specify a query against the fields `repo` (repository name),
+`name` (snapshot name) or `policy` (the SLM policy name that created the snapshot if it was created by SLM).
+Supported operations are `=` for exact text match and `:` for partial text match. Starting the query string on a `-`, means that all
+snapshots matching it should be excluded from the results.
+Defaults to `null`, meaning no search string filtering is applied.
+
+NOTE: The search string filtering is applied after the repository and snapshot name patterns in the url path.
 
 [[get-snapshot-api-example]]
 ==== {api-examples-title}
@@ -329,17 +334,17 @@ The API returns the following response:
       "feature_states": [],
       "include_global_state": true,
       "state": "SUCCESS",
-      "start_time": "2020-07-06T21:55:18.129Z",
-      "start_time_in_millis": 1593093628850,
-      "end_time": "2020-07-06T21:55:18.129Z",
-      "end_time_in_millis": 1593094752018,
-      "duration_in_millis": 0,
+      "start_time": "2020-07-06T21:55:18.130Z",
+      "start_time_in_millis": 1593093628851,
+      "end_time": "2020-07-06T21:55:18.133Z",
+      "end_time_in_millis": 1593093628853,
+      "duration_in_millis": 2,
       "failures": [],
       "shards": {
         "total": 0,
         "failed": 0,
         "successful": 0
-      }
+      },
     }
   ],
   "total": 1,
@@ -349,11 +354,11 @@ The API returns the following response:
 // TESTRESPONSE[s/"uuid": "vdRctLCxSketdKb54xw67g"/"uuid": $body.snapshots.0.uuid/]
 // TESTRESPONSE[s/"version_id": <version_id>/"version_id": $body.snapshots.0.version_id/]
 // TESTRESPONSE[s/"version": <version>/"version": $body.snapshots.0.version/]
-// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.129Z"/"start_time": $body.snapshots.0.start_time/]
-// TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
-// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.129Z"/"end_time": $body.snapshots.0.end_time/]
-// TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
-// TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.snapshots.0.duration_in_millis/]
+// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.130Z"/"start_time": $body.snapshots.0.start_time/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628851/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
+// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.133Z"/"end_time": $body.snapshots.0.end_time/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593093628853/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 2/"duration_in_millis": $body.snapshots.0.duration_in_millis/]
 
 The following request returns information for all snapshots with prefix `snapshot` in the `my_repository` repository,
 limiting the response size to 2 and sorting by snapshot name.
@@ -380,11 +385,11 @@ The API returns the following response:
       "feature_states": [],
       "include_global_state": true,
       "state": "SUCCESS",
-      "start_time": "2020-07-06T21:55:18.129Z",
+      "start_time": "2020-07-06T21:55:18.130Z",
       "start_time_in_millis": 1593093628850,
-      "end_time": "2020-07-06T21:55:18.129Z",
-      "end_time_in_millis": 1593094752018,
-      "duration_in_millis": 0,
+      "end_time": "2020-07-06T21:55:18.131Z",
+      "end_time_in_millis": 1593093628851,
+      "duration_in_millis": 1,
       "failures": [],
       "shards": {
         "total": 0,
@@ -403,11 +408,11 @@ The API returns the following response:
       "feature_states": [],
       "include_global_state": true,
       "state": "SUCCESS",
-      "start_time": "2020-07-06T21:55:18.130Z",
+      "start_time": "2020-07-06T21:55:18.131Z",
       "start_time_in_millis": 1593093628851,
-      "end_time": "2020-07-06T21:55:18.130Z",
-      "end_time_in_millis": 1593094752019,
-      "duration_in_millis": 1,
+      "end_time": "2020-07-06T21:55:18.133Z",
+      "end_time_in_millis": 1593093628853,
+      "duration_in_millis": 2,
       "failures": [],
       "shards": {
         "total": 0,
@@ -425,16 +430,16 @@ The API returns the following response:
 // TESTRESPONSE[s/"uuid": "vdRctLCxSketdKb54xw67g"/"uuid": $body.snapshots.1.uuid/]
 // TESTRESPONSE[s/"version_id": <version_id>/"version_id": $body.snapshots.0.version_id/]
 // TESTRESPONSE[s/"version": <version>/"version": $body.snapshots.0.version/]
-// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.129Z"/"start_time": $body.snapshots.0.start_time/]
-// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.130Z"/"start_time": $body.snapshots.1.start_time/]
+// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.130Z"/"start_time": $body.snapshots.0.start_time/]
+// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.131Z"/"start_time": $body.snapshots.1.start_time/]
 // TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
 // TESTRESPONSE[s/"start_time_in_millis": 1593093628851/"start_time_in_millis": $body.snapshots.1.start_time_in_millis/]
-// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.129Z"/"end_time": $body.snapshots.0.end_time/]
-// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.130Z"/"end_time": $body.snapshots.1.end_time/]
-// TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
-// TESTRESPONSE[s/"end_time_in_millis": 1593094752019/"end_time_in_millis": $body.snapshots.1.end_time_in_millis/]
-// TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.snapshots.0.duration_in_millis/]
-// TESTRESPONSE[s/"duration_in_millis": 1/"duration_in_millis": $body.snapshots.1.duration_in_millis/]
+// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.131Z"/"end_time": $body.snapshots.0.end_time/]
+// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.133Z"/"end_time": $body.snapshots.1.end_time/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593093628851/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593093628853/"end_time_in_millis": $body.snapshots.1.end_time_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 1/"duration_in_millis": $body.snapshots.0.duration_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 2/"duration_in_millis": $body.snapshots.1.duration_in_millis/]
 
 A subsequent request for the remaining snapshots can then be made using the `next` value from the previous response as `after` parameter.
 
@@ -451,7 +456,7 @@ The API returns the following response:
   "snapshots": [
     {
       "snapshot": "snapshot_3",
-      "uuid": "dRctdKb54xw67gvLCxSket",
+      "uuid": "gvLCxSketdRctdKb54xw67",
       "repository": "my_repository",
       "version_id": <version_id>,
       "version": <version>,
@@ -460,11 +465,11 @@ The API returns the following response:
       "feature_states": [],
       "include_global_state": true,
       "state": "SUCCESS",
-      "start_time": "2020-07-06T21:55:18.129Z",
-      "start_time_in_millis": 1593093628850,
-      "end_time": "2020-07-06T21:55:18.129Z",
-      "end_time_in_millis": 1593094752018,
-      "duration_in_millis": 0,
+      "start_time": "2020-07-06T21:55:18.132Z",
+      "start_time_in_millis": 1593093628852,
+      "end_time": "2020-07-06T21:55:18.135Z",
+      "end_time_in_millis": 1593093628855,
+      "duration_in_millis": 3,
       "failures": [],
       "shards": {
         "total": 0,
@@ -477,14 +482,14 @@ The API returns the following response:
   "remaining": 0
 }
 ----
-// TESTRESPONSE[s/"uuid": "dRctdKb54xw67gvLCxSket"/"uuid": $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"uuid": "gvLCxSketdRctdKb54xw67"/"uuid": $body.snapshots.0.uuid/]
 // TESTRESPONSE[s/"version_id": <version_id>/"version_id": $body.snapshots.0.version_id/]
 // TESTRESPONSE[s/"version": <version>/"version": $body.snapshots.0.version/]
-// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.129Z"/"start_time": $body.snapshots.0.start_time/]
-// TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
-// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.129Z"/"end_time": $body.snapshots.0.end_time/]
-// TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
-// TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.snapshots.0.duration_in_millis/]
+// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.132Z"/"start_time": $body.snapshots.0.start_time/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628852/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
+// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.135Z"/"end_time": $body.snapshots.0.end_time/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593093628855/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 3/"duration_in_millis": $body.snapshots.0.duration_in_millis/]
 
 Alternatively, the same result could be retrieved by using an offset value of `2` to skip the two snapshot already seen.
 
@@ -501,7 +506,7 @@ The API returns the following response:
   "snapshots": [
     {
       "snapshot": "snapshot_3",
-      "uuid": "dRctdKb54xw67gvLCxSket",
+      "uuid": "gvLCxSketdRctdKb54xw67",
       "repository": "my_repository",
       "version_id": <version_id>,
       "version": <version>,
@@ -510,11 +515,11 @@ The API returns the following response:
       "feature_states": [],
       "include_global_state": true,
       "state": "SUCCESS",
-      "start_time": "2020-07-06T21:55:18.129Z",
-      "start_time_in_millis": 1593093628850,
-      "end_time": "2020-07-06T21:55:18.129Z",
-      "end_time_in_millis": 1593094752018,
-      "duration_in_millis": 0,
+      "start_time": "2020-07-06T21:55:18.132Z",
+      "start_time_in_millis": 1593093628852,
+      "end_time": "2020-07-06T21:55:18.135Z",
+      "end_time_in_millis": 1593093628855,
+      "duration_in_millis": 3,
       "failures": [],
       "shards": {
         "total": 0,
@@ -527,11 +532,119 @@ The API returns the following response:
   "remaining": 0
 }
 ----
-// TESTRESPONSE[s/"uuid": "dRctdKb54xw67gvLCxSket"/"uuid": $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"uuid": "gvLCxSketdRctdKb54xw67"/"uuid": $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"version_id": <version_id>/"version_id": $body.snapshots.0.version_id/]
+// TESTRESPONSE[s/"version": <version>/"version": $body.snapshots.0.version/]
+// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.132Z"/"start_time": $body.snapshots.0.start_time/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628852/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
+// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.135Z"/"end_time": $body.snapshots.0.end_time/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593093628855/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 3/"duration_in_millis": $body.snapshots.0.duration_in_millis/]
+
+The following request returns information for all snapshots in all repositories whose names do not contain the string "_2".
+
+[source,console]
+----
+GET /_snapshot/*/*?search=-name:_2
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "snapshots": [
+    {
+      "snapshot" : "my_snapshot",
+      "uuid": "IQo3ahn7Sbe6vcnnbSOtiQ",
+      "repository" : "my_repository",
+      "version_id" : 8000099,
+      "version" : "8.0.0",
+      "indices" : [ ],
+      "data_streams" : [ ],
+      "include_global_state" : true,
+      "state" : "SUCCESS",
+      "start_time": "2020-07-06T21:55:18.129Z",
+      "start_time_in_millis": 1593093628849,
+      "end_time": "2020-07-06T21:55:18.129Z",
+      "end_time_in_millis": 1593093628849,
+      "duration_in_millis": 0,
+      "failures" : [ ],
+      "shards" : {
+        "total" : 0,
+        "failed" : 0,
+        "successful" : 0
+      },
+      "feature_states" : [ ]
+    },
+    {
+      "snapshot": "snapshot_1",
+      "uuid": "dKb54xw67gvdRctLCxSket",
+      "repository": "my_repository",
+      "version_id": <version_id>,
+      "version": <version>,
+      "indices": [],
+      "data_streams": [],
+      "feature_states": [],
+      "include_global_state": true,
+      "state": "SUCCESS",
+      "start_time": "2020-07-06T21:55:18.130Z",
+      "start_time_in_millis": 1593093628850,
+      "end_time": "2020-07-06T21:55:18.131Z",
+      "end_time_in_millis": 1593093628851,
+      "duration_in_millis": 1,
+      "failures": [],
+      "shards": {
+        "total": 0,
+        "failed": 0,
+        "successful": 0
+      }
+    },
+    {
+      "snapshot": "snapshot_3",
+      "uuid": "gvLCxSketdRctdKb54xw67",
+      "repository": "my_repository",
+      "version_id": <version_id>,
+      "version": <version>,
+      "indices": [],
+      "data_streams": [],
+      "feature_states": [],
+      "include_global_state": true,
+      "state": "SUCCESS",
+      "start_time": "2020-07-06T21:55:18.132Z",
+      "start_time_in_millis": 1593093628852,
+      "end_time": "2020-07-06T21:55:18.135Z",
+      "end_time_in_millis": 1593093628855,
+      "duration_in_millis": 3,
+      "failures": [],
+      "shards": {
+        "total": 0,
+        "failed": 0,
+        "successful": 0
+      }
+    }
+  ],
+  "total": 3,
+  "remaining": 0
+}
+----
+// TESTRESPONSE[s/"uuid": "IQo3ahn7Sbe6vcnnbSOtiQ"/"uuid": $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"uuid": "dKb54xw67gvdRctLCxSket"/"uuid": $body.snapshots.1.uuid/]
+// TESTRESPONSE[s/"uuid": "gvLCxSketdRctdKb54xw67"/"uuid": $body.snapshots.2.uuid/]
 // TESTRESPONSE[s/"version_id": <version_id>/"version_id": $body.snapshots.0.version_id/]
 // TESTRESPONSE[s/"version": <version>/"version": $body.snapshots.0.version/]
 // TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.129Z"/"start_time": $body.snapshots.0.start_time/]
-// TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
+// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.130Z"/"start_time": $body.snapshots.1.start_time/]
+// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.132Z"/"start_time": $body.snapshots.2.start_time/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628849/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.snapshots.1.start_time_in_millis/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628852/"start_time_in_millis": $body.snapshots.2.start_time_in_millis/]
 // TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.129Z"/"end_time": $body.snapshots.0.end_time/]
-// TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
+// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.131Z"/"end_time": $body.snapshots.1.end_time/]
+// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.135Z"/"end_time": $body.snapshots.2.end_time/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593093628849/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593093628851/"end_time_in_millis": $body.snapshots.1.end_time_in_millis/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593093628855/"end_time_in_millis": $body.snapshots.2.end_time_in_millis/]
 // TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.snapshots.0.duration_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 1/"duration_in_millis": $body.snapshots.1.duration_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 3/"duration_in_millis": $body.snapshots.2.duration_in_millis/]

@@ -28,7 +28,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -593,8 +592,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                 // once the audit file rolled over, it will stay like this
                                 auditFileRolledOver = true;
                                 // unzip the file
-                                InputStream fileStream = new FileInputStream(ROLLED_OVER_AUDIT_LOG_FILE.toFile());
-                                InputStream gzipStream = new GZIPInputStream(fileStream);
+                                InputStream gzipStream = new GZIPInputStream(Files.newInputStream(ROLLED_OVER_AUDIT_LOG_FILE));
                                 Reader decoder = new InputStreamReader(gzipStream, StandardCharsets.UTF_8);
                                 // the order in the array matters, as the readers will be used in that order
                                 logReaders[0] = new BufferedReader(decoder);

@@ -28,7 +28,11 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,6 +48,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
@@ -587,8 +592,12 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                             if (localAuditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
                                 // once the audit file rolled over, it will stay like this
                                 auditFileRolledOver = true;
+                                // unzip the file
+                                InputStream fileStream = new FileInputStream(ROLLED_OVER_AUDIT_LOG_FILE.toFile());
+                                InputStream gzipStream = new GZIPInputStream(fileStream);
+                                Reader decoder = new InputStreamReader(gzipStream, StandardCharsets.UTF_8);
                                 // the order in the array matters, as the readers will be used in that order
-                                logReaders[0] = Files.newBufferedReader(ROLLED_OVER_AUDIT_LOG_FILE, StandardCharsets.UTF_8);
+                                logReaders[0] = new BufferedReader(decoder);
                             }
                             logReaders[1] = Files.newBufferedReader(AUDIT_LOG_FILE, StandardCharsets.UTF_8);
                             return null;

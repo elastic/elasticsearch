@@ -290,4 +290,28 @@ public class HotThreadsTests extends ESTestCase {
         assertThat(blockInnerResult, containsString("0.0% (0s out of 10nanos) block usage by thread 'Thread 2'"));
         assertThat(blockInnerResult, containsString("0.0% (0s out of 10nanos) block usage by thread 'Thread 4'"));
     }
+
+    public void testEnsureInnerDetectSkipsCurrentThread() throws Exception {
+        ThreadMXBean mockedMXBean = mock(ThreadMXBean.class);
+        when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
+
+        long mockCurrentThreadId = 5L;
+        var threadIds = new long[] { mockCurrentThreadId }; // Matches half the intervalNanos for calculating time percentages
+
+        when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
+
+        List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
+        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
+
+        HotThreads hotThreads = new HotThreads()
+            .busiestThreads(4)
+            .type("cpu")
+            .interval(TimeValue.timeValueNanos(10))
+            .threadElementsSnapshotCount(11)
+            .ignoreIdleThreads(false);
+
+        var innerResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
+
+        assertEquals(1, innerResult.lines().count());
+    }
 }

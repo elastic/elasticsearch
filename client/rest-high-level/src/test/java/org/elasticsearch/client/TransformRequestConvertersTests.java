@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformRequestConvertersTests extends ESTestCase {
 
@@ -195,12 +196,8 @@ public class TransformRequestConvertersTests extends ESTestCase {
         Request request = TransformRequestConverters.previewTransform(previewRequest);
 
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_transform/_preview"));
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
-            PreviewTransformRequest parsedRequest = PreviewTransformRequestTests.fromXContent(parser);
-            assertThat(parsedRequest, equalTo(previewRequest));
-        }
+        assertThat(request.getEndpoint(), equalTo("/_transform/" + transformId + "/_preview"));
+        assertThat(request.getEntity(), nullValue());
     }
 
     public void testGetDataFrameTransformStats() {

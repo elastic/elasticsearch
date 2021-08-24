@@ -83,12 +83,13 @@ public class PreviewTransformRequestTests extends AbstractXContentTestCase<Previ
         return new NamedXContentRegistry(namedXContents);
     }
 
+    public void testConstructorThrowsNPE() {
+        expectThrows(NullPointerException.class, () -> new PreviewTransformRequest((String) null));
+        expectThrows(NullPointerException.class, () -> new PreviewTransformRequest((TransformConfig) null));
+    }
+
     public void testValidate() {
         assertThat(new PreviewTransformRequest(TransformConfigTests.randomTransformConfig()).validate(), isEmpty());
-        assertThat(new PreviewTransformRequest((String) null).validate().get().getMessage(),
-                containsString("preview requires a non-null transform id or config"));
-        assertThat(new PreviewTransformRequest((TransformConfig) null).validate().get().getMessage(),
-                containsString("preview requires a non-null transform id or config"));
 
         // null id and destination is valid
         TransformConfig config = TransformConfig.forPreview(randomSourceConfig(), PivotConfigTests.randomPivotConfig());

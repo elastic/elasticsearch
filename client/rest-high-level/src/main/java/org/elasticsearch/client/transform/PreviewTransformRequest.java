@@ -25,13 +25,13 @@ public class PreviewTransformRequest implements ToXContentObject, Validatable {
     private final TransformConfig config;
 
     public PreviewTransformRequest(String transformId) {
-        this.transformId = transformId;
+        this.transformId = Objects.requireNonNull(transformId);
         this.config = null;
     }
 
     public PreviewTransformRequest(TransformConfig config) {
         this.transformId = null;
-        this.config = config;
+        this.config = Objects.requireNonNull(config);
     }
 
     public String getTransformId() {
@@ -61,10 +61,6 @@ public class PreviewTransformRequest implements ToXContentObject, Validatable {
             if (config.getSource() == null) {
                 validationException.addValidationError("transform source cannot be null");
             }
-        }
-        if (transformId == null && config == null) {
-            validationException.addValidationError("preview requires a non-null transform id or config");
-            return Optional.of(validationException);
         }
 
         if (validationException.validationErrors().isEmpty()) {

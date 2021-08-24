@@ -44,27 +44,22 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
 
     @Override
     protected Request createTestInstance() {
-        if (randomBoolean()) {
-            String id = randomAlphaOfLengthBetween(1, 100);
-            return new Request(id);
-        } else {
-            TransformConfig config = new TransformConfig(
-                "transform-preview",
-                randomSourceConfig(),
-                new DestConfig("unused-transform-preview-index", null),
-                null,
-                randomBoolean() ? TransformConfigTests.randomSyncConfig() : null,
-                null,
-                PivotConfigTests.randomPivotConfig(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            );
-            return new Request(config);
-        }
+        TransformConfig config = new TransformConfig(
+            "transform-preview",
+            randomSourceConfig(),
+            new DestConfig("unused-transform-preview-index", null),
+            null,
+            randomBoolean() ? TransformConfigTests.randomSyncConfig() : null,
+            null,
+            PivotConfigTests.randomPivotConfig(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        return new Request(config);
     }
 
     public void testParsingOverwritesIdField() throws IOException {

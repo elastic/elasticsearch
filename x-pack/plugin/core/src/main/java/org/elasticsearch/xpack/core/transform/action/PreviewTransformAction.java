@@ -52,38 +52,19 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        private final String transformId;
         private final TransformConfig config;
 
-        public Request(String transformId) {
-            this.transformId = transformId;
-            this.config = null;
-        }
-
         public Request(TransformConfig config) {
-            this.transformId = null;
             this.config = config;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                this.transformId = in.readOptionalString();
-                this.config = in.readOptionalWriteable(TransformConfig::new);
-            } else {
-                this.transformId = null;
-                this.config = new TransformConfig(in);
-            }
+            this.config = new TransformConfig(in);
         }
 
         public static Request fromXContent(final XContentParser parser) throws IOException {
             Map<String, Object> content = parser.map();
-            if (content.size() == 1 && content.containsKey(TransformField.ID.getPreferredName())) {
-                // The request only contains transform id so instead of parsing TransformConfig (which is pointless in this case),
-                // let's just fetch the transform config by id later on.
-                String transformId = (String) content.get(TransformField.ID.getPreferredName());
-                return new Request(transformId);
-            }
             // dest.index is not required for _preview, so we just supply our own
             Map<String, String> tempDestination = new HashMap<>();
             tempDestination.put(DestConfig.INDEX.getPreferredName(), DUMMY_DEST_INDEX_FOR_PREVIEW);
@@ -111,36 +92,20 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
 
         @Override
         public ActionRequestValidationException validate() {
-            // TODO: Make sure ids do not clash
-
-
             ActionRequestValidationException validationException = null;
 
-            if (config != null) {
-                validationException = config.validate(validationException);
-                validationException = SourceDestValidator.validateRequest(
-                    validationException,
-                    config.getDestination() != null ? config.getDestination().getIndex() : null
-                );
-            }
+            validationException = config.validate(validationException);
+            validationException = SourceDestValidator.validateRequest(
+                validationException,
+                config.getDestination() != null ? config.getDestination().getIndex() : null
+            );
 
             return validationException;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (this.config != null) {
-                return this.config.toXContent(builder, params);
-            } else {
-                return builder
-                    .startObject()
-                    .field(TransformField.ID.getPreferredName(), this.transformId)
-                    .endObject();
-            }
-        }
-
-        public String getTransformId() {
-            return transformId;
+            return this.config.toXContent(builder, params);
         }
 
         public TransformConfig getConfig() {
@@ -150,17 +115,12 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalString(this.transformId);
-                out.writeOptionalWriteable(this.config);
-            } else {
-                this.config.writeTo(out);
-            }
+            this.config.writeTo(out);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(transformId, config);
+            return Objects.hash(config);
         }
 
         @Override
@@ -172,13 +132,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(transformId, other.transformId)
-                && Objects.equals(config, other.config);
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
+            return Objects.equals(config, other.config);
         }
     }
 

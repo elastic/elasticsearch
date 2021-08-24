@@ -536,8 +536,7 @@ public class SecurityTests extends ESTestCase {
         licenseState.update(
             randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL),
             true,
-            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis(),
-            null
+            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis()
         );
         final IllegalStateException ise = expectThrows(IllegalStateException.class, () -> {
             security.possiblyValidateImplicitSecurityBehaviorOnUpdate(
@@ -554,8 +553,7 @@ public class SecurityTests extends ESTestCase {
         licenseState.update(
             randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL),
             true,
-            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis(),
-            null
+            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis()
         );
         security.possiblyValidateImplicitSecurityBehaviorOnUpdate(
             settings,
@@ -569,8 +567,7 @@ public class SecurityTests extends ESTestCase {
         licenseState.update(
             randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL),
             true,
-            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis(),
-            null
+            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis()
         );
         security.possiblyValidateImplicitSecurityBehaviorOnUpdate(
             Settings.EMPTY,
@@ -585,8 +582,7 @@ public class SecurityTests extends ESTestCase {
         licenseState.update(
             randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL),
             true,
-            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis(),
-            null
+            System.currentTimeMillis() + TimeValue.timeValueDays(10).getMillis()
         );
         security.possiblyValidateImplicitSecurityBehaviorOnUpdate(settings, new NodeMetadata(randomAlphaOfLength(8), Version.V_8_0_0));
         // no exception thrown
@@ -594,7 +590,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testUpgradeNodeWithUnavailableLicenseAndImplicitSecuritySettings() throws Exception {
         createComponents(Settings.EMPTY);
-        licenseState.update(License.OperationMode.TRIAL, true, Long.MAX_VALUE, null);
+        licenseState.update(License.OperationMode.TRIAL, true, Long.MAX_VALUE);
         security.possiblyValidateImplicitSecurityBehaviorOnUpdate(
             Settings.EMPTY,
             new NodeMetadata(randomAlphaOfLength(8), Version.V_8_0_0)

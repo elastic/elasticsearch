@@ -65,7 +65,11 @@ import static java.util.Arrays.asList;
  * mode prompts for each individual user's password. This tool only runs once,
  * if successful. After the elastic user password is set you have to use the
  * `security` API to manipulate passwords.
+ *
+ * @deprecated Use {@link ResetElasticPasswordTool} for setting the password of the elastic user and the ChangePassword API
+ * for setting the password of the rest of the built-in users when needed.
  */
+@Deprecated
 public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
@@ -134,6 +138,12 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             checkClusterHealth(terminal);
 
             if (shouldPrompt) {
+                terminal.println("******************************************************************************");
+                terminal.println("Note: The 'elasticsearch-setup-passwords' tool has been deprecated in favour");
+                terminal.println("      of the 'elasticsearch-reset-elastic-password' tool. This command will");
+                terminal.println("      possibly be removed in a future release.");
+                terminal.println("******************************************************************************");
+                terminal.println("");
                 terminal.println("Initiating the setup of passwords for reserved users " + String.join(",", USERS) + ".");
                 terminal.println("The passwords will be randomly generated and printed to the console.");
                 boolean shouldContinue = terminal.promptYesNo("Please confirm that you would like to continue", false);
@@ -180,6 +190,12 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             checkClusterHealth(terminal);
 
             if (shouldPrompt) {
+                terminal.println("******************************************************************************");
+                terminal.println("Note: The 'elasticsearch-setup-passwords' tool has been deprecated in favour");
+                terminal.println("      of the 'elasticsearch-reset-elastic-password' tool. This command will");
+                terminal.println("      possibly be removed in a future release.");
+                terminal.println("******************************************************************************");
+                terminal.println("");
                 terminal.println("Initiating the setup of passwords for reserved users " + String.join(",", USERS) + ".");
                 terminal.println("You will be prompted to enter passwords as the process progresses.");
                 boolean shouldContinue = terminal.promptYesNo("Please confirm that you would like to continue", false);
@@ -313,6 +329,11 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     terminal.errorPrintln(" * The password for the '" + elasticUser + "' user has already been changed on this cluster");
                     terminal.errorPrintln(" * Your elasticsearch node is running against a different keystore");
                     terminal.errorPrintln("   This tool used the keystore at " + KeyStoreWrapper.keystorePath(env.configFile()));
+                    terminal.errorPrintln("");
+                    terminal.errorPrintln(
+                        "You can use `elasticsearch-reset-elastic-password` CLI tool to reset the password of the '" + elasticUser
+                            + "' user"
+                    );
                     terminal.errorPrintln("");
                     throw new UserException(ExitCodes.CONFIG, "Failed to verify bootstrap password");
                 } else if (httpCode != HttpURLConnection.HTTP_OK) {

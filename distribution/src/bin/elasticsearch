@@ -87,12 +87,13 @@ if [[ $DAEMONIZE = false ]]; then
       org.elasticsearch.tools.launchers.TerminalOutputFormatter; then
 # redirect the ES node's output to the formatter code in order to output the bottom persistent banner
         exec > >(exec "$JAVA" "$XSHARE" -cp "$ES_HOME/lib/jansi-2.3.4.jar:$ES_HOME/lib/elasticsearch-launchers-@project.version@.jar" \
-        org.elasticsearch.tools.launchers.TerminalOutputFormatter "EOF" \
+        org.elasticsearch.tools.launchers.TerminalOutputFormatter "BANNER_EOF" \
           <(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.BootstrapPasswordAndEnrollmentTokenForInitialNode \
           ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
           ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
           "$(dirname "$0")/elasticsearch-cli" \
           "$@" \
+          "-eof-marker" "BANNER_EOF" \
           <<<"$KEYSTORE_PASSWORD"))
     fi
   fi

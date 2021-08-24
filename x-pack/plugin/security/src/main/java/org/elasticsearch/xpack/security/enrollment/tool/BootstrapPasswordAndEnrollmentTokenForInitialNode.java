@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.enrollment.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
@@ -44,6 +43,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
     private final OptionSpec<Void> includeNodeEnrollmentToken;
+    private final OptionSpec<String> eofMarker;
     private final SecureRandom secureRandom = new SecureRandom();
 
     BootstrapPasswordAndEnrollmentTokenForInitialNode() {
@@ -57,13 +57,14 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
     BootstrapPasswordAndEnrollmentTokenForInitialNode(Function<Environment, CommandLineHttpClient> clientFunction,
                                                       CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction,
                                                       CheckedFunction<Environment, EnrollmentTokenGenerator, Exception>
-                                                     createEnrollmentTokenFunction){
+                                                      createEnrollmentTokenFunction){
         super("Set elastic password and generate enrollment token for initial node");
         this.clientFunction = clientFunction;
         this.keyStoreFunction = keyStoreFunction;
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
         includeNodeEnrollmentToken = parser.accepts("include-node-enrollment-token", "determine that we have to generate " +
             "a node enrollment token");
+        eofMarker = parser.accepts("eof-marker", "the last line of the printed text").withRequiredArg();
     }
 
     public static void main(String[] args) throws Exception {
@@ -71,23 +72,26 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        final SecureString keystorePassword;
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws UserException {
+        final SecureString keystorePassword = new SecureString(terminal.readSecret(""));
+        final Environment secureEnvironment;
+        final CommandLineHttpClient client;
+        final EnrollmentTokenGenerator enrollmentTokenGenerator;
         try {
-            keystorePassword = new SecureString(terminal.readSecret(""));
+            secureEnvironment = readSecureSettings(env, keystorePassword);
+            client = clientFunction.apply(secureEnvironment);
+            enrollmentTokenGenerator = createEnrollmentTokenFunction.apply(secureEnvironment);
         } catch (Exception e) {
-            throw new UserException(ExitCodes.USAGE, null);
+            throw new UserException(ExitCodes.CONFIG, null, e);
         }
-
-        final Environment secureEnvironment = readSecureSettings(env, keystorePassword);
-        final CommandLineHttpClient client = clientFunction.apply(secureEnvironment);
-        final EnrollmentTokenGenerator enrollmentTokenGenerator = createEnrollmentTokenFunction.apply(secureEnvironment);
         final SecureString bootstrapPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(secureEnvironment.settings());
         try {
             String output;
             client.checkClusterHealthWithRetriesWaitingForCluster(ElasticUser.NAME, bootstrapPassword, 30);
             final EnrollmentToken kibanaToken = enrollmentTokenGenerator.createKibanaEnrollmentToken(ElasticUser.NAME, bootstrapPassword);
-            output = "Security is enabled and has been automatically configured:" + System.lineSeparator();
+            output = "The following information is only briefly displayed the first time the first node of a new cluster " +
+                            "is started from a terminal." + System.lineSeparator();
+            output += "Security is now enabled and has been automatically configured:" + System.lineSeparator();
             output += "Kibana enrollment token: " + kibanaToken.getEncoded() + System.lineSeparator();
             output += "CA fingerprint: " + kibanaToken.getFingerprint() + System.lineSeparator();
             if (options.has(includeNodeEnrollmentToken)) {
@@ -97,10 +101,10 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
             if (ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.exists(secureEnvironment.settings()) == false) {
                 output += "elastic user password: " + setElasticUserPassword(client, bootstrapPassword) + System.lineSeparator();
             }
-            output += "EOF";
+            output += eofMarker.value(options);
             terminal.println(output);
         } catch (Exception e) {
-            throw new UserException(ExitCodes.UNAVAILABLE, null);
+            throw new UserException(ExitCodes.UNAVAILABLE, null, e);
         }
     }
 
@@ -119,7 +123,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
                 throw new UserException(ExitCodes.UNAVAILABLE, null);
             }
         } catch (IOException e) {
-            throw new UserException(ExitCodes.IO_ERROR, null);
+            throw new UserException(ExitCodes.IO_ERROR, null, e);
         }
         return password;
     }

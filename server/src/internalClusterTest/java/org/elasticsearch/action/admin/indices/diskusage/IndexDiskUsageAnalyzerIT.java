@@ -63,6 +63,17 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .setSource(doc)
                 .get();
         }
+        final boolean hasNorms = randomBoolean();
+        if (hasNorms) {
+            final XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("english_text", "A long sentence to make sure that norms is non-zero")
+                .endObject();
+            client().prepareIndex(index)
+                .setId("id")
+                .setSource(doc)
+                .get();
+        }
         PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = PlainActionFuture.newFuture();
         client().execute(AnalyzeIndexDiskUsageAction.INSTANCE,
             new AnalyzeIndexDiskUsageRequest(new String[] {index}, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true),
@@ -77,8 +88,9 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         final IndexDiskUsageStats.PerFieldDiskUsage englishField = stats.getFields().get("english_text");
         assertThat(englishField.getInvertedIndexBytes(), greaterThan(0L));
         assertThat(englishField.getStoredFieldBytes(), equalTo(0L));
-        assertThat(englishField.getNormsBytes(), greaterThan(0L));
-
+        if (hasNorms) {
+            assertThat(englishField.getNormsBytes(), greaterThan(0L));
+        }
         final IndexDiskUsageStats.PerFieldDiskUsage valueField = stats.getFields().get("value");
         assertThat(valueField.getInvertedIndexBytes(), equalTo(0L));
         assertThat(valueField.getStoredFieldBytes(), equalTo(0L));

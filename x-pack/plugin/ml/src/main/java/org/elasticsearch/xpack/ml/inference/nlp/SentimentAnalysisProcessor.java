@@ -60,8 +60,8 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
     }
 
     NlpTask.Request buildRequest(List<String> inputs, String requestId) throws IOException {
-        BertTokenizer.Tokenization tokenization = tokenizer.tokenize(inputs);
-        return new NlpTask.Request(tokenization, jsonRequest(tokenization, requestId, tokenizer.getPadToken());
+        TokenizationResult tokenization = tokenizer.tokenize(inputs);
+        return new NlpTask.Request(tokenization, jsonRequest(tokenization, requestId, tokenizer.getPadToken()));
     }
 
     @Override
@@ -85,7 +85,7 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
             classLabels.get(0), normalizedScores[0]);
     }
 
-    static BytesReference jsonRequest(BertTokenizer.Tokenization tokenization, String requestId, int padToken) throws IOException {
+    static BytesReference jsonRequest(TokenizationResult tokenization, String requestId, int padToken) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field(BertRequestBuilder.REQUEST_ID, requestId);

@@ -152,7 +152,7 @@ public class NerProcessor implements NlpTask.Processor {
             // of maybe (1 + 0) / 2 = 0.5 while before softmax it'd be exp(10 - 5) / normalization
             // which could easily be close to 1.
             double[][] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0]);
-            List<TaggedToken> taggedTokens = tagTokens(normalizedScores, iobMap, tokenization.getTokenizations().get(0));
+            List<TaggedToken> taggedTokens = tagTokens(tokenization.getTokenizations().get(0), normalizedScores, iobMap);
             List<NerResults.EntityGroup> entities = groupTaggedTokens(taggedTokens);
             return new NerResults(entities);
         }
@@ -163,27 +163,27 @@ public class NerProcessor implements NlpTask.Processor {
          * in the original input replacing them with a single token that
          * gets labelled based on the average score of all its sub-tokens.
          */
-        static List<TaggedToken> tagTokens(TokenizationResult tokenization,
+        static List<TaggedToken> tagTokens(TokenizationResult.Tokenization tokenization,
                                             double[][] scores,
                                            IobTag[] iobMap) {
             List<TaggedToken> taggedTokens = new ArrayList<>();
             int startTokenIndex = 0;
-            while (startTokenIndex < tokenizationResult.getTokens().size()) {
-                int inputMapping = tokenizationResult.getTokenMap()[startTokenIndex];
+            while (startTokenIndex < tokenization.getTokens().size()) {
+                int inputMapping = tokenization.getTokenMap()[startTokenIndex];
                 if (inputMapping < 0) {
                     // This token does not map to a token in the input (special tokens)
                     startTokenIndex++;
                     continue;
                 }
                 int endTokenIndex = startTokenIndex;
-                StringBuilder word = new StringBuilder(tokenizationResult.getTokens().get(startTokenIndex));
-                while (endTokenIndex < tokenizationResult.getTokens().size() - 1
-                    && tokenizationResult.getTokenMap()[endTokenIndex + 1] == inputMapping) {
+                StringBuilder word = new StringBuilder(tokenization.getTokens().get(startTokenIndex));
+                while (endTokenIndex < tokenization.getTokens().size() - 1
+                    && tokenization.getTokenMap()[endTokenIndex + 1] == inputMapping) {
                     endTokenIndex++;
                     // TODO Here we try to get rid of the continuation hashes at the beginning of sub-tokens.
                     // It is probably more correct to implement detokenization on the tokenizer
                     // that does reverse lookup based on token IDs.
-                    String endTokenWord = tokenizationResult.getTokens().get(endTokenIndex).substring(2);
+                    String endTokenWord = tokenization.getTokens().get(endTokenIndex).substring(2);
                     word.append(endTokenWord);
                 }
                 double[] avgScores = Arrays.copyOf(scores[startTokenIndex], iobMap.length);

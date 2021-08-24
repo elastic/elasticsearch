@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -22,6 +23,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class NlpTask {
 
@@ -43,7 +46,43 @@ public class NlpTask {
     }
 
     public interface RequestBuilder {
-        Request buildRequest(String inputs, String requestId) throws IOException;
+        Request buildRequest(List<String> inputs, String requestId) throws IOException;
+
+        static void writePaddedTokens(String fieldName,
+                                      TokenizationResult tokenization,
+                                      int padToken,
+                                      BiFunction<TokenizationResult.Tokenization, Integer, Integer> generator,
+                                      XContentBuilder builder) throws IOException {
+            builder.startArray(fieldName);
+            for (var inputTokens : tokenization.getTokenizations()) {
+                builder.startArray();
+                int i = 0;
+                for (; i < inputTokens.getTokenIds().length; i++) {
+                    builder.value(generator.apply(inputTokens, i));
+                }
+
+                for (; i < tokenization.getLongestSequenceLength(); i++) {
+                    builder.value(padToken);
+                }
+                builder.endArray();
+            }
+            builder.endArray();
+        }
+
+        static void writeNonPaddedIds(String fieldName,
+                                      int numTokenizations, int longestSequenceLength,
+                                      Function<Integer, Integer> generator,
+                                      XContentBuilder builder) throws IOException {
+            builder.startArray(fieldName);
+            for (int i = 0; i < numTokenizations; i++) {
+                builder.startArray();
+                for (int j = 0; j < longestSequenceLength; j++) {
+                    builder.value(generator.apply(j));
+                }
+                builder.endArray();
+            }
+            builder.endArray();
+        }
     }
 
     public interface ResultProcessor {

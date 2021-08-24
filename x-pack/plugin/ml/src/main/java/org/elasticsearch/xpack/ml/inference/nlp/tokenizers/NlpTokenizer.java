@@ -16,14 +16,18 @@ import org.elasticsearch.xpack.ml.inference.nlp.DistilBertRequestBuilder;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.VOCABULARY;
 
 public interface NlpTokenizer {
 
-    TokenizationResult tokenize(String text);
+    TokenizationResult tokenize(List<String> text);
 
     NlpTask.RequestBuilder requestBuilder();
+
+    Integer getPadToken();
 
     static NlpTokenizer build(Vocabulary vocabulary, Tokenization params) {
         ExceptionsHelper.requireNonNull(params, TOKENIZATION);

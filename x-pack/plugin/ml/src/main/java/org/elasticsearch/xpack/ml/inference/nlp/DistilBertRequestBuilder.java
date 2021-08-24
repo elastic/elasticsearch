@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 
 public class DistilBertRequestBuilder implements NlpTask.RequestBuilder {
 
@@ -29,8 +30,8 @@ public class DistilBertRequestBuilder implements NlpTask.RequestBuilder {
     }
 
     @Override
-    public NlpTask.Request buildRequest(String input, String requestId) throws IOException {
-        TokenizationResult result = tokenizer.tokenize(input);
+    public NlpTask.Request buildRequest(List<String> inputs, String requestId) throws IOException {
+        TokenizationResult result = tokenizer.tokenize(inputs);
         return new NlpTask.Request(result, jsonRequest(result.getTokenIds(), requestId));
     }
 

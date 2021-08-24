@@ -13,9 +13,7 @@ import org.elasticsearch.xpack.ml.inference.nlp.BertRequestBuilder;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
@@ -42,7 +40,7 @@ public class BertTokenizer implements NlpTokenizer {
 
     public static final int DEFAULT_MAX_INPUT_CHARS_PER_WORD = 100;
 
-    private final Set<String> NEVER_SPLIT = new HashSet<>(Arrays.asList(MASK_TOKEN));
+    private final Set<String> NEVER_SPLIT =  Set.of(MASK_TOKEN);
 
     private final WordPieceTokenizer wordPieceTokenizer;
     private final List<String> originalVocab;
@@ -89,17 +87,17 @@ public class BertTokenizer implements NlpTokenizer {
      * @return A {@link Tokenization}
      */
     @Override
-    public Tokenization tokenize(List<String> text) {
-        Tokenization tokenization = new Tokenization(originalVocab);
+    public TokenizationResult tokenize(List<String> text) {
+        TokenizationResult tokenization = new TokenizationResult(originalVocab);
 
         for (String input: text) {
-            tokenization.addTokenization(tokenize(input));
+            addTokenization(tokenization, input);
         }
         return tokenization;
     }
 
 
-    private TokenizationResult tokenize(String text) {
+    private void addTokenization(TokenizationResult tokenization, String text) {
         BasicTokenizer basicTokenizer = new BasicTokenizer(doLowerCase, doTokenizeCjKChars, doStripAccents, neverSplit);
 
         List<String> delineatedTokens = basicTokenizer.tokenize(text);
@@ -157,44 +155,13 @@ public class BertTokenizer implements NlpTokenizer {
             );
         }
 
-        return new TokenizationResult(text, originalVocab, tokens, tokenIds, tokenMap);
+        tokenization.addTokenization(text, tokens, tokenIds, tokenMap);
     }
 
+    @Override
     public Integer getPadToken() {
         return vocab.get(PAD_TOKEN);
     }
-
-    public static class TokenizationResult {
-        String input;
-        private final List<String> tokens;
-        private final int [] tokenIds;
-        private final int [] tokenMap;
-
-        public TokenizationResult(String input, List<String> tokens, int[] tokenIds, int[] tokenMap) {
-            assert tokens.size() == tokenIds.length;
-            assert tokenIds.length == tokenMap.length;
-            this.input = input;
-            this.tokens = tokens;
-            this.tokenIds = tokenIds;
-            this.tokenMap = tokenMap;
-        }
-
-        /**
-         * The token strings from the tokenization process
-         * @return A list of tokens
-         */
-        public List<String> getTokens() {
-            return tokens;
-        }
-
-        /**
-         * The integer values of the tokens in {@link #getTokens()}
-         * @return A list of token Ids
-         */
-        public int[] getTokenIds() {
-            return tokenIds;
-        }
->>>>>>> WIP: abandoned because maybe we do not want to batch now
 
     @Override
     public NlpTask.RequestBuilder requestBuilder() {

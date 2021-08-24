@@ -243,8 +243,7 @@ public class RoundingTests extends ESTestCase {
         long minLookup = 688618001000L; // 1991-10-28T02:46:41.527Z
         long maxLookup = 688618001001L; // +1sec
         // there is a Transition[Overlap at 1991-10-27T00:01-02:30 to -03:30] ”
-        long[] bounds =  new long[]{minLookup, maxLookup};
-        assertUnitRoundingSameAsJavaUtilTimeImplementation(unit, tz, bounds[0], bounds[1]);
+        assertUnitRoundingSameAsJavaUtilTimeImplementation(unit, tz, minLookup, maxLookup);
     }
 
     private void assertUnitRoundingSameAsJavaUtilTimeImplementation(Rounding.DateTimeUnit unit, ZoneId tz, long start, long end) {

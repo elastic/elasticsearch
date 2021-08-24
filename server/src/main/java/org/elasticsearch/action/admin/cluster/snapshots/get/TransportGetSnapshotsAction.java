@@ -528,43 +528,49 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final int total;
         if (search != null) {
             final Predicate<SnapshotInfo> filter;
-            if (search.field().equals(SnapshotsService.POLICY_ID_METADATA_FIELD)) {
-                final String policyId = search.value();
-                if (search.exact()) {
-                    filter = snapshotInfo -> {
-                        final Map<String, Object> meta = snapshotInfo.userMetadata();
-                        if (meta == null) {
-                            return false;
-                        }
-                        return policyId.equals(meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD));
-                    };
-                } else {
-                    filter = snapshotInfo -> {
-                        final Map<String, Object> meta = snapshotInfo.userMetadata();
-                        if (meta == null) {
-                            return false;
-                        }
-                        final Object policyIdFound = meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-                        if (policyIdFound instanceof String == false) {
-                            return false;
-                        }
-                        return ((String) policyIdFound).contains(policyId);
-                    };
-                }
-            } else if (search.field().equals("name")) {
-                final String snapshotName = search.value();
-                if (search.exact()) {
-                    filter = snapshotInfo -> snapshotName.equals(snapshotInfo.snapshotId().getName());
-                } else {
-                    filter = snapshotInfo -> snapshotInfo.snapshotId().getName().contains(snapshotName);
-                }
-            } else {
-                final String repositoryName = search.value();
-                if (search.exact()) {
-                    filter = snapshotInfo -> repositoryName.equals(snapshotInfo.repository());
-                } else {
-                    filter = snapshotInfo -> snapshotInfo.repository().contains(repositoryName);
-                }
+            switch (search.field()) {
+                case POLICY:
+                    final String policyId = search.value();
+                    if (search.operation() == GetSnapshotsRequest.Search.Operation.EQUALS) {
+                        filter = snapshotInfo -> {
+                            final Map<String, Object> meta = snapshotInfo.userMetadata();
+                            if (meta == null) {
+                                return false;
+                            }
+                            return policyId.equals(meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD));
+                        };
+                    } else {
+                        filter = snapshotInfo -> {
+                            final Map<String, Object> meta = snapshotInfo.userMetadata();
+                            if (meta == null) {
+                                return false;
+                            }
+                            final Object policyIdFound = meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
+                            if (policyIdFound instanceof String == false) {
+                                return false;
+                            }
+                            return ((String) policyIdFound).contains(policyId);
+                        };
+                    }
+                    break;
+                case NAME:
+                    final String snapshotName = search.value();
+                    if (search.operation() == GetSnapshotsRequest.Search.Operation.EQUALS) {
+                        filter = snapshotInfo -> snapshotName.equals(snapshotInfo.snapshotId().getName());
+                    } else {
+                        filter = snapshotInfo -> snapshotInfo.snapshotId().getName().contains(snapshotName);
+                    }
+                    break;
+                case REPOSITORY:
+                    final String repositoryName = search.value();
+                    if (search.operation() == GetSnapshotsRequest.Search.Operation.EQUALS) {
+                        filter = snapshotInfo -> repositoryName.equals(snapshotInfo.repository());
+                    } else {
+                        filter = snapshotInfo -> snapshotInfo.repository().contains(repositoryName);
+                    }
+                    break;
+                default:
+                    throw new AssertionError("unexpected search field [" + search.field() + "]");
             }
             final List<SnapshotInfo> filteredList = infos.filter(search.not() ? filter.negate() : filter).collect(Collectors.toList());
             total = filteredList.size();

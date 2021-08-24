@@ -297,10 +297,22 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertEquals(snapshotsPolicyA, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "name:-a").getSnapshots());
         assertEquals(snapshotsPolicyB, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "name:-b").getSnapshots());
 
-        assertEquals(snapshotsPolicyA, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-repo:-2").getSnapshots());
-        assertEquals(snapshotsPolicyB, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-repo:-1").getSnapshots());
-        assertEquals(snapshotsPolicyA, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "repo:-1").getSnapshots());
-        assertEquals(snapshotsPolicyB, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "repo:-2").getSnapshots());
+        assertEquals(
+            snapshotsPolicyA,
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-repository:-2").getSnapshots()
+        );
+        assertEquals(
+            snapshotsPolicyB,
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-repository:-1").getSnapshots()
+        );
+        assertEquals(
+            snapshotsPolicyA,
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "repository:-1").getSnapshots()
+        );
+        assertEquals(
+            snapshotsPolicyB,
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "repository:-2").getSnapshots()
+        );
     }
 
     private static void assertStablePagination(String repoName,

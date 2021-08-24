@@ -63,9 +63,9 @@ public class GetSnapshotsRequestTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("can't use after and offset simultaneously"));
         }
         {
-            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false).search("repo:bla");
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false).search("repository:bla");
             final ActionRequestValidationException e = request.validate();
-            assertThat(e.getMessage(), containsString("an't use search with verbose=false"));
+            assertThat(e.getMessage(), containsString("can't use search with verbose=false"));
         }
     }
 

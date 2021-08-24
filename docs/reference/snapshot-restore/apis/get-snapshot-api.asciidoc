@@ -299,7 +299,7 @@ field value.
 
 `search`::
 (string)
-A search string to filter snapshots by. The search string can specify a query against the fields `repo` (repository name),
+A search string to filter snapshots by. The search string can specify a query against the fields `repository` (repository name),
 `name` (snapshot name) or `policy` (the SLM policy name that created the snapshot if it was created by SLM).
 Supported operations are `=` for exact text match and `:` for partial text match. Starting the query string on a `-`, means that all
 snapshots matching it should be excluded from the results.

@@ -293,10 +293,22 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAllSnapshotsReturned(snapshotsPolicyA, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "name:-a"));
         assertAllSnapshotsReturned(snapshotsPolicyB, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "name:-b"));
 
-        assertAllSnapshotsReturned(snapshotsPolicyA, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-repo:-2"));
-        assertAllSnapshotsReturned(snapshotsPolicyB, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-repo:-1"));
-        assertAllSnapshotsReturned(snapshotsPolicyA, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "repo:-1"));
-        assertAllSnapshotsReturned(snapshotsPolicyB, sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "repo:-2"));
+        assertAllSnapshotsReturned(
+            snapshotsPolicyA,
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-repository:-2")
+        );
+        assertAllSnapshotsReturned(
+            snapshotsPolicyB,
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "-repository:-1")
+        );
+        assertAllSnapshotsReturned(
+            snapshotsPolicyA,
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "repository:-1")
+        );
+        assertAllSnapshotsReturned(
+            snapshotsPolicyB,
+            sortedWithLimit("*", sortBy, null, GetSnapshotsRequest.NO_LIMIT, order, "repository:-2")
+        );
     }
 
     private static void assertAllSnapshotsReturned(List<SnapshotInfo> expectedSnapshots, GetSnapshotsResponse getSnapshotsResponse) {

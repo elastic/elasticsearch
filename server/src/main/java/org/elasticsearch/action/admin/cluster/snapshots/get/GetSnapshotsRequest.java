@@ -380,50 +380,76 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public static final class Search implements Writeable {
 
+        public enum SearchField {
+            NAME("name"),
+            REPOSITORY("repository"),
+            POLICY(SnapshotsService.POLICY_ID_METADATA_FIELD);
+
+            private final String fieldName;
+
+            SearchField(String fieldName) {
+                this.fieldName = fieldName;
+            }
+
+            public String fieldName() {
+                return fieldName;
+            }
+
+            @Override
+            public String toString() {
+                return fieldName;
+            }
+        }
+
+        public enum Operation {
+            CONTAINS,
+            EQUALS
+        }
+
         final boolean not;
-        final boolean exact;
+        final Operation operation;
         final String value;
-        final String field;
+        final SearchField field;
 
         static Search parse(String query) {
             final boolean not = query.startsWith("-");
             if (not) {
                 query = query.substring(1);
             }
-            final String field;
-            if (query.startsWith(SnapshotsService.POLICY_ID_METADATA_FIELD)) {
-                field = SnapshotsService.POLICY_ID_METADATA_FIELD;
-            } else if (query.startsWith("name")) {
-                field = "name";
-            } else if (query.startsWith("repo")) {
-                field = "repo";
+            final SearchField field;
+            if (query.startsWith(SearchField.POLICY.fieldName())) {
+                field = SearchField.POLICY;
+            } else if (query.startsWith(SearchField.NAME.fieldName())) {
+                field = SearchField.NAME;
+            } else if (query.startsWith(SearchField.REPOSITORY.fieldName())) {
+                field = SearchField.REPOSITORY;
             } else {
                 throw new IllegalArgumentException("unknown field in query [" + query + "]");
             }
-            query = query.substring(field.length()).trim();
-            final boolean exact;
+            query = query.substring(field.fieldName().length()).trim();
+            final Operation operation;
             if (query.startsWith("=")) {
-                exact = true;
+                operation = Operation.EQUALS;
             } else if (query.startsWith(":")) {
-                exact = false;
+                operation = Operation.CONTAINS;
             } else {
                 throw new IllegalArgumentException("only supporting '=' and ':' operators but saw query [" + query + "]");
             }
-            return new Search(not, exact, field, query.substring(1));
+            return new Search(not, operation, field, query.substring(1));
         }
 
         static Search readFrom(StreamInput in) throws IOException {
-            return new Search(in.readBoolean(), in.readBoolean(), in.readString(), in.readString());
+            return new Search(in.readBoolean(), in.readEnum(Operation.class), in.readEnum(SearchField.class), in.readString());
         }
 
-        private Search(boolean not, boolean exact, String field, String value) {
+        private Search(boolean not, Operation operation, SearchField field, String value) {
             this.not = not;
-            this.exact = exact;
+            this.operation = operation;
             this.field = field;
             this.value = value;
         }
 
-        public String field() {
+        public SearchField field() {
             return field;
         }
 
@@ -431,8 +457,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             return value;
         }
 
-        public boolean exact() {
-            return exact;
+        public Operation operation() {
+            return operation;
         }
 
         public boolean not() {
@@ -442,8 +468,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(not);
-            out.writeBoolean(exact);
-            out.writeString(field);
+            out.writeEnum(operation);
+            out.writeEnum(field);
             out.writeString(value);
         }
     }

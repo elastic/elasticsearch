@@ -1119,6 +1119,16 @@ public final class InternalTestCluster extends TestCluster {
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
         try {
+            // use waiting via the cluster service first to save on some busy-waiting and sleeping before entering the busy assert below
+            ClusterServiceUtils.awaitClusterState(
+                logger,
+                state -> state.nodes().getMasterNodeId() != null && state.nodes().getSize() == expectedNodes.size(),
+                getInstanceFromNode(ClusterService.class, randomFrom(nodes.values()).node)
+            );
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        try {
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values().stream()
                     .map(node -> getInstanceFromNode(ClusterService.class, node.node()))

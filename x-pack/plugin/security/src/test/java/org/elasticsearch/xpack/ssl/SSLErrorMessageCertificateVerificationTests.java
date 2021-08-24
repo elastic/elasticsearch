@@ -16,7 +16,6 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.logging.Loggers;
@@ -99,7 +98,6 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
 
     public void testDiagnosticTrustManagerForHostnameVerificationFailure() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/76767", Constants.WINDOWS);
         final Settings settings = getPemSSLSettings(HTTP_SERVER_SSL, "not-this-host.crt", "not-this-host.key",
             SslClientAuthenticationMode.NONE, SslVerificationMode.FULL, null)
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
@@ -118,6 +116,8 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
              SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()) {
             Loggers.addAppender(diagnosticLogger, mockAppender);
 
+            String fileName = "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt"
+                .replace('/', platformFileSeparator());
             mockAppender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
                 "ssl diagnostic",
                 DiagnosticTrustManager.class.getName(),
@@ -133,9 +133,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
                     " is trusted in this ssl context " +
                     Pattern.quote("([" + HTTP_CLIENT_SSL + " (with trust configuration: PEM-trust{") +
                     "\\S+" +
-                    Pattern.quote(
-                        "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt" +
-                            "})])")
+                    Pattern.quote(fileName + "})])")
             ));
 
             enableHttpsHostnameChecking(clientSocket);
@@ -206,6 +204,11 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             builder.putList(prefix + ".certificate_authorities", getPath(caPath));
         }
         return builder;
+    }
+
+    @SuppressForbidden(reason = "Checking error message that outputs platform file separator")
+    private static char platformFileSeparator() {
+        return java.io.File.separatorChar;
     }
 
     private static String randomCapitalization(Enum<?> enumValue) {

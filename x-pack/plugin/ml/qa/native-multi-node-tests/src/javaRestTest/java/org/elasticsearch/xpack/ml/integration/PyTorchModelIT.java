@@ -133,6 +133,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         waitForPendingTasks(adminClient());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
     public void testEvaluate() throws IOException, InterruptedException {
         String modelId = "test_evaluate";
         createModelStoreIndex();
@@ -167,6 +168,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
     public void testLiveDeploymentStats() throws IOException {
         String modelA = "model_a";
 
@@ -191,6 +193,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
     public void testGetDeploymentStats_WithWildcard() throws IOException {
 
         {
@@ -259,6 +262,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
     public void testGetDeploymentStats_WithStartedStoppedDeployments() throws IOException {
         putVocabulary(List.of("once", "twice"));
         String modelFoo = "foo";

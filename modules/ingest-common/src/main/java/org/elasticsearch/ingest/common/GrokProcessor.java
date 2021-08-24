@@ -153,7 +153,7 @@ public final class GrokProcessor extends AbstractProcessor {
             }
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
             Map<String, String> patternBank = new HashMap<>(
-                Grok.getBuiltinPatterns(DEFAULT_ECS_COMPATIBILITY_MODE.equals(ecsCompatibility))
+                Grok.getBuiltinPatterns(ecsCompatibility)
             );
             if (customPatternBank != null) {
                 patternBank.putAll(customPatternBank);

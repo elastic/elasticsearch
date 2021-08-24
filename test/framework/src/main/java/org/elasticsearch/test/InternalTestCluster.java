@@ -1123,7 +1123,7 @@ public final class InternalTestCluster extends TestCluster {
             ClusterServiceUtils.awaitClusterState(
                 logger,
                 state -> state.nodes().getMasterNodeId() != null && state.nodes().getSize() == expectedNodes.size(),
-                getInstanceFromNode(ClusterService.class, randomFrom(nodes.values()).node)
+                getInstance(ClusterService.class)
             );
         } catch (Exception e) {
             throw new IllegalStateException(e);

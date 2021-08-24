@@ -369,34 +369,36 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 "cancel_task"
             },
             new RoleDescriptor.IndicesPrivileges[] {
+                // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".kibana*", ".reporting-*").privileges("all").allowRestrictedIndices(true).build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".monitoring-*").privileges("read", "read_cross_cluster").allowRestrictedIndices(true).build(),
+                    .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".management-beats").privileges("create_index", "read", "write").allowRestrictedIndices(true).build(),
+                    .indices(".management-beats").privileges("create_index", "read", "write").build(),
                 // To facilitate ML UI functionality being controlled using Kibana security privileges
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".ml-anomalies*", ".ml-stats-*")
                     .privileges("read").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*", ".ml-notifications*")
                     .privileges("read", "write").build(),
-                // APM agent configuration
+                // APM agent configuration - system index defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".apm-agent-configuration").privileges("all").allowRestrictedIndices(true).build(),
-                // APM custom link index creation
+                // APM custom link index creation - system index defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".apm-custom-link").privileges("all").allowRestrictedIndices(true).build(),
                 // APM telemetry queries APM indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("apm-*")
                     .privileges("read", "read_cross_cluster")
-                    .allowRestrictedIndices(true).build(),
+                    .allowRestrictedIndices(true)
+                    .build(),
                 // Data telemetry reads mappings, metadata and stats of indices
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
                     .privileges("view_index_metadata", "monitor")
-                    .allowRestrictedIndices(true).build(),
+                    .build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.diagnostic.collection-*")
@@ -416,23 +418,19 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Kibana system user creates these indices; reads / writes to them via the aliases (see below).
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTS_BACKING_INDEX)
-                    .allowRestrictedIndices(true)
                     .privileges("all").build(),
                 // "Alerts as data" public index aliases used in Security Solution, Observability, etc.
                 // Kibana system user uses them to read / write alerts.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTS_INDEX_ALIAS)
-                    .allowRestrictedIndices(true)
                     .privileges("all").build(),
                 // Endpoint / Fleet policy responses. Kibana requires read access to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics-endpoint.policy-*")
-                    .allowRestrictedIndices(true)
                     .privileges("read").build(),
                 // Endpoint metrics. Kibana requires read access to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics-endpoint.metrics-*")
-                    .allowRestrictedIndices(true)
                     .privileges("read").build()
             },
             null,

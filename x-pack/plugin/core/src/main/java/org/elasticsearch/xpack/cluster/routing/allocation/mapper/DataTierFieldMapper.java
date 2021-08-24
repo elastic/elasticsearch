@@ -74,7 +74,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("[" + typeName() + "] doesn't support formats.");
             }
 
             String tierPreference = getTierPreference(context);

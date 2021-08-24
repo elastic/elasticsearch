@@ -306,8 +306,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + rootName + "." + key + "] of type [" + typeName() +
-                    "] doesn't support formats.");
+                throw new IllegalArgumentException("[" + typeName() + "] doesn't support formats.");
             }
             return SourceValueFetcher.identity(rootName + "." + key, context, format);
         }

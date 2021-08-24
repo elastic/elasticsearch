@@ -855,6 +855,7 @@ Test nested field with sibling field resolving to DocValueFetcher:
   - match: { hits.hits.0.fields.number.2 : 3 }
   - match: { hits.hits.0.fields.number.3 : 5 }
   - match: { hits.hits.0.fields.number.4 : 6 }
+
 ---
 Test token_count inside nested field doesn't fail:
   - skip:
@@ -892,3 +893,117 @@ Test token_count inside nested field doesn't fail:
            body:
               _source: false
               fields: [ "*" ]
+
+---
+error includes field name:
+  - skip:
+      version: ' - 7.99.99'
+      reason:  'error changed in 8.0.0 to be backported to 7.15'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              date:
+                type: date
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          keyword: "value"
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      catch: '/error fetching \[keyword\]: \[keyword\] doesn''t support formats./'
+      search:
+        index: test
+        body:
+          fields:
+            - field: keyword
+              format: "yyyy/MM/dd"
+
+---
+error includes glob pattern:
+  - skip:
+      version: ' - 7.99.99'
+      reason:  'error changed in 8.0.0 to be backported to 7.15'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              dkeyword:
+                type: keyword
+              date:
+                type: date
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          dkeyword: "value"
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      catch: '/error fetching \[dkeyword\] which matched \[d\*\]: \[keyword\] doesn''t support formats./'
+      search:
+        index: test
+        body:
+          fields:
+            - field: d*
+              format: "yyyy/MM/dd"
+
+
+---
+error for flattened includes whole path:
+  - skip:
+      version: ' - 7.99.99'
+      reason:  'error changed in 8.0.0 to be backported to 7.15'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+              date:
+                type: date
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          flattened:
+            foo: bar
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      catch: '/error fetching \[flattened.bar\]: \[flattened\] doesn''t support formats./'
+      search:
+        index: test
+        body:
+          fields:
+            - field: flattened.bar
+              format: "yyyy/MM/dd"

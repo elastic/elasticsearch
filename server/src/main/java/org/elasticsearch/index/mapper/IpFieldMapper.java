@@ -195,7 +195,7 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("[" + typeName() + "] doesn't support formats.");
             }
             if (scriptValues != null) {
                 return FieldValues.valueFetcher(scriptValues, v -> InetAddresses.toAddrString((InetAddress)v), context);

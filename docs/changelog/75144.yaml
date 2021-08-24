@@ -1,6 +1,6 @@
 pr: 75144
 summary: Security auto-configuration for packaged installations
-area: "Security, Packaging"
+area: "Security"
 type: enhancement
 issues:
  - 75704

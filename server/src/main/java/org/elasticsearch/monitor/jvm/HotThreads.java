@@ -76,7 +76,7 @@ public class HotThreads {
 
     public String detect() throws Exception {
         synchronized (mutex) {
-            return innerDetect(ManagementFactory.getThreadMXBean());
+            return innerDetect(ManagementFactory.getThreadMXBean(), Thread.currentThread().getId());
         }
     }
 
@@ -118,7 +118,7 @@ public class HotThreads {
         return false;
     }
 
-    String innerDetect(ThreadMXBean threadBean) throws Exception {
+    String innerDetect(ThreadMXBean threadBean, long currentThreadId) throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
@@ -137,7 +137,7 @@ public class HotThreads {
         Map<Long, MyThreadInfo> threadInfos = new HashMap<>();
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (currentThreadId == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);
@@ -153,7 +153,7 @@ public class HotThreads {
         Thread.sleep(interval.millis());
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (currentThreadId == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);

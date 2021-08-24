@@ -11,6 +11,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.cli.ShowKeyStoreCommand;
 import org.elasticsearch.env.Environment;
 
@@ -61,43 +62,39 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         final String value = randomAlphaOfLengthBetween(6, 12);
         createKeystore(password, "reindex.ssl.keystore.password", value);
         terminal.addSecretInput(password);
+        terminal.setHasOutputStream(false);
         execute("reindex.ssl.keystore.password");
         assertEquals(value + "\n", terminal.getOutput());
     }
 
-    public void testWriteSingleValueToFile() throws Exception {
+    public void testShowBinaryValue() throws Exception {
         final String password = getPossibleKeystorePassword();
         final byte[] value = randomByteArrayOfLength(randomIntBetween(16, 2048));
         KeyStoreWrapper ks = createKeystore(password);
         ks.setFile("binary.file", value);
         saveKeystore(ks, password);
 
-        Path outputFile = randomFileName();
-        Files.deleteIfExists(outputFile);
-
         terminal.addSecretInput(password);
-        execute(randomBoolean() ? "-o" : "--output", outputFile.toString(), "binary.file");
-        assertEquals("", terminal.getOutput());
+        terminal.setHasOutputStream(true);
 
-        byte[] bytesFromFile = Files.readAllBytes(outputFile);
-        assertThat(bytesFromFile, equalTo(value));
-        Files.deleteIfExists(outputFile);
+        execute("binary.file");
+        assertThat(terminal.getOutputBytes(), equalTo(value));
     }
 
-    public void testErrorIfOutputFileAlreadyExists() throws Exception {
+    public void testErrorIfOutputBinaryToTerminal() throws Exception {
         final String password = getPossibleKeystorePassword();
-        createKeystore(password);
-
-        Path outputFile = randomFileName();
-        Files.writeString(outputFile, "anything");
+        final byte[] value = randomByteArrayOfLength(randomIntBetween(16, 2048));
+        KeyStoreWrapper ks = createKeystore(password);
+        ks.setFile("binary.file", value);
+        saveKeystore(ks, password);
 
         terminal.addSecretInput(password);
-        UserException e = expectThrows(
-            UserException.class,
-            () -> execute(randomBoolean() ? "-o" : "--output", outputFile.toString(), "keystore.seed")
-        );
+        terminal.setHasOutputStream(false);
+
+        UserException e = expectThrows(UserException.class, () -> execute("binary.file"));
         assertEquals(e.getMessage(), ExitCodes.IO_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("already exists"));
+        assertThat(e.getMessage(), containsString("Please redirect binary output to a file instead"));
+
     }
 
     public void testErrorOnIncorrectPassword() throws Exception {
@@ -124,12 +121,18 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         final String name = randomAlphaOfLengthBetween(6, 12);
         final String value = randomAlphaOfLengthBetween(6, 12);
         createKeystore("", name, value);
+        final boolean console = randomBoolean();
+        if (console) {
+            terminal.setHasOutputStream(false);
+        }
+
         execute(name);
         // Not prompted for a password
-        assertEquals(value + "\n", terminal.getOutput());
-    }
 
-    private Path randomFileName() {
-        return env.configFile().resolve(randomAlphaOfLength(8) + ".tmp");
+        if (console) {
+            assertEquals(value + "\n", terminal.getOutput());
+        } else {
+            assertEquals(value, terminal.getOutput());
+        }
     }
 }

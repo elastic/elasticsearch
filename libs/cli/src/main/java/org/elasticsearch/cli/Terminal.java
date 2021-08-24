@@ -8,10 +8,13 @@
 
 package org.elasticsearch.cli;
 
+import org.elasticsearch.core.Nullable;
+
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.nio.charset.Charset;
@@ -82,18 +85,25 @@ public abstract class Terminal {
     /** Returns a Writer which can be used to write to the terminal directly using standard output. */
     public abstract PrintWriter getWriter();
 
+    /**
+     * Returns an OutputStream which can be used to write to the terminal directly using standard output.
+     * May return {@code null} if this Terminal is not capable of binary output
+      */
+    @Nullable
+    public abstract OutputStream getOutputStream();
+
     /** Returns a Writer which can be used to write to the terminal directly using standard error. */
     public PrintWriter getErrorWriter() {
         return ERROR_WRITER;
     }
 
     /** Prints a line to the terminal at {@link Verbosity#NORMAL} verbosity level. */
-    public final void println(String msg) {
+    public final void println(CharSequence msg) {
         println(Verbosity.NORMAL, msg);
     }
 
     /** Prints a line to the terminal at {@code verbosity} level. */
-    public final void println(Verbosity verbosity, String msg) {
+    public final void println(Verbosity verbosity, CharSequence msg) {
         print(verbosity, msg + lineSeparator);
     }
 
@@ -214,6 +224,11 @@ public abstract class Terminal {
         }
 
         @Override
+        public OutputStream getOutputStream() {
+            return null;
+        }
+
+        @Override
         public String readText(String prompt) {
             return CONSOLE.readLine("%s", prompt);
         }
@@ -251,6 +266,11 @@ public abstract class Terminal {
         @Override
         public PrintWriter getWriter() {
             return WRITER;
+        }
+
+        @Override
+        public OutputStream getOutputStream() {
+            return System.out;
         }
 
         @Override

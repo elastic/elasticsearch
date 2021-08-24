@@ -14,16 +14,23 @@ import joptsimple.OptionSpec;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.BaseKeyStoreCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -36,11 +43,9 @@ import java.util.List;
 public class ShowKeyStoreCommand extends BaseKeyStoreCommand {
 
     private final OptionSpec<String> arguments;
-    private final OptionSpec<String> outputOption;
 
     public ShowKeyStoreCommand() {
         super("Show a value from the keystore", true);
-        this.outputOption = parser.acceptsAll(Arrays.asList("o", "output"), "Output to a file").withRequiredArg();
         this.arguments = parser.nonOptions("setting name");
     }
 
@@ -57,35 +62,27 @@ public class ShowKeyStoreCommand extends BaseKeyStoreCommand {
             throw new UserException(ExitCodes.CONFIG, "Setting [" + settingName + "] does not exist in the keystore.");
         }
 
-        if (options.has(outputOption)) {
-            final Path file = getPath(outputOption.value(options));
-            show(keyStore, settingName, file);
-        } else {
-            show(keyStore, settingName, terminal);
+        try (InputStream input = keyStore.getFile(settingName)) {
+            final BytesReference bytes = org.elasticsearch.common.io.Streams.readFully(input);
+            final OutputStream output = terminal.getOutputStream();
+            if (output != null) {
+                bytes.writeTo(output);
+            } else {
+                try {
+                    byte[] array = BytesReference.toBytes(bytes);
+                    CharBuffer text = StandardCharsets.UTF_8.newDecoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT)
+                        .decode(ByteBuffer.wrap(array));
+                    terminal.println(text);
+                } catch (CharacterCodingException e) {
+                    terminal.errorPrintln(Terminal.Verbosity.VERBOSE, e.toString());
+                    terminal.errorPrintln(
+                        "The value for the setting [" + settingName + "] is not a string and cannot be printed to the console"
+                    );
+                    throw new UserException(ExitCodes.IO_ERROR, "Please redirect binary output to a file instead");
+                }
+            }
         }
-    }
-
-    private void show(KeyStoreWrapper keyStore, String setting, Terminal terminal) {
-        terminal.println(Terminal.Verbosity.SILENT, String.valueOf(keyStore.getString(setting)));
-    }
-
-    private void show(KeyStoreWrapper keyStore, String setting, Path file) throws UserException, IOException {
-        if (Files.exists(file)) {
-            throw new UserException(ExitCodes.IO_ERROR, "File [" + file + "] already exists");
-        }
-        if (Files.isWritable(file)) {
-            throw new UserException(ExitCodes.IO_ERROR, "File [" + file + "] cannot be written to");
-        }
-        try (
-            OutputStream output = Files.newOutputStream(file, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
-            InputStream input = keyStore.getFile(setting)
-        ) {
-            Streams.copy(input, output);
-        }
-    }
-
-    @SuppressForbidden(reason = "file arg for cli")
-    private Path getPath(String file) {
-        return PathUtils.get(file);
     }
 }

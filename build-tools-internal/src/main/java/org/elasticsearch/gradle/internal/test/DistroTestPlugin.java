@@ -21,6 +21,7 @@ import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.vagrant.VagrantBasePlugin;
@@ -54,6 +55,8 @@ import static org.elasticsearch.gradle.distribution.ElasticsearchDistributionTyp
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.ALL_INTERNAL;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DEB;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_CLOUD;
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_CLOUD_ESS;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_IRONBANK;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_UBI;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.RPM;
@@ -66,8 +69,8 @@ import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertWi
 public class DistroTestPlugin implements Plugin<Project> {
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
     private static final String SYSTEM_JDK_VENDOR = "openjdk";
-    private static final String GRADLE_JDK_VERSION = "16.0.1+9";
-    private static final String GRADLE_JDK_VENDOR = "adoptopenjdk";
+    private static final String GRADLE_JDK_VERSION = "16.0.2+7";
+    private static final String GRADLE_JDK_VENDOR = "adoptium";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String EXAMPLE_PLUGIN_CONFIGURATION = "examplePlugin";
@@ -75,9 +78,6 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static final String DISTRIBUTION_SYSPROP = "tests.distribution";
     private static final String BWC_DISTRIBUTION_SYSPROP = "tests.bwc-distribution";
     private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
-
-    private static final String QUOTA_AWARE_FS_PLUGIN_CONFIGURATION = "quotaAwareFsPlugin";
-    private static final String QUOTA_AWARE_FS_PLUGIN_SYSPROP = "tests.quota-aware-fs-plugin";
 
     @Override
     public void apply(Project project) {
@@ -101,7 +101,6 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
 
         Configuration examplePlugin = configureExamplePlugin(project);
-        Configuration quotaAwareFsPlugin = configureQuotaAwareFsPlugin(project);
 
         List<TaskProvider<Test>> windowsTestTasks = new ArrayList<>();
         Map<ElasticsearchDistributionType, List<TaskProvider<Test>>> linuxTestTasks = new HashMap<>();
@@ -112,13 +111,12 @@ public class DistroTestPlugin implements Plugin<Project> {
             String taskname = destructiveDistroTestTaskName(distribution);
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
             // explicitly depend on the archive not on the implicit extracted distribution
-            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies(), examplePlugin, quotaAwareFsPlugin));
+            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies(), examplePlugin));
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
                 addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                 addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
-                addDistributionSysprop(t, QUOTA_AWARE_FS_PLUGIN_SYSPROP, () -> quotaAwareFsPlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
             }, depsTask);
 
@@ -235,6 +233,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         lifecyleTasks.put(DOCKER, project.getTasks().register(taskPrefix + ".docker"));
         lifecyleTasks.put(DOCKER_UBI, project.getTasks().register(taskPrefix + ".docker-ubi"));
         lifecyleTasks.put(DOCKER_IRONBANK, project.getTasks().register(taskPrefix + ".docker-ironbank"));
+        lifecyleTasks.put(DOCKER_CLOUD, project.getTasks().register(taskPrefix + ".docker-cloud"));
+        lifecyleTasks.put(DOCKER_CLOUD_ESS, project.getTasks().register(taskPrefix + ".docker-cloud-ess"));
         lifecyleTasks.put(ARCHIVE, project.getTasks().register(taskPrefix + ".archives"));
         lifecyleTasks.put(DEB, project.getTasks().register(taskPrefix + ".packages"));
         lifecyleTasks.put(RPM, lifecyleTasks.get(DEB));
@@ -313,14 +313,6 @@ public class DistroTestPlugin implements Plugin<Project> {
         DependencyHandler deps = project.getDependencies();
         Map<String, String> examplePluginProject = Map.of("path", ":example-plugins:custom-settings", "configuration", "zip");
         deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(examplePluginProject));
-        return examplePlugin;
-    }
-
-    private static Configuration configureQuotaAwareFsPlugin(Project project) {
-        Configuration examplePlugin = project.getConfigurations().create(QUOTA_AWARE_FS_PLUGIN_CONFIGURATION);
-        DependencyHandler deps = project.getDependencies();
-        Map<String, String> quotaAwareFsPluginProject = Map.of("path", ":x-pack:quota-aware-fs", "configuration", "zip");
-        deps.add(QUOTA_AWARE_FS_PLUGIN_CONFIGURATION, deps.project(quotaAwareFsPluginProject));
         return examplePlugin;
     }
 

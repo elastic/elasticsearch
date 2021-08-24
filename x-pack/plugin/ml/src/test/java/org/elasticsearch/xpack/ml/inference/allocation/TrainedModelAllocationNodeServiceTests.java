@@ -26,9 +26,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.junit.After;
@@ -36,6 +38,8 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
@@ -185,7 +189,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }
 
-    public void testLoadQueuedModelsWhenOneFails() {
+    public void testLoadQueuedModelsWhenOneFails() throws InterruptedException {
         String modelToLoad = "loading-model";
         String failedModelToLoad = "failed-loading-model";
         withLoadFailure(failedModelToLoad);
@@ -194,7 +198,15 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(modelToLoad));
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(failedModelToLoad));
 
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocationOnMock -> {
+            latch.countDown();
+            return null;
+        }).when(deploymentManager).stopDeployment(any());
+
         trainedModelAllocationNodeService.loadQueuedModels();
+
+        latch.await(5, TimeUnit.SECONDS);
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAllocationStateAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -202,6 +214,9 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         );
         verify(deploymentManager, times(2)).startDeployment(startTaskCapture.capture(), any());
         verify(trainedModelAllocationService, times(2)).updateModelAllocationState(requestCapture.capture(), any());
+
+        ArgumentCaptor<TrainedModelDeploymentTask> stopTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
+        verify(deploymentManager).stopDeployment(stopTaskCapture.capture());
 
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
@@ -213,6 +228,61 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         assertThat(requestCapture.getAllValues().get(1).getNodeId(), equalTo(NODE_ID));
         assertThat(requestCapture.getAllValues().get(1).getRoutingState().getState(), equalTo(RoutingState.FAILED));
 
+        assertThat(stopTaskCapture.getValue().getModelId(), equalTo(failedModelToLoad));
+
+        verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
+    }
+
+    public void testClusterChangedWithResetMode() {
+        final TrainedModelAllocationNodeService trainedModelAllocationNodeService = createService();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .localNodeId(NODE_ID)
+            .add(
+                new DiscoveryNode(
+                    NODE_ID,
+                    NODE_ID,
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    DiscoveryNodeRole.roles(),
+                    Version.CURRENT
+                )
+            )
+            .build();
+        String modelOne = "model-1";
+        String modelTwo = "model-2";
+        String notUsedModel = "model-3";
+        ClusterChangedEvent event = new ClusterChangedEvent(
+            "testClusterChanged",
+            ClusterState.builder(new ClusterName("testClusterChanged"))
+                .nodes(nodes)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            TrainedModelAllocationMetadata.NAME,
+                            TrainedModelAllocationMetadata.Builder.empty()
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    modelTwo,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    notUsedModel,
+                                    TrainedModelAllocation.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                )
+                                .build()
+                        )
+                        .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build())
+                        .build()
+                )
+                .build(),
+            ClusterState.EMPTY_STATE
+        );
+
+        trainedModelAllocationNodeService.clusterChanged(event);
+        trainedModelAllocationNodeService.loadQueuedModels();
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }
 
@@ -243,12 +313,18 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                         .putCustom(
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(newParams(modelOne))
-                                .addNode(modelOne, NODE_ID)
-                                .addNewAllocation(newParams(modelTwo))
-                                .addNode(modelTwo, NODE_ID)
-                                .addNewAllocation(newParams(notUsedModel))
-                                .addNode(notUsedModel, "some-other-node")
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    modelTwo,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    notUsedModel,
+                                    TrainedModelAllocation.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                )
                                 .build()
                         )
                         .build()
@@ -268,12 +344,18 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                         .putCustom(
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(newParams(modelOne))
-                                .addNode(modelOne, NODE_ID)
-                                .addNewAllocation(newParams(modelTwo))
-                                .addNode(modelTwo, "some-other-node")
-                                .addNewAllocation(newParams(notUsedModel))
-                                .addNode(notUsedModel, "some-other-node")
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    modelTwo,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo)).addNewRoutingEntry("some-other-node")
+                                )
+                                .addNewAllocation(
+                                    notUsedModel,
+                                    TrainedModelAllocation.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                )
                                 .build()
                         )
                         .build()
@@ -311,8 +393,10 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                         .putCustom(
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(newParams(modelOne))
-                                .addNode(modelOne, NODE_ID)
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
                                 .build()
                         )
                         .build()
@@ -342,7 +426,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, "any-index", randomNonNegativeLong());
+        return new StartTrainedModelDeploymentAction.TaskParams(modelId, randomNonNegativeLong());
     }
 
     private TrainedModelAllocationNodeService createService() {

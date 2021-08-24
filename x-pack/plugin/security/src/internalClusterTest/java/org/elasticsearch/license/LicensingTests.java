@@ -37,6 +37,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -63,6 +64,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class LicensingTests extends SecurityIntegTestCase {
+
+    private static final SecureString HASH_PASSWD = new SecureString(Hasher.BCRYPT4.hash(new SecureString("passwd".toCharArray())));
+
     private static final String ROLES =
             SecuritySettingsSource.TEST_ROLE + ":\n" +
                     "  cluster: [ all ]\n" +
@@ -80,6 +84,9 @@ public class LicensingTests extends SecurityIntegTestCase {
                     "  indices:\n" +
                     "    - names: 'a'\n" +
                     "      privileges: [all]\n" +
+                    "    - names: 'test-dls'\n" +
+                    "      privileges: [read]\n" +
+                    "      query: '{\"term\":{\"field\":\"value\"} }'\n" +
                     "\n" +
                     "role_b:\n" +
                     "  indices:\n" +
@@ -99,8 +106,8 @@ public class LicensingTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         return SecuritySettingsSource.CONFIG_STANDARD_USER +
-            "user_a:{plain}passwd\n" +
-            "user_b:{plain}passwd\n";
+            "user_a:" + HASH_PASSWD + "\n" +
+            "user_b:" + HASH_PASSWD + "\n";
     }
 
     @Override
@@ -204,22 +211,24 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testWarningHeader() throws Exception {
-        Request request = new Request("GET", "/_security/user");
+        License.OperationMode mode = randomFrom(License.OperationMode.PLATINUM, License.OperationMode.ENTERPRISE);
+        enableLicensing(mode);
+
+        // We test with "user_a" (that has a DLS-enabled role), so that we exercise licensed functionality and generate the warning header.
+        // Functionality under a basic (or SSPL) license does not necessarily generate expiration warnings
+        Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-            new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        options.addHeader("Authorization", basicAuthHeaderValue("user_a", new SecureString("passwd".toCharArray())));
         request.setOptions(options);
         Response response = getRestClient().performRequest(request);
         List<String> beforeWarningHeaders = getWarningHeaders(response.getHeaders());
         assertTrue(beforeWarningHeaders.isEmpty());
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
-            License.OperationMode.ENTERPRISE, License.OperationMode.STANDARD);
         long now = System.currentTimeMillis();
 
         long newExpirationDate = now + LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() - 1;
         setLicensingExpirationDate(mode, newExpirationDate);
         response = getRestClient().performRequest(request);
-        List<String> afterWarningHeaders= getWarningHeaders(response.getHeaders());
+        List<String> afterWarningHeaders = getWarningHeaders(response.getHeaders());
         assertThat(afterWarningHeaders, Matchers.hasSize(1));
         assertThat(afterWarningHeaders.get(0), Matchers.containsString("Your license will expire in [6] days. " +
             "Contact your administrator or update your license for continued use of features"));
@@ -244,7 +253,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             "Contact your administrator or update your license for continued use of features"));
     }
 
-    public void  testNoWarningHeaderWhenAuthenticationFailed() throws Exception {
+    public void testNoWarningHeaderWhenAuthenticationFailed() throws Exception {
         Request request = new Request("GET", "/_security/user");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
@@ -287,7 +296,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
             // apply the disabling of the license once the cluster is stable
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(OperationMode.BASIC, false, Long.MAX_VALUE, null);
+                licenseState.update(OperationMode.BASIC, false, Long.MAX_VALUE);
             }
         }, 30L, TimeUnit.SECONDS);
     }
@@ -299,7 +308,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             // first update the license so we can execute monitoring actions
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, Long.MAX_VALUE, null);
+                licenseState.update(operationMode, true, Long.MAX_VALUE);
             }
 
             ensureGreen();
@@ -309,7 +318,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             // re-apply the update in case any node received an updated cluster state that triggered the license state
             // to change
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, Long.MAX_VALUE, null);
+                licenseState.update(operationMode, true, Long.MAX_VALUE);
             }
         }, 30L, TimeUnit.SECONDS);
     }
@@ -317,7 +326,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     private void setLicensingExpirationDate(License.OperationMode operationMode, long expirationDate) throws Exception {
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, expirationDate, null);
+                licenseState.update(operationMode, true, expirationDate);
             }
 
             ensureGreen();

@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,10 +45,11 @@ public class FillMaskProcessorTests extends ESTestCase {
         int[] tokenMap = new int[] {0, 1, 2, 3, 4, 5};
         int[] tokenIds = new int[] {0, 1, 2, 3, 4, 5};
 
-        BertTokenizer.TokenizationResult tokenization = new BertTokenizer.TokenizationResult(input, vocab, tokens,
-            tokenIds, tokenMap);
+        TokenizationResult tokenization = new TokenizationResult(input, vocab, tokens, tokenIds, tokenMap);
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), mock(NlpTaskConfig.class));
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
+
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
         FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 0L, null));
         assertThat(result.getPredictions(), hasSize(5));
         FillMaskResults.Prediction prediction = result.getPredictions().get(0);
@@ -62,20 +66,25 @@ public class FillMaskProcessorTests extends ESTestCase {
     }
 
     public void testProcessResults_GivenMissingTokens() {
-        BertTokenizer.TokenizationResult tokenization =
-            new BertTokenizer.TokenizationResult("", Collections.emptyList(), Collections.emptyList(),
+        TokenizationResult tokenization =
+            new TokenizationResult("", Collections.emptyList(), Collections.emptyList(),
             new int[] {}, new int[] {});
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), mock(NlpTaskConfig.class));
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
         PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][]{{}}, 0L, null);
+
         FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, pyTorchResult);
+
         assertThat(result.getPredictions(), empty());
     }
 
     public void testValidate_GivenMissingMaskToken() {
         String input = "The capital of France is Paris";
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), mock(NlpTaskConfig.class));
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
+
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("no [MASK] token could be found"));
@@ -85,7 +94,9 @@ public class FillMaskProcessorTests extends ESTestCase {
     public void testProcessResults_GivenMultipleMaskTokens() {
         String input = "The capital of [MASK] is [MASK]";
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), mock(NlpTaskConfig.class));
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
+
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("only one [MASK] token should exist in the input"));

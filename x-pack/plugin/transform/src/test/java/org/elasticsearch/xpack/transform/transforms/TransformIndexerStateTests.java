@@ -205,28 +205,11 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, TransformIndexerPosition position, Runnable next) {
-            persistedState = new TransformState(
-                context.getTaskState(),
-                state,
-                position,
-                context.getCheckpoint(),
-                context.getStateReason(),
-                getProgress(),
-                null,
-                context.shouldStopAtCheckpoint()
-            );
-
-            Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.getAndSet(null);
-            try {
-                if (saveStateListenersAtTheMomentOfCalling != null) {
-                    saveStateListenerCallCount += saveStateListenersAtTheMomentOfCalling.size();
-                    ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, null);
-                }
-            } catch (Exception onResponseException) {
-                fail("failed to call save state listeners");
-            } finally {
-                next.run();
-            }
+            Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.get();
+            saveStateListenerCallCount += (saveStateListenersAtTheMomentOfCalling != null)
+                ? saveStateListenersAtTheMomentOfCalling.size()
+                : 0;
+            super.doSaveState(state, position, next);
         }
 
         @Override
@@ -255,6 +238,12 @@ public class TransformIndexerStateTests extends ESTestCase {
         @Override
         void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
             fieldMappingsListener.onResponse(Collections.emptyMap());
+        }
+
+        @Override
+        void persistState(TransformState state, ActionListener<Void> listener) {
+            persistedState = state;
+            listener.onResponse(null);
         }
     }
 
@@ -302,6 +291,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 null,
                 threadPool,
                 auditor,
+                new TransformIndexerPosition(Collections.singletonMap("afterkey", "value"), Collections.emptyMap()),
                 new TransformIndexerStats(),
                 context
             );
@@ -317,6 +307,27 @@ public class TransformIndexerStateTests extends ESTestCase {
             }
         }
 
+        // test the case that the indexer is at a checkpoint already
+        {
+            AtomicReference<IndexerState> stateRef = new AtomicReference<>(IndexerState.STARTED);
+            TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+            final MockedTransformIndexer indexer = createMockIndexer(
+                config,
+                stateRef,
+                null,
+                threadPool,
+                auditor,
+                null,
+                new TransformIndexerStats(),
+                context
+            );
+            assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+            assertEquals(0, indexer.getSaveStateListenerCallCount());
+            // shouldStopAtCheckpoint should not be set, the indexer was started, however at a checkpoint
+            assertFalse(context.shouldStopAtCheckpoint());
+            assertFalse(indexer.getPersistedState().shouldStopAtNextCheckpoint());
+        }
+
         // lets test a running indexer
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
         {
@@ -327,6 +338,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 null,
                 threadPool,
                 auditor,
+                null,
                 new TransformIndexerStats(),
                 context
             );
@@ -356,6 +368,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 null,
                 threadPool,
                 auditor,
+                null,
                 new TransformIndexerStats(),
                 context
             );
@@ -386,6 +399,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 null,
                 threadPool,
                 auditor,
+                null,
                 new TransformIndexerStats(),
                 context
             );
@@ -429,6 +443,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 null,
                 threadPool,
                 auditor,
+                null,
                 new TransformIndexerStats(),
                 context
             );
@@ -490,7 +505,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null),
+            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null, (Boolean) null),
             null,
             null,
             null
@@ -504,6 +519,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             null,
             threadPool,
             auditor,
+            null,
             new TransformIndexerStats(),
             context
         );
@@ -597,6 +613,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         Consumer<String> failureConsumer,
         ThreadPool threadPool,
         TransformAuditor auditor,
+        TransformIndexerPosition initialPosition,
         TransformIndexerStats jobStats,
         TransformContext context
     ) {
@@ -615,7 +632,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             checkpointProvider,
             config,
             state,
-            null,
+            initialPosition,
             jobStats,
             context
         );

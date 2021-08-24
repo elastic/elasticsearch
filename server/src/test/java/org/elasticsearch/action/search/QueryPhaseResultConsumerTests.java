@@ -47,7 +47,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        searchPhaseController = new SearchPhaseController(writableRegistry(),
+        searchPhaseController = new SearchPhaseController(
             s -> new InternalAggregation.ReduceContextBuilder() {
                 @Override
                 public InternalAggregation.ReduceContext forPartialReduction() {
@@ -86,7 +86,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         AtomicReference<Exception> onPartialMergeFailure = new AtomicReference<>();
         QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(searchRequest, executor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), searchPhaseController, searchProgressListener,
-            writableRegistry(), 10, e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
+            10, e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
                 curr.addSuppressed(prev);
                 return curr;
             }));

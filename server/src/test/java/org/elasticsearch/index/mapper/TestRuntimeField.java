@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Stream;
 
 public final class TestRuntimeField implements RuntimeField {
 
@@ -38,8 +39,8 @@ public final class TestRuntimeField implements RuntimeField {
     }
 
     @Override
-    public Collection<MappedFieldType> asMappedFieldTypes() {
-        return subfields;
+    public Stream<MappedFieldType> asMappedFieldTypes() {
+        return subfields.stream();
     }
 
     @Override

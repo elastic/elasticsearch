@@ -1,0 +1,8 @@
+pr: 75144
+summary: Security auto-configuration for packaged installations
+area: "Security, Packaging"
+type: enhancement
+issues:
+ - 75704
+versions:
+ - v8.0.0

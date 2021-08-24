@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,8 +45,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         int[] tokenMap = new int[] {0, 1, 2, 3, 4, 5};
         int[] tokenIds = new int[] {0, 1, 2, 3, 4, 5};
 
-        BertTokenizer.TokenizationResult tokenization = new BertTokenizer.TokenizationResult(input, vocab, tokens,
-            tokenIds, tokenMap);
+        TokenizationResult tokenization = new TokenizationResult(input, vocab, tokens, tokenIds, tokenMap);
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
 
@@ -66,8 +66,8 @@ public class FillMaskProcessorTests extends ESTestCase {
     }
 
     public void testProcessResults_GivenMissingTokens() {
-        BertTokenizer.TokenizationResult tokenization =
-            new BertTokenizer.TokenizationResult("", Collections.emptyList(), Collections.emptyList(),
+        TokenizationResult tokenization =
+            new TokenizationResult("", Collections.emptyList(), Collections.emptyList(),
             new int[] {}, new int[] {});
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);

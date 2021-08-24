@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -83,6 +84,15 @@ public class DeploymentManager {
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> listener) {
         doStartDeployment(task, listener);
+    }
+
+    public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
+        return Optional.ofNullable(processContextByAllocation.get(task.getId()))
+            .map(processContext ->
+                new ModelStats(processContext.resultProcessor.getTimingStats(),
+                    processContext.resultProcessor.getLastUsed(),
+                    (long)processContext.getModelSizeBytes())
+            );
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
@@ -293,6 +303,16 @@ public class DeploymentManager {
             resultProcessor = new PyTorchResultProcessor(modelId);
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
             this.taskId = taskId;
+        }
+
+        /**
+         * A value of -1 means the size is unknown. Most likely
+         * because the model has not been loaded yet or the load
+         * failed.
+         * @return size in bytes or -1
+         */
+        int getModelSizeBytes() {
+            return stateStreamer.getModelSize();
         }
 
         synchronized void startProcess() {

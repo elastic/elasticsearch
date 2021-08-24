@@ -1,0 +1,237 @@
+setup:
+  - do:
+      indices.create:
+        index: users
+        body:
+          mappings:
+            properties:
+              name:
+                type: text
+              department:
+                type: text
+              region:
+                type: text
+  - do:
+      index:
+        index: users
+        id: u1
+        body: { name: Andres, department: Engineering, region: Paris }
+
+  - do:
+      index:
+        index: users
+        id: u2
+        body: { name: Kante, department: Sales, region: London }
+
+  - do:
+      index:
+        index: test
+        id: u3
+        body: { name: Memphis, department: Marketing, region: Barcelona }
+
+  - do:
+      index:
+        index: users
+        id: u4
+        body: { name: Lucas, department: Sales, region: Madrid }
+
+  - do:
+      indices.create:
+        index: machines
+        body:
+          mappings:
+            properties:
+              hostname:
+                type: text
+              sensitivity:
+                type: keyword
+  - do:
+      index:
+        index: machines
+        id: '192.168.1.1'
+        body: { name: 'The first machine', os: 'Linux', sensitivity: secret }
+
+  - do:
+      index:
+        index: machines
+        id: '192.168.1.2'
+        body: { name: 'The second machine', os: 'Macos', sensitivity: confidential }
+
+  - do:
+      index:
+        index: machines
+        id: '192.168.1.3'
+        body: { name: 'The third machine', os: 'Macos', sensitivity: confidential }
+
+  - do:
+      index:
+        index: machines
+        id: '192.168.1.4'
+        body: { name: 'The forth machine', os: 'Windows', sensitivity: private }
+  - do:
+      index:
+        index: machines
+        id: '192.168.1.1'
+        body: { name: 'The first machine', os: 'Linux', sensitivity: secret }
+
+  - do:
+      index:
+        index: machines
+        id: '192.168.1.2'
+        body: { name: 'The second machine', os: 'Macos', sensitivity: confidential }
+
+  - do:
+      index:
+        index: machines
+        id: '192.168.1.3'
+        body: { name: 'The third machine', os: 'Macos', sensitivity: confidential }
+
+  - do:
+      index:
+        index: machines
+        id: '192.168.1.4'
+        body: { name: 'The forth machine', os: 'Windows', sensitivity: private }
+
+  - do:
+      index:
+        index: machines
+        id: '192.168.1.4'
+        body: { name: 'u2', os: 'Windows', sensitivity: private }
+
+  - do:
+      indices.create:
+        index: logs
+        body:
+          mappings:
+            properties:
+              ip:
+                type: keyword
+              user:
+                type: keyword
+              message:
+                type: text
+              timestamp:
+                type: date
+                format: 'yyyy-MM-dd HH:mm:ss'
+  - do:
+      index:
+        index: logs
+        body: { ip: '192.168.1.1', user: u1, message: 'Logged in', timestamp: '2021-02-11 01:14:01' }
+
+  - do:
+      index:
+        index: logs
+        body: { ip: '192.168.1.1', user: u1, message: 'delete [workspace]', timestamp: '2021-04-11 08:15:02' }
+
+  - do:
+      index:
+        index: logs
+        body: { ip: '192.168.1.1', user: u1, message: 'accessed [documents]', timestamp: '2021-04-11 08:16:01' }
+
+  - do:
+      index:
+        index: logs
+        body: { ip: '192.168.1.1', user: u1, message: 'deleted [documents]', timestamp: '2021-04-11 08:21:10' }
+
+  - do:
+      index:
+        index: logs
+        body: { ip: '192.168.1.1', user: u2, message: 'accessed [workspace]', timestamp: '2021-06-11 11:10:23' }
+
+  - do:
+      index:
+        index: logs
+        body: { ip: '192.168.1.2', user: u2, message: 'copied files in [documents]', timestamp: '2021-07-11 10:20:12' }
+
+  - do:
+      index:
+        index: logs
+        body: { ip: '192.168.1.4', user: u3, message: 'accessed [workspace]', timestamp: '2021-08-11 09:10:12' }
+
+
+  - do:
+      indices.refresh:
+        index: "users,machines,logs"
+
+---
+"Join fields":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Join hits are introduced in 8.0"
+  - do:
+      search:
+        index: logs
+        body:
+          query:
+            match:
+              message: 'documents'
+          _source: false
+          fields:
+            - user
+            - ip
+            - message
+            - timestamp
+          join_hits:
+            - name: host
+              index: machines
+              match_field: ip
+
+            - name: user
+              index: users
+              match_field: user
+              fields: [ name, department ]
+
+            - name: adjacents
+              index: logs
+              query:
+                bool:
+                  must:
+                    - term:
+                        user: '{{user}}'
+                    - range:
+                        timestamp:
+                          gte: '{{timestamp}}-5m'
+                          lte: '{{timestamp}}+5m'
+              sort: timestamp
+
+  - match: { hits.hits.0.fields.user: [ 'u1' ] }
+  - match: { hits.hits.0.fields.ip: [ '192.168.1.1' ] }
+  - match: { hits.hits.0.fields.message: [ 'accessed [documents]' ] }
+  - match: { hits.hits.0.fields.timestamp: [ '2021-04-11 08:16:01' ] }
+  - match: { hits.hits.0.join_hits.host.0._index: 'machines' }
+  - match: { hits.hits.0.join_hits.host.0._id: '192.168.1.1' }
+  - match: { hits.hits.0.join_hits.host.0._source.os: 'Linux' }
+  - match: { hits.hits.0.join_hits.host.0._source.name: 'The first machine' }
+  - match: { hits.hits.0.join_hits.host.0._source.sensitivity: 'secret' }
+  - match: { hits.hits.0.join_hits.user.0._index: 'users' }
+  - match: { hits.hits.0.join_hits.user.0._id: 'u1' }
+  - match: { hits.hits.0.join_hits.user.0.fields.name: [ 'Andres' ] }
+  - match: { hits.hits.0.join_hits.user.0.fields.department: [ 'Engineering' ] }
+
+  - match: { hits.hits.1.fields.user: [ 'u1' ] }
+  - match: { hits.hits.1.fields.ip: [ '192.168.1.1' ] }
+  - match: { hits.hits.1.fields.message: [ 'deleted [documents]' ] }
+  - match: { hits.hits.1.fields.timestamp: [ '2021-04-11 08:21:10' ] }
+  - match: { hits.hits.1.join_hits.host.0._index: 'machines' }
+  - match: { hits.hits.1.join_hits.host.0._id: '192.168.1.1' }
+  - match: { hits.hits.1.join_hits.host.0._source.os: 'Linux' }
+  - match: { hits.hits.1.join_hits.host.0._source.name: 'The first machine' }
+  - match: { hits.hits.1.join_hits.host.0._source.sensitivity: 'secret' }
+  - match: { hits.hits.1.join_hits.user.0._index: 'users' }
+  - match: { hits.hits.1.join_hits.user.0._id: 'u1' }
+  - match: { hits.hits.1.join_hits.user.0.fields.name: [ 'Andres' ] }
+  - match: { hits.hits.1.join_hits.user.0.fields.department: [ 'Engineering' ] }
+
+  - match: { hits.hits.2.fields.user: [ 'u2' ] }
+  - match: { hits.hits.2.fields.ip: [ '192.168.1.2' ] }
+  - match: { hits.hits.2.fields.message: [ 'copied files in [documents]' ] }
+  - match: { hits.hits.2.fields.timestamp: [ '2021-07-11 10:20:12' ] }
+  - match: { hits.hits.2.join_hits.host.0._index: 'machines' }
+  - match: { hits.hits.2.join_hits.host.0._id: '192.168.1.2' }
+  - match: { hits.hits.2.join_hits.host.0._source.os: 'Macos' }
+  - match: { hits.hits.2.join_hits.host.0._source.name: 'The second machine' }
+  - match: { hits.hits.2.join_hits.host.0._source.sensitivity: 'confidential' }
+  - match: { hits.hits.2.join_hits.user.0._index: 'users' }
+  - match: { hits.hits.2.join_hits.user.0._id: 'u2' }
+  - match: { hits.hits.2.join_hits.user.0.fields.name: [ 'Kante' ] }
+  - match: { hits.hits.2.join_hits.user.0.fields.department: [ 'Sales' ] }

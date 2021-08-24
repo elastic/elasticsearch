@@ -344,7 +344,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
         SearchSourceBuilder source = searchRequest.source();
         return source == null || source.collapse() == null || source.collapse().getInnerHits() == null ||
-            source.collapse().getInnerHits().isEmpty();
+            source.collapse().getInnerHits().isEmpty() ||
+            source.joinHits() == null || source.joinHits().isEmpty();
     }
 
     static void ccsRemoteReduce(TaskId parentTaskId, SearchRequest searchRequest, OriginalIndices localIndices,

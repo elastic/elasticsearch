@@ -30,17 +30,13 @@ import java.util.List;
  * field-collapsing on the inner hits. This phase only executes if field collapsing is requested in the search request and otherwise
  * forwards to the next phase immediately.
  */
-final class ExpandSearchPhase extends SearchPhase {
-    private final SearchPhaseContext context;
-    private final InternalSearchResponse searchResponse;
-    private final AtomicArray<SearchPhaseResult> queryResults;
+final class ExpandSearchPhase extends FetchSearchPhase.ExtendedPhase {
 
-    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        super("expand");
-        this.context = context;
-        this.searchResponse = searchResponse;
-        this.queryResults = queryResults;
+    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, AtomicArray<SearchPhaseResult> queryResults,
+                      ActionListener<Void> onFinish) {
+        super("expand", context, searchResponse, queryResults, onFinish);
     }
+
 
     /**
      * Returns <code>true</code> iff the search request has inner hits and needs field collapsing
@@ -86,7 +82,7 @@ final class ExpandSearchPhase extends SearchPhase {
                 }
             }
             context.getSearchTransport().sendExecuteMultiSearch(multiRequest, context.getTask(),
-                ActionListener.wrap(response -> {
+                onFinish.delegateFailure((listener, response) -> {
                     Iterator<MultiSearchResponse.Item> it = response.iterator();
                     for (SearchHit hit : searchResponse.hits.getHits()) {
                         for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
@@ -102,11 +98,10 @@ final class ExpandSearchPhase extends SearchPhase {
                             hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
                         }
                     }
-                    context.sendSearchResponse(searchResponse, queryResults);
-                }, context::onFailure)
-            );
+                    listener.onResponse(null);
+                }));
         } else {
-            context.sendSearchResponse(searchResponse, queryResults);
+            onFinish.onResponse(null);
         }
     }
 

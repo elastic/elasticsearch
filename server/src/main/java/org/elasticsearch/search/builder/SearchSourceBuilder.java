@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
@@ -106,6 +107,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
+    public static final ParseField JOIN_HITS = new ParseField("join_hits");
+
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -165,6 +168,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
     private List<FieldAndFormat> fetchFields;
+    private List<JoinHitBuilder> joinHits; // serialize and xContent, equals, rewrite?
 
     private AggregatorFactories.Builder aggregations;
 
@@ -921,6 +925,22 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Returns the list of requested join hits
+     */
+    @Nullable
+    public List<JoinHitBuilder> joinHits() {
+        return joinHits;
+    }
+
+    public SearchSourceBuilder joinHit(JoinHitBuilder jointHit) {
+        if (joinHits == null) {
+            joinHits = new ArrayList<>();
+        }
+        joinHits.add(jointHit);
+        return this;
+    }
+
+    /**
      * Sets the boost a specific index or alias will receive when the query is executed
      * against it.
      *
@@ -1108,6 +1128,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      */
     public void parseXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
+        parseXContent(parser, checkTrailingTokens, (field) -> false);
+    }
+
+    void parseXContent(XContentParser parser, boolean checkTrailingTokens,
+                       CheckedFunction<String, Boolean, IOException> handleUnknownValueField) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
@@ -1163,8 +1188,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (PROFILE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     profile = parser.booleanValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                            parser.getTokenLocation());
+                    if (handleUnknownValueField.apply(currentFieldName) == false) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + currentFieldName + "].", parser.getTokenLocation());
+                    }
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1277,6 +1304,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
                 } else if (SEARCH_AFTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     searchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
+                } else if (JOIN_HITS.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        joinHit(JoinHitBuilder.fromXContent(parser));
+                    }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());

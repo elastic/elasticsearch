@@ -57,7 +57,7 @@ public abstract class LocalTimeOffset {
         {
             LocalTimeOffset fixed = checkForFixedZone(zone, rules);
             if (fixed != null) {
-                return new FixedLookup(zone, fixed, minUtcMillis);
+                return new FixedLookup(zone, fixed);
             }
         }
         List<ZoneOffsetTransition> transitions = collectTransitions(zone, rules, minUtcMillis, maxUtcMillis);
@@ -65,7 +65,6 @@ public abstract class LocalTimeOffset {
             // The range is too large for us to pre-build all the offsets
             return null;
         }
-        long updatedMinUtcMillis = Math.min(transitions.get(0).toEpochSecond(), minUtcMillis);
         if (transitions.size() < 3) {
             /*
              * Its actually quite common that there are *very* few transitions.
@@ -74,9 +73,9 @@ public abstract class LocalTimeOffset {
              * "simpler" thing and compare the start times instead of perform
              * a binary search when there are so few offsets to look at.
              */
-            return new LinkedListLookup(zone, updatedMinUtcMillis, maxUtcMillis, transitions);
+            return new LinkedListLookup(zone, minUtcMillis, maxUtcMillis, transitions);
         }
-        return new TransitionArrayLookup(zone, updatedMinUtcMillis, maxUtcMillis, transitions);
+        return new TransitionArrayLookup(zone, minUtcMillis, maxUtcMillis, transitions);
     }
 
     /**
@@ -208,10 +207,6 @@ public abstract class LocalTimeOffset {
          * The number of offsets in the lookup. Package private for testing.
          */
         abstract int size();
-
-        public long getMin(long min) {
-            return min;
-        }
     }
 
     private static class NoPrevious extends LocalTimeOffset {
@@ -386,12 +381,10 @@ public abstract class LocalTimeOffset {
     private static class FixedLookup extends Lookup {
         private final ZoneId zone;
         private final LocalTimeOffset fixed;
-        private long minUtcMillis;
 
-        private FixedLookup(ZoneId zone, LocalTimeOffset fixed, long minUtcMillis) {
+        private FixedLookup(ZoneId zone, LocalTimeOffset fixed) {
             this.zone = zone;
             this.fixed = fixed;
-            this.minUtcMillis = minUtcMillis;
         }
 
         @Override
@@ -418,8 +411,6 @@ public abstract class LocalTimeOffset {
         public boolean anyMoveBackToPreviousDay() {
             return false;
         }
-
-
     }
 
     /**
@@ -524,11 +515,6 @@ public abstract class LocalTimeOffset {
             this.zone = zone;
             this.minUtcMillis = minUtcMillis;
             this.maxUtcMillis = maxUtcMillis;
-        }
-
-        @Override
-        public long getMin(long min) {
-            return Math.min(minUtcMillis, min);
         }
 
         @Override
@@ -638,17 +624,9 @@ public abstract class LocalTimeOffset {
         ZoneOffsetTransition t = null;
         Iterator<ZoneOffsetTransition> itr = rules.getTransitions().iterator();
         // Skip all transitions that are before our start time
-        while (itr.hasNext()) {
-            t = itr.next();
-            final int duration = transitionDurationSeconds(t);
-            if ((t.toEpochSecond() + duration) >= minSecond) { // checking if the transition affects minUtcMillis
-                break;
-            }
-        }
+        while (itr.hasNext() && (t = itr.next()).toEpochSecond() < minSecond) {}
         if (false == itr.hasNext()) {
-            final int duration = transitionDurationSeconds(t);
-
-            if (minSecond < (t.toEpochSecond() + duration) && t.toEpochSecond() < maxSecond) {
+            if (minSecond < t.toEpochSecond() && t.toEpochSecond() < maxSecond) {
                 transitions.add(t);
                 /*
                  * Sometimes the rules duplicate the transitions. And
@@ -679,10 +657,6 @@ public abstract class LocalTimeOffset {
             }
         }
         return buildTransitionsFromRules(transitions, zone, rules, t.toEpochSecond() + 1, maxSecond);
-    }
-
-    private static int transitionDurationSeconds(ZoneOffsetTransition t) {
-        return Math.max(t.getOffsetBefore().getTotalSeconds() - t.getOffsetAfter().getTotalSeconds(), 0);
     }
 
     /**

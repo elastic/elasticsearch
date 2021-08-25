@@ -41,6 +41,42 @@ setup:
             user: SYSTEM
             id: 123
             valid: true
+          - index:
+              _index: eql_test
+              _id:    4
+          - event:
+              - category: network
+            "@timestamp": 2020-02-06T12:34:56Z
+            user: ADMIN
+            id: 123
+            valid: true
+          - index:
+              _index: eql_test
+              _id:    5
+          - event:
+              - category: network
+            "@timestamp": 2020-02-07T12:34:56Z
+            user: SYSTEM
+            id: 123
+            valid: true
+          - index:
+              _index: eql_test
+              _id:    6
+          - event:
+              - category: network
+            "@timestamp": 2020-02-08T12:34:56Z
+            user: ADMIN
+            id: 123
+            valid: true
+          - index:
+              _index: eql_test
+              _id:    7
+          - event:
+              - category: network
+            "@timestamp": 2020-02-09T12:34:56Z
+            user: SYSTEM
+            id: 123
+            valid: true
 
 ---
 # Testing round-trip and the basic shape of the response
@@ -381,3 +417,13 @@ setup:
       catch: missing
       eql.get_status:
         id: $id
+---
+"Sequence checking correct join key ordering.":
+
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by user [network where valid == true] [network where true]'
+  - match: {hits.sequences.0.join_keys.0: "ADMIN"}
+  - match: {hits.sequences.1.join_keys.0: "SYSTEM"}

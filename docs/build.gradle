@@ -1515,6 +1515,29 @@ setups['setup-repository'] = '''
             location: buildDir/cluster/shared/repo
 '''
 
+// Used by snapshot restore docs
+setups['setup-snapshots'] = setups['setup-repository'] + '''
+  - do:
+      bulk:
+        index: my-index
+        refresh: true
+        body: |
+          {"index":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      bulk:
+        index: logs-my_app-default
+        refresh: true
+        body: |
+          {"create":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      snapshot.create:
+        repository: my_repository
+        snapshot: my_snapshot
+        wait_for_completion: true
+'''
+
 // Fake sec logs data used by EQL search
   setups['atomic_red_regsvr32'] = setups['my_data_stream'] + '''
   - do:

@@ -1,175 +1,249 @@
 [[snapshots-restore-snapshot]]
 == Restore a snapshot
 
-////
+This guide shows you how to restore a snapshot. Snapshots are a convenient way
+to transfer data between clusters. You can also restore a snapshot to recover
+data after an accidental deletion or a hardware failure.
+
+In this guide, you'll learn how to:
+
+* Retrieve available snapshots
+* Restore an index or data stream from a snapshot
+* Monitor the restore operation
+* Cancel an ongoing restore
+
+The guide also provides tips for <<restore-different-cluster,restoring to
+another cluster>>.
+
+[discrete]
+[[restore-snapshot-prereqs]]
+=== Prerequisites
+
+include::apis/restore-snapshot-api.asciidoc[tag=restore-prereqs]
+
+[discrete]
+[[retrieve-snapshot]]
+=== Retrieve a snapshot
+
+To view a list of available snapshots in {kib}, go to the main menu and click
+*Stack Management > Snapshot and Restore*.
+
+You can also use the <<get-snapshot-repo-api,get repository API>> to fetch a
+list of registered snapshot repositories.
+
 [source,console]
------------------------------------
-PUT /_snapshot/my_backup
+----
+GET _snapshot
+----
+// TEST[setup:setup-snapshots]
+
+Use the <<get-snapshot-api,get snapshot API>> to retrieve snapshots for a
+repository.
+
+[source,console]
+----
+GET _snapshot/my_repository/*?filter_path=*.snapshot,*.version_id,*.start_time
+----
+// TEST[setup:setup-snapshots]
+
+[discrete]
+[[restore-index-data-stream]]
+=== Restore an index or data stream
+
+You can restore an index or data stream from a snapshot using {kib}'s *Snapshot
+and Restore* feature or the <<restore-snapshot-api,restore snapshot API>>.
+
+You can only restore an existing index if it's closed. Use one of the following
+methods to avoid conflicts with existing indices or data streams:
+
+* <<delete-restore>>
+* <<close-restore>>
+* <<rename-on-restore>>
+
+[discrete]
+[[delete-restore]]
+==== Delete and restore
+
+The simplest way to avoid conflicts is to delete an existing index or data
+stream before restoring it. To prevent the accidental recreation of the index or
+data stream, we recommend you temporarily stop all indexing until the restore
+operation is complete.
+
+// Only display warning in 7.x.
+// In 7.x, `action.destructive_requires_name` defaults to false.
+ifeval::[ "{major-version}" == "7.x" ]
+WARNING: Don't use the <<indices-delete-index,delete index API>> to target the
+`*` or `.*` wildcard expressions. If you use {es}'s security features, this will
+delete system indices required for authentication. To delete all regular
+indices, use `*,-.*`.
+endif::[]
+
+[source,console]
+----
+# Delete an index
+DELETE my-index
+
+# Delete a data stream
+DELETE _data_stream/logs-my_app-default
+
+# Restore the index and data stream from a snapshot
+POST _snapshot/my_repository/my_snapshot/_restore 
 {
-  "type": "fs",
-  "settings": {
-    "location": "my_backup_location"
+  "indices": "my-index,logs-my_app-default"
+}
+----
+// TEST[setup:setup-snapshots]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
+
+[discrete]
+[[close-restore]]
+==== Close and restore
+
+You can restore an existing index if it's closed. However, the index in the
+snapshot must have the same number of primary shards. You can't close a data
+stream.
+
+// Only display warning in 7.x.
+// In 7.x, `action.destructive_requires_name` defaults to false.
+ifeval::["{major-version}" == "7.x"]
+WARNING: Don't use the <<indices-close,close index API>> to target the `*` or
+`.*` wildcard expressions. If you use {es}'s security features, this will close
+system indices required for authentication. To close all regular indices, use
+`*,-.*`.
+endif::[]
+
+[source,console]
+----
+# Close an index
+POST my-index/_close
+
+# Restore the index from a snapshot
+POST _snapshot/my_repository/my_snapshot/_restore 
+{
+  "indices": "my-index"
+}
+----
+// TEST[setup:setup-snapshots]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
+
+[discrete]
+[[rename-on-restore]]
+==== Rename on restore
+
+You can rename indices and data streams you restore. Before you start, ensure
+the cluster has enough capacity to store both the existing and restored data.
+
+The following restore snapshot API request prepends `restored-` to the name of
+any restored index or data stream.
+
+[source,console]
+----
+POST _snapshot/my_repository/my_snapshot/_restore 
+{
+  "indices": "my-index,logs-my_app-default",
+  "rename_pattern": "(.+)",
+  "rename_replacement": "restored-$1"
+}
+----
+// TEST[setup:setup-snapshots]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
+
+When the restore operation is complete, you can delete the original indices and
+data streams. You can then use a <<docs-reindex,reindex>> to rename the restored
+indices and data streams.
+
+[source,console]
+----
+# Delete the original index
+DELETE my-index
+
+# Reindex the restored index to rename it
+POST _reindex
+{
+  "source": {
+    "index": "restored-my-index"
+  },
+  "dest": {
+    "index": "my-index"
   }
 }
 
-PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
------------------------------------
-// TESTSETUP
+# Delete the original data stream
+DELETE _data_stream/logs-my_app-default
 
-////
-
-Use the <<restore-snapshot-api,restore snapshot API>> to restore
-a snapshot of a cluster or specified data streams and indices:
-
-[source,console]
------------------------------------
-POST /_snapshot/my_backup/snapshot_1/_restore
------------------------------------
-// TEST[s/_restore/_restore?wait_for_completion=true/]
-
-By default, all data streams and indices in the snapshot are restored, but the cluster state is
-*not* restored. Use the `indices` parameter to restore only specific data streams or indices. This parameter
-supports <<api-multi-index,multi-target syntax>>. To include the global cluster state, set
-`include_global_state` to `true` in the restore request body.
-
-Because all indices in the snapshot are restored by default, all system indices will be restored
-by default as well.
-
-[WARNING]
-====
-Each data stream requires a matching
-<<create-index-template,index template>>. The stream uses this
-template to create new backing indices.
-
-When restoring a data stream, ensure a matching template exists for the stream.
-You can do this using one of the following methods:
-
-* Check for existing templates that match the stream. If no matching template
-  exists, <<create-index-template,create one>>.
-
-* Restore a global cluster state that includes a matching template for the
-  stream.
-
-If no index template matches a data stream, the stream cannot
-<<manually-roll-over-a-data-stream,roll over>> or create new backing indices.
-====
-
-The `rename_pattern`
-and `rename_replacement` options can be also used to rename data streams and indices on restore
-using regular expression that supports referencing the original text, according to the https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[`appendReplacement`] logic.
-
-[[rename-restored-data-stream]]
-// tag::rename-restored-data-stream-tag[]
-If you rename a restored data stream, its backing indices are also
-renamed. For example, if you rename the `logs` data stream to `restored-logs`,
-the backing index `.ds-logs-2099.03.09-000005` is renamed to
-`.ds-restored-logs-2099.03.09-000005`.
-
-[WARNING]
-====
-If you rename a restored stream, ensure an index template matches the new stream
-name. If no index template matches the stream, it cannot
-<<manually-roll-over-a-data-stream,roll over>> or create new backing indices.
-====
-// end::rename-restored-data-stream-tag[]
-
-To prevent aliases from being restored with their associated data streams and
-indices, set `include_aliases` to `false`.
-
-[source,console]
------------------------------------
-POST /_snapshot/my_backup/snapshot_1/_restore
+# Reindex the restored data stream to rename it
+POST _reindex
 {
-  "indices": "data_stream_1,index_1,index_2",
-  "ignore_unavailable": true,
-  "include_global_state": false,              <1>
-  "rename_pattern": "index_(.+)",
-  "rename_replacement": "restored_index_$1",
-  "include_aliases": false
-}
------------------------------------
-// TEST[continued]
-
-<1> By default, `include_global_state` is `false`, meaning the snapshot's
-cluster state and feature states are not restored.
-+
-If `true` then the restore operation merges the legacy index templates in your
-cluster with the templates contained in the snapshot, replacing any existing
-ones whose name matches one in the snapshot. It completely removes all
-persistent settings, non-legacy index templates, ingest pipelines and
-{ilm-init} lifecycle policies that exist in your cluster and replaces them with
-the corresponding items from the snapshot.
-
-The restore operation must be performed on a functioning cluster. However, an
-existing index can only be restored if it's <<indices-close,closed>> and
-has the same number of shards as the index in the snapshot. The restore
-operation automatically opens restored indices if they were closed and creates
-new indices if they didn't exist in the cluster.
-
-If a data stream is restored, its backing indices are also restored. The restore
-operation automatically opens restored backing indices if they were closed.
-
-In addition to entire data streams, you can restore only specific backing
-indices from a snapshot. However, restored backing indices are not automatically
-added to any existing data streams. For example, if only the
-`.ds-logs-2099.03.08-000003` backing index is restored from a snapshot, it is
-not automatically added to the existing `logs` data stream.
-
-[discrete]
-=== Partial restore
-
-By default, the entire restore operation will fail if one or more indices or backing indices participating in the operation don't have
-snapshots of all shards available. It can occur if some shards failed to snapshot for example. It is still possible to
-restore such indices by setting `partial` to `true`. Please note, that only successfully snapshotted shards will be
-restored in this case and all missing shards will be recreated empty.
-
-
-[discrete]
-[[change-index-settings-during-restore]]
-=== Changing index settings during restore
-
-Use the <<restore-snapshot-api-index-settings,`index_settings`>> parameter
-to override index settings during the restore process. For example, the
-following request will restore the index `index_1` without creating any
-replicas while switching back to the default refresh interval:
-
-[source,console]
------------------------------------
-POST /_snapshot/my_backup/snapshot_1/_restore
-{
-  "indices": "index_1",
-  "ignore_unavailable": true,
-  "index_settings": {
-    "index.number_of_replicas": 0
+  "source": {
+    "index": "restored-logs-my_app-default"
   },
-  "ignore_index_settings": [
-    "index.refresh_interval"
-  ]
+  "dest": {
+    "index": "logs-my_app-default",
+    "op_type": "create"
+  }
 }
------------------------------------
+----
 // TEST[continued]
 
-NOTE: Some settings such as `index.number_of_shards` cannot be changed during the restore operation.
+[discrete]
+[[monitor-restore]]
+=== Monitor a restore
 
-For data streams, these index settings are applied to the restored backing
-indices.
+The restore operation uses the <<indices-recovery,recovery process>> to restore
+an index's primary shards from a snapshot. While the restore operation
+recovers primary shards, the cluster will have a `yellow`
+<<cluster-health,health status>>.
 
-// tag::index-settings-data-stream-warning[]
-[IMPORTANT]
-====
-The `index_settings` and `ignore_index_settings` parameters affect
-restored backing indices only. New backing indices created for a stream use the index
-settings specified in the stream's matching
-<<create-index-template,index template>>.
+After all primary shards are recovered, the replication process creates and
+distributes replicas across eligible data nodes. When replication is complete,
+the cluster health status typically becomes `green`.
 
-If you change index settings during a restore, we recommend you make similar
-changes in the stream's matching index template. This ensures new backing
-indices created for the stream use the same index settings.
-====
-// end::index-settings-data-stream-warning[]
+You can monitor the cluster health status using the <<cluster-health,cluster
+health API>>.
+
+[source,console]
+----
+GET _cluster/health
+----
+
+To get detailed information about ongoing shard recoveries, use the
+<<indices-recovery,index recovery API>>.
+
+[source,console]
+----
+GET my-index/_recovery
+----
+// TEST[setup:setup-snapshots]
+
+To get detailed information about unassigned primary shards or replicas
+resulting from a restore operation, use the <<cluster-allocation-explain,cluster
+allocation API>>.
+
+[source,console]
+----
+GET _cluster/allocation/explain
+----
+// TEST[catch:bad_request]
 
 [discrete]
-=== Restoring to a different cluster
+[[cancel-restore]]
+=== Cancel a restore
+
+You can delete an index or data stream to cancel its ongoing restore.
+
+[source,console]
+----
+# Delete an index
+DELETE my-index
+
+# Delete a data stream
+DELETE _data_stream/logs-my_app-default
+----
+// TEST[setup:setup-snapshots]
+
+[discrete]
+[[restore-different-cluster]]
+=== Restore to a different cluster
 
 The information stored in a snapshot is not tied to a particular cluster or a cluster name. Therefore, it's possible to
 restore a snapshot created from one cluster into another cluster by registering the repository that contains the snapshot in the new cluster and starting the restore process.
@@ -179,9 +253,26 @@ The topology of the new cluster does not have to match the cluster where the sna
 If the new cluster has a smaller capacity, consider the following changes:
 
 * Ensure that the new cluster has enough capacity to store all data streams and indices in the snapshot.
+* Restore fewer indices and data streams from the snapshot.
 * Change the index settings during the restore operation to reduce the
 <<dynamic-index-number-of-replicas,number of replicas>>.
-* Use the `indices` parameter to choose only specific data streams or indices to restore.
++
+For example, the following restore snapshot API request uses the
+`index_settings` option to set `index.number_of_replicas` to `1`.
++
+[source,console]
+----
+POST _snapshot/my_repository/my_snapshot/_restore
+{
+  "indices": "my-index,logs-my_app-default",
+  "index_settings": {
+    "index.number_of_replicas": 1
+  }
+}
+----
+// TEST[setup:setup-snapshots]
+// TEST[s/^/DELETE my-index\nDELETE _data_stream\/logs-my_app-default\n/]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
 
 If indices or backing indices in the original cluster were assigned to particular nodes using
 <<shard-allocation-filtering,shard allocation filtering>>, the same rules will be enforced in the new cluster. If the new cluster does not contain nodes with appropriate attributes that a restored index can be allocated on, the

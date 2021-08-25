@@ -755,7 +755,7 @@ See <<snapshots-repository-plugins>>.
 [role="exclude",id="_changing_index_settings_during_restore"]
 ==== Change index settings during restore
 
-See <<change-index-settings-during-restore>>.
+See <<restore-snapshot-api-index-settings>>.
 
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot

@@ -1,8 +1,5 @@
 [[snapshots-monitor-snapshot-restore]]
-== Monitor snapshot and restore progress
-++++
-<titleabbrev>Monitor snapshot and restore</titleabbrev>
-++++
+== Monitor snapshot progress
 
 Use the <<get-snapshot-api,get snapshot API>> or the
 <<get-snapshot-status-api,get snapshot status API>> to monitor the
@@ -133,24 +130,8 @@ GET /_snapshot/my_backup/snapshot_1/_status
 -----------------------------------
 
 [discrete]
-=== Monitoring restore operations
-
-The restore process piggybacks on the standard recovery mechanism of
-{es}. As a result, standard recovery monitoring services can be used
-to monitor the state of restore. When the restore operation starts, the
-cluster typically goes into `yellow` state because the restore operation works
-by recovering primary shards of the restored indices. After the recovery of the
-primary shards is completed, {es} switches to the standard replication
-process that creates the required number of replicas. When all required
-replicas are created, the cluster switches to the `green` states.
-
-The cluster health operation provides only a high level status of the restore process. It's possible to get more
-detailed insight into the current state of the recovery process by using <<indices-recovery, index recovery>> and
-<<cat-recovery, cat recovery>> APIs.
-
-[discrete]
 [[get-snapshot-stop-snapshot]]
-=== Stop snapshot and restore operations
+=== Stop snapshot operations
 To stop a currently running snapshot that was started by mistake or is taking unusually long, use
 the <<delete-snapshot-api,delete snapshot API>>.
 This operation checks whether the deleted snapshot is currently running. If it is, the delete snapshot operation stops
@@ -160,10 +141,6 @@ that snapshot before deleting the snapshot data from the repository.
 -----------------------------------
 DELETE /_snapshot/my_backup/snapshot_1
 -----------------------------------
-
-The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
-be canceled by deleting data streams and indices that are being restored. Data for all deleted data streams and indices will be removed
-from the cluster as a result of this operation.
 
 [discrete]
 [[get-snapshot-cluster-blocks]]

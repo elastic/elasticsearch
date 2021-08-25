@@ -304,6 +304,7 @@ public class Constants {
         "cluster:monitor/xpack/ml/job/results/records/get",
         "cluster:monitor/xpack/ml/job/stats/get",
         "cluster:monitor/xpack/ml/trained_models/deployment/infer",
+        "cluster:monitor/xpack/ml/trained_models/deployments/stats/get",
         "cluster:monitor/xpack/repositories_metering/clear_metering_archive",
         "cluster:monitor/xpack/repositories_metering/get_metrics",
         "cluster:monitor/xpack/rollup/get",

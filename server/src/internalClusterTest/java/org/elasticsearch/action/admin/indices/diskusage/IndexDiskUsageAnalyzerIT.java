@@ -69,7 +69,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .startObject()
                 .field("english_text", "A long sentence to make sure that norms is non-zero")
                 .endObject();
-            client().prepareIndex(index)
+            client().prepareIndex(index, "_doc")
                 .setId("id")
                 .setSource(doc)
                 .get();

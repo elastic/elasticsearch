@@ -1299,11 +1299,15 @@ public final class PainlessLookupBuilder {
     }
 
     private void buildPainlessClassHierarchy() {
+        for (Class<?> targetClass : classesToPainlessClassBuilders.keySet()) {
+            classesToDirectSubClasses.put(targetClass, new HashSet<>());
+        }
+
         for (Class<?> subClass : classesToPainlessClassBuilders.keySet()) {
             List<Class<?>> superInterfaces = new ArrayList<>(Arrays.asList(subClass.getInterfaces()));
 
             if (subClass.isInterface() && classesToPainlessClassBuilders.containsKey(Object.class)) {
-                classesToDirectSubClasses.computeIfAbsent(Object.class, sc -> new HashSet<>()).add(subClass);
+                classesToDirectSubClasses.get(Object.class).add(subClass);
             } else {
                 Class<?> superClass = subClass.getSuperclass();
 
@@ -1318,7 +1322,7 @@ public final class PainlessLookupBuilder {
                 }
 
                 if (superClass != null) {
-                    classesToDirectSubClasses.computeIfAbsent(superClass, sc -> new HashSet<>()).add(subClass);
+                    classesToDirectSubClasses.get(superClass).add(subClass);
                 }
             }
 
@@ -1329,7 +1333,7 @@ public final class PainlessLookupBuilder {
 
                 if (resolvedInterfaces.add(superInterface)) {
                     if (classesToPainlessClassBuilders.containsKey(superInterface)) {
-                        classesToDirectSubClasses.computeIfAbsent(superInterface, si -> new HashSet<>()).add(subClass);
+                        classesToDirectSubClasses.get(superInterface).add(subClass);
                     } else {
                         superInterfaces.addAll(Arrays.asList(superInterface.getInterfaces()));
                     }

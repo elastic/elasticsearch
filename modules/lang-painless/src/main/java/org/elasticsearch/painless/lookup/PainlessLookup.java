@@ -83,6 +83,10 @@ public final class PainlessLookup {
         return classesToPainlessClasses.keySet();
     }
 
+    public Set<Class<?>> getDirectSubClasses(Class<?> superClass) {
+        return classesToDirectSubClasses.get(superClass);
+    }
+
     public Set<String> getImportedPainlessMethodsKeys() {
         return painlessMethodKeysToImportedPainlessMethods.keySet();
     }

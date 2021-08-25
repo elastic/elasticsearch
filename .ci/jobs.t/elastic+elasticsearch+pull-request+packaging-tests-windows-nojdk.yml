@@ -1,8 +1,8 @@
 ---
 - job:
-    name: "elastic+elasticsearch+pull-request+packaging-tests-windows"
-    display-name: "elastic / elasticsearch - pull request packaging-tests-windows"
-    description: "Testing of Elasticsearch pull requests - packaging-tests-windows"
+    name: "elastic+elasticsearch+pull-request+packaging-tests-windows-nojdk"
+    display-name: "elastic / elasticsearch - pull request packaging-tests-windows-nojdk"
+    description: "Testing of Elasticsearch pull requests - packaging-tests-windows-nojdk"
     # We use a hard-coded workspace directory here to avoid hitting windows path length limits
     child-workspace: "C:\\Users\\jenkins\\workspace\\pr-packaging-windows\\${BUILD_NUMBER}"
     project-type: matrix
@@ -21,8 +21,10 @@
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-windows
           cancel-builds-on-update: true
-          white-list-target-branches:
+          # We've removed the no-jdk distribution on master as well
+          black-list-target-branches:
             - master
+            - 6.8
           excluded-regions:
             - ^docs/.*
           white-list-labels:
@@ -42,6 +44,7 @@
           name: PACKAGING_TASK
           values:
             - 'default-windows-archive'
+            - 'default-windows-archive-no-jdk'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

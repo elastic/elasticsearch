@@ -1,13 +1,14 @@
 [[modules-scripting-security]]
 == Scripting and security
 In addition to user privileges and script sandboxing, {es} uses the
-https://www.oracle.com/java/technologies/javase/seccodeguide.html[Java Security Manager (JVM)]
+https://www.oracle.com/java/technologies/javase/seccodeguide.html[Java Security Manager]
 and native security tools as additional layers of security.
 
-As part of its startup sequence, {es} enables the JVM to limit the actions that
-can be taken by portions of the code. Painless uses this to limit the actions
-that generated Painless scripts can take, preventing them from being able to do 
-things like write files and listen to sockets.
+As part of its startup sequence, {es} enables the Java Security Manager to limit
+the actions that can be taken by portions of the code. 
+<<modules-scripting-painless,Painless>> uses the Java Security Manager as a
+layer in a defense in depth strategy to prevent scripts from doing things like
+writing files and listening to sockets.
 
 {es} uses
 {wikipedia}/Seccomp[seccomp] in Linux,
@@ -16,10 +17,20 @@ in macOS, and
 https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147[ActiveProcessLimit]
 on Windows to prevent {es} from forking or executing other processes.
 
+Painless uses a fine-grained allowlist with a granularity down to the members of
+a class. Anything that is not part of the allowlist results in a compilation 
+error. Even with this security, scripts can provide a very weak point of exploit 
+without restricting which users can run scripts. Allowing any user that can send 
+an HTTP request to run a script with potentially malicious code opens your 
+cluster to attack.
+
+[CAUTION]
+====
 The following sections describe security settings for scripts and how to alter
 the default settings. Take extreme caution when providing greater permissions
 to scripts beyond the default settings. Any extra permissions weakens the total
 security of your {es} deployment.
+====
 
 [[allowed-script-types-setting]]
 [discrete]

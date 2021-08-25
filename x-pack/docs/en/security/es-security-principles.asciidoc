@@ -1,55 +1,54 @@
 [[es-security-principles]]
 == {es} security principles
 Protecting your {es} cluster and the data it contains is of utmost importance.
-There are numerous security practices and considerations for keeping your
-cluster safe, such as not saving passwords in plain text files or making sure
-that users have appropriate permissions (most users shouldn't be a superuser).
-These guidelines are important, but the following information provides something
-greater. These principles are foundational to running {es} in a secure manner.
+The following principles are foundational to running {es} in a secure manner
+and should be integrated into every production deployment of {es}.
 
 [discrete]
-[[security-dont-run-without]]
+[[security-run-with-security]]
 === Run {es} with security enabled
 Never run an {es} cluster without security enabled. This principle cannot be
 overstated. Running {es} without security leaves your cluster exposed to anyone
-on the internet, permitting anyone to download, modify, or delete any data in
-your cluster.
+who can send network traffic to {es}, permitting these individuals to download,
+modify, or delete any data in your cluster.
 <<configuring-stack-security,Start the {stack} with security enabled>> or
 <<manually-configure-security,manually configure security>> to prevent
 unauthorized access to your clusters and ensure that internode communication
 is secure. 
 
 [discrete]
-[[security-dont-expose]]
+[[security-not-root-user]]
+=== Don't run {es} as `root`
+Never run {es} as the `root` user. Running as the `root` user provides an avenue
+to circumvent the other security layers and permit a user to do *anything* on
+your server. {es} will refuse to start if it detects that it is running as
+`root`, but it's worth double (or triple) checking the user that {es} runs as. 
+
+[discrete]
+[[security-protect-cluster-traffic]]
 === Protect {es} from public internet traffic
 Even with security enabled, never expose {es} to public internet traffic.
 Using an application to sanitize requests to {es} still poses risks, such as
 a malicious user writing <<search,`_search`>> requests that could overwhelm an
-{es} cluster and bring it down. If you need to connect devices from the internet
-to {es}, use some combination of a proxy, firewall, and VPN. The best
-combination of these technologies depends on your security needs and risks.
+{es} cluster and bring it down. Keep {es} as isolated as possible, preferably
+behind a firewall and a VPN. Any internet-facing applications should run 
+pre-canned aggregations. 
 
 [discrete]
-[[security-dont-expose-to-users]]
+[[security-implement-user-barrier]]
 === Implement a barrier between {es} and users
 While you absolutely shouldn't expose {es} directly to the internet, you also
-shouldn't expose {es} directly to users. The following configurations provide
-different methods of user interaction with {es}:
-
-* *Best*: Use an application to make requests on behalf of users.
-* *Better*: If the previous configuration isn't possible, use an application to
-sanitize requests from users.
-* *Good*: If either of the previous configurations isn't possible, implement
-some mechanism to track user behaviors, such as requests that are submitted to
-specific nodes in the cluster.
+shouldn't expose {es} directly to users. Instead, use an intermediary
+application to make requests on behalf of users. This implementation allows you 
+to track user behaviors, such as can submit requests, and to which specific
+nodes in the cluster. For example, you can implement an application that accepts
+a search term from a user and funnels it through a
+<<query-dsl-simple-query-string-query,`simple_query_string` query>>. 
 
 [discrete]
-[[security-dont-run-as-root]]
-=== Create appropriate users to run {es}
-Never run {es} as the `root` user. Running as the `root` user provides an avenue
-to circumvent the other security layers and permit a user to do *anything* on
-your server. {es}  will refuse to start if it detects that it is running as
-`root`, but it's worth double (or triple) checking the user that {es} runs as. 
+[[security-create-appropriate-users]]
+=== Implement role based access control
 <<defining-roles,Define roles>> for your users and
 <<security-privileges,assign appropriate privileges>> to ensure that users have
-access only to the resources that they need.
+access only to the resources that they need. This process determines whether the 
+user behind an incoming request is allowed to execute that request.

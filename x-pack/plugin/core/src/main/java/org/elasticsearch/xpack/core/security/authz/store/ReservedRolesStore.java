@@ -394,13 +394,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // APM telemetry queries APM indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("apm-*")
-                    .privileges("read", "read_cross_cluster")
-                    .build(),
-                // Data telemetry reads mappings, metadata and stats of indices
+                    .privileges("read", "read_cross_cluster").build(),
+                // Data telemetry reads mappings, metadata and stats of indices (excluding security and async search indices)
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("*")
-                    .privileges("view_index_metadata", "monitor")
-                    .build(),
+                    .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
+                    .allowRestrictedIndices(true)
+                    .privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.diagnostic.collection-*")

@@ -40,6 +40,7 @@ import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.file.AccessDeniedException;
@@ -350,6 +351,10 @@ public abstract class StreamInput extends InputStream {
 
     public BigInteger readBigInteger() throws IOException {
         return new BigInteger(readString());
+    }
+
+    public BigDecimal readBigDecimal() throws IOException {
+        return new BigDecimal(readString());
     }
 
 
@@ -778,6 +783,8 @@ public abstract class StreamInput extends InputStream {
                 return readBigInteger();
             case 27:
                 return readOffsetTime();
+            case 28:
+                return readBigDecimal();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }

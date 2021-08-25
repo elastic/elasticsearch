@@ -861,7 +861,7 @@ expected_event_ids  = [67, 68, 69, 70,
 [[queries]]
 name = "sequencesOnDifferentEventTypes7"
 query = '''
-sequence with maxspan=500ms
+sequence with maxspan=50ms
   [file where event_subtype_full : "file_create_event"] by file_path
   [process where opcode == 1] by process_path
   [process where opcode == 2] by process_path

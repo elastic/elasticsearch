@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -30,6 +31,7 @@ public class SequenceMatcher {
 
     private static final String CB_INFLIGHT_LABEL = "sequence_inflight";
     private static final String CB_COMPLETED_LABEL = "sequence_completed";
+    private static final BigDecimal BD_ONE_MILLION = BigDecimal.valueOf(1_000_000);
 
     private final Logger log = LogManager.getLogger(SequenceMatcher.class);
 
@@ -69,7 +71,7 @@ public class SequenceMatcher {
     // Set of completed sequences - separate to avoid polluting the other stages
     // It is a set since matches are ordered at insertion time based on the ordinal of the first entry
     private final Set<Sequence> completed;
-    private final long maxSpanInMillis;
+    private final long maxSpanInNanos;
 
     private final boolean descending;
 
@@ -91,7 +93,7 @@ public class SequenceMatcher {
         this.keyToSequences = new KeyToSequences(completionStage);
         this.completed = new TreeSet<>();
 
-        this.maxSpanInMillis = maxSpan.millis();
+        this.maxSpanInNanos = maxSpan.nanos();
 
         this.limit = limit;
         this.circuitBreaker = circuitBreaker;
@@ -183,9 +185,18 @@ public class SequenceMatcher {
         //
 
         // maxspan
-        if (maxSpanInMillis > 0 && (ordinal.timestamp() - sequence.startOrdinal().timestamp() > maxSpanInMillis)) {
-            stats.rejectionMaxspan++;
-            return;
+        if (maxSpanInNanos > 0) {
+            long timestampDiffNanos = ordinal.timestamp() instanceof BigDecimal
+                ? ((BigDecimal) ordinal.timestamp())
+                    .subtract((BigDecimal) sequence.startOrdinal().timestamp())
+                    .multiply(BD_ONE_MILLION)
+                    .longValue()
+                : (ordinal.timestamp().longValue() - sequence.startOrdinal().timestamp().longValue()) * 1_000_000L;
+
+            if (timestampDiffNanos > maxSpanInNanos) {
+                stats.rejectionMaxspan++;
+                return;
+            }
         }
 
         // until

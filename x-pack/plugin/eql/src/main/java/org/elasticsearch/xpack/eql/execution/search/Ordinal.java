@@ -9,23 +9,25 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+
+import java.math.BigDecimal;
 import java.util.Objects;
 
 public class Ordinal implements Comparable<Ordinal>, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Ordinal.class);
 
-    private final long timestamp;
+    private final Number timestamp;
     private final Comparable<Object> tiebreaker;
-    private final long implicitTiebreaker; // _shard_doc tiebreaker automatically added by ES PIT
+    private final Number implicitTiebreaker; // _shard_doc tiebreaker automatically added by ES PIT
 
-    public Ordinal(long timestamp, Comparable<Object> tiebreaker, long implicitTiebreaker) {
+    public Ordinal(Number timestamp, Comparable<Object> tiebreaker, Number implicitTiebreaker) {
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
         this.implicitTiebreaker = implicitTiebreaker;
     }
 
-    public long timestamp() {
+    public Number timestamp() {
         return timestamp;
     }
 
@@ -33,7 +35,7 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
         return tiebreaker;
     }
 
-    public long implicitTiebreaker() {
+    public Number implicitTiebreaker() {
         return implicitTiebreaker;
     }
 
@@ -70,16 +72,15 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
 
     @Override
     public int compareTo(Ordinal o) {
-        if (timestamp < o.timestamp) {
+        int timestampCompare = numbersCompare(timestamp, o.timestamp);
+        if (timestampCompare < 0) {
             return -1;
         }
-        if (timestamp == o.timestamp) {
+        if (timestampCompare == 0) {
             if (tiebreaker != null) {
                 if (o.tiebreaker != null) {
-                    if (tiebreaker.compareTo(o.tiebreaker) == 0) {
-                        return Long.compare(implicitTiebreaker, o.implicitTiebreaker);
-                    }
-                    return tiebreaker.compareTo(o.tiebreaker);
+                    int tiebreakerCompare = tiebreaker.compareTo(o.tiebreaker);
+                    return tiebreakerCompare == 0 ? numbersCompare(implicitTiebreaker, o.implicitTiebreaker) : tiebreakerCompare;
                 } else {
                     return -1;
                 }
@@ -90,7 +91,7 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
                 // this ordinal is greater (after) then the other tiebreaker
                 // so fall through to 1
                 if (o.tiebreaker == null) {
-                    return Long.compare(implicitTiebreaker, o.implicitTiebreaker);
+                    return numbersCompare(implicitTiebreaker, o.implicitTiebreaker);
                 }
             }
         }
@@ -119,8 +120,19 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
     }
 
     public Object[] toArray() {
+        // SearchAfterBuilder#setSortValues() won't handle BigDecimal
+        String timeStamp = timestamp.toString();
+        String implicitTbreaker = implicitTiebreaker.toString();
         return tiebreaker != null ?
-            new Object[] { timestamp, tiebreaker, implicitTiebreaker } 
-            : new Object[] { timestamp, implicitTiebreaker };
+            new Object[] { timeStamp, tiebreaker, implicitTbreaker }
+            : new Object[] { timeStamp, implicitTbreaker };
+    }
+
+    private static int numbersCompare(Number n1, Number n2) {
+        return n1 instanceof BigDecimal
+            ? (n2 instanceof BigDecimal ? ((BigDecimal) n1).compareTo((BigDecimal) n2) :
+                ((BigDecimal) n1).compareTo(BigDecimal.valueOf(n2.longValue())))
+            : (n2 instanceof BigDecimal ? BigDecimal.valueOf(n1.longValue()).compareTo((BigDecimal) n2) :
+                Long.compare(n1.longValue(), n2.longValue()));
     }
 }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.eql.execution.search.extractor;
 
+import java.math.BigDecimal;
+
 public class TimestampFieldHitExtractor extends FieldHitExtractor {
 
     public TimestampFieldHitExtractor(FieldHitExtractor target) {
@@ -16,6 +18,8 @@ public class TimestampFieldHitExtractor extends FieldHitExtractor {
 
     @Override
     protected Object parseEpochMillisAsString(String str) {
-        return Long.parseLong(str);
+        // Only parse as BigDecimal if needed by nanos accuracy (when getting millis with sub-millis). Long nanos will only count up to
+        // 2262-04-11T23:47:16.854775807Z. Doubles are not accurate enough to hold six digit submillis with granularity for current dates.
+        return str.lastIndexOf('.') > 0 ? new BigDecimal(str) : Long.parseLong(str);
     }
 }

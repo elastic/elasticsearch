@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -29,6 +30,15 @@ public class EqlSpecLoader {
         }
     }
 
+    public static List<EqlSpec> load(String ...paths) throws Exception {
+        Set<String> uniqueTestNames = new HashSet<>();
+        List<EqlSpec> specs = new ArrayList<>();
+        for (String path: paths) {
+            specs.addAll(load(path, uniqueTestNames));
+        }
+        return specs;
+    }
+
     private static void validateAndAddSpec(List<EqlSpec> specs, EqlSpec spec, Set<String> uniqueTestNames) {
         if (Strings.isNullOrEmpty(spec.name())) {
             throw new IllegalArgumentException("Read a test without a name value");
@@ -41,7 +51,7 @@ public class EqlSpecLoader {
         if (spec.expectedEventIds() == null) {
             throw new IllegalArgumentException("Read a test without a expected_event_ids value");
         }
-        if (uniqueTestNames.contains(spec.name())) {
+        if (uniqueTestNames.contains(spec.name())) { // TODO: scope it per file?
             throw new IllegalArgumentException("Found a test with the same name as another test: " + spec.name());
         } else {
             uniqueTestNames.add(spec.name());

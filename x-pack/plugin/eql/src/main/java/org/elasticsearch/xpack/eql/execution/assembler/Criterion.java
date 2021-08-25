@@ -81,9 +81,7 @@ public class Criterion<Q extends QueryRequest> {
             throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
         }
 
-        long timestamp = ((Number) ts).longValue();
         Comparable<Object> tbreaker = null;
-
         if (tiebreaker != null) {
             Object tb = tiebreaker.extract(hit);
             if (tb != null && tb instanceof Comparable == false) {
@@ -96,8 +94,7 @@ public class Criterion<Q extends QueryRequest> {
         if (implicitTbreaker instanceof Number == false) {
             throw new EqlIllegalArgumentException("Expected _shard_doc/implicit tiebreaker as long but got [{}]", implicitTbreaker);
         }
-        long implicitTiebreaker = ((Number) implicitTbreaker).longValue();
-        return new Ordinal(timestamp, tbreaker, implicitTiebreaker);
+        return new Ordinal((Number) ts, tbreaker, (Number) implicitTbreaker);
     }
 
     @Override

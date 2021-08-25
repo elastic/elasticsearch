@@ -65,7 +65,8 @@ public class ImplicitTiebreakerTests extends ESTestCase {
                 int previous = ordinal - 1;
                 // except the first request, the rest should have the previous response's search_after _shard_doc value
                 assertArrayEquals("Elements at stage " + ordinal + " do not match",
-                    r.searchSource().searchAfter(), new Object[] { (long) previous, implicitTiebreakerValues.get(previous) });
+                    r.searchSource().searchAfter(),
+                    new Object[] { Long.valueOf(previous).toString(), implicitTiebreakerValues.get(previous).toString() });
             }
 
             long sortValue = implicitTiebreakerValues.get(ordinal);

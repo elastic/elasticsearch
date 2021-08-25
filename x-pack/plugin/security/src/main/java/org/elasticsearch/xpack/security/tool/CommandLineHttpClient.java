@@ -206,7 +206,7 @@ public class CommandLineHttpClient {
             response = execute("GET", clusterHealthUrl, username, password, () -> null, CommandLineHttpClient::responseBuilder);
         } catch (Exception e) {
             if (retries > 0) {
-                Thread.sleep(1000);
+                Thread.sleep(2000);
                 retries -= 1;
                 checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
                 return;
@@ -218,7 +218,7 @@ public class CommandLineHttpClient {
         if (responseStatus != HttpURLConnection.HTTP_OK) {
             if (responseStatus != HttpURLConnection.HTTP_UNAVAILABLE) {
                 if (retries > 0) {
-                    Thread.sleep(1000);
+                    Thread.sleep(2000);
                     retries -= 1;
                     checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
                     return;

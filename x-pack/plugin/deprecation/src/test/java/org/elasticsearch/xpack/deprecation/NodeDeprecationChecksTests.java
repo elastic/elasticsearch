@@ -798,6 +798,64 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue, nullValue());
     }
 
+    public void testCheckSearchRemoteSettings() {
+        // test for presence of deprecated exporter passwords
+        final int numClusters = randomIntBetween(1, 3);
+        final String[] clusterNames = new String[numClusters];
+        final Settings.Builder settingsBuilder = Settings.builder();
+        for (int k = 0; k < numClusters; k++) {
+            clusterNames[k] = randomAlphaOfLength(5);
+            settingsBuilder.put("search.remote." + clusterNames[k] + ".seeds", randomAlphaOfLength(5));
+            settingsBuilder.put("search.remote." + clusterNames[k] + ".proxy", randomAlphaOfLength(5));
+            settingsBuilder.put("search.remote." + clusterNames[k] + ".skip_unavailable", randomBoolean());
+        }
+        settingsBuilder.put("search.remote.connections_per_cluster", randomIntBetween(0, 100));
+        settingsBuilder.put("search.remote.initial_connect_timeout", randomIntBetween(30, 60));
+        settingsBuilder.put("search.remote.connect", randomBoolean());
+        final Settings settings = settingsBuilder.build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        DeprecationIssue issue = NodeDeprecationChecks.checkSearchRemoteSettings(settings, null, null , licenseState);
+
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_settings_changes";
+        String joinedNames = Arrays
+            .stream(clusterNames)
+            .map(s -> "search.remote." + s + ".seeds")
+            .sorted()
+            .collect(Collectors.joining(","));
+        joinedNames += ",";
+        joinedNames += Arrays
+            .stream(clusterNames)
+            .map(s -> "search.remote." + s + ".proxy")
+            .sorted()
+            .collect(Collectors.joining(","));
+        joinedNames += ",";
+        joinedNames += Arrays
+            .stream(clusterNames)
+            .map(s -> "search.remote." + s + ".skip_unavailable")
+            .sorted()
+            .collect(Collectors.joining(","));
+        joinedNames += ",search.remote.connections_per_cluster,search.remote.initial_connect_timeout,search.remote.connect";
+
+        assertThat(issue, equalTo(new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            String.format(
+                Locale.ROOT,
+                "search.remote settings [%s] are deprecated and will be removed in the next major version",
+                joinedNames
+            ),
+            expectedUrl,
+            String.format(
+                Locale.ROOT,
+                "replace search.remote settings [%s] with their secure 'cluster.remote' replacements",
+                joinedNames
+            ), false, null)));
+
+        // test for absence of deprecated exporter passwords
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
+        assertThat(issue, nullValue());
+    }
+
     public void testClusterRoutingAllocationIncludeRelocationsSetting() {
         boolean settingValue = randomBoolean();
         String settingKey = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey();

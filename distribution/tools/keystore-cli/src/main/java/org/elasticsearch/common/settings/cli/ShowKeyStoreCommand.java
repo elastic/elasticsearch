@@ -17,13 +17,8 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.BaseKeyStoreCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.env.Environment;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -31,10 +26,6 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
 import java.util.List;
 
 /**

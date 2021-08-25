@@ -269,6 +269,7 @@ public abstract class Terminal {
         }
 
         @Override
+        @SuppressForbidden(reason = "Use system.out in CLI framework")
         public OutputStream getOutputStream() {
             return System.out;
         }

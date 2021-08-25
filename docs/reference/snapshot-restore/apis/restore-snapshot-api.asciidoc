@@ -77,7 +77,7 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 
 * If you restore a data stream, ensure the cluster contains a
 <<create-index-template,matching index template>> with data stream enabled.
-Without a matching index template, a data stream cannot roll over or create
+Without a matching index template, a data stream can't roll over or create
 backing indices.
 // end::restore-prereqs[]
 

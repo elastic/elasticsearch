@@ -34,9 +34,10 @@ are granted to anyone over the `.ml-*` indices.
 It is not currently possible to delete multiple jobs using wildcards or a comma
 separated list.
 
-If you delete a job that has a {dfeed}, the request will first attempt to
-delete the {dfeed}, as though <<ml-delete-datafeed>> was called with the same
-`timeout` and `force` parameters as this delete request.
+If you delete a job that has a {dfeed}, the request first tries to delete the
+{dfeed}. This behavior is equivalent to calling
+<<ml-delete-datafeed,delete {dfeed}>> with the same `timeout` and `force`
+parameters as the delete job request.
 
 [[ml-delete-job-path-parms]]
 == {api-path-parms-title}

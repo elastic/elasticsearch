@@ -70,3 +70,62 @@ WHERE hire_date + INTERVAL 12 HOURS = '1997-05-19T01:00:00.000'::DATETIME + INTE
 -----------------------------
 1997-05-19T01:00:00.000+01:00
 ;
+
+castStringDerivedFromField-TZ[Etc/GMT-1]
+SELECT (CONCAT('2020-01-0', languages::STRING)::DATETIME)::STRING d FROM test_emp ORDER BY emp_no LIMIT 3;
+
+            d:s
+-----------------------------
+2020-01-02T00:00:00.000+01:00
+2020-01-05T00:00:00.000+01:00
+2020-01-04T00:00:00.000+01:00
+;
+
+castStringDerivedFromDatetimeField-TZ[Etc/GMT-1]
+SELECT SUBSTRING(hire_date::STRING, 0, 10)::DATETIME::STRING d FROM test_emp ORDER BY emp_no LIMIT 3;
+
+              d:s
+-----------------------------
+1986-06-26T00:00:00.000+01:00
+1985-11-21T00:00:00.000+01:00
+1986-08-28T00:00:00.000+01:00
+;
+
+orderByStringCastedToDT-TZ[Etc/GMT-1]
+SELECT (CONCAT('2020-01-0', languages::STRING)::DATETIME)::STRING d FROM test_emp
+WHERE languages IS NOT NULL AND salary > 70000
+ORDER BY CONCAT('2020-01-0', languages::STRING)::DATETIME;
+
+              d:s
+-----------------------------
+2020-01-01T00:00:00.000+01:00
+2020-01-01T00:00:00.000+01:00
+2020-01-02T00:00:00.000+01:00
+2020-01-03T00:00:00.000+01:00
+2020-01-03T00:00:00.000+01:00
+2020-01-04T00:00:00.000+01:00
+;
+
+groupByDerivedStringCastedToDT-TZ[Etc/GMT-1]
+SELECT CONCAT('2020-01-0', languages::STRING)::DATETIME::STRING d FROM test_emp WHERE languages IS NOT NULL AND salary > 70000 GROUP BY d;
+
+              d:s
+-----------------------------
+2020-01-01T00:00:00.000+01:00
+2020-01-02T00:00:00.000+01:00
+2020-01-03T00:00:00.000+01:00
+2020-01-04T00:00:00.000+01:00
+;
+
+groupByFieldCastedToDT-TZ[Etc/GMT-1]
+SELECT birth_date::STRING::DATETIME::STRING d FROM test_emp WHERE languages IS NOT NULL AND salary > 70000 GROUP BY d;
+
+           d:s
+-----------------------------
+null
+1952-02-27T01:00:00.000+01:00
+1953-01-23T01:00:00.000+01:00
+1956-05-25T01:00:00.000+01:00
+1956-11-14T01:00:00.000+01:00
+1957-05-23T01:00:00.000+01:00
+;

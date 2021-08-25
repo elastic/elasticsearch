@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.time.ZoneId;
@@ -91,24 +90,14 @@ public class Cast extends UnaryScalarFunction {
     public ScriptTemplate asScript() {
         ScriptTemplate fieldAsScript = asScript(field());
 
-        if (DataTypes.isDateTime(dataType)) {
-            return new ScriptTemplate(
-                formatTemplate(format("{sql}.", "cast({},{},{})", fieldAsScript.template())),
-                paramsBuilder()
-                    .script(fieldAsScript.params())
-                    .variable(dataType.name())
-                    .variable(zoneId.getId()).build(),
-                dataType()
-            );
-        } else {
-            return new ScriptTemplate(
-                formatTemplate(format("{sql}.", "cast({},{})", fieldAsScript.template())),
-                paramsBuilder()
-                    .script(fieldAsScript.params())
-                    .variable(dataType.name()).build(),
-                dataType()
-            );
-        }
+        return new ScriptTemplate(
+            formatTemplate(format("{sql}.", "cast({},{},{})", fieldAsScript.template())),
+            paramsBuilder()
+                .script(fieldAsScript.params())
+                .variable(dataType.name())
+                .variable(zoneId.getId()).build(),
+            dataType()
+        );
     }
 
     @Override

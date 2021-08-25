@@ -52,7 +52,9 @@ public class CastProcessor implements Processor {
         return conversion;
     }
 
-    ZoneId zoneId() { return zoneId; }
+    ZoneId zoneId() {
+        return zoneId;
+    }
 
     @Override
     public boolean equals(Object obj) {

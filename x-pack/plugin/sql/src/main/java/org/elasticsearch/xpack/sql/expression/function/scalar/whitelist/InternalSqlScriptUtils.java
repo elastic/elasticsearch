@@ -51,6 +51,7 @@ import java.time.OffsetTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.chrono.ChronoZonedDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -511,10 +512,16 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return cast(value, typeName, null);
     }
 
-    public static Object cast(Object value, String typeName, String zoneId) {
+    public static Object cast(Object value, String typeName, String zone) {
+        ZoneId zoneId = zone == null ? null : ZoneId.of(zone);
+
+        // ensure conversions from datetime (e.g. to String) happen in the right TZ (ES always provides field values in UTC)
+        if (value instanceof ChronoZonedDateTime<?> && zoneId != null) {
+            value = ((ChronoZonedDateTime<?>) value).withZoneSameInstant(zoneId);
+        }
+
         // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
         // since casting works for ZonedDateTime objects only
-        return SqlDataTypeConverter.convert(asDateTime(value, true), SqlDataTypes.fromSqlOrEsType(typeName),
-            zoneId == null ? null : ZoneId.of(zoneId));
+        return SqlDataTypeConverter.convert(asDateTime(value, true), SqlDataTypes.fromSqlOrEsType(typeName), zoneId);
     }
 }

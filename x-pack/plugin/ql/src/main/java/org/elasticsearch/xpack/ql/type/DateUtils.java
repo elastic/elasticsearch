@@ -49,7 +49,7 @@ public final class DateUtils {
      * Creates a datetime from the millis since epoch (thus the time-zone is UTC).
      */
     public static ZonedDateTime asDateTime(long millis) {
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
+        return asDateTime(millis, UTC);
     }
 
     public static ZonedDateTime asDateTime(long millis, ZoneId zone) {

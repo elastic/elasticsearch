@@ -63,8 +63,8 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .setSource(doc)
                 .get();
         }
-        final boolean hasNorms = randomBoolean();
-        if (hasNorms) {
+        final boolean forceNorms = randomBoolean();
+        if (forceNorms) {
             final XContentBuilder doc = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("english_text", "A long sentence to make sure that norms is non-zero")
@@ -88,7 +88,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         final IndexDiskUsageStats.PerFieldDiskUsage englishField = stats.getFields().get("english_text");
         assertThat(englishField.getInvertedIndexBytes(), greaterThan(0L));
         assertThat(englishField.getStoredFieldBytes(), equalTo(0L));
-        if (hasNorms) {
+        if (forceNorms) {
             assertThat(englishField.getNormsBytes(), greaterThan(0L));
         }
         final IndexDiskUsageStats.PerFieldDiskUsage valueField = stats.getFields().get("value");

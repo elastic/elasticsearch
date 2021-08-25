@@ -28,9 +28,9 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class GatewayAllocator implements ExistingShardsAllocator {
 
@@ -168,7 +167,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     private void ensureAsyncFetchStorePrimaryRecency(RoutingAllocation allocation) {
         DiscoveryNodes nodes = allocation.nodes();
         if (hasNewNodes(nodes)) {
-            final Set<String> newEphemeralIds = StreamSupport.stream(nodes.getDataNodes().spliterator(), false)
+            final Set<String> newEphemeralIds = nodes.getDataNodes().stream()
                 .map(node -> node.value.getEphemeralId()).collect(Collectors.toSet());
             // Invalidate the cache if a data node has been added to the cluster. This ensures that we do not cancel a recovery if a node
             // drops out, we fetch the shard data, then some indexing happens and then the node rejoins the cluster again. There are other

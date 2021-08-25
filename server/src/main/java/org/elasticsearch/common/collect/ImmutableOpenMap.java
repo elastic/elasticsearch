@@ -22,6 +22,8 @@ import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -36,7 +38,6 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     private ImmutableOpenMap(ObjectObjectHashMap<KType, VType> map) {
         this.map = map;
     }
-
     /**
      * @return Returns the value associated with the given key or the default value
      * for the key type, if the key is not associated with any value.
@@ -161,6 +162,15 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
                 throw new UnsupportedOperationException();
             }
         };
+    }
+
+    /**
+     * Returns a sequential unordered stream of the map entries.
+     *
+     * @return a {@link Stream} of the map entries as {@link ObjectObjectCursor}
+     */
+    public Stream<ObjectObjectCursor<KType, VType>> stream() {
+        return StreamSupport.stream(spliterator(), false);
     }
 
     @Override

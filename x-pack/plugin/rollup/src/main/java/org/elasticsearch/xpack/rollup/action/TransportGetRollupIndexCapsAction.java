@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class TransportGetRollupIndexCapsAction extends HandledTransportAction<GetRollupIndexCapsAction.Request,
     GetRollupIndexCapsAction.Response> {
@@ -57,7 +56,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
                                                                ImmutableOpenMap<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps> > allCaps = new TreeMap<>();
 
-        StreamSupport.stream(indices.spliterator(), false)
+        indices.stream()
             .filter(entry -> resolvedIndexNames.contains(entry.key))
             .forEach(entry -> {
                 // Does this index have rollup metadata?

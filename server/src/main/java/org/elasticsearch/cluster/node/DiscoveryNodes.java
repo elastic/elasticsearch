@@ -11,17 +11,18 @@ package org.elasticsearch.cluster.node;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -167,7 +168,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      * Returns a stream of all nodes, with master nodes at the front
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
-        return Stream.concat(StreamSupport.stream(masterNodes.spliterator(), false).map(cur -> cur.value),
+        return Stream.concat(
+            masterNodes.stream().map(cur -> cur.value),
             StreamSupport.stream(this.spliterator(), false).filter(n -> n.isMasterNode() == false));
     }
 

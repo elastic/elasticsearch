@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -44,7 +45,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * Listens for a node to go over the high watermark and kicks off an empty
@@ -294,8 +294,7 @@ public class DiskThresholdMonitor {
             logger.trace("no reroute required");
             listener.onResponse(null);
         }
-        final Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting()
-            .spliterator(), false)
+        final Set<String> indicesToAutoRelease = state.routingTable().indicesRouting().stream()
             .map(c -> c.key)
             .filter(index -> indicesNotToAutoRelease.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))

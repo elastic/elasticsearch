@@ -57,7 +57,6 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
@@ -428,7 +427,7 @@ public class IndexLifecycleService
             return Collections.emptySet();
         }
 
-        Set<String> indicesPreventingShutdown = StreamSupport.stream(state.metadata().indices().spliterator(), false)
+        Set<String> indicesPreventingShutdown = state.metadata().indices().stream()
             // Filter out to only consider managed indices
             .filter(indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexToMetadata.value.getSettings())))
             // Only look at indices in the shrink action

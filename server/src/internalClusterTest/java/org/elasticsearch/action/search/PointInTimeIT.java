@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
@@ -159,7 +158,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             assertNoFailures(resp);
             assertHitCount(resp, numDocs);
             assertThat(resp.pointInTimeId(), equalTo(pitId));
-            final Set<String> dataNodes = StreamSupport.stream(clusterService().state().nodes().getDataNodes().spliterator(), false)
+            final Set<String> dataNodes = clusterService().state().nodes().getDataNodes().stream()
                 .map(e -> e.value.getId()).collect(Collectors.toSet());
             final List<String> excludedNodes = randomSubsetOf(2, dataNodes);
             assertAcked(client().admin().indices().prepareUpdateSettings("test")
@@ -313,8 +312,7 @@ public class PointInTimeIT extends ESIntegTestCase {
 
     public void testPartialResults() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        final List<String> dataNodes =
-            StreamSupport.stream(internalCluster().clusterService().state().nodes().getDataNodes().spliterator(), false)
+        final List<String> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes().stream()
             .map(e -> e.value.getName())
             .collect(Collectors.toList());
         final String assignedNodeForIndex1 = randomFrom(dataNodes);

@@ -215,15 +215,33 @@ GET my-index/_recovery
 ----
 // TEST[setup:setup-snapshots]
 
-To get detailed information about unassigned primary shards or replicas
-resulting from a restore operation, use the <<cluster-allocation-explain,cluster
-allocation API>>.
+To view any unassigned shards, use the <<cat-shards,cat shards API>>.
 
 [source,console]
 ----
-GET _cluster/allocation/explain
+GET _cat/shards?v=true&h=index,shard,prirep,state,node,unassigned.reason&s=state
 ----
-// TEST[catch:bad_request]
+
+Unassigned shards have a `state` of `UNASSIGNED`. The `prirep` value is `p` for
+primary shards and `r` for replicas. The `unassigned.reason` describes why the
+shard remains unassigned.
+
+To get a more in-depth explanation of an unassigned shard's allocation status,
+use the <<cluster-allocation-explain,cluster allocation explanation API>>.
+
+[source,console]
+----
+GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node_name,node_allocation_decisions.deciders.*
+{
+  "index": "my-index",
+  "shard": 0,
+  "primary": false,
+  "current_node": "my-node"
+}
+----
+// TEST[s/^/PUT my-index\n/]
+// TEST[s/"primary": false,/"primary": false/]
+// TEST[s/"current_node": "my-node"//]
 
 [discrete]
 [[cancel-restore]]

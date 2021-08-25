@@ -51,7 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -108,7 +107,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private Map<String, Object> sourceAsMap;
 
     private Map<String, SearchHits> innerHits;
-    private Map<String, List<SearchHit>> joinHits; // serialize, toXContent
 
     //used only in tests
     public SearchHit(int docId) {
@@ -562,13 +560,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.innerHits = innerHits;
     }
 
-    public void addJoinHit(String name, SearchHit hit) {
-        if (joinHits == null) {
-            joinHits = new HashMap<>();
-        }
-        joinHits.computeIfAbsent(name, k -> new ArrayList<>()).add(hit);
-    }
-
     public static class Fields {
         static final String _INDEX = "_index";
         static final String _ID = "_id";
@@ -585,7 +576,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         static final String DESCRIPTION = "description";
         static final String DETAILS = "details";
         static final String INNER_HITS = "inner_hits";
-        static final String JOIN_HITS = "join_hits";
         static final String _SHARD = "_shard";
         static final String _NODE = "_node";
     }
@@ -692,17 +682,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
                 builder.endObject();
-            }
-            builder.endObject();
-        }
-        if (joinHits != null) {
-            builder.startObject(Fields.JOIN_HITS);
-            for (String joinKey : joinHits.keySet().stream().sorted().collect(Collectors.toList())) {
-                builder.startArray(joinKey);
-                for (SearchHit joinHit : joinHits.get(joinKey)) {
-                    joinHit.toXContent(builder, params);
-                }
-                builder.endArray();
             }
             builder.endObject();
         }

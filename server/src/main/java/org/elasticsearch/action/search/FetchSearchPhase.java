@@ -8,11 +8,9 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -28,8 +26,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.function.BiFunction;
 
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
@@ -39,7 +37,7 @@ final class FetchSearchPhase extends SearchPhase {
     private final ArraySearchPhaseResults<FetchSearchResult> fetchResults;
     private final SearchPhaseController searchPhaseController;
     private final AtomicArray<SearchPhaseResult> queryResults;
-    private final List<ExtendedPhaseFactory> extendedPhases;
+    private final BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final Logger logger;
     private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
@@ -51,14 +49,14 @@ final class FetchSearchPhase extends SearchPhase {
                      AggregatedDfs aggregatedDfs,
                      SearchPhaseContext context) {
         this(resultConsumer, searchPhaseController, aggregatedDfs, context,
-            List.of(JoinHitSearchPhase::new, ExpandSearchPhase::new));
+            (response, queryPhaseResults) -> new ExpandSearchPhase(context, response, queryPhaseResults));
     }
 
     FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
                      AggregatedDfs aggregatedDfs,
                      SearchPhaseContext context,
-                     List<ExtendedPhaseFactory> extendedPhases) {
+                     BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory) {
         super("fetch");
         if (context.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException("number of shards must match the length of the query results but doesn't:"
@@ -68,7 +66,7 @@ final class FetchSearchPhase extends SearchPhase {
         this.searchPhaseController = searchPhaseController;
         this.queryResults = resultConsumer.getAtomicArray();
         this.aggregatedDfs = aggregatedDfs;
-        this.extendedPhases =  extendedPhases;
+        this.nextPhaseFactory =  nextPhaseFactory;
         this.context = context;
         this.logger = context.getLogger();
         this.resultConsumer = resultConsumer;
@@ -99,14 +97,9 @@ final class FetchSearchPhase extends SearchPhase {
         final List<SearchPhaseResult> phaseResults = queryResults.asList();
         final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
         final boolean queryAndFetchOptimization = queryResults.length() == 1;
-        final Runnable finishPhase = () -> {
-            final AtomicArray<? extends SearchPhaseResult> fetchResultsArr =
-                queryAndFetchOptimization ? queryResults : fetchResults.getAtomicArray();
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(context.getRequest().scroll() != null,
-                reducedQueryPhase, fetchResultsArr.asList(), fetchResultsArr::get);
-            executeExtendedPhases(0, context, internalResponse, queryResults);
-
-        };
+        final Runnable finishPhase = ()
+            -> moveToNextPhase(searchPhaseController, queryResults, reducedQueryPhase, queryAndFetchOptimization ?
+            queryResults : fetchResults.getAtomicArray());
         if (queryAndFetchOptimization) {
             assert phaseResults.isEmpty() || phaseResults.get(0).fetchResult() != null : "phaseResults empty [" + phaseResults.isEmpty()
                 + "], single result: " +  phaseResults.get(0).fetchResult();
@@ -217,47 +210,12 @@ final class FetchSearchPhase extends SearchPhase {
         }
     }
 
-    void executeExtendedPhases(int phaseIndex, SearchPhaseContext context,
-                               InternalSearchResponse searchResponse,
-                               AtomicArray<SearchPhaseResult> queryResults) {
-        if (phaseIndex < extendedPhases.size()) {
-            try {
-                extendedPhases.get(phaseIndex).createPhase(context, searchResponse, queryResults,
-                        ActionListener.wrap(r -> executeExtendedPhases(phaseIndex + 1, context, searchResponse, queryResults),
-                            context::onFailure))
-                    .run();
-            } catch (IOException e) {
-                context.onFailure(e);
-            }
-        } else {
-            context.sendSearchResponse(searchResponse, queryResults);
-        }
+    private void moveToNextPhase(SearchPhaseController searchPhaseController,
+                                 AtomicArray<SearchPhaseResult> queryPhaseResults,
+                                 SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+                                 AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
+        final InternalSearchResponse internalResponse = searchPhaseController.merge(context.getRequest().scroll() != null,
+            reducedQueryPhase, fetchResultsArr.asList(), fetchResultsArr::get);
+        context.executeNextPhase(this, nextPhaseFactory.apply(internalResponse, queryPhaseResults));
     }
-
-    static abstract class ExtendedPhase extends SearchPhase {
-        final SearchPhaseContext context;
-        final InternalSearchResponse searchResponse;
-        final AtomicArray<SearchPhaseResult> queryResults;
-        final ActionListener<Void> onFinish;
-
-        ExtendedPhase(String name, SearchPhaseContext context,
-                      InternalSearchResponse searchResponse,
-                      AtomicArray<SearchPhaseResult> queryResults,
-                      ActionListener<Void> onFinish) {
-            super(name);
-            this.context = context;
-            this.searchResponse = searchResponse;
-            this.queryResults = queryResults;
-            this.onFinish = onFinish;
-        }
-    }
-
-    @FunctionalInterface
-    interface ExtendedPhaseFactory {
-        ExtendedPhase createPhase(SearchPhaseContext context,
-                                  InternalSearchResponse searchResponse,
-                                  AtomicArray<SearchPhaseResult> queryResults,
-                                  ActionListener<Void> onFinish);
-    }
-
 }

@@ -99,10 +99,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))),
                 Collections.emptyMap())}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null,
-                ActionListener.wrap(
-                    nullValue -> mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null),
-                    mockSearchPhaseContext::onFailure));
+            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
             SearchResponse theResponse = mockSearchPhaseContext.searchResponse.get();
@@ -151,10 +149,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                     Collections.singletonList(collapseValue))), Collections.emptyMap())},
             new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null,
-            ActionListener.wrap(
-                nullValue -> mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null),
-                mockSearchPhaseContext::onFailure));
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
         phase.run();
         assertThat(mockSearchPhaseContext.phaseFailure.get(), Matchers.instanceOf(RuntimeException.class));
         assertEquals("boom", mockSearchPhaseContext.phaseFailure.get().getMessage());
@@ -179,10 +174,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                     Collections.singletonList(null))), Collections.emptyMap())},
             new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null,
-            ActionListener.wrap(
-                nullValue -> mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null),
-                mockSearchPhaseContext::onFailure));
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());
@@ -201,10 +193,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
         SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null,
-            ActionListener.wrap(
-                nullValue -> mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null),
-                mockSearchPhaseContext::onFailure));
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());
@@ -241,10 +230,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
         SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null,
-            ActionListener.wrap(
-                nullValue -> mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null),
-                mockSearchPhaseContext::onFailure));
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());

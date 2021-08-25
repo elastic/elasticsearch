@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -47,17 +48,18 @@ final class TerminalOutputFormatter {
 
     private int terminalWidth = -1; // terminal width can dynamically change
     private String clearBannerCommand = null;
+    private String richBanner = null;
+    private Banner lastBanner = null;
 
     private TerminalOutputFormatter() {
     }
 
-    public static void main(final String[] args) throws Exception {
+    public static void main(final String[] args) throws IOException {
         try {
             new TerminalOutputFormatter().mainWithoutErrorHandling(args);
-        } catch (Exception e) {
+        } finally {
             // if this throws while the terminal had formatting state, the following resets that state
             AnsiConsole.systemUninstall();
-            throw e;
         }
     }
 
@@ -106,29 +108,27 @@ final class TerminalOutputFormatter {
             getBannerTextAsync(bannerInputFilePath, bannerEndMarker, bannerReference);
         }
 
-        boolean clearBanner = false;
         Banner banner = null; // set-once
-        String richBanner = null;
-        boolean printBanner = true;
+        boolean clearBanner = false;
+        boolean lineBoundary = true;
         int start = 0;
         while (true) {
-            if (bannerSupported && printBanner) {
-                // banner is set-once
+            // only print the banner at line boundary AND when blocking for reads from stdin
+            // IOException will be propagated to terminate the program: input forwarding stops and the stacktrace prints to stderr
+            if (bannerSupported && lineBoundary && in.available() == 0) {
+                // banner is set-once, when available
                 if (banner == null) {
                     banner = bannerReference.get();
-                    if (banner != null) {
-                        // cache formatted (bolded) text
-                        richBanner = ansi().newline().bold().a(banner.getBannerText()).boldOff().newline().toString();
-                    }
                 }
-                if (richBanner != null) {
-                    AnsiConsole.out().print(richBanner);
+                if (banner != null) {
+                    printBanner(banner);
                     // TODO print banner lifetime
                     clearBanner = true;
                 }
             }
             assert start < buffer.length;
-            // if the banner is itself available it is now printed, so it is OK to block for at the following read
+            // it is OK to block here because if the banner is available it would be printed
+            // IOException will be propagated to terminate the program (input forwarding will be stopped)
             int bytesRead = in.read(buffer, start, buffer.length - start);
             assert bytesRead != 0;
             if (bytesRead < 0) {
@@ -156,7 +156,7 @@ final class TerminalOutputFormatter {
                     System.arraycopy(buffer, lineBreakPos + 1, buffer, 0, start);
                     assert clearBanner == false;
                     // only print the banner if the next read blocks
-                    printBanner = in.available() == 0;
+                    lineBoundary = true;
                 } else if (end >= buffer.length) {
                     // the buffer is full and it does not contain any end-of-line (the input produces lines longer than the buffer size)
                     // print the currently buffered line fragment, but do not print the banner
@@ -172,27 +172,38 @@ final class TerminalOutputFormatter {
                     start = 0;
                     assert clearBanner == false;
                     // the banner should never break the lines
-                    printBanner = false;
+                    lineBoundary = false;
                 } else {
                     // no end-of-line found, all the buffered content is only an incomplete line fragment
                     // nothing to display, read on
                     start = end;
                     assert start < buffer.length;
-                    // only print the banner if no banner is currently printed and the next read blocks
-                    printBanner = bannerSupported && false == clearBanner && in.available() == 0;
                 }
             }
         }
     }
 
     private void clearBanner(Banner banner) {
-        if (terminalWidth != AnsiConsole.getTerminalWidth()) {
+        Objects.nonNull(banner);
+        if (terminalWidth != AnsiConsole.getTerminalWidth() || banner != lastBanner) {
+            // recompute the clear banner ANSI escape sequence
             terminalWidth = AnsiConsole.getTerminalWidth();
+            lastBanner = banner;
             // update the banner command to account for the changed number of lines
             clearBannerCommand =
                     ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
         }
         AnsiConsole.out().print(clearBannerCommand);
+    }
+
+    private void printBanner(Banner banner) {
+        Objects.nonNull(banner);
+        if (banner != lastBanner) {
+            lastBanner = banner;
+            // cache formatted (bolded) text
+            richBanner = ansi().newline().bold().a(banner.getBannerText()).boldOff().newline().toString();
+        }
+        AnsiConsole.out().print(richBanner);
     }
 
     private void getBannerTextAsync(String bannerFileName, String bannerEndMarker, AtomicReference<Banner> bannerReference) {

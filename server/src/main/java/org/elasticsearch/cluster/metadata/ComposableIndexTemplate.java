@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.core.Nullable;
@@ -284,7 +285,11 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
-            allowCustomRouting = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                allowCustomRouting = in.readBoolean();
+            } else {
+                allowCustomRouting = false;
+            }
         }
 
         public String getTimestampField() {
@@ -310,7 +315,9 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
-            out.writeBoolean(allowCustomRouting);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(allowCustomRouting);
+            }
         }
 
         @Override

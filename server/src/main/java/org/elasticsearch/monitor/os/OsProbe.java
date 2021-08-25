@@ -559,7 +559,7 @@ public class OsProbe {
      * @return the line from {@code memory.current}
      * @throws IOException if an I/O exception occurs reading {@code memory.current} for the control group
      */
-    @SuppressForbidden(reason = "access /sys/fs/cgroup/memory")
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/memory.current")
     String readSysFsCgroupV2MemoryUsageInBytes(final String controlGroup) throws IOException {
         return readSingleLine(PathUtils.get("/sys/fs/cgroup/", controlGroup, "memory.current"));
     }

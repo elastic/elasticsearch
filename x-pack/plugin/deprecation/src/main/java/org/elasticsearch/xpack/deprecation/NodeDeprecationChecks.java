@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
@@ -455,7 +457,13 @@ class NodeDeprecationChecks {
             return null;
         }
         final String removedSettingKey = removedSetting.getKey();
-        final String value = removedSetting.get(settings).toString();
+        Object removedSettingValue = removedSetting.get(settings);
+        String value;
+        if (removedSettingValue instanceof TimeValue) {
+            value = ((TimeValue) removedSettingValue).getStringRep();
+        } else {
+            value = removedSettingValue.toString();
+        }
         final String message =
             String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
         final String details =
@@ -583,6 +591,17 @@ class NodeDeprecationChecks {
         );
         final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/monitoring-settings.html#http-exporter-settings";
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+    }
+
+    static DeprecationIssue checkJoinTimeoutSetting(final Settings settings,
+                                                    final PluginsAndModules pluginsAndModules,
+                                                    final ClusterState clusterState,
+                                                    final XPackLicenseState licenseState) {
+        return checkRemovedSetting(settings,
+            JoinHelper.JOIN_TIMEOUT_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+            DeprecationIssue.Level.CRITICAL
+        );
     }
 
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final Settings settings,

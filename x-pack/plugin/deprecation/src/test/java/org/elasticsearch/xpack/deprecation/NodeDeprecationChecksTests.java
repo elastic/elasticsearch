@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.coordination.JoinHelper.JOIN_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -796,6 +797,37 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         // test for absence of deprecated exporter passwords
         issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
         assertThat(issue, nullValue());
+    }
+
+    public void testJoinTimeoutSetting() {
+        String settingValue = randomTimeValue(1, 1000, new String[]{"d", "h", "ms", "s", "m"});
+        String settingKey = JOIN_TIMEOUT_SETTING.getKey();
+        final Settings nodeSettings = Settings.builder().put(settingKey, settingValue).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                settingKey),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                settingKey,
+                settingValue),
+            false,null
+        );
+
+        assertThat(
+            NodeDeprecationChecks.checkJoinTimeoutSetting(nodeSettings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        final String expectedWarning = String.format(Locale.ROOT,
+            "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.",
+            settingKey);
+
+        assertWarnings(expectedWarning);
     }
 
     public void testClusterRoutingAllocationIncludeRelocationsSetting() {

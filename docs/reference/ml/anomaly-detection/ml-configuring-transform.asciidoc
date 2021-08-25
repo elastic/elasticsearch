@@ -392,7 +392,7 @@ POST _ml/datafeeds/datafeed-test2/_update
     "my_runtime_field": {
       "type": "keyword",
       "script": {
-        "source": "emit(def m = /(.*)-bar-([0-9][0-9])/.matcher(doc['tokenstring3'].value); return m.find() ? m.group(1) + '_' + m.group(2) : '';)" <1>
+        "source": "def m = /(.*)-bar-([0-9][0-9])/.matcher(doc['tokenstring3'].value); emit(m.find() ? m.group(1) + '_' + m.group(2) : '');" <1>
       }
     }
   }

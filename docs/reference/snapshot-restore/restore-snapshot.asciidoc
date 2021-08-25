@@ -3,7 +3,7 @@
 
 This guide shows you how to restore a snapshot. Snapshots are a convenient way
 to transfer data between clusters. You can also restore a snapshot to recover
-data after an accidental deletion or a hardware failure.
+an index or data stream after deletion or a hardware failure.
 
 In this guide, you'll learn how to:
 

@@ -7,21 +7,18 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.common.ssl.StoredCertificate;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import org.hamcrest.Matchers;
 
 import javax.net.ssl.X509ExtendedTrustManager;
-
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 public class RestrictedTrustConfigTests extends ESTestCase {
@@ -38,19 +35,19 @@ public class RestrictedTrustConfigTests extends ESTestCase {
         }
         Path groupConfigPath = Files.createFile(homeDir.resolve("groupConfig"));
 
-        TrustConfig delegate = new TrustConfig() {
+        SslTrustConfig delegate = new SslTrustConfig() {
             @Override
-            X509ExtendedTrustManager createTrustManager(Environment environment) {
+            public X509ExtendedTrustManager createTrustManager() {
                 return null;
             }
 
             @Override
-            Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
-                return Collections.emptyList();
+            public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+                return List.of();
             }
 
             @Override
-            List<Path> filesToMonitor(Environment environment) {
+            public Collection<Path> getDependentFiles() {
                 return otherFiles;
             }
 
@@ -70,8 +67,8 @@ public class RestrictedTrustConfigTests extends ESTestCase {
             }
         };
 
-        final RestrictedTrustConfig restrictedTrustConfig = new RestrictedTrustConfig(groupConfigPath.toString(), delegate);
-        List<Path> filesToMonitor = restrictedTrustConfig.filesToMonitor(environment);
+        final RestrictedTrustConfig restrictedTrustConfig = new RestrictedTrustConfig(groupConfigPath, delegate);
+        Collection<Path> filesToMonitor = restrictedTrustConfig.getDependentFiles();
         List<Path> expectedPathList = new ArrayList<>(otherFiles);
         expectedPathList.add(groupConfigPath);
 

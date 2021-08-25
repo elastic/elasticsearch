@@ -18,6 +18,7 @@ import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.runtime.LongScriptFieldTermsQuery;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript.LeafFactory> {
@@ -37,12 +39,22 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     private static class Builder extends AbstractScriptFieldType.Builder<LongFieldScript.Factory> {
         Builder(String name) {
-            super(name, LongFieldScript.CONTEXT, LongFieldScript.PARSE_FROM_SOURCE);
+            super(name, LongFieldScript.CONTEXT);
         }
 
         @Override
         AbstractScriptFieldType<?> createFieldType(String name, LongFieldScript.Factory factory, Script script, Map<String, String> meta) {
             return new LongScriptFieldType(name, factory, script, meta);
+        }
+
+        @Override
+        LongFieldScript.Factory getParseFromSourceFactory() {
+            return LongFieldScript.PARSE_FROM_SOURCE;
+        }
+
+        @Override
+        LongFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return LongFieldScript.leafAdapter(parentScriptFactory);
         }
     }
 

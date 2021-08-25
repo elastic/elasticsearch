@@ -155,6 +155,8 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
@@ -1807,14 +1809,21 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
-                peerRecoverySourceService = new PeerRecoverySourceService(transportService, indicesService, recoverySettings);
 
+                peerRecoverySourceService = new PeerRecoverySourceService(
+                    transportService,
+                    indicesService,
+                    recoverySettings,
+                    SourceOnlyRecoveryPlannerService.INSTANCE
+                );
+
+                final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
                     clusterService,
                     threadPool,
-                    new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService),
+                    new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService, snapshotFilesProvider),
                     shardStateAction,
                     repositoriesService,
                     mock(SearchService.class),
@@ -1955,10 +1964,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector()
                 );
-                SearchPhaseController searchPhaseController = new SearchPhaseController(
-                    writableRegistry(),
-                    searchService::aggReduceContextBuilder
-                );
+                SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
                 actions.put(
                     SearchAction.INSTANCE,
                     new TransportSearchAction(

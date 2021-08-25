@@ -30,7 +30,7 @@ import java.util.Map;
 public final class InternalContext {
 
     private Map<Object, ConstructionContext<?>> constructionContexts = new HashMap<>();
-    private Dependency dependency;
+    private Dependency<?> dependency;
 
     @SuppressWarnings("unchecked")
     public <T> ConstructionContext<T> getConstructionContext(Object key) {
@@ -43,11 +43,11 @@ public final class InternalContext {
         return constructionContext;
     }
 
-    public Dependency getDependency() {
+    public Dependency<?> getDependency() {
         return dependency;
     }
 
-    public void setDependency(Dependency dependency) {
+    public void setDependency(Dependency<?> dependency) {
         this.dependency = dependency;
     }
 }

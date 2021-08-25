@@ -26,6 +26,7 @@ import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -42,7 +44,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import javax.security.auth.x500.X500Principal;
 
@@ -107,6 +108,11 @@ public class CertificateTool extends LoggingAwareMultiCommand {
     private static final Pattern ALLOWED_FILENAME_CHAR_PATTERN =
         Pattern.compile("[a-zA-Z0-9!@#$%^&{}\\[\\]()_+\\-=,.~'` ]{1," + MAX_FILENAME_LENGTH + "}");
     private static final int DEFAULT_KEY_SIZE = 2048;
+
+    // Older versions of OpenSSL had a max internal password length.
+    // We issue warnings when writing files with passwords that would not be usable in those versions of OpenSSL.
+    static final String OLD_OPENSSL_VERSION = "1.1.0";
+    static final int MAX_PASSWORD_OLD_OPENSSL = 50;
 
     /**
      * Wraps the certgen object parser.
@@ -349,9 +355,8 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         private CAInfo loadPkcs12CA(Terminal terminal, OptionSet options, Environment env) throws Exception {
             Path path = resolvePath(options, caPkcs12PathSpec);
             char[] passwordOption = getChars(caPasswordSpec.value(options));
-
-            Map<Certificate, Key> keys = withPassword("CA (" + path + ")", passwordOption,
-                terminal, password -> CertParsingUtils.readPkcs12KeyPairs(path, password, a -> password));
+            Map<Certificate, Key> keys = withPassword("CA (" + path + ")", passwordOption, terminal, false,
+                password -> CertParsingUtils.readPkcs12KeyPairs(path, password, a -> password));
 
             if (keys.size() != 1) {
                 throw new IllegalArgumentException("expected a single key in file [" + path.toAbsolutePath() + "] but found [" +
@@ -369,13 +374,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             Path key = resolvePath(options, caKeyPathSpec);
             String password = caPasswordSpec.value(options);
 
-            final String resolvedCaCertPath = cert.toAbsolutePath().toString();
-            Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
-            if (certificates.length != 1) {
-                throw new IllegalArgumentException("expected a single certificate in file [" + resolvedCaCertPath + "] but found [" +
-                    certificates.length + "]");
-            }
-            X509Certificate caCert = (X509Certificate) certificates[0];
+            X509Certificate caCert = CertParsingUtils.readX509Certificate(cert);
             PrivateKey privateKey = readPrivateKey(key, getChars(password), terminal);
             return new CAInfo(caCert, privateKey);
         }
@@ -391,10 +390,11 @@ public class CertificateTool extends LoggingAwareMultiCommand {
 
             if (options.hasArgument(caPasswordSpec)) {
                 char[] password = getChars(caPasswordSpec.value(options));
+                checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, false);
                 return new CAInfo(caCert, keyPair.getPrivate(), true, password);
             }
             if (options.has(caPasswordSpec)) {
-                return withPassword("CA Private key", null, terminal, p -> new CAInfo(caCert, keyPair.getPrivate(), true, p.clone()));
+                return withPassword("CA Private key", null, terminal, true, p -> new CAInfo(caCert, keyPair.getPrivate(), true, p.clone()));
             }
             return new CAInfo(caCert, keyPair.getPrivate(), true, null);
         }
@@ -541,9 +541,9 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                                 char[] password, Terminal terminal) throws Exception {
             final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
             pkcs12.load(null);
-            withPassword(fileName, password, terminal, p12Password -> {
+            withPassword(fileName, password, terminal, true, p12Password -> {
                 if (isAscii(p12Password)) {
-                    pkcs12.setKeyEntry(alias, pair.key, p12Password, new Certificate[]{pair.cert});
+                    pkcs12.setKeyEntry(alias, pair.key, p12Password, new Certificate[] { pair.cert });
                     if (caCert != null) {
                         pkcs12.setCertificateEntry("ca", caCert);
                     }
@@ -784,7 +784,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                             final String keyFileName = entryBase + ".key";
                             outputStream.putNextEntry(new ZipEntry(keyFileName));
                             if (usePassword) {
-                                withPassword(keyFileName, outputPassword, terminal, password -> {
+                                withPassword(keyFileName, outputPassword, terminal, true, password -> {
                                     pemWriter.writeObject(pair.key, getEncrypter(password));
                                     return null;
                                 });
@@ -924,16 +924,47 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         return new JcePEMEncryptorBuilder("AES-128-CBC").setProvider(BC_PROV).build(password);
     }
 
-    private static <T, E extends Exception> T withPassword(String description, char[] password, Terminal terminal,
+    /**
+     * Checks whether the supplied password exceeds the maximum length supported by older OpenSSL versions.
+     * A warning message is printed to the terminal if the password is too long. If {@code confirm} is true, then the user
+     * (via the terminal) is asked to confirm whether to continue with the potentially problematic password.
+     * @return {@code false} if the password is too long <em>and</em> the user elects to reject it, otherwise {@code true}.
+     */
+    static boolean checkAndConfirmPasswordLengthForOpenSSLCompatibility(char[] password, Terminal terminal, boolean confirm) {
+        if (password.length > MAX_PASSWORD_OLD_OPENSSL) {
+            terminal.println(
+                Verbosity.SILENT,
+                "Warning: Your password exceeds "
+                    + MAX_PASSWORD_OLD_OPENSSL
+                    + " characters. Versions of OpenSSL older than "
+                    + OLD_OPENSSL_VERSION
+                    + " may not be able to read this file."
+            );
+            if (confirm) {
+                return terminal.promptYesNo("Do you want to continue?", true);
+            }
+        }
+        return true;
+    }
+
+    private static <T, E extends Exception> T withPassword(String description, char[] password, Terminal terminal, boolean checkLength,
                                                            CheckedFunction<char[], T, E> body) throws E {
         if (password == null) {
-            char[] promptedValue = terminal.readSecret("Enter password for " + description + " : ");
-            try {
-                return body.apply(promptedValue);
-            } finally {
-                Arrays.fill(promptedValue, (char) 0);
+            while (true) {
+                char[] promptedValue = terminal.readSecret("Enter password for " + description + " : ");
+                if (checkLength && checkAndConfirmPasswordLengthForOpenSSLCompatibility(promptedValue, terminal, true) == false) {
+                    continue;
+                }
+                try {
+                    return body.apply(promptedValue);
+                } finally {
+                    Arrays.fill(promptedValue, (char) 0);
+                }
             }
         } else {
+            if (checkLength) {
+                checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, false);
+            }
             return body.apply(password);
         }
     }
@@ -1017,8 +1048,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
      * @param terminal the terminal to use for user interaction
      * @return the {@link PrivateKey} that was read from the file
      */
-    private static PrivateKey readPrivateKey(Path path, char[] password, Terminal terminal)
-        throws Exception {
+    private static PrivateKey readPrivateKey(Path path, char[] password, Terminal terminal) throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
             return PemUtils.readPrivateKey(path, () -> {

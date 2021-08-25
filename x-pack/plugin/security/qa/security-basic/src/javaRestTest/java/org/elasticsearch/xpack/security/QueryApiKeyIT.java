@@ -230,13 +230,12 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final int from = randomIntBetween(0, 3);
         final int size = randomIntBetween(2, 5);
         final int remaining = total - from;
-        final List<String> sortFields = List.of(randomFrom("name", "creation"), "_doc");
-        final String sortFieldsString = sortFields.stream().map(f -> "\"" + f + "\"").collect(Collectors.joining(","));
+        final String sortField = randomFrom("name", "creation");
 
         final List<Map<String, Object>> apiKeyInfos = new ArrayList<>(remaining);
         final Request request1 = new Request("GET", "/_security/_query/api_key");
         request1.setOptions(request1.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
-        request1.setJsonEntity("{\"from\":" + from + ",\"size\":" + size + ",\"sort\":[" + sortFieldsString + "]}");
+        request1.setJsonEntity("{\"from\":" + from + ",\"size\":" + size + ",\"sort\":[\"" + sortField + "\"]}");
         int actualSize = collectApiKeys(apiKeyInfos, request1, total, size);
         assertThat(actualSize, equalTo(size));  // first batch should be a full page
 
@@ -245,13 +244,12 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             request2.setOptions(request2.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
             final StringBuilder searchAfter = new StringBuilder();
             final List<Object> sortValues = extractSortValues(apiKeyInfos.get(apiKeyInfos.size() - 1));
-            if (sortFields.get(0).equals("name")) {
+            if ("name".equals(sortField)) {
                 searchAfter.append("\"").append(sortValues.get(0)).append("\"");
             } else {
                 searchAfter.append(sortValues.get(0));
             }
-            searchAfter.append(",").append(sortValues.get(1));
-            request2.setJsonEntity("{\"size\":" + size + ",\"sort\":[" + sortFieldsString + "],\"search_after\":[" + searchAfter + "]}");
+            request2.setJsonEntity("{\"size\":" + size + ",\"sort\":[\"" + sortField + "\"],\"search_after\":[" + searchAfter + "]}");
             actualSize = collectApiKeys(apiKeyInfos, request2, total, size);
             if (actualSize == 0 && apiKeyInfos.size() < remaining) {
                 fail("fail to retrieve all API keys, expect [" + remaining + "] keys, got [" + apiKeyInfos + "]");
@@ -263,7 +261,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         }
 
         // assert sort values match the field of API key information
-        if ("name".equals(sortFields.get(0))) {
+        if ("name".equals(sortField)) {
             assertThat(
                 apiKeyInfos.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableList()),
                 equalTo(apiKeyInfos.stream().map(m -> (String) extractSortValues(m).get(0)).collect(Collectors.toUnmodifiableList())));
@@ -273,11 +271,11 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 equalTo(apiKeyInfos.stream().map(m -> (long) extractSortValues(m).get(0)).collect(Collectors.toUnmodifiableList())));
         }
         assertThat(
-            apiKeyInfos.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableList()),
-            equalTo(apiKeyNames.subList(from, total)));
-        assertThat(
             apiKeyInfos.stream().map(m -> (String) m.get("id")).collect(Collectors.toUnmodifiableList()),
             equalTo(apiKeyIds.subList(from, total)));
+        assertThat(
+            apiKeyInfos.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableList()),
+            equalTo(apiKeyNames.subList(from, total)));
 
         // size can be zero, but total should still reflect the number of keys matched
         final Request request2 = new Request("GET", "/_security/_query/api_key");
@@ -335,10 +333,13 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         assertQuery(authHeader, "{\"sort\":[\"_doc\"]}", apiKeys -> {
             assertThat(apiKeys.size(), equalTo(3));
+            final List<String> ids = new ArrayList<>(3);
             for (int i = 0; i < 3; i++) {
-                assertThat(apiKeys.get(i).get("id"), equalTo(apiKeyIds.get(i)));
+                ids.add((String) apiKeys.get(i).get("id"));
                 assertThat(apiKeys.get(i).get("_sort"), notNullValue());
             }
+            // There is no guarantee that _doc order is the same as creation order
+            assertThat(ids, containsInAnyOrder(apiKeyIds.toArray()));
         });
 
         final String invalidFieldName = randomFrom("doc_type", "api_key_invalidated", "metadata_flattened.letter");

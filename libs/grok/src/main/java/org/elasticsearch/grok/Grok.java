@@ -299,7 +299,7 @@ public final class Grok {
     private static Map<String, String> loadBuiltinPatterns() {
         String[] patternNames = new String[] {
             "aws", "bacula", "bind", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
-            "java", "junos", "linux-syslog", "maven", "mcollective-patterns", "mongodb", "nagios",
+            "httpd", "java", "junos", "linux-syslog", "maven", "mcollective-patterns", "mongodb", "nagios",
             "postgresql", "rails", "redis", "ruby", "squid"
         };
         Map<String, String> builtinPatterns = new LinkedHashMap<>();

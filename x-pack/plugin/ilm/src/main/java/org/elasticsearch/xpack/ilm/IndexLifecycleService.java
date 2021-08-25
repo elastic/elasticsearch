@@ -423,8 +423,8 @@ public class IndexLifecycleService
     }
 
     static Set<String> indicesOnShuttingDownNodesInDangerousStep(ClusterState state, String nodeId) {
-        // GWB-> Handle REPLACE here
-        final Set<String> shutdownNodes = PluginShutdownService.shutdownTypeNodes(state, SingleNodeShutdownMetadata.Type.REMOVE);
+        final Set<String> shutdownNodes = PluginShutdownService.shutdownTypeNodes(state,
+            SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE);
         if (shutdownNodes.isEmpty()) {
             return Collections.emptySet();
         }

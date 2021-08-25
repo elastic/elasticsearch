@@ -15,10 +15,13 @@ import org.fusesource.jansi.AnsiType;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -27,8 +30,6 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.lang.System.in;
-import static java.lang.System.out;
 import static org.fusesource.jansi.Ansi.ansi;
 
 /**
@@ -46,24 +47,24 @@ final class TerminalOutputFormatter {
     // generous buffer used to forward stdin to stdout, multiple log lines at a time
     private static final int BUFFER_SIZE = 32768;
 
-    private int terminalWidth = -1; // terminal width can dynamically change
-    private String clearBannerCommand = null;
-    private String richBanner = null;
-    private Banner lastBanner = null;
+    private static final int DEFAULT_BANNER_DISPLAY_LIFETIME_MILLIS = 5 * 60 * 1000;
 
-    private TerminalOutputFormatter() {
+    private final byte[] buffer;
+    private int terminalWidth;
+    private String clearBannerCommand;
+    private String richBanner;
+    private Banner lastBanner;
+
+    // non-private for tests
+    TerminalOutputFormatter(byte[] buffer) {
+        this.buffer = buffer;
+        this.terminalWidth = -1; // terminal width can dynamically change
+        this.clearBannerCommand = null;
+        this.richBanner = null;
+        this.lastBanner = null;
     }
 
     public static void main(final String[] args) throws IOException {
-        try {
-            new TerminalOutputFormatter().mainWithoutErrorHandling(args);
-        } finally {
-            // if this throws while the terminal had formatting state, the following resets that state
-            AnsiConsole.systemUninstall();
-        }
-    }
-
-    protected void mainWithoutErrorHandling(final String[] args) throws IOException {
         final AnsiType ansiType = AnsiConsole.out().getType();
         final boolean bannerSupported = ansiType != AnsiType.Unsupported && ansiType != AnsiType.Redirected;
         // in the no-arg mode simply check that the ANSI escape sequences are supported given the output and the OS types
@@ -78,8 +79,7 @@ final class TerminalOutputFormatter {
                 System.exit(0);
             }
         }
-
-        // TODO check failing these validations do not start the node
+        // TODO check failing these validations prevents the node from starting
         // args validation is done for good measure, even if displaying the banner is not supported
         if (args.length != 2) {
             throw new IllegalArgumentException("Expected two arguments, but provided " + Arrays.toString(args) +
@@ -99,30 +99,44 @@ final class TerminalOutputFormatter {
             throw new IllegalArgumentException("Banner input file does not exist or is not readable");
         }
         final byte[] buffer = new byte[BUFFER_SIZE];
-        // TODO timer arg for limited lifetime banner
-        // TODO think about how program can terminate abnormally
-        final AtomicReference<Banner> bannerReference = new AtomicReference<>();
         // only bother with the banner if it can be actually displayed
-        // ideally this code should not be invoked in this case because of the incurred overhead
+        // ideally this code should not be invoked at all in this case because of the incurred copying overhead
+        final AtomicReference<Banner> bannerReference = new AtomicReference<>();
         if (bannerSupported) {
-            getBannerTextAsync(bannerInputFilePath, bannerEndMarker, bannerReference);
+            getAsyncBanner(bannerInputFilePath, bannerEndMarker, bannerReference);
         }
+        try {
+            new TerminalOutputFormatter(buffer).forward(System.in, System.out, bannerReference);
+        } finally {
+            // if this throws while the terminal had formatting state, the following resets that state
+            AnsiConsole.systemUninstall();
+        }
+    }
 
+    void forward(InputStream in, OutputStream out, AtomicReference<Banner> bannerReference) throws IOException {
         Banner banner = null; // set-once
         boolean clearBanner = false;
         boolean lineBoundary = true;
         int start = 0;
+        long bannerLifetimeMillis = Long.MAX_VALUE;
         while (true) {
             // only print the banner at line boundary AND when blocking for reads from stdin
             // IOException will be propagated to terminate the program: input forwarding stops and the stacktrace prints to stderr
-            if (bannerSupported && lineBoundary && in.available() == 0) {
+            if (lineBoundary && in.available() == 0) {
                 // banner is set-once, when available
                 if (banner == null) {
                     banner = bannerReference.get();
+                    // this is the first time the banner becomes available to print
+                    if (banner != null) {
+                        bannerLifetimeMillis = Instant.now().toEpochMilli() + banner.getLifetimeInMillis();
+                    }
                 }
-                if (banner != null) {
+                // This is the simplest way to display the banner for a limited time only.
+                // But it is very possible that the banner remain printed while blocking for input to forward.
+                // To mitigate this we need to start off another thread and share access to the terminal banner printing routines
+                // between the two threads (this adds inevitable overhead for questionable benefits).
+                if (banner != null && Instant.now().toEpochMilli() < bannerLifetimeMillis) {
                     printBanner(banner);
-                    // TODO print banner lifetime
                     clearBanner = true;
                 }
             }
@@ -144,7 +158,7 @@ final class TerminalOutputFormatter {
                 // the buffered content contains at least one complete line
                 if (lineBreakPos >= start) {
                     // before forwarding the input, clear the existing banner (if any)
-                    if (bannerSupported && clearBanner) {
+                    if (clearBanner) {
                         assert banner != null;
                         clearBanner(banner);
                         clearBanner = false;
@@ -163,7 +177,7 @@ final class TerminalOutputFormatter {
                     // in this case, it is possible that the read for the subsequent banner fragment blocks,
                     // while there is no banner printed
                     // this is not great but better than the alternatives
-                    if (bannerSupported && clearBanner) {
+                    if (clearBanner) {
                         assert banner != null;
                         clearBanner(banner);
                         clearBanner = false;
@@ -206,7 +220,7 @@ final class TerminalOutputFormatter {
         AnsiConsole.out().print(richBanner);
     }
 
-    private void getBannerTextAsync(String bannerFileName, String bannerEndMarker, AtomicReference<Banner> bannerReference) {
+    private static void getAsyncBanner(String bannerFileName, String bannerEndMarker, AtomicReference<Banner> bannerReference) {
         // asynchronously read the whole banner; the banner is only used when complete
         final Thread bannerThread = new Thread(() -> {
             final Banner.Builder bannerBuilder = Banner.builder();
@@ -245,11 +259,14 @@ final class TerminalOutputFormatter {
 
         private final String bannerText;
         private final List<Integer> lineLengths;
+        private final long lifetimeInMillis;
         private final Map<Integer, Integer> lineCountCache = new ConcurrentHashMap<>(1);
 
         static class Builder {
             private StringBuilder stringBuilder = new StringBuilder();
             private List<Integer> lineLengths = new ArrayList<>();
+
+            private long lifetimeInMillis = DEFAULT_BANNER_DISPLAY_LIFETIME_MILLIS;
 
             private Builder() {
             }
@@ -262,8 +279,12 @@ final class TerminalOutputFormatter {
                 lineLengths.add(line.length());
             }
 
+            void lifetime(int millis) {
+                this.lifetimeInMillis = millis;
+            }
+
             Banner build() {
-                return new Banner(stringBuilder.toString(), lineLengths);
+                return new Banner(stringBuilder.toString(), lifetimeInMillis, lineLengths);
             }
         }
 
@@ -271,13 +292,18 @@ final class TerminalOutputFormatter {
             return new Builder();
         }
 
-        private Banner(String bannerText, List<Integer> lineLengths) {
+        private Banner(String bannerText, long lifetimeInMillis, List<Integer> lineLengths) {
             this.bannerText = bannerText;
+            this.lifetimeInMillis = lifetimeInMillis;
             this.lineLengths = lineLengths;
         }
 
         public int getLineCount(int terminalWidth) {
             return lineCountCache.computeIfAbsent(terminalWidth, tw -> computeLineCount(terminalWidth));
+        }
+
+        public long getLifetimeInMillis() {
+            return lifetimeInMillis;
         }
 
         public String getBannerText() {

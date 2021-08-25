@@ -44,23 +44,29 @@ final class TerminalOutputFormatter {
 
     // generous buffer used to forward stdin to stdout, multiple log lines at a time
     private static final int BUFFER_SIZE = 32768;
-    private static final byte[] BUFFER = new byte[BUFFER_SIZE];
+
+    private int terminalWidth = -1; // terminal width can dynamically change
+    private String clearBannerCommand = null;
+
+    private TerminalOutputFormatter() {
+    }
 
     public static void main(final String[] args) throws Exception {
         try {
-            mainWithoutErrorHandling(args);
+            new TerminalOutputFormatter().mainWithoutErrorHandling(args);
         } catch (Exception e) {
+            // if this throws while the terminal had formatting state, the following resets that state
             AnsiConsole.systemUninstall();
             throw e;
         }
     }
 
-    protected static void mainWithoutErrorHandling(final String[] args) throws Exception {
+    protected void mainWithoutErrorHandling(final String[] args) throws IOException {
         final AnsiType ansiType = AnsiConsole.out().getType();
         final boolean bannerSupported = ansiType != AnsiType.Unsupported && ansiType != AnsiType.Redirected;
         // in the no-arg mode simply check that the ANSI escape sequences are supported given the output and the OS types
         if (args.length == 0) {
-            // for good measure
+            // uninstall for good measure
             AnsiConsole.systemUninstall();
             if (ansiType == AnsiType.Unsupported) {
                 System.exit(1);
@@ -77,7 +83,7 @@ final class TerminalOutputFormatter {
             throw new IllegalArgumentException("Expected two arguments, but provided " + Arrays.toString(args) +
                     " . The first arguments contains the text used to mark the end of the banner to be read, " +
                     "but which will not be included in the output banner. The second argument contains the file path " +
-                    "from where the banner is to be read, which might or might not be available when this is run, but " +
+                    "from where the banner is to be read, which might or might not be available when this is run, and " +
                     "which will be output, inline with the forwarded input, as soon as available.");
         }
         final String bannerEndMarker = args[0];
@@ -88,19 +94,18 @@ final class TerminalOutputFormatter {
         }
         final String bannerInputFilePath = args[1];
         if (false == Files.isReadable(Paths.get(bannerInputFilePath))) {
-            throw new IllegalArgumentException("Banner input file does not exist or is not readable.");
+            throw new IllegalArgumentException("Banner input file does not exist or is not readable");
         }
+        final byte[] buffer = new byte[BUFFER_SIZE];
         // TODO timer arg for limited lifetime banner
         // TODO think about how program can terminate abnormally
         final AtomicReference<Banner> bannerReference = new AtomicReference<>();
         // only bother with the banner if it can be actually displayed
-        // ideally this class should not be invoked in this case because of the incurred overhead
+        // ideally this code should not be invoked in this case because of the incurred overhead
         if (bannerSupported) {
             getBannerTextAsync(bannerInputFilePath, bannerEndMarker, bannerReference);
         }
 
-        String clearBannerCommand = null;
-        int terminalWidth = -1; // terminal width can dynamically change
         boolean clearBanner = false;
         Banner banner = null; // set-once
         String richBanner = null;
@@ -122,9 +127,9 @@ final class TerminalOutputFormatter {
                     clearBanner = true;
                 }
             }
-            assert start < BUFFER.length;
+            assert start < buffer.length;
             // if the banner is itself available it is now printed, so it is OK to block for at the following read
-            int bytesRead = in.read(BUFFER, start, BUFFER.length - start);
+            int bytesRead = in.read(buffer, start, buffer.length - start);
             assert bytesRead != 0;
             if (bytesRead < 0) {
                 // the program should definitely exit if there is no input to forward anymore
@@ -133,32 +138,26 @@ final class TerminalOutputFormatter {
                 int end = start + bytesRead;
                 // find the last end-of-line in the newly buffered content
                 int lineBreakPos = end - 1;
-                while (lineBreakPos >= start && BUFFER[lineBreakPos] != (byte)'\n') {
+                while (lineBreakPos >= start && buffer[lineBreakPos] != (byte)'\n') {
                     lineBreakPos--;
                 }
                 // the buffered content contains at least one complete line
                 if (lineBreakPos >= start) {
-                    // before forwarding input, clear the existing banner (if any)
+                    // before forwarding the input, clear the existing banner (if any)
                     if (bannerSupported && clearBanner) {
                         assert banner != null;
-                        // terminal clear command is dependent on the terminal width which can change dynamically
-                        if (terminalWidth != AnsiConsole.getTerminalWidth()) {
-                            terminalWidth = AnsiConsole.getTerminalWidth();
-                            clearBannerCommand =
-                                    ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
-                        }
-                        AnsiConsole.out().print(clearBannerCommand);
+                        clearBanner(banner);
                         clearBanner = false;
                     }
                     // forward input to output, until last end of line
-                    out.write(BUFFER, 0, lineBreakPos + 1);
+                    out.write(buffer, 0, lineBreakPos + 1);
                     // move the remaining bytes (of an incomplete line) to the head of the buffer
                     start = end - lineBreakPos - 1;
-                    System.arraycopy(BUFFER, lineBreakPos + 1, BUFFER, 0, start);
+                    System.arraycopy(buffer, lineBreakPos + 1, buffer, 0, start);
                     assert clearBanner == false;
                     // only print the banner if the next read blocks
-                    printBanner = in.available() == 0; // print banner if the next read blocks
-                } else if (end >= BUFFER.length) {
+                    printBanner = in.available() == 0;
+                } else if (end >= buffer.length) {
                     // the buffer is full and it does not contain any end-of-line (the input produces lines longer than the buffer size)
                     // print the currently buffered line fragment, but do not print the banner
                     // in this case, it is possible that the read for the subsequent banner fragment blocks,
@@ -166,17 +165,10 @@ final class TerminalOutputFormatter {
                     // this is not great but better than the alternatives
                     if (bannerSupported && clearBanner) {
                         assert banner != null;
-                        // TODO extract into method
-                        // terminal clear command is dependent on the terminal width which can change dynamically
-                        if (terminalWidth != AnsiConsole.getTerminalWidth()) {
-                            terminalWidth = AnsiConsole.getTerminalWidth();
-                            clearBannerCommand =
-                                    ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
-                        }
-                        AnsiConsole.out().print(clearBannerCommand);
+                        clearBanner(banner);
                         clearBanner = false;
                     }
-                    out.write(BUFFER, 0, BUFFER.length);
+                    out.write(buffer, 0, buffer.length);
                     start = 0;
                     assert clearBanner == false;
                     // the banner should never break the lines
@@ -185,15 +177,25 @@ final class TerminalOutputFormatter {
                     // no end-of-line found, all the buffered content is only an incomplete line fragment
                     // nothing to display, read on
                     start = end;
-                    assert start < BUFFER.length;
+                    assert start < buffer.length;
                     // only print the banner if no banner is currently printed and the next read blocks
-                    printBanner = false == clearBanner && in.available() == 0;
+                    printBanner = bannerSupported && false == clearBanner && in.available() == 0;
                 }
             }
         }
     }
 
-    private static void getBannerTextAsync(String bannerFileName, String bannerEndMarker, AtomicReference<Banner> bannerReference) {
+    private void clearBanner(Banner banner) {
+        if (terminalWidth != AnsiConsole.getTerminalWidth()) {
+            terminalWidth = AnsiConsole.getTerminalWidth();
+            // update the banner command to account for the changed number of lines
+            clearBannerCommand =
+                    ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
+        }
+        AnsiConsole.out().print(clearBannerCommand);
+    }
+
+    private void getBannerTextAsync(String bannerFileName, String bannerEndMarker, AtomicReference<Banner> bannerReference) {
         // asynchronously read the whole banner; the banner is only used when complete
         final Thread bannerThread = new Thread(() -> {
             final Banner.Builder bannerBuilder = Banner.builder();

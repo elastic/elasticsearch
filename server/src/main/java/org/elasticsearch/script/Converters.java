@@ -169,7 +169,7 @@ public class Converters {
         return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<BigInteger, String>(fv) {
             @Override
             public List<BigInteger> getValues() {
-                // This may throw NumberFormatException, should we catch and truncate the List?
+                // This may throw NumberFormatException, should we catch and truncate the List? (#76951)
                 return values.getValues().stream().map(Converters::convertStringToBigInteger).collect(Collectors.toList());
             }
 
@@ -345,6 +345,10 @@ public class Converters {
 
     public static long convertBooleanToLong(boolean bool) {
         return bool ? 1L : 0L;
+    }
+
+    public static double convertBooleanToDouble(boolean bool) {
+        return bool ? 1.0d : 0.0d;
     }
 
     public static long convertDateMillisToLong(JodaCompatibleZonedDateTime dt) {

@@ -13,6 +13,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +28,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -381,9 +385,29 @@ public class ServiceAccountIT extends ESRestTestCase {
         createApiKeyRequest1.setOptions(requestOptions);
         final Response createApiKeyResponse1 = client().performRequest(createApiKeyRequest1);
         assertOK(createApiKeyResponse1);
-        final String apiKeyId1 = (String) responseAsMap(createApiKeyResponse1).get("id");
+        final Map<String, Object> createApiKeyResponseMap1 = responseAsMap(createApiKeyResponse1);
+        final String apiKeyId1 = (String) createApiKeyResponseMap1.get("id");
 
         assertApiKeys(apiKeyId1, "key-1", false, requestOptions);
+
+        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
+            (apiKeyId1 + ":" + createApiKeyResponseMap1.get("api_key")).getBytes(StandardCharsets.UTF_8));
+
+        // API key can monitor cluster
+        final Request mainRequest = new Request("GET", "/");
+        mainRequest.setOptions(mainRequest.getOptions().toBuilder().addHeader(
+            "Authorization", "ApiKey " + base64ApiKeyKeyValue
+        ));
+        assertOK(client().performRequest(mainRequest));
+
+        // API key cannot get user
+        final Request getUserRequest = new Request("GET", "_security/user");
+        getUserRequest.setOptions(getUserRequest.getOptions().toBuilder().addHeader(
+            "Authorization", "ApiKey " + base64ApiKeyKeyValue
+        ));
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getUserRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("is unauthorized for API key"));
 
         final Request invalidateApiKeysRequest = new Request("DELETE", "_security/api_key");
         invalidateApiKeysRequest.setJsonEntity("{\"ids\":[\"" + apiKeyId1 + "\"],\"owner\":true}");

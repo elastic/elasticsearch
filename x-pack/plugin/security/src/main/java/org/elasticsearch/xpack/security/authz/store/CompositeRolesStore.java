@@ -275,7 +275,7 @@ public class CompositeRolesStore {
                     } else {
                         buildAndCacheRoleForApiKey(authentication, true, ActionListener.wrap(
                             limitedByRole -> roleActionListener.onResponse(
-                                limitedByRole == Role.EMPTY ? role : LimitedRole.createLimitedRole(role, limitedByRole)),
+                                LimitedRole.createLimitedRole(role, limitedByRole)),
                             roleActionListener::onFailure
                         ));
                     }

@@ -420,7 +420,12 @@ class ClientTransformIndexer extends TransformIndexer {
                 namedPits.put(namedSearchRequest.v1(), newPit);
                 searchRequest.source().pointInTimeBuilder(newPit);
                 pitCheckpoint = getNextCheckpoint().getCheckpoint();
-                logger.trace("[{}] using pit search context with id [{}]", getJobId(), newPit.getEncodedId());
+                logger.trace(
+                    "[{}] using pit search context with id [{}]; request [{}]",
+                    getJobId(),
+                    newPit.getEncodedId(),
+                    namedSearchRequest.v1()
+                );
                 listener.onResponse(namedSearchRequest);
             }, e -> {
                 Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
@@ -451,7 +456,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     private void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
-        logger.trace("searchRequest: {}", namedSearchRequest.v2());
+        logger.trace(() -> new ParameterizedMessage("searchRequest: [{}]", namedSearchRequest.v2()));
 
         PointInTimeBuilder pit = namedSearchRequest.v2().pointInTimeBuilder();
 
@@ -465,7 +470,7 @@ class ClientTransformIndexer extends TransformIndexer {
                 // did the pit change?
                 if (response.pointInTimeId() != null && (pit == null || response.pointInTimeId() != pit.getEncodedId())) {
                     namedPits.put(namedSearchRequest.v1(), new PointInTimeBuilder(response.pointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE));
-                    logger.trace("point in time handle has changed");
+                    logger.trace("point in time handle has changed; request [{}]", namedSearchRequest.v1());
                 }
 
                 listener.onResponse(response);
@@ -475,7 +480,14 @@ class ClientTransformIndexer extends TransformIndexer {
                 // succeeds a new pit gets created at the next run
                 Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
                 if (unwrappedException instanceof SearchContextMissingException) {
-                    logger.warn(new ParameterizedMessage("[{}] Search context missing, falling back to normal search.", getJobId()), e);
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "[{}] Search context missing, falling back to normal search; request [{}]",
+                            getJobId(),
+                            namedSearchRequest.v1()
+                        ),
+                        e
+                    );
                     namedPits.remove(namedSearchRequest.v1());
                     namedSearchRequest.v2().source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(

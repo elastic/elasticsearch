@@ -15,22 +15,21 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class NlpTask {
 
     private final NlpConfig config;
-    private final BertTokenizer tokenizer;
+    private final NlpTokenizer tokenizer;
 
     public NlpTask(NlpConfig config, Vocabulary vocabulary) {
         this.config = config;
-        this.tokenizer = BertTokenizer.builder(vocabulary.get())
-            .setWithSpecialTokens(config.getTokenizationParams().withSpecialTokens())
-            .setDoLowerCase(config.getTokenizationParams().doLowerCase())
-            .build();
+        this.tokenizer = NlpTokenizer.build(vocabulary, config.getTokenization());
     }
 
     /**
@@ -43,11 +42,15 @@ public class NlpTask {
     }
 
     public interface RequestBuilder {
-        BytesReference buildRequest(String inputs, String requestId) throws IOException;
+        Request buildRequest(String inputs, String requestId) throws IOException;
     }
 
     public interface ResultProcessor {
-        InferenceResults processResult(PyTorchResult pyTorchResult);
+        InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult);
+    }
+
+    public interface ResultProcessorFactory {
+        ResultProcessor build(TokenizationResult tokenizationResult);
     }
 
     public interface Processor {
@@ -74,5 +77,15 @@ public class NlpTask {
             return (String) inputValue;
         }
         throw ExceptionsHelper.badRequestException("input value [{}] for field [{}] is not a string", inputValue, inputField);
+    }
+
+    public static class Request {
+        public final TokenizationResult tokenization;
+        public final BytesReference processInput;
+
+        public Request(TokenizationResult tokenization, BytesReference processInput) {
+            this.tokenization = Objects.requireNonNull(tokenization);
+            this.processInput = Objects.requireNonNull(processInput);
+        }
     }
 }

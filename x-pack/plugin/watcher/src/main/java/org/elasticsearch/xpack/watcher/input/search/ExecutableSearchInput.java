@@ -96,10 +96,10 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             params = EMPTY_PARAMS;
         }
         if (input.getExtractKeys() != null) {
-            BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, params, false);
+            BytesReference bytes = XContentHelper.toXContent(response, XContentType.SMILE, params, false);
             // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = XContentHelper
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes, XContentType.JSON)) {
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes, XContentType.SMILE)) {
                 Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
                 payload = new Payload.Simple(filteredKeys);
             }

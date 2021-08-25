@@ -33,14 +33,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.fusesource.jansi.Ansi.ansi;
 
 /**
- * Prints the text lines, that are coming through the standard input, to the standard output
- * (like the no-arg `cat` command), but followed by a multi-line text "banner" that persists as the last text
+ * Prints the text lines, that are coming through the standard input, to the standard output,
+ * like the no-arg `cat` command, but followed by a multi-line text "banner" that persists as the last text
  * that is printed to the terminal.
  * The "banner" persists because it is printed out before waiting for more input on stdin.
- * Clearing and moving the cursor only works if the output is a terminal
- * (this redirection should not be used otherwise).
- * The banner is read from an input file, and mustn't necessarily be available before the stdin input is.
- * Once the content of the banner becomes available it cannot be changed (it is set-once).
+ * It also does not break any of the lines.
+ * The banner contents are read from an input file, and mustn't necessarily be available before the stdin input is.
+ * Once the content of the banner becomes available it cannot be changed (it is set-once), but it has also
+ * has a limited lifetime, after which it is no longer displayed.
+ * The banner works by moving the cursor and clearing output which only works if the output is a terminal that
+ * can interpret ANSI escape sequences.
  */
 final class TerminalOutputFormatter {
 
@@ -79,7 +81,6 @@ final class TerminalOutputFormatter {
                 System.exit(0);
             }
         }
-        // TODO check failing these validations prevents the node from starting
         // args validation is done for good measure, even if displaying the banner is not supported
         if (args.length != 2) {
             throw new IllegalArgumentException("Expected two arguments, but provided " + Arrays.toString(args) +

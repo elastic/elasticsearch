@@ -308,7 +308,7 @@ public class TrainedModelIT extends ESRestTestCase {
 
     @After
     public void clearMlState() throws Exception {
-        new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
+        new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
         ESRestTestCase.waitForPendingTasks(adminClient());
     }
 }

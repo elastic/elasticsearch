@@ -16,6 +16,9 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * Provide access to DocValues for script {@code field} api and {@code doc} API.
+ */
 public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier {
     /** A leaf lookup for the bound segment this proxy will operate on. */
     protected LeafSearchLookup leafLookup;
@@ -23,7 +26,10 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
     // provide access to the leaf context reader for expressions
     protected final LeafReaderContext leafReaderContext;
 
+    protected final SearchLookup lookup;
+
     public DocValuesDocReader(SearchLookup lookup, LeafReaderContext leafContext) {
+        this.lookup = lookup;
         this.leafReaderContext = leafContext;
         this.leafLookup = lookup.getLeafSearchLookup(leafReaderContext);
     }
@@ -33,15 +39,15 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
         Map<String, ScriptDocValues<?>> doc = leafLookup.doc();
 
         if (doc.containsKey(fieldName) == false) {
-            return new EmptyField<Number>(fieldName);
+            return new EmptyField<>(fieldName);
         }
-        return new DocValuesField<>(fieldName, doc.get(fieldName));
+        return doc.get(fieldName).toField(fieldName);
     }
 
 
     @Override
     public Stream<Field<?>> fields(String fieldGlob) {
-        return Stream.empty();
+        throw new UnsupportedOperationException("not implemented");
     }
 
     @Override

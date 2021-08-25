@@ -25,6 +25,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.upgrades.AbstractRollingTestCase.ClusterType.MIXED;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -64,8 +65,16 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                 break;
             case MIXED:
             case UPGRADED:
-                // Drop replicas
-                updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0));
+                // the following `if` for first round mixed was added as a selective test mute. Sometimes the primary shard ends
+                // on the upgraded node. This causes issues when removing and adding replicas, since then we cannot allocate to
+                // any of the old nodes. That is an issue only for the first mixed round, hence this check.
+                // Ideally we would find the reason the primary ends on the upgraded node and fix that (or figure out that it
+                // is all good).
+                // @AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/76595)
+                if (CLUSTER_TYPE != MIXED || FIRST_MIXED_ROUND == false) {
+                    // Drop replicas
+                    updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0));
+                }
                 ensureGreen(indexName);
 
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));

@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -54,6 +55,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -157,7 +159,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
@@ -226,8 +227,8 @@ import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountToken
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
+import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
@@ -337,8 +338,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
+import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_TOKENS_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
@@ -347,6 +348,20 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin, SearchPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
+
+    // TODO: ip filtering does not actually track license usage yet
+    public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
+        LicensedFeature.momentaryLenient(null, "security_ip_filtering", License.OperationMode.GOLD);
+    public static final LicensedFeature.Momentary AUDITING_FEATURE =
+        LicensedFeature.momentaryLenient(null, "security_auditing", License.OperationMode.GOLD);
+
+    // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
+    // Standard realms (LDAP, AD, PKI, etc) are Gold+
+    // SSO realms are Platinum+
+    public static final LicensedFeature.Persistent STANDARD_REALMS_FEATURE =
+        LicensedFeature.persistentLenient(null, "security_standard_realms", License.OperationMode.GOLD);
+    public static final LicensedFeature.Persistent ALL_REALMS_FEATURE =
+        LicensedFeature.persistentLenient(null, "security_all_realms", License.OperationMode.PLATINUM);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -548,7 +563,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
             privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
-            serviceAccountService, dlsBitsetCache.get(), new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
+            serviceAccountService, dlsBitsetCache.get(), expressionResolver,
+            new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
         securityIndex.get().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
@@ -648,7 +664,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             logger.debug("Using default authentication failure handler");
             Supplier<Map<String, List<String>>> headersSupplier = () -> {
                 final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
-                realms.asList().stream().forEach((realm) -> {
+                realms.getActiveRealms().stream().forEach((realm) -> {
                     Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
                     realmFailureHeaders.entrySet().stream().forEach((e) -> {
                         String key = e.getKey();
@@ -1032,8 +1048,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 "revisit [" + keystoreTypeSettings.toDelimitedString(',') + "] settings");
         }
         Settings keystorePathSettings = settings.filter(k -> k.endsWith("keystore.path"))
-            .filter(k -> settings.hasValue(k.replace(".path", ".type")) == false);
-        if (keystorePathSettings.isEmpty() == false && KeyStoreUtil.inferKeyStoreType(null).equals("jks")) {
+            .filter(k -> settings.hasValue(k.replace(".path", ".type")) == false)
+            .filter(k -> KeyStoreUtil.inferKeyStoreType(settings.get(k)).equals("jks"));
+        if (keystorePathSettings.isEmpty() == false) {
             validationErrors.add("JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please " +
                 "revisit [" + keystorePathSettings.toDelimitedString(',') + "] settings");
         }
@@ -1146,7 +1163,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
         final boolean extractClientCertificate;
         if (enabled && HTTP_SSL_ENABLED.get(settings)) {
-            final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
+            final SslConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
             extractClientCertificate = getSslService().isSSLClientAuthEnabled(httpSSLConfig);
         } else {
             extractClientCertificate = false;

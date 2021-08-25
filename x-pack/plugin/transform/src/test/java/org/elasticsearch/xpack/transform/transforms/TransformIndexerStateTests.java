@@ -216,11 +216,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         protected IterationResult<TransformIndexerPosition> doProcess(SearchResponse searchResponse) {
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
-            return new IterationResult<>(
-                Stream.of(new IndexRequest()),
-                new TransformIndexerPosition(null, null),
-                false
-            );
+            return new IterationResult<>(Stream.of(new IndexRequest()), new TransformIndexerPosition(null, null), false);
         }
 
         public boolean waitingForNextSearch() {
@@ -229,6 +225,11 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         public int getSaveStateListenerCallCount() {
             return saveStateListenerCallCount;
+        }
+
+        public int getSaveStateListenerCount() {
+            Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.get();
+            return (saveStateListenersAtTheMomentOfCalling != null) ? saveStateListenersAtTheMomentOfCalling.size() : 0;
         }
 
         public TransformState getPersistedState() {
@@ -455,14 +456,12 @@ public class TransformIndexerStateTests extends ESTestCase {
             CountDownLatch searchLatch = indexer.createAwaitForSearchLatch(1);
 
             List<CountDownLatch> responseLatches = new ArrayList<>();
-            int timesStopAtCheckpointChanged = 0;
             // default stopAtCheckpoint is false
             boolean previousStopAtCheckpoint = false;
 
             for (int i = 0; i < 3; ++i) {
                 CountDownLatch latch = new CountDownLatch(1);
                 boolean stopAtCheckpoint = randomBoolean();
-                timesStopAtCheckpointChanged += (stopAtCheckpoint == previousStopAtCheckpoint ? 0 : 1);
                 previousStopAtCheckpoint = stopAtCheckpoint;
                 countResponse(listener -> setStopAtCheckpoint(indexer, stopAtCheckpoint, listener), latch);
                 responseLatches.add(latch);
@@ -474,7 +473,6 @@ public class TransformIndexerStateTests extends ESTestCase {
             // call it 3 times again
             for (int i = 0; i < 3; ++i) {
                 boolean stopAtCheckpoint = randomBoolean();
-                timesStopAtCheckpointChanged += (stopAtCheckpoint == previousStopAtCheckpoint ? 0 : 1);
                 previousStopAtCheckpoint = stopAtCheckpoint;
                 assertResponse(listener -> setStopAtCheckpoint(indexer, stopAtCheckpoint, listener));
             }
@@ -487,9 +485,11 @@ public class TransformIndexerStateTests extends ESTestCase {
                 assertTrue("timed out after 5s", l.await(5, TimeUnit.SECONDS));
             }
 
+            // there should be no listeners waiting
+            assertEquals(0, indexer.getSaveStateListenerCount());
+
             // listener must have been called by the indexing thread between timesStopAtCheckpointChanged and 6 times
             // this is not exact, because we do not know _when_ the other thread persisted the flag
-            assertThat(indexer.getSaveStateListenerCallCount(), greaterThanOrEqualTo(timesStopAtCheckpointChanged));
             assertThat(indexer.getSaveStateListenerCallCount(), lessThanOrEqualTo(6));
         }
     }
@@ -505,7 +505,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null),
+            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null, (Boolean) null),
             null,
             null,
             null

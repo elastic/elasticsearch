@@ -8,6 +8,7 @@
 
 package org.elasticsearch.tools.launchers;
 
+import org.elasticsearch.tools.java_version_checker.SuppressForbidden;
 import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiConsole;
 import org.fusesource.jansi.AnsiType;
@@ -71,29 +72,27 @@ final class TerminalOutputFormatter {
         final boolean bannerSupported = ansiType != AnsiType.Unsupported && ansiType != AnsiType.Redirected;
         // in the no-arg mode simply check that the ANSI escape sequences are supported given the output and the OS types
         if (args.length == 0) {
-            // uninstall for good measure
-            AnsiConsole.systemUninstall();
-            if (ansiType == AnsiType.Unsupported) {
-                System.exit(1);
-            } else if (ansiType == AnsiType.Redirected) {
-                System.exit(2);
-            } else {
-                System.exit(0);
-            }
+            checkOutputSupportsANSIThenExit();
         }
         // args validation is done for good measure, even if displaying the banner is not supported
         if (args.length != 2) {
-            throw new IllegalArgumentException("Expected two arguments, but provided " + Arrays.toString(args) +
-                    " . The first arguments contains the text used to mark the end of the banner to be read, " +
-                    "but which will not be included in the output banner. The second argument contains the file path " +
-                    "from where the banner is to be read, which might or might not be available when this is run, and " +
-                    "which will be output, inline with the forwarded input, as soon as available.");
+            throw new IllegalArgumentException(
+                "Expected two arguments, but provided "
+                    + Arrays.toString(args)
+                    + " . The first arguments contains the text used to mark the end of the banner to be read, "
+                    + "but which will not be included in the output banner. The second argument contains the file path "
+                    + "from where the banner is to be read, which might or might not be available when this is run, and "
+                    + "which will be output, inline with the forwarded input, as soon as available."
+            );
         }
         final String bannerEndMarker = args[0];
-        if (bannerEndMarker == null || bannerEndMarker.isEmpty() ||
-                bannerEndMarker.trim().isEmpty() || bannerEndMarker.indexOf('\n') != -1) {
-            throw new IllegalArgumentException("The banner end marker value must not be empty, contain only whitespaces, " +
-                    "or contain any line breaks");
+        if (bannerEndMarker == null
+            || bannerEndMarker.isEmpty()
+            || bannerEndMarker.trim().isEmpty()
+            || bannerEndMarker.indexOf('\n') != -1) {
+            throw new IllegalArgumentException(
+                "The banner end marker value must not be empty, contain only whitespaces, " + "or contain any line breaks"
+            );
         }
         final String bannerInputFilePath = args[1];
         if (false == Files.isReadable(Paths.get(bannerInputFilePath))) {
@@ -107,7 +106,7 @@ final class TerminalOutputFormatter {
             getAsyncBanner(bannerInputFilePath, bannerEndMarker, bannerReference);
         }
         try {
-            new TerminalOutputFormatter(buffer).forward(System.in, System.out, bannerReference);
+            forwardInOut(buffer, bannerReference);
         } finally {
             // if this throws while the terminal had formatting state, the following resets that state
             AnsiConsole.systemUninstall();
@@ -153,7 +152,7 @@ final class TerminalOutputFormatter {
                 int end = start + bytesRead;
                 // find the last end-of-line in the newly buffered content
                 int lineBreakPos = end - 1;
-                while (lineBreakPos >= start && buffer[lineBreakPos] != (byte)'\n') {
+                while (lineBreakPos >= start && buffer[lineBreakPos] != (byte) '\n') {
                     lineBreakPos--;
                 }
                 // the buffered content contains at least one complete line
@@ -205,8 +204,7 @@ final class TerminalOutputFormatter {
             terminalWidth = AnsiConsole.getTerminalWidth();
             lastBanner = banner;
             // update the banner command to account for the changed number of lines
-            clearBannerCommand =
-                    ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
+            clearBannerCommand = ansi().cursorUpLine(banner.getLineCount(terminalWidth) + 1).eraseScreen(Ansi.Erase.FORWARD).toString();
         }
         AnsiConsole.out().print(clearBannerCommand);
     }
@@ -219,6 +217,24 @@ final class TerminalOutputFormatter {
             richBanner = ansi().newline().bold().a(banner.getBannerText()).boldOff().newline().toString();
         }
         AnsiConsole.out().print(richBanner);
+    }
+
+    @SuppressForbidden(reason = "Allowed to read and write to stdin and stdout respectively as this is not a node process")
+    private static void forwardInOut(byte[] buffer, AtomicReference<Banner> bannerReference) throws IOException {
+        new TerminalOutputFormatter(buffer).forward(System.in, System.out, bannerReference);
+    }
+
+    @SuppressForbidden(reason = "Allowed to exit because it is not part nor invoked by the node process")
+    private static void checkOutputSupportsANSIThenExit() {
+        AnsiType ansiType = AnsiConsole.out().getType();
+        AnsiConsole.systemUninstall();
+        if (ansiType == AnsiType.Unsupported) {
+            System.exit(1);
+        } else if (ansiType == AnsiType.Redirected) {
+            System.exit(2);
+        } else {
+            System.exit(0);
+        }
     }
 
     private static void getAsyncBanner(String bannerFileName, String bannerEndMarker, AtomicReference<Banner> bannerReference) {
@@ -269,8 +285,7 @@ final class TerminalOutputFormatter {
 
             private long lifetimeInMillis = DEFAULT_BANNER_DISPLAY_LIFETIME_MILLIS;
 
-            private Builder() {
-            }
+            private Builder() {}
 
             void appendLine(String line) {
                 if (false == lineLengths.isEmpty()) {

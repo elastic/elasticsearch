@@ -337,7 +337,7 @@ public class OsProbe {
     }
 
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu.max")
-    private String readCgroupV2CpuLimit(String controlGroup) throws IOException {
+    String readCgroupV2CpuLimit(String controlGroup) throws IOException {
         return readSingleLine(PathUtils.get("/sys/fs/cgroup/", controlGroup, "cpu.max"));
     }
 
@@ -594,12 +594,13 @@ public class OsProbe {
      * @return the CPU statistics
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
      */
-    private Map<String, Long> getCgroupCpuStats(String controlGroup) throws IOException {
+    private Map<String, Long> getCgroupV2CpuStats(String controlGroup) throws IOException {
         final List<String> lines = readCgroupV2CpuStats(controlGroup);
         final Map<String, Long> stats = new HashMap<>();
 
         for (String line : lines) {
-            String[] parts = line.split("\n");
+            String[] parts = line.split("\\s+");
+            assert parts.length == 2 : "Corrupt cpu.stat line: [" + line + "]";
             stats.put(parts[0], Long.parseLong(parts[1]));
         }
 
@@ -646,7 +647,7 @@ public class OsProbe {
                 cpuControlGroup = cpuAcctControlGroup = memoryControlGroup = controllerMap.get("");
 
                 // `cpuacct` was merged with `cpu` in v2
-                final Map<String, Long> cpuStatsMap = getCgroupCpuStats(cpuControlGroup);
+                final Map<String, Long> cpuStatsMap = getCgroupV2CpuStats(cpuControlGroup);
 
                 cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec");
 
@@ -843,11 +844,15 @@ public class OsProbe {
         return Constants.LINUX && getPrettyName().equals("Debian GNU/Linux 8 (jessie)");
     }
 
+    OsStats.Cgroup getCgroup(boolean isLinux) {
+        return isLinux ? getCgroup() : null;
+    }
+
     public OsStats osStats() {
         final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
         final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
-        final OsStats.Cgroup cgroup = Constants.LINUX ? getCgroup() : null;
+        final OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
         return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);
     }
 

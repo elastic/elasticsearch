@@ -23,6 +23,6 @@ public class VersionStringFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of("true"), fetchSourceValue(mapper, true));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
-        assertEquals("Field [field] doesn't support formats.", e.getMessage());
+        assertEquals("Field doesn't support formats.", e.getMessage());
     }
 }

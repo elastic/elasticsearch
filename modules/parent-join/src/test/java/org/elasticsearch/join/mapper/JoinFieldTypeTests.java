@@ -29,6 +29,6 @@ public class JoinFieldTypeTests extends FieldTypeTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> fetchSourceValue(fieldType, parentValue, "format"));
-        assertEquals("Field [field] of type [join] doesn't support formats.", e.getMessage());
+        assertEquals("[join] doesn't support formats.", e.getMessage());
     }
 }

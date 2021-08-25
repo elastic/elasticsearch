@@ -7,10 +7,12 @@
 <titleabbrev>Start trained model deployment</titleabbrev>
 ++++
 
+experimental::[]
+
 [[start-trained-model-deployment-request]]
 == {api-request-title}
 
-`POST _ml/trained_models/<model_id>/deployent/_start` 
+`POST _ml/trained_models/<model_id>/deployent/_start`
 ////
 [[start-trained-model-deployment-prereq]]
 == {api-prereq-title}

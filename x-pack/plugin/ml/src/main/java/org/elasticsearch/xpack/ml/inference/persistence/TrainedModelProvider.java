@@ -15,6 +15,8 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -33,6 +35,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
@@ -51,7 +54,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -196,6 +198,14 @@ public class TrainedModelProvider {
     }
 
     public void storeTrainedModelDefinitionDoc(TrainedModelDefinitionDoc trainedModelDefinitionDoc, ActionListener<Void> listener) {
+        storeTrainedModelDefinitionDoc(trainedModelDefinitionDoc, InferenceIndexConstants.LATEST_INDEX_NAME, listener);
+    }
+
+    public void storeTrainedModelDefinitionDoc(
+        TrainedModelDefinitionDoc trainedModelDefinitionDoc,
+        String index,
+        ActionListener<Void> listener
+    ) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelDefinitionDoc.getModelId())) {
             listener.onFailure(new ResourceAlreadyExistsException(
                 Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelDefinitionDoc.getModelId())));
@@ -205,7 +215,7 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
-            createRequest(trainedModelDefinitionDoc.getDocId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelDefinitionDoc),
+            createRequest(trainedModelDefinitionDoc.getDocId(), index, trainedModelDefinitionDoc),
             ActionListener.wrap(
                 indexResponse -> listener.onResponse(null),
                 e -> {
@@ -217,11 +227,19 @@ public class TrainedModelProvider {
                     } else {
                         listener.onFailure(
                             new ElasticsearchStatusException(
-                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelDefinitionDoc.getModelId()),
-                                RestStatus.INTERNAL_SERVER_ERROR, e));
+                                Messages.getMessage(
+                                    Messages.INFERENCE_FAILED_TO_STORE_MODEL_DEFINITION,
+                                    trainedModelDefinitionDoc.getModelId(),
+                                    trainedModelDefinitionDoc.getDocNum()
+                                ),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
                     }
                 }
-            ));
+            )
+        );
     }
 
     public void storeTrainedModelMetadata(TrainedModelMetadata trainedModelMetadata, ActionListener<Void> listener) {
@@ -720,28 +738,47 @@ public class TrainedModelProvider {
             )));
             return;
         }
-        DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
+        final DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false)
+            .indices(InferenceIndexConstants.INDEX_PATTERN, MlStatsIndex.indexPattern())
+            .setQuery(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
+            .setRefresh(true);
+        ActionListener<AcknowledgedResponse> deleteDefinitionStoreListener = ActionListener.wrap(
+            r -> executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                DeleteByQueryAction.INSTANCE,
+                request,
+                ActionListener.wrap(deleteResponse -> {
+                    if (deleteResponse.getDeleted() == 0) {
+                        listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
+                        return;
+                    }
+                    listener.onResponse(true);
+                }, e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                        listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                })
+            ),
+            listener::onFailure
+        );
 
-        request.indices(InferenceIndexConstants.INDEX_PATTERN, MlStatsIndex.indexPattern());
-        QueryBuilder query = QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
-        request.setQuery(query);
-        request.setRefresh(true);
-
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(deleteResponse -> {
-            if (deleteResponse.getDeleted() == 0) {
-                listener.onFailure(new ResourceNotFoundException(
-                    Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
-                return;
-            }
-            listener.onResponse(true);
-        }, e -> {
-            if (e.getClass() == IndexNotFoundException.class) {
-                listener.onFailure(new ResourceNotFoundException(
-                    Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
-            } else {
-                listener.onFailure(e);
-            }
-        }));
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            DeleteIndexAction.INSTANCE,
+            // Simply always attempt to delete the custom definition store. If it doesn't exist, continue to run the DBQ
+            new DeleteIndexRequest(InferenceIndexConstants.customDefinitionStore(modelId)),
+            ActionListener.wrap(deleteDefinitionStoreListener::onResponse, error -> {
+                if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                    deleteDefinitionStoreListener.onResponse(AcknowledgedResponse.TRUE);
+                } else {
+                    listener.onFailure(error);
+                }
+            })
+        );
     }
 
     public void expandIds(String idExpression,

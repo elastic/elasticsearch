@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -151,6 +152,12 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         if (hasModelDefinition) {
             trainedModelConfig.setEstimatedHeapMemory(config.getModelDefinition().ramBytesUsed())
                 .setEstimatedOperations(config.getModelDefinition().getTrainedModel().estimatedNumOperations());
+        } else {
+            // If the user didn't provide a definition, set the default location for the given model type
+            // Set default location for the given model type.
+            trainedModelConfig.setLocation(
+                Optional.ofNullable(config.getModelType()).orElse(TrainedModelType.TREE_ENSEMBLE).getDefaultLocation(config.getModelId())
+            );
         }
 
         if (ModelAliasMetadata.fromState(state).getModelId(trainedModelConfig.getModelId()) != null) {

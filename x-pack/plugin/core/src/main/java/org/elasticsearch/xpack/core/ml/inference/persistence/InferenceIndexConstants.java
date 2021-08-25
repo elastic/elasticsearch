@@ -45,6 +45,10 @@ public final class InferenceIndexConstants {
             MAPPINGS_VERSION_VARIABLE);
     }
 
+    public static String customDefinitionStore(String modelId) {
+        return INDEX_NAME_PREFIX + modelId;
+    }
+
     public static Settings settings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)

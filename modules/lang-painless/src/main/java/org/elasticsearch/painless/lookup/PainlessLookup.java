@@ -29,6 +29,7 @@ public final class PainlessLookup {
     private final Map<String, Class<?>> javaClassNamesToClasses;
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClass> classesToPainlessClasses;
+    private final Map<Class<?>, Set<Class<?>>> classesToDirectSubClasses;
 
     private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
@@ -38,6 +39,7 @@ public final class PainlessLookup {
             Map<String, Class<?>> javaClassNamesToClasses,
             Map<String, Class<?>> canonicalClassNamesToClasses,
             Map<Class<?>, PainlessClass> classesToPainlessClasses,
+            Map<Class<?>, Set<Class<?>>> classesToDirectSubClasses,
             Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
             Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
             Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings) {
@@ -45,6 +47,7 @@ public final class PainlessLookup {
         Objects.requireNonNull(javaClassNamesToClasses);
         Objects.requireNonNull(canonicalClassNamesToClasses);
         Objects.requireNonNull(classesToPainlessClasses);
+        Objects.requireNonNull(classesToDirectSubClasses);
 
         Objects.requireNonNull(painlessMethodKeysToImportedPainlessMethods);
         Objects.requireNonNull(painlessMethodKeysToPainlessClassBindings);
@@ -53,6 +56,7 @@ public final class PainlessLookup {
         this.javaClassNamesToClasses = javaClassNamesToClasses;
         this.canonicalClassNamesToClasses = Map.copyOf(canonicalClassNamesToClasses);
         this.classesToPainlessClasses = Map.copyOf(classesToPainlessClasses);
+        this.classesToDirectSubClasses = Map.copyOf(classesToDirectSubClasses);
 
         this.painlessMethodKeysToImportedPainlessMethods = Map.copyOf(painlessMethodKeysToImportedPainlessMethods);
         this.painlessMethodKeysToPainlessClassBindings = Map.copyOf(painlessMethodKeysToPainlessClassBindings);

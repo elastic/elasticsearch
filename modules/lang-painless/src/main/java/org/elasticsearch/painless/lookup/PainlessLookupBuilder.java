@@ -42,11 +42,14 @@ import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -189,6 +192,7 @@ public final class PainlessLookupBuilder {
     // of the values of javaClassNamesToClasses.
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClassBuilder> classesToPainlessClassBuilders;
+    private final Map<Class<?>, Set<Class<?>>> classesToDirectSubClasses;
 
     private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
@@ -198,6 +202,7 @@ public final class PainlessLookupBuilder {
         javaClassNamesToClasses = new HashMap<>();
         canonicalClassNamesToClasses = new HashMap<>();
         classesToPainlessClassBuilders = new HashMap<>();
+        classesToDirectSubClasses = new HashMap<>();
 
         painlessMethodKeysToImportedPainlessMethods = new HashMap<>();
         painlessMethodKeysToPainlessClassBindings = new HashMap<>();
@@ -1255,6 +1260,7 @@ public final class PainlessLookupBuilder {
     }
 
     public PainlessLookup build() {
+        buildPainlessClassHierarchy();
         //copyPainlessClassMembers();
         setFunctionalInterfaceMethods();
         generateRuntimeMethods();
@@ -1286,9 +1292,50 @@ public final class PainlessLookupBuilder {
                 javaClassNamesToClasses,
                 canonicalClassNamesToClasses,
                 classesToPainlessClasses,
+                classesToDirectSubClasses,
                 painlessMethodKeysToImportedPainlessMethods,
                 painlessMethodKeysToPainlessClassBindings,
                 painlessMethodKeysToPainlessInstanceBindings);
+    }
+
+    private void buildPainlessClassHierarchy() {
+        for (Class<?> subClass : classesToPainlessClassBuilders.keySet()) {
+            List<Class<?>> superInterfaces = new ArrayList<>(Arrays.asList(subClass.getInterfaces()));
+
+            if (subClass.isInterface() && classesToPainlessClassBuilders.containsKey(Object.class)) {
+                classesToDirectSubClasses.computeIfAbsent(Object.class, sc -> new HashSet<>()).add(subClass);
+            } else {
+                Class<?> superClass = subClass.getSuperclass();
+
+                while (superClass != null) {
+                    if (classesToPainlessClassBuilders.containsKey(superClass)) {
+                        break;
+                    } else {
+                        superInterfaces.addAll(Arrays.asList(superClass.getInterfaces()));
+                    }
+
+                    superClass = superClass.getSuperclass();
+                }
+
+                if (superClass != null) {
+                    classesToDirectSubClasses.computeIfAbsent(superClass, sc -> new HashSet<>()).add(subClass);
+                }
+            }
+
+            Set<Class<?>> resolvedInterfaces = new HashSet<>();
+
+            while (superInterfaces.isEmpty() == false) {
+                Class<?> superInterface = superInterfaces.remove(0);
+
+                if (resolvedInterfaces.add(superInterface)) {
+                    if (classesToPainlessClassBuilders.containsKey(superInterface)) {
+                        classesToDirectSubClasses.computeIfAbsent(superInterface, si -> new HashSet<>()).add(subClass);
+                    } else {
+                        superInterfaces.addAll(Arrays.asList(superInterface.getInterfaces()));
+                    }
+                }
+            }
+        }
     }
 
     private void copyPainlessClassMembers() {

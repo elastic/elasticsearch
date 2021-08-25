@@ -106,12 +106,12 @@ public class GrokTests extends ESTestCase {
 
         testSimpleSyslogLine(
             true,
-            tuple(Map.entry("[log][syslog][facility][code]", INTEGER), null),
-            tuple(Map.entry("[host][hostname]", STRING), logSource),
+            tuple(Map.entry("log.syslog.facility.code", INTEGER), null),
+            tuple(Map.entry("host.hostname", STRING), logSource),
             tuple(Map.entry("message", STRING), message),
-            tuple(Map.entry("[process][pid]", INTEGER), 1713),
-            tuple(Map.entry("[log][syslog][priority]", INTEGER), null),
-            tuple(Map.entry("[process][name]", STRING), program),
+            tuple(Map.entry("process.pid", INTEGER), 1713),
+            tuple(Map.entry("log.syslog.priority", INTEGER), null),
+            tuple(Map.entry("process.name", STRING), program),
             tuple(Map.entry("timestamp", STRING), timestamp),
             null,
             List.of("timestamp")
@@ -188,15 +188,15 @@ public class GrokTests extends ESTestCase {
         );
         testSyslog5424Line(
             true,
-            tuple(Map.entry("[process][name]", STRING), app),
-            tuple(Map.entry("[host][hostname]", STRING), host),
+            tuple(Map.entry("process.name", STRING), app),
+            tuple(Map.entry("host.hostname", STRING), host),
             tuple(Map.entry("message", STRING), msg),
-            tuple(Map.entry("[event][code]", STRING), null),
-            tuple(Map.entry("[log][syslog][priority]", INTEGER), 191),
-            tuple(Map.entry("[process][pid]", INTEGER), 4123),
-            tuple(Map.entry("[system][syslog][structured_data]", STRING), sd),
+            tuple(Map.entry("event.code", STRING), null),
+            tuple(Map.entry("log.syslog.priority", INTEGER), 191),
+            tuple(Map.entry("process.pid", INTEGER), 4123),
+            tuple(Map.entry("system.syslog.structured_data", STRING), sd),
             tuple(Map.entry("timestamp", STRING), ts),
-            tuple(Map.entry("[system][syslog][version]", STRING), ver)
+            tuple(Map.entry("system.syslog.version", STRING), ver)
         );
     }
 
@@ -622,17 +622,17 @@ public class GrokTests extends ESTestCase {
         );
         testApacheLog(
             true,
-            tuple(Map.entry("[user_agent][original]", STRING), agent),
-            tuple(Map.entry("[user][name]", STRING), null),
-            tuple(Map.entry("[http][response][body][bytes]", INTEGER), 69849),
-            tuple(Map.entry("[source][address]", STRING), clientIp),
-            tuple(Map.entry("[http][version]", STRING), httpVersion),
-            tuple(Map.entry("[apache][access][user][identity]", STRING), null),
-            tuple(Map.entry("[http][response][status_code]", INTEGER), 200),
-            tuple(Map.entry("[http][request][referrer]", STRING), referrer),
-            tuple(Map.entry("[url][original]", STRING), request),
+            tuple(Map.entry("user_agent.original", STRING), agent),
+            tuple(Map.entry("user.name", STRING), null),
+            tuple(Map.entry("http.response.body.bytes", INTEGER), 69849),
+            tuple(Map.entry("source.address", STRING), clientIp),
+            tuple(Map.entry("http.version", STRING), httpVersion),
+            tuple(Map.entry("apache.access.user.identity", STRING), null),
+            tuple(Map.entry("http.response.status_code", INTEGER), 200),
+            tuple(Map.entry("http.request.referrer", STRING), referrer),
+            tuple(Map.entry("url.original", STRING), request),
             tuple(Map.entry("timestamp", STRING), timestamp),
-            tuple(Map.entry("[http][request][method]", STRING), verb),
+            tuple(Map.entry("http.request.method", STRING), verb),
             List.of()
         );
     }

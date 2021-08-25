@@ -4,7 +4,7 @@ JAVAFILE (?:[a-zA-Z$_0-9. -]+)
 #Allow special <init>, <clinit> methods
 JAVAMETHOD (?:(<(?:cl)?init>)|[a-zA-Z$_][a-zA-Z$_0-9]*)
 #Line number is optional in special cases 'Native method' or 'Unknown source'
-JAVASTACKTRACEPART %{SPACE}at %{JAVACLASS:[java][log][origin][class][name]}\.%{JAVAMETHOD:[log][origin][function]}\(%{JAVAFILE:[log][origin][file][name]}(?::%{INT:[log][origin][file][line]:int})?\)
+JAVASTACKTRACEPART %{SPACE}at %{JAVACLASS:java.log.origin.class.name}\.%{JAVAMETHOD:log.origin.function}\(%{JAVAFILE:log.origin.file.name}(?::%{INT:log.origin.file.line:int})?\)
 # Java Logs
 JAVATHREAD (?:[A-Z]{2}-Processor[\d]+)
 JAVALOGMESSAGE (?:.*)
@@ -12,11 +12,11 @@ JAVALOGMESSAGE (?:.*)
 # MMM dd, yyyy HH:mm:ss eg: Jan 9, 2014 7:13:13 AM
 # matches default logging configuration in Tomcat 4.1, 5.0, 5.5, 6.0, 7.0
 CATALINA7_DATESTAMP %{MONTH} %{MONTHDAY}, %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} (?:AM|PM)
-CATALINA7_LOG %{CATALINA7_DATESTAMP:timestamp} %{JAVACLASS:[java][log][origin][class][name]}(?: %{JAVAMETHOD:[log][origin][function]})?\s*(?:%{LOGLEVEL:[log][level]}:)? %{JAVALOGMESSAGE:message}
+CATALINA7_LOG %{CATALINA7_DATESTAMP:timestamp} %{JAVACLASS:java.log.origin.class.name}(?: %{JAVAMETHOD:log.origin.function})?\s*(?:%{LOGLEVEL:log.level}:)? %{JAVALOGMESSAGE:message}
 
 # 31-Jul-2020 16:40:38.578 in Tomcat 8.5/9.0
 CATALINA8_DATESTAMP %{MONTHDAY}-%{MONTH}-%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}
-CATALINA8_LOG %{CATALINA8_DATESTAMP:timestamp} %{LOGLEVEL:[log][level]} \[%{DATA:[java][log][origin][thread][name]}\] %{JAVACLASS:[java][log][origin][class][name]}\.(?:%{JAVAMETHOD:[log][origin][function]})? %{JAVALOGMESSAGE:message}
+CATALINA8_LOG %{CATALINA8_DATESTAMP:timestamp} %{LOGLEVEL:log.level} \[%{DATA:java.log.origin.thread.name}\] %{JAVACLASS:java.log.origin.class.name}\.(?:%{JAVAMETHOD:log.origin.function})? %{JAVALOGMESSAGE:message}
 
 CATALINA_DATESTAMP (?:%{CATALINA8_DATESTAMP})|(?:%{CATALINA7_DATESTAMP})
 CATALINALOG (?:%{CATALINA8_LOG})|(?:%{CATALINA7_LOG})
@@ -27,7 +27,7 @@ TOMCAT8_LOG %{CATALINA8_LOG}
 
 # NOTE: a weird log we started with - not sure what TC version this should match out of the box (due the | delimiters)
 TOMCATLEGACY_DATESTAMP %{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:%{MINUTE}:%{SECOND}(?: %{ISO8601_TIMEZONE})?
-TOMCATLEGACY_LOG %{TOMCATLEGACY_DATESTAMP:timestamp} \| %{LOGLEVEL:[log][level]} \| %{JAVACLASS:[java][log][origin][class][name]} - %{JAVALOGMESSAGE:message}
+TOMCATLEGACY_LOG %{TOMCATLEGACY_DATESTAMP:timestamp} \| %{LOGLEVEL:log.level} \| %{JAVACLASS:java.log.origin.class.name} - %{JAVALOGMESSAGE:message}
 
 TOMCAT_DATESTAMP (?:%{CATALINA8_DATESTAMP})|(?:%{CATALINA7_DATESTAMP})|(?:%{TOMCATLEGACY_DATESTAMP})
 

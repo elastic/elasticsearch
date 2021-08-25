@@ -1,10 +1,10 @@
 # NetScreen firewall logs
-NETSCREENSESSIONLOG %{SYSLOGTIMESTAMP:timestamp} %{IPORHOST:[observer][hostname]} %{NOTSPACE:[observer][name]}: (?<[observer][product]>NetScreen) device_id=%{WORD:[netscreen][device_id]} .*?(system-\w+-%{NONNEGINT:[event][code]}\(%{WORD:[netscreen][session][type]}\))?: start_time="%{DATA:[netscreen][session][start_time]}" duration=%{INT:[netscreen][session][duration]:int} policy_id=%{INT:[netscreen][policy_id]} service=%{DATA:[netscreen][service]} proto=%{INT:[netscreen][protocol_number]:int} src zone=%{WORD:[observer][ingress][zone]} dst zone=%{WORD:[observer][egress][zone]} action=%{WORD:[event][action]} sent=%{INT:[source][bytes]:int} rcvd=%{INT:[destination][bytes]:int} src=%{IPORHOST:[source][address]} dst=%{IPORHOST:[destination][address]}(?: src_port=%{INT:[source][port]:int} dst_port=%{INT:[destination][port]:int})?(?: src-xlated ip=%{IP:[source][nat][ip]} port=%{INT:[source][nat][port]:int} dst-xlated ip=%{IP:[destination][nat][ip]} port=%{INT:[destination][nat][port]:int})?(?: session_id=%{INT:[netscreen][session][id]} reason=%{GREEDYDATA:[netscreen][session][reason]})?
-# :long - %{INT:[source][bytes]:int}
-# :long - %{INT:[destination][bytes]:int}
+NETSCREENSESSIONLOG %{SYSLOGTIMESTAMP:timestamp} %{IPORHOST:observer.hostname} %{NOTSPACE:observer.name}: (?<observer.product>NetScreen) device_id=%{WORD:netscreen.device_id} .*?(system-\w+-%{NONNEGINT:event.code}\(%{WORD:netscreen.session.type}\))?: start_time="%{DATA:netscreen.session.start_time}" duration=%{INT:netscreen.session.duration:int} policy_id=%{INT:netscreen.policy_id} service=%{DATA:netscreen.service} proto=%{INT:netscreen.protocol_number:int} src zone=%{WORD:observer.ingress.zone} dst zone=%{WORD:observer.egress.zone} action=%{WORD:event.action} sent=%{INT:source.bytes:int} rcvd=%{INT:destination.bytes:int} src=%{IPORHOST:source.address} dst=%{IPORHOST:destination.address}(?: src_port=%{INT:source.port:int} dst_port=%{INT:destination.port:int})?(?: src-xlated ip=%{IP:source.nat.ip} port=%{INT:source.nat.port:int} dst-xlated ip=%{IP:destination.nat.ip} port=%{INT:destination.nat.port:int})?(?: session_id=%{INT:netscreen.session.id} reason=%{GREEDYDATA:netscreen.session.reason})?
+# :long - %{INT:source.bytes:int}
+# :long - %{INT:destination.bytes:int}
 
 #== Cisco ASA ==
-CISCO_TAGGED_SYSLOG ^<%{POSINT:[log][syslog][priority]:int}>%{CISCOTIMESTAMP:timestamp}( %{SYSLOGHOST:[host][hostname]})? ?: %%{CISCOTAG:[cisco][asa][tag]}:
+CISCO_TAGGED_SYSLOG ^<%{POSINT:log.syslog.priority:int}>%{CISCOTIMESTAMP:timestamp}( %{SYSLOGHOST:host.hostname})? ?: %%{CISCOTAG:cisco.asa.tag}:
 CISCOTIMESTAMP %{MONTH} +%{MONTHDAY}(?: %{YEAR})? %{TIME}
 CISCOTAG [A-Z0-9]+-%{INT}-(?:[A-Z0-9_]+)
 # Common Particles
@@ -14,98 +14,98 @@ CISCO_DIRECTION Inbound|inbound|Outbound|outbound
 CISCO_INTERVAL first hit|%{INT}-second interval
 CISCO_XLATE_TYPE static|dynamic
 # helpers
-CISCO_HITCOUNT_INTERVAL hit-cnt %{INT:[cisco][asa][hit_count]:int} (?:first hit|%{INT:[cisco][asa][interval]:int}-second interval)
-CISCO_SRC_IP_USER %{NOTSPACE:[observer][ingress][interface][name]}:%{IP:[source][ip]}(?:\(%{DATA:[source][user][name]}\))?
-CISCO_DST_IP_USER %{NOTSPACE:[observer][egress][interface][name]}:%{IP:[destination][ip]}(?:\(%{DATA:[destination][user][name]}\))?
-CISCO_SRC_HOST_PORT_USER %{NOTSPACE:[observer][ingress][interface][name]}:(?:(?:%{IP:[source][ip]})|(?:%{HOSTNAME:[source][address]}))(?:/%{INT:[source][port]:int})?(?:\(%{DATA:[source][user][name]}\))?
-CISCO_DST_HOST_PORT_USER %{NOTSPACE:[observer][egress][interface][name]}:(?:(?:%{IP:[destination][ip]})|(?:%{HOSTNAME:[destination][address]}))(?:/%{INT:[destination][port]:int})?(?:\(%{DATA:[destination][user][name]}\))?
+CISCO_HITCOUNT_INTERVAL hit-cnt %{INT:cisco.asa.hit_count:int} (?:first hit|%{INT:cisco.asa.interval:int}-second interval)
+CISCO_SRC_IP_USER %{NOTSPACE:observer.ingress.interface.name}:%{IP:source.ip}(?:\(%{DATA:source.user.name}\))?
+CISCO_DST_IP_USER %{NOTSPACE:observer.egress.interface.name}:%{IP:destination.ip}(?:\(%{DATA:destination.user.name}\))?
+CISCO_SRC_HOST_PORT_USER %{NOTSPACE:observer.ingress.interface.name}:(?:(?:%{IP:source.ip})|(?:%{HOSTNAME:source.address}))(?:/%{INT:source.port:int})?(?:\(%{DATA:source.user.name}\))?
+CISCO_DST_HOST_PORT_USER %{NOTSPACE:observer.egress.interface.name}:(?:(?:%{IP:destination.ip})|(?:%{HOSTNAME:destination.address}))(?:/%{INT:destination.port:int})?(?:\(%{DATA:destination.user.name}\))?
 # ASA-1-104001
-CISCOFW104001 \((?:Primary|Secondary)\) Switching to ACTIVE - %{GREEDYDATA:[event][reason]}
+CISCOFW104001 \((?:Primary|Secondary)\) Switching to ACTIVE - %{GREEDYDATA:event.reason}
 # ASA-1-104002
-CISCOFW104002 \((?:Primary|Secondary)\) Switching to STANDBY - %{GREEDYDATA:[event][reason]}
+CISCOFW104002 \((?:Primary|Secondary)\) Switching to STANDBY - %{GREEDYDATA:event.reason}
 # ASA-1-104003
 CISCOFW104003 \((?:Primary|Secondary)\) Switching to FAILED\.
 # ASA-1-104004
 CISCOFW104004 \((?:Primary|Secondary)\) Switching to OK\.
 # ASA-1-105003
-CISCOFW105003 \((?:Primary|Secondary)\) Monitoring on [Ii]nterface %{NOTSPACE:[network][interface][name]} waiting
+CISCOFW105003 \((?:Primary|Secondary)\) Monitoring on [Ii]nterface %{NOTSPACE:network.interface.name} waiting
 # ASA-1-105004
-CISCOFW105004 \((?:Primary|Secondary)\) Monitoring on [Ii]nterface %{NOTSPACE:[network][interface][name]} normal
+CISCOFW105004 \((?:Primary|Secondary)\) Monitoring on [Ii]nterface %{NOTSPACE:network.interface.name} normal
 # ASA-1-105005
-CISCOFW105005 \((?:Primary|Secondary)\) Lost Failover communications with mate on [Ii]nterface %{NOTSPACE:[network][interface][name]}
+CISCOFW105005 \((?:Primary|Secondary)\) Lost Failover communications with mate on [Ii]nterface %{NOTSPACE:network.interface.name}
 # ASA-1-105008
-CISCOFW105008 \((?:Primary|Secondary)\) Testing [Ii]nterface %{NOTSPACE:[network][interface][name]}
+CISCOFW105008 \((?:Primary|Secondary)\) Testing [Ii]nterface %{NOTSPACE:network.interface.name}
 # ASA-1-105009
-CISCOFW105009 \((?:Primary|Secondary)\) Testing on [Ii]nterface %{NOTSPACE:[network][interface][name]} (?:Passed|Failed)
+CISCOFW105009 \((?:Primary|Secondary)\) Testing on [Ii]nterface %{NOTSPACE:network.interface.name} (?:Passed|Failed)
 # ASA-2-106001
-CISCOFW106001 %{CISCO_DIRECTION:[cisco][asa][network][direction]} %{WORD:[cisco][asa][network][transport]} connection %{CISCO_ACTION:[cisco][asa][outcome]} from %{IP:[source][ip]}/%{INT:[source][port]:int} to %{IP:[destination][ip]}/%{INT:[destination][port]:int} flags %{DATA:[cisco][asa][tcp_flags]} on interface %{NOTSPACE:[observer][egress][interface][name]}
+CISCOFW106001 %{CISCO_DIRECTION:cisco.asa.network.direction} %{WORD:cisco.asa.network.transport} connection %{CISCO_ACTION:cisco.asa.outcome} from %{IP:source.ip}/%{INT:source.port:int} to %{IP:destination.ip}/%{INT:destination.port:int} flags %{DATA:cisco.asa.tcp_flags} on interface %{NOTSPACE:observer.egress.interface.name}
 # ASA-2-106006, ASA-2-106007, ASA-2-106010
-CISCOFW106006_106007_106010 %{CISCO_ACTION:[cisco][asa][outcome]} %{CISCO_DIRECTION:[cisco][asa][network][direction]} %{WORD:[cisco][asa][network][transport]} (?:from|src) %{IP:[source][ip]}/%{INT:[source][port]:int}(?:\(%{DATA:[source][user][name]}\))? (?:to|dst) %{IP:[destination][ip]}/%{INT:[destination][port]:int}(?:\(%{DATA:[destination][user][name]}\))? (?:(?:on interface %{NOTSPACE:[observer][egress][interface][name]})|(?:due to %{CISCO_REASON:[event][reason]}))
+CISCOFW106006_106007_106010 %{CISCO_ACTION:cisco.asa.outcome} %{CISCO_DIRECTION:cisco.asa.network.direction} %{WORD:cisco.asa.network.transport} (?:from|src) %{IP:source.ip}/%{INT:source.port:int}(?:\(%{DATA:source.user.name}\))? (?:to|dst) %{IP:destination.ip}/%{INT:destination.port:int}(?:\(%{DATA:destination.user.name}\))? (?:(?:on interface %{NOTSPACE:observer.egress.interface.name})|(?:due to %{CISCO_REASON:event.reason}))
 # ASA-3-106014
-CISCOFW106014 %{CISCO_ACTION:[cisco][asa][outcome]} %{CISCO_DIRECTION:[cisco][asa][network][direction]} %{WORD:[cisco][asa][network][transport]} src %{CISCO_SRC_IP_USER} dst %{CISCO_DST_IP_USER}\s?\(type %{INT:[cisco][asa][icmp_type]:int}, code %{INT:[cisco][asa][icmp_code]:int}\)
+CISCOFW106014 %{CISCO_ACTION:cisco.asa.outcome} %{CISCO_DIRECTION:cisco.asa.network.direction} %{WORD:cisco.asa.network.transport} src %{CISCO_SRC_IP_USER} dst %{CISCO_DST_IP_USER}\s?\(type %{INT:cisco.asa.icmp_type:int}, code %{INT:cisco.asa.icmp_code:int}\)
 # ASA-6-106015
-CISCOFW106015 %{CISCO_ACTION:[cisco][asa][outcome]} %{WORD:[cisco][asa][network][transport]} \(%{DATA:[cisco][asa][rule_name]}\) from %{IP:[source][ip]}/%{INT:[source][port]:int} to %{IP:[destination][ip]}/%{INT:[destination][port]:int} flags %{DATA:[cisco][asa][tcp_flags]} on interface %{NOTSPACE:[observer][egress][interface][name]}
+CISCOFW106015 %{CISCO_ACTION:cisco.asa.outcome} %{WORD:cisco.asa.network.transport} \(%{DATA:cisco.asa.rule_name}\) from %{IP:source.ip}/%{INT:source.port:int} to %{IP:destination.ip}/%{INT:destination.port:int} flags %{DATA:cisco.asa.tcp_flags} on interface %{NOTSPACE:observer.egress.interface.name}
 # ASA-1-106021
-CISCOFW106021 %{CISCO_ACTION:[cisco][asa][outcome]} %{WORD:[cisco][asa][network][transport]} reverse path check from %{IP:[source][ip]} to %{IP:[destination][ip]} on interface %{NOTSPACE:[observer][egress][interface][name]}
+CISCOFW106021 %{CISCO_ACTION:cisco.asa.outcome} %{WORD:cisco.asa.network.transport} reverse path check from %{IP:source.ip} to %{IP:destination.ip} on interface %{NOTSPACE:observer.egress.interface.name}
 # ASA-4-106023
-CISCOFW106023 %{CISCO_ACTION:[cisco][asa][outcome]}(?: protocol)? %{WORD:[cisco][asa][network][transport]} src %{CISCO_SRC_HOST_PORT_USER} dst %{CISCO_DST_HOST_PORT_USER}( \(type %{INT:[cisco][asa][icmp_type]:int}, code %{INT:[cisco][asa][icmp_code]:int}\))? by access-group "?%{DATA:[cisco][asa][rule_name]}"? \[%{DATA:[@metadata][cisco][asa][hashcode1]}, %{DATA:[@metadata][cisco][asa][hashcode2]}\]
+CISCOFW106023 %{CISCO_ACTION:cisco.asa.outcome}(?: protocol)? %{WORD:cisco.asa.network.transport} src %{CISCO_SRC_HOST_PORT_USER} dst %{CISCO_DST_HOST_PORT_USER}( \(type %{INT:cisco.asa.icmp_type:int}, code %{INT:cisco.asa.icmp_code:int}\))? by access-group "?%{DATA:cisco.asa.rule_name}"? \%{DATA:[@metadata.cisco.asa.hashcode1}, %{DATA:@metadata.cisco.asa.hashcode2}\]
 # ASA-4-106100, ASA-4-106102, ASA-4-106103
-CISCOFW106100_2_3 access-list %{NOTSPACE:[cisco][asa][rule_name]} %{CISCO_ACTION:[cisco][asa][outcome]} %{WORD:[cisco][asa][network][transport]} for user '%{DATA:[user][name]}' %{DATA:[observer][ingress][interface][name]}/%{IP:[source][ip]}\(%{INT:[source][port]:int}\) -> %{DATA:[observer][egress][interface][name]}/%{IP:[destination][ip]}\(%{INT:[destination][port]:int}\) %{CISCO_HITCOUNT_INTERVAL} \[%{DATA:[@metadata][cisco][asa][hashcode1]}, %{DATA:[@metadata][cisco][asa][hashcode2]}\]
+CISCOFW106100_2_3 access-list %{NOTSPACE:cisco.asa.rule_name} %{CISCO_ACTION:cisco.asa.outcome} %{WORD:cisco.asa.network.transport} for user '%{DATA:user.name}' %{DATA:observer.ingress.interface.name}/%{IP:source.ip}\(%{INT:source.port:int}\) -> %{DATA:observer.egress.interface.name}/%{IP:destination.ip}\(%{INT:destination.port:int}\) %{CISCO_HITCOUNT_INTERVAL} \%{DATA:[@metadata.cisco.asa.hashcode1}, %{DATA:@metadata.cisco.asa.hashcode2}\]
 # ASA-5-106100
-CISCOFW106100 access-list %{NOTSPACE:[cisco][asa][rule_name]} %{CISCO_ACTION:[cisco][asa][outcome]} %{WORD:[cisco][asa][network][transport]} %{DATA:[observer][ingress][interface][name]}/%{IP:[source][ip]}\(%{INT:[source][port]:int}\)(?:\(%{DATA:[source][user][name]}\))? -> %{DATA:[observer][egress][interface][name]}/%{IP:[destination][ip]}\(%{INT:[destination][port]:int}\)(?:\(%{DATA:[source][user][name]}\))? hit-cnt %{INT:[cisco][asa][hit_count]:int} %{CISCO_INTERVAL} \[%{DATA:[@metadata][cisco][asa][hashcode1]}, %{DATA:[@metadata][cisco][asa][hashcode2]}\]
+CISCOFW106100 access-list %{NOTSPACE:cisco.asa.rule_name} %{CISCO_ACTION:cisco.asa.outcome} %{WORD:cisco.asa.network.transport} %{DATA:observer.ingress.interface.name}/%{IP:source.ip}\(%{INT:source.port:int}\)(?:\(%{DATA:source.user.name}\))? -> %{DATA:observer.egress.interface.name}/%{IP:destination.ip}\(%{INT:destination.port:int}\)(?:\(%{DATA:source.user.name}\))? hit-cnt %{INT:cisco.asa.hit_count:int} %{CISCO_INTERVAL} \%{DATA:[@metadata.cisco.asa.hashcode1}, %{DATA:@metadata.cisco.asa.hashcode2}\]
 # ASA-5-304001
-CISCOFW304001 %{IP:[source][ip]}(?:\(%{DATA:[source][user][name]}\))? Accessed URL %{IP:[destination][ip]}:%{GREEDYDATA:[url][original]}
+CISCOFW304001 %{IP:source.ip}(?:\(%{DATA:source.user.name}\))? Accessed URL %{IP:destination.ip}:%{GREEDYDATA:url.original}
 # ASA-6-110002
-CISCOFW110002 %{CISCO_REASON:[event][reason]} for %{WORD:[cisco][asa][network][transport]} from %{DATA:[observer][ingress][interface][name]}:%{IP:[source][ip]}/%{INT:[source][port]:int} to %{IP:[destination][ip]}/%{INT:[destination][port]:int}
+CISCOFW110002 %{CISCO_REASON:event.reason} for %{WORD:cisco.asa.network.transport} from %{DATA:observer.ingress.interface.name}:%{IP:source.ip}/%{INT:source.port:int} to %{IP:destination.ip}/%{INT:destination.port:int}
 # ASA-6-302010
-CISCOFW302010 %{INT:[cisco][asa][connections][in_use]:int} in use, %{INT:[cisco][asa][connections][most_used]:int} most used
+CISCOFW302010 %{INT:cisco.asa.connections.in_use:int} in use, %{INT:cisco.asa.connections.most_used:int} most used
 # ASA-6-302013, ASA-6-302014, ASA-6-302015, ASA-6-302016
-CISCOFW302013_302014_302015_302016 %{CISCO_ACTION:[cisco][asa][outcome]}(?: %{CISCO_DIRECTION:[cisco][asa][network][direction]})? %{WORD:[cisco][asa][network][transport]} connection %{INT:[cisco][asa][connection_id]} for %{NOTSPACE:[observer][ingress][interface][name]}:%{IP:[source][ip]}/%{INT:[source][port]:int}(?: \(%{IP:[source][nat][ip]}/%{INT:[source][nat][port]:int}\))?(?:\(%{DATA:[source][user][name?]}\))? to %{NOTSPACE:[observer][egress][interface][name]}:%{IP:[destination][ip]}/%{INT:[destination][port]:int}( \(%{IP:[destination][nat][ip]}/%{INT:[destination][nat][port]:int}\))?(?:\(%{DATA:[destination][user][name]}\))?( duration %{TIME:[cisco][asa][duration]} bytes %{INT:[network][bytes]:int})?(?: %{CISCO_REASON:[event][reason]})?(?: \(%{DATA:[user][name]}\))?
-# :long - %{INT:[network][bytes]:int}
+CISCOFW302013_302014_302015_302016 %{CISCO_ACTION:cisco.asa.outcome}(?: %{CISCO_DIRECTION:cisco.asa.network.direction})? %{WORD:cisco.asa.network.transport} connection %{INT:cisco.asa.connection_id} for %{NOTSPACE:observer.ingress.interface.name}:%{IP:source.ip}/%{INT:source.port:int}(?: \(%{IP:source.nat.ip}/%{INT:source.nat.port:int}\))?(?:\(%{DATA:source.user.name?}\))? to %{NOTSPACE:observer.egress.interface.name}:%{IP:destination.ip}/%{INT:destination.port:int}( \(%{IP:destination.nat.ip}/%{INT:destination.nat.port:int}\))?(?:\(%{DATA:destination.user.name}\))?( duration %{TIME:cisco.asa.duration} bytes %{INT:network.bytes:int})?(?: %{CISCO_REASON:event.reason})?(?: \(%{DATA:user.name}\))?
+# :long - %{INT:network.bytes:int}
 # ASA-6-302020, ASA-6-302021
-CISCOFW302020_302021 %{CISCO_ACTION:[cisco][asa][outcome]}(?: %{CISCO_DIRECTION:[cisco][asa][network][direction]})? %{WORD:[cisco][asa][network][transport]} connection for faddr %{IP:[destination][ip]}/%{INT:[cisco][asa][icmp_seq]:int}(?:\(%{DATA:[destination][user][name]}\))? gaddr %{IP:[source][nat][ip]}/%{INT:[cisco][asa][icmp_type]:int} laddr %{IP:[source][ip]}/%{INT}(?: \(%{DATA:[source][user][name]}\))?
+CISCOFW302020_302021 %{CISCO_ACTION:cisco.asa.outcome}(?: %{CISCO_DIRECTION:cisco.asa.network.direction})? %{WORD:cisco.asa.network.transport} connection for faddr %{IP:destination.ip}/%{INT:cisco.asa.icmp_seq:int}(?:\(%{DATA:destination.user.name}\))? gaddr %{IP:source.nat.ip}/%{INT:cisco.asa.icmp_type:int} laddr %{IP:source.ip}/%{INT}(?: \(%{DATA:source.user.name}\))?
 # ASA-6-305011
-CISCOFW305011 %{CISCO_ACTION:[cisco][asa][outcome]} %{CISCO_XLATE_TYPE} %{WORD:[cisco][asa][network][transport]} translation from %{DATA:[observer][ingress][interface][name]}:%{IP:[source][ip]}(/%{INT:[source][port]:int})?(?:\(%{DATA:[source][user][name]}\))? to %{DATA:[observer][egress][interface][name]}:%{IP:[destination][ip]}/%{INT:[destination][port]:int}
+CISCOFW305011 %{CISCO_ACTION:cisco.asa.outcome} %{CISCO_XLATE_TYPE} %{WORD:cisco.asa.network.transport} translation from %{DATA:observer.ingress.interface.name}:%{IP:source.ip}(/%{INT:source.port:int})?(?:\(%{DATA:source.user.name}\))? to %{DATA:observer.egress.interface.name}:%{IP:destination.ip}/%{INT:destination.port:int}
 # ASA-3-313001, ASA-3-313004, ASA-3-313008
-CISCOFW313001_313004_313008 %{CISCO_ACTION:[cisco][asa][outcome]} %{WORD:[cisco][asa][network][transport]} type=%{INT:[cisco][asa][icmp_type]:int}, code=%{INT:[cisco][asa][icmp_code]:int} from %{IP:[source][ip]} on interface %{NOTSPACE:[observer][egress][interface][name]}(?: to %{IP:[destination][ip]})?
+CISCOFW313001_313004_313008 %{CISCO_ACTION:cisco.asa.outcome} %{WORD:cisco.asa.network.transport} type=%{INT:cisco.asa.icmp_type:int}, code=%{INT:cisco.asa.icmp_code:int} from %{IP:source.ip} on interface %{NOTSPACE:observer.egress.interface.name}(?: to %{IP:destination.ip})?
 # ASA-4-313005
-CISCOFW313005 %{CISCO_REASON:[event][reason]} for %{WORD:[cisco][asa][network][transport]} error message: %{WORD} src %{CISCO_SRC_IP_USER} dst %{CISCO_DST_IP_USER} \(type %{INT:[cisco][asa][icmp_type]:int}, code %{INT:[cisco][asa][icmp_code]:int}\) on %{NOTSPACE} interface\.\s+Original IP payload: %{WORD:[cisco][asa][original_ip_payload][network][transport]} src %{IP:[cisco][asa][original_ip_payload][source][ip]}/%{INT:[cisco][asa][original_ip_payload][source][port]:int}(?:\(%{DATA:[cisco][asa][original_ip_payload][source][user][name]}\))? dst %{IP:[cisco][asa][original_ip_payload][destination][ip]}/%{INT:[cisco][asa][original_ip_payload][destination][port]:int}(?:\(%{DATA:[cisco][asa][original_ip_payload][destination][user][name]}\))?
+CISCOFW313005 %{CISCO_REASON:event.reason} for %{WORD:cisco.asa.network.transport} error message: %{WORD} src %{CISCO_SRC_IP_USER} dst %{CISCO_DST_IP_USER} \(type %{INT:cisco.asa.icmp_type:int}, code %{INT:cisco.asa.icmp_code:int}\) on %{NOTSPACE} interface\.\s+Original IP payload: %{WORD:cisco.asa.original_ip_payload.network.transport} src %{IP:cisco.asa.original_ip_payload.source.ip}/%{INT:cisco.asa.original_ip_payload.source.port:int}(?:\(%{DATA:cisco.asa.original_ip_payload.source.user.name}\))? dst %{IP:cisco.asa.original_ip_payload.destination.ip}/%{INT:cisco.asa.original_ip_payload.destination.port:int}(?:\(%{DATA:cisco.asa.original_ip_payload.destination.user.name}\))?
 # ASA-5-321001
-CISCOFW321001 Resource '%{DATA:[cisco][asa][resource][name]}' limit of %{POSINT:[cisco][asa][resource][limit]:int} reached for system
+CISCOFW321001 Resource '%{DATA:cisco.asa.resource.name}' limit of %{POSINT:cisco.asa.resource.limit:int} reached for system
 # ASA-4-402117
-CISCOFW402117 %{WORD:[cisco][asa][network][type]}: Received a non-IPSec packet \(protocol=\s?%{WORD:[cisco][asa][network][transport]}\) from %{IP:[source][ip]} to %{IP:[destination][ip]}\.?
+CISCOFW402117 %{WORD:cisco.asa.network.type}: Received a non-IPSec packet \(protocol=\s?%{WORD:cisco.asa.network.transport}\) from %{IP:source.ip} to %{IP:destination.ip}\.?
 # ASA-4-402119
-CISCOFW402119 %{WORD:[cisco][asa][network][type]}: Received an %{WORD:[cisco][asa][ipsec][protocol]} packet \(SPI=\s?%{DATA:[cisco][asa][ipsec][spi]}, sequence number=\s?%{DATA:[cisco][asa][ipsec][seq_num]}\) from %{IP:[source][ip]} \(user=\s?%{DATA:[source][user][name]}\) to %{IP:[destination][ip]} that failed anti-replay checking\.?
+CISCOFW402119 %{WORD:cisco.asa.network.type}: Received an %{WORD:cisco.asa.ipsec.protocol} packet \(SPI=\s?%{DATA:cisco.asa.ipsec.spi}, sequence number=\s?%{DATA:cisco.asa.ipsec.seq_num}\) from %{IP:source.ip} \(user=\s?%{DATA:source.user.name}\) to %{IP:destination.ip} that failed anti-replay checking\.?
 # ASA-4-419001
-CISCOFW419001 %{CISCO_ACTION:[cisco][asa][outcome]} %{WORD:[cisco][asa][network][transport]} packet from %{NOTSPACE:[observer][ingress][interface][name]}:%{IP:[source][ip]}/%{INT:[source][port]:int} to %{NOTSPACE:[observer][egress][interface][name]}:%{IP:[destination][ip]}/%{INT:[destination][port]:int}, reason: %{GREEDYDATA:[event][reason]}
+CISCOFW419001 %{CISCO_ACTION:cisco.asa.outcome} %{WORD:cisco.asa.network.transport} packet from %{NOTSPACE:observer.ingress.interface.name}:%{IP:source.ip}/%{INT:source.port:int} to %{NOTSPACE:observer.egress.interface.name}:%{IP:destination.ip}/%{INT:destination.port:int}, reason: %{GREEDYDATA:event.reason}
 # ASA-4-419002
-CISCOFW419002 %{CISCO_REASON:[event][reason]} from %{DATA:[observer][ingress][interface][name]}:%{IP:[source][ip]}/%{INT:[source][port]:int} to %{DATA:[observer][egress][interface][name]}:%{IP:[destination][ip]}/%{INT:[destination][port]:int} with different initial sequence number
+CISCOFW419002 %{CISCO_REASON:event.reason} from %{DATA:observer.ingress.interface.name}:%{IP:source.ip}/%{INT:source.port:int} to %{DATA:observer.egress.interface.name}:%{IP:destination.ip}/%{INT:destination.port:int} with different initial sequence number
 # ASA-4-500004
-CISCOFW500004 %{CISCO_REASON:[event][reason]} for protocol=%{WORD:[cisco][asa][network][transport]}, from %{IP:[source][ip]}/%{INT:[source][port]:int} to %{IP:[destination][ip]}/%{INT:[destination][port]:int}
+CISCOFW500004 %{CISCO_REASON:event.reason} for protocol=%{WORD:cisco.asa.network.transport}, from %{IP:source.ip}/%{INT:source.port:int} to %{IP:destination.ip}/%{INT:destination.port:int}
 # ASA-6-602303, ASA-6-602304
-CISCOFW602303_602304 %{WORD:[cisco][asa][network][type]}: An %{CISCO_DIRECTION:[cisco][asa][network][direction]} %{DATA:[cisco][asa][ipsec][tunnel_type]} SA \(SPI=\s?%{DATA:[cisco][asa][ipsec][spi]}\) between %{IP:[source][ip]} and %{IP:[destination][ip]} \(user=\s?%{DATA:[source][user][name]}\) has been %{CISCO_ACTION:[cisco][asa][outcome]}
+CISCOFW602303_602304 %{WORD:cisco.asa.network.type}: An %{CISCO_DIRECTION:cisco.asa.network.direction} %{DATA:cisco.asa.ipsec.tunnel_type} SA \(SPI=\s?%{DATA:cisco.asa.ipsec.spi}\) between %{IP:source.ip} and %{IP:destination.ip} \(user=\s?%{DATA:source.user.name}\) has been %{CISCO_ACTION:cisco.asa.outcome}
 # ASA-7-710001, ASA-7-710002, ASA-7-710003, ASA-7-710005, ASA-7-710006
-CISCOFW710001_710002_710003_710005_710006 %{WORD:[cisco][asa][network][transport]} (?:request|access) %{CISCO_ACTION:[cisco][asa][outcome]} from %{IP:[source][ip]}/%{INT:[source][port]:int} to %{DATA:[observer][egress][interface][name]}:%{IP:[destination][ip]}/%{INT:[destination][port]:int}
+CISCOFW710001_710002_710003_710005_710006 %{WORD:cisco.asa.network.transport} (?:request|access) %{CISCO_ACTION:cisco.asa.outcome} from %{IP:source.ip}/%{INT:source.port:int} to %{DATA:observer.egress.interface.name}:%{IP:destination.ip}/%{INT:destination.port:int}
 # ASA-6-713172
-CISCOFW713172 Group = %{DATA:[cisco][asa][source][group]}, IP = %{IP:[source][ip]}, Automatic NAT Detection Status:\s+Remote end\s*%{DATA:[@metadata][cisco][asa][remote_nat]}\s*behind a NAT device\s+This\s+end\s*%{DATA:[@metadata][cisco][asa][local_nat]}\s*behind a NAT device
+CISCOFW713172 Group = %{DATA:cisco.asa.source.group}, IP = %{IP:source.ip}, Automatic NAT Detection Status:\s+Remote end\s*%{DATA:@metadata.cisco.asa.remote_nat}\s*behind a NAT device\s+This\s+end\s*%{DATA:@metadata.cisco.asa.local_nat}\s*behind a NAT device
 # ASA-4-733100
-CISCOFW733100 \[\s*%{DATA:[cisco][asa][burst][object]}\s*\] drop %{DATA:[cisco][asa][burst][id]} exceeded. Current burst rate is %{INT:[cisco][asa][burst][current_rate]:int} per second, max configured rate is %{INT:[cisco][asa][burst][configured_rate]:int}; Current average rate is %{INT:[cisco][asa][burst][avg_rate]:int} per second, max configured rate is %{INT:[cisco][asa][burst][configured_avg_rate]:int}; Cumulative total count is %{INT:[cisco][asa][burst][cumulative_count]:int}
+CISCOFW733100 \\s*%{DATA:[cisco.asa.burst.object}\s*\] drop %{DATA:cisco.asa.burst.id} exceeded. Current burst rate is %{INT:cisco.asa.burst.current_rate:int} per second, max configured rate is %{INT:cisco.asa.burst.configured_rate:int}; Current average rate is %{INT:cisco.asa.burst.avg_rate:int} per second, max configured rate is %{INT:cisco.asa.burst.configured_avg_rate:int}; Cumulative total count is %{INT:cisco.asa.burst.cumulative_count:int}
 #== End Cisco ASA ==
 
 
 IPTABLES_TCP_FLAGS (CWR |ECE |URG |ACK |PSH |RST |SYN |FIN )*
-IPTABLES_TCP_PART (?:SEQ=%{INT:[iptables][tcp][seq]:int}\s+)?(?:ACK=%{INT:[iptables][tcp][ack]:int}\s+)?WINDOW=%{INT:[iptables][tcp][window]:int}\s+RES=0x%{BASE16NUM:[iptables][tcp_reserved_bits]}\s+%{IPTABLES_TCP_FLAGS:[iptables][tcp][flags]}
+IPTABLES_TCP_PART (?:SEQ=%{INT:iptables.tcp.seq:int}\s+)?(?:ACK=%{INT:iptables.tcp.ack:int}\s+)?WINDOW=%{INT:iptables.tcp.window:int}\s+RES=0x%{BASE16NUM:iptables.tcp_reserved_bits}\s+%{IPTABLES_TCP_FLAGS:iptables.tcp.flags}
 
 IPTABLES4_FRAG (?:(?<= )(?:CE|DF|MF))*
-IPTABLES4_PART SRC=%{IPV4:[source][ip]}\s+DST=%{IPV4:[destination][ip]}\s+LEN=(?:%{INT:[iptables][length]:int})?\s+TOS=(?:0|0x%{BASE16NUM:[iptables][tos]})?\s+PREC=(?:0x%{BASE16NUM:[iptables][precedence_bits]})?\s+TTL=(?:%{INT:[iptables][ttl]:int})?\s+ID=(?:%{INT:[iptables][id]})?\s+(?:%{IPTABLES4_FRAG:[iptables][fragment_flags]})?(?:\s+FRAG: %{INT:[iptables][fragment_offset]:int})?
-IPTABLES6_PART SRC=%{IPV6:[source][ip]}\s+DST=%{IPV6:[destination][ip]}\s+LEN=(?:%{INT:[iptables][length]:int})?\s+TC=(?:0|0x%{BASE16NUM:[iptables][tos]})?\s+HOPLIMIT=(?:%{INT:[iptables][ttl]:int})?\s+FLOWLBL=(?:%{INT:[iptables][flow_label]})?
+IPTABLES4_PART SRC=%{IPV4:source.ip}\s+DST=%{IPV4:destination.ip}\s+LEN=(?:%{INT:iptables.length:int})?\s+TOS=(?:0|0x%{BASE16NUM:iptables.tos})?\s+PREC=(?:0x%{BASE16NUM:iptables.precedence_bits})?\s+TTL=(?:%{INT:iptables.ttl:int})?\s+ID=(?:%{INT:iptables.id})?\s+(?:%{IPTABLES4_FRAG:iptables.fragment_flags})?(?:\s+FRAG: %{INT:iptables.fragment_offset:int})?
+IPTABLES6_PART SRC=%{IPV6:source.ip}\s+DST=%{IPV6:destination.ip}\s+LEN=(?:%{INT:iptables.length:int})?\s+TC=(?:0|0x%{BASE16NUM:iptables.tos})?\s+HOPLIMIT=(?:%{INT:iptables.ttl:int})?\s+FLOWLBL=(?:%{INT:iptables.flow_label})?
 
-IPTABLES IN=(?:%{NOTSPACE:[observer][ingress][interface][name]})?\s+OUT=(?:%{NOTSPACE:[observer][egress][interface][name]})?\s+(?:MAC=(?:%{COMMONMAC:[destination][mac]})?(?::%{COMMONMAC:[source][mac]})?(?::[A-Fa-f0-9]{2}:[A-Fa-f0-9]{2})?\s+)?(:?%{IPTABLES4_PART}|%{IPTABLES6_PART}).*?PROTO=(?:%{WORD:[network][transport]})?\s+SPT=(?:%{INT:[source][port]:int})?\s+DPT=(?:%{INT:[destination][port]:int})?\s+(?:%{IPTABLES_TCP_PART})?
+IPTABLES IN=(?:%{NOTSPACE:observer.ingress.interface.name})?\s+OUT=(?:%{NOTSPACE:observer.egress.interface.name})?\s+(?:MAC=(?:%{COMMONMAC:destination.mac})?(?::%{COMMONMAC:source.mac})?(?::A-Fa-f0-9{2}:A-Fa-f0-9{2})?\s+)?(:?%{IPTABLES4_PART}|%{IPTABLES6_PART}).*?PROTO=(?:%{WORD:network.transport})?\s+SPT=(?:%{INT:source.port:int})?\s+DPT=(?:%{INT:destination.port:int})?\s+(?:%{IPTABLES_TCP_PART})?
 
 # Shorewall firewall logs
-SHOREWALL (?:%{SYSLOGTIMESTAMP:timestamp}) (?:%{WORD:[observer][hostname]}) .*Shorewall:(?:%{WORD:[shorewall][firewall][type]})?:(?:%{WORD:[shorewall][firewall][action]})?.*%{IPTABLES}
+SHOREWALL (?:%{SYSLOGTIMESTAMP:timestamp}) (?:%{WORD:observer.hostname}) .*Shorewall:(?:%{WORD:shorewall.firewall.type})?:(?:%{WORD:shorewall.firewall.action})?.*%{IPTABLES}
 #== End Shorewall
 #== SuSE Firewall 2 ==
-SFW2_LOG_PREFIX SFW2\-INext\-%{NOTSPACE:[suse][firewall][action]}
-SFW2 ((?:%{SYSLOGTIMESTAMP:timestamp})|(?:%{TIMESTAMP_ISO8601:timestamp}))\s*%{HOSTNAME:[observer][hostname]}.*?%{SFW2_LOG_PREFIX:[suse][firewall][log_prefix]}\s*%{IPTABLES}
+SFW2_LOG_PREFIX SFW2\-INext\-%{NOTSPACE:suse.firewall.action}
+SFW2 ((?:%{SYSLOGTIMESTAMP:timestamp})|(?:%{TIMESTAMP_ISO8601:timestamp}))\s*%{HOSTNAME:observer.hostname}.*?%{SFW2_LOG_PREFIX:suse.firewall.log_prefix}\s*%{IPTABLES}
 #== End SuSE ==

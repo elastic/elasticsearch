@@ -110,27 +110,27 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
-        final ClusterState clusterState = clusterService.state();
-        final Map<String, OriginalIndices> remoteClusterIndices =
+        ClusterState clusterState = clusterService.state();
+        Map<String, OriginalIndices> remoteClusterIndices =
             transportService.getRemoteClusterService().groupIndices(request.indicesOptions(), request.indices());
-        final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final String[] concreteIndices;
+        OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        String[] concreteIndices;
         if (localIndices == null) {
             // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
             concreteIndices = Strings.EMPTY_ARRAY;
         } else {
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
         }
-        final int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();
+        int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();
         if (totalNumRequest == 0) {
             listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
             return;
         }
 
-        final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
-        final FailureCollector indexFailures = new FailureCollector();
+        List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
+        FailureCollector indexFailures = new FailureCollector();
 
-        final Runnable countDown = createResponseMerger(request, totalNumRequest, indexResponses, indexFailures, listener);
+        Runnable countDown = createResponseMerger(request, totalNumRequest, indexResponses, indexFailures, listener);
 
         if (concreteIndices.length > 0) {
             // fork this action to the management pool as it can fan out to a large number of child requests that get handled on SAME and
@@ -197,7 +197,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                           List<FieldCapabilitiesIndexResponse> indexResponses,
                                           FailureCollector indexFailures,
                                           ActionListener<FieldCapabilitiesResponse> listener) {
-        final CountDown completionCounter = new CountDown(totalNumRequests);
+        CountDown completionCounter = new CountDown(totalNumRequests);
         return () -> {
             if (completionCounter.countDown()) {
                 List<FieldCapabilitiesFailure> failures = indexFailures.values();

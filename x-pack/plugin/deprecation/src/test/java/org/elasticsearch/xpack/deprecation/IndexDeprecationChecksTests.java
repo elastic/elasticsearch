@@ -28,7 +28,6 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -546,7 +545,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         Map<String, Object> nestedProperties = Stream.of(new Object[][] {
             { "type", "nested" },
             { "properties", Collections.singletonMap("location", deprecatedPropertiesMap) },
-        }).collect(Collectors.toMap(data -> (String) data[0], data -> (Object) data[1]));
+        }).collect(Collectors.toMap(data -> (String) data[0], data -> data[1]));
         Map<String, Object> nestedDeprecatedGeoMappingMap = Collections.singletonMap("properties",
             Collections.singletonMap("nested_field", nestedProperties));
         mappingMetadata = new MappingMetadata("", nestedDeprecatedGeoMappingMap);

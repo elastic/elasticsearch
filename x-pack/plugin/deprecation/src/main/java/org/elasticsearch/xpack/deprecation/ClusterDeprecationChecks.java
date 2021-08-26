@@ -216,21 +216,22 @@ public class ClusterDeprecationChecks {
                 String messageForTemplate =
                     StreamSupport.stream(indexTemplateMetadata.getMappings().spliterator(), false).map((mappingCursor) -> {
                         CompressedXContent mapping = mappingCursor.value;
-                        Tuple<XContentType, Map<String, Object>>    tuple = XContentHelper.convertToMap(mapping.uncompressed(), true, XContentType.JSON);
+                        Tuple<XContentType, Map<String, Object>>    tuple = XContentHelper.convertToMap(mapping.uncompressed(), true,
+                            XContentType.JSON);
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
                         List<String> messages = IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
                             mappingAsMap,
                             IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
                             IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
                         return messages;
-                    }).filter(messages -> !messages.isEmpty()).map(messages -> {
+                    }).filter(messages -> messages.isEmpty() == false).map(messages -> {
                         String messageForMapping =
                             "mappings in template " + templateName + " contains deprecated properties. " +
                                 messages.stream().collect(Collectors.joining("; "));
                         return messageForMapping;
                     }).collect(Collectors.joining("; "));
                 return messageForTemplate;
-            }).filter(messageForTempalte -> !Strings.isEmpty(messageForTempalte)).collect(Collectors.joining("; "));
+            }).filter(messageForTempalte -> Strings.isEmpty(messageForTempalte) == false).collect(Collectors.joining("; "));
         if (Strings.isEmpty(messageForCluster)) {
             return null;
         } else {

@@ -26,6 +26,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -219,7 +220,8 @@ public class ClusterDeprecationChecks {
                         Tuple<XContentType, Map<String, Object>>    tuple = XContentHelper.convertToMap(mapping.uncompressed(), true,
                             XContentType.JSON);
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
-                        List<String> messages = IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                        List<String> messages = mappingAsMap == null ? Collections.EMPTY_LIST :
+                            IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
                             mappingAsMap,
                             IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
                             IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);

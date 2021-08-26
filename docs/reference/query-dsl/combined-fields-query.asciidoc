@@ -5,14 +5,14 @@
 ++++
 
 The `combined_fields` query supports searching multiple text fields as if their
-contents had been indexed into one combined field. It takes a term-centric
-view of the query: first it analyzes the query string into individual terms,
+contents had been indexed into one combined field. The query takes a term-centric
+view of the input string: first it analyzes the query string into individual terms,
 then looks for each term in any of the fields. This query is particularly
 useful when a match could span multiple text fields, for example the `title`,
-`abstract` and `body` of an article:
+`abstract`, and `body` of an article:
 
 [source,console]
---------------------------------------------------
+----
 GET /_search
 {
   "query": {
@@ -23,31 +23,36 @@ GET /_search
     }
   }
 }
---------------------------------------------------
+----
 
 The `combined_fields` query takes a principled approach to scoring based on the
 simple BM25F formula described in
 http://www.staff.city.ac.uk/~sb317/papers/foundations_bm25_review.pdf[The Probabilistic Relevance Framework: BM25 and Beyond].
 When scoring matches, the query combines term and collection statistics across
-fields. This allows it to score each match as if the specified fields had been
-indexed into a single combined field. (Note that this is a best attempt --
-`combined_fields` makes some approximations and scores will not obey this
-model perfectly.)
+fields to score each match as if the specified fields had been indexed into a
+single, combined field. This scoring is a best attempt; `combined_fields` makes
+some approximations and scores will not obey the BM25F model perfectly.
 
+// tag::max-clause-limit[]
 [WARNING]
 .Field number limit
 ===================================================
-There is a limit on the number of fields that can be queried at once. It is
-defined by the `indices.query.bool.max_clause_count` <<search-settings>>
-which defaults to 1024.
+By default, there is a limit to the number of clauses a query can contain. This
+limit is defined by the
+<<indices-query-bool-max-clause-count,`indices.query.bool.max_clause_count`>>
+setting, which defaults to `1024`. For `combined_fields` queries, the number of
+clauses is calculated as the number of fields multiplied by the number of terms.
 ===================================================
+// end::max-clause-limit[]
 
 ==== Per-field boosting
 
-Individual fields can be boosted with the caret (`^`) notation:
+Field boosts are interpreted according to the combined field model. For example,
+if the `title` field has a boost of 2, the score is calculated as if each term
+in the title appeared twice in the synthetic combined field.
 
 [source,console]
---------------------------------------------------
+----
 GET /_search
 {
   "query": {
@@ -57,11 +62,8 @@ GET /_search
     }
   }
 }
---------------------------------------------------
-
-Field boosts are interpreted according to the combined field model. For example,
-if the `title` field has a boost of 2, the score is calculated as if each term
-in the title appeared twice in the synthetic combined field.
+----
+<1> Individual fields can be boosted with the caret (`^`) notation.
 
 NOTE: The `combined_fields` query requires that field boosts are greater than
 or equal to 1.0. Field boosts are allowed to be fractional.
@@ -149,7 +151,7 @@ term-centric: `operator` and `minimum_should_match` are applied per-term,
 instead of per-field. Concretely, a query like
 
 [source,console]
---------------------------------------------------
+----
 GET /_search
 {
   "query": {
@@ -160,12 +162,15 @@ GET /_search
     }
   }
 }
---------------------------------------------------
+----
 
-is executed as
+is executed as:
 
-    +(combined("database", fields:["title" "abstract"]))
-    +(combined("systems", fields:["title", "abstract"]))
+[source,txt]
+----
++(combined("database", fields:["title" "abstract"]))
++(combined("systems", fields:["title", "abstract"]))
+----
 
 In other words, each term must be present in at least one field for a
 document to match.
@@ -178,8 +183,8 @@ to scoring based on the BM25F algorithm.
 [NOTE]
 .Custom similarities
 ===================================================
-The `combined_fields` query currently only supports the `BM25` similarity
-(which is the default unless a <<index-modules-similarity, custom similarity>>
-is configured). <<similarity, Per-field similarities>> are also not allowed.
+The `combined_fields` query currently only supports the BM25 similarity,
+which is the default unless a <<index-modules-similarity, custom similarity>>
+is configured. <<similarity, Per-field similarities>> are also not allowed.
 Using `combined_fields` in either of these cases will result in an error.
 ===================================================

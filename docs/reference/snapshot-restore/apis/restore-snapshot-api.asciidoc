@@ -180,7 +180,7 @@ Supports <<api-multi-index,multi-target syntax>>. Defaults to all indices and
 data streams in the snapshot, including system indices.
 +
 You can only restore an existing index if it's closed. You can't restore an
-existing data stream. If you restore a data stream, you also restore it's
+existing data stream. If you restore a data stream, you also restore its
 backing indices. The restore operation automatically opens restored indices,
 including backing indices.
 +

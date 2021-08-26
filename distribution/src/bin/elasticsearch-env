@@ -119,6 +119,13 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
 
   declare -a es_arg_array
 
+  containsElement () {
+    local e match="$1"
+    shift
+    for e; do [[ "$e" == "$match" ]] && return 0; done
+    return 1
+  }
+
   while IFS='=' read -r envvar_key envvar_value
   do
     # Elasticsearch settings need to have at least two dot separated lowercase
@@ -126,13 +133,15 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
     # prefixed with `ES_SETTING_`, e.g. `ES_SETTING_CLUSTER_NAME`. Underscores in setting names
     # are escaped by writing them as a double-underscore e.g. "__"
     if [[ ! -z "$envvar_value" ]]; then
+      es_opt=""
       if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
         es_opt="-E${envvar_key}=${envvar_value}"
-        es_arg_array+=("${es_opt}")
       elif [[ "$envvar_key" =~ ^ES_SETTING(_{1,2}[A-Z]+)+$ ]]; then
           # The long-hand sed `y` command works in any sed variant.
           envvar_key="$(echo "$envvar_key" | sed -e 's/^ES_SETTING_//; s/_/./g ; s/\.\./_/g; y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' )"
           es_opt="-E${envvar_key}=${envvar_value}"
+      fi
+      if [[ ! -z "${es_opt}" ]] && ! containsElement "${es_opt}" "$@" ; then
           es_arg_array+=("${es_opt}")
       fi
     fi

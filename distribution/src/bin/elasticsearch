@@ -68,7 +68,7 @@ if [[ $AUTO_CONFIG = true ]]; then
   else
     ret=$?
     AUTO_CONFIG_DONE=false
-    # these exit codes cover the cases where auto-conf cannot run, but the node should not be prevented from starting as usual
+    # these exit codes cover the cases where auto-conf cannot run but the node should not be prevented from starting as usual
     if [[ $ret -ne 63 ]] && [[ $ret -ne 73 ]] && [[ $ret -ne 78 ]]; then
       exit $ret
     fi

@@ -164,18 +164,15 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory", e);
         }
 
-        // Ensure that the files created by the auto-config command have the same owner as the config dir itself,
-        // as well as that the replaced files (node's yml and keystore files) don't change ownership.
-        // This is because the files created by this command have hard-coded "no" permissions for "group" and "other"
-        // This effectively requires that installation (unpacking) and running the node be performed by the same user
-        // We should investigate to relax this requirement
-        UserPrincipal newFileOwner = Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS);
-        if ((false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS))) ||
-                (false == newFileOwner.equals(Files.getOwner(ymlPath, LinkOption.NOFOLLOW_LINKS))) ||
-                (Files.exists(keystorePath) && false == newFileOwner.equals(Files.getOwner(keystorePath, LinkOption.NOFOLLOW_LINKS)))) {
+        // Check that the created auto-config dir has the same owner as the config dir.
+        // This is a sort of sanity check.
+        // If the node process works OK given the owner of the config dir, it should also tolerate the auto-created config dir,
+        // provided that they both have the same owner and permissions.
+        final UserPrincipal newFileOwner = Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS);
+        if (false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS))) {
             Files.deleteIfExists(instantAutoConfigDir);
             // the following is only printed once, if the node starts successfully
-            throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because it changes file ownership");
+            throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because of config dir ownership mismatch");
         }
 
         // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
@@ -510,15 +507,6 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                 view.setPermissions(permission);
             }
             if (replace) {
-                if (Files.exists(filePath, LinkOption.NOFOLLOW_LINKS) &&
-                        false == Files.getOwner(tmpPath, LinkOption.NOFOLLOW_LINKS).equals(Files.getOwner(filePath,
-                                LinkOption.NOFOLLOW_LINKS))) {
-                    String message = String.format(
-                            Locale.ROOT,
-                            "will not overwrite file at [%s], because this incurs changing the file owner",
-                            filePath);
-                    throw new UserException(ExitCodes.CONFIG, message);
-                }
                 Files.move(tmpPath, filePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } else {
                 Files.move(tmpPath, filePath, StandardCopyOption.ATOMIC_MOVE);

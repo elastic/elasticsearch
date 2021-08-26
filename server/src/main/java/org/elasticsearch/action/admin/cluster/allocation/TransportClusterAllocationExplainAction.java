@@ -132,9 +132,11 @@ public class TransportClusterAllocationExplainAction
                 }
             }
             if (foundShard == null) {
-                throw new IllegalArgumentException("No shard was specified in the request which means the response should explain a " +
-                    "randomly-chosen unassigned shard, but there are no unassigned shards in this cluster. To explain the allocation of " +
-                    "an assigned shard you must specify the target shard in the request.");
+                throw new IllegalArgumentException(
+                    "No shard was specified in the request which means the response should explain a randomly-chosen unassigned shard, "
+                        + "but there are no unassigned shards in this cluster. To explain the allocation of an assigned shard you must "
+                        + "specify the target shard in the request."
+                );
             }
         } else {
             String index = request.getIndex();

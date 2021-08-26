@@ -177,7 +177,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             }
 
             try {
-                SearchResponse response = searchFunction.apply(buildSearchRequest());
+                SearchResponse response = searchFunction.apply(buildSearchRequest().v2());
                 nextPhase.onResponse(response);
             } catch (Exception e) {
                 nextPhase.onFailure(e);

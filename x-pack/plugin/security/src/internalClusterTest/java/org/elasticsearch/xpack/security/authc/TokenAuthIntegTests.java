@@ -197,24 +197,50 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         // Weird testing behaviour ahead...
         // invalidating by access token (above) is a Get, but invalidating by refresh token (below) is a Search
-        // In a multi node cluster, in a small % of cases, the search might find a document that has been invalidated but not yet deleted
-        // from that node's shard.
-        // Our assertion, therefore, is that an attempt to invalidate the (already invalidated) refresh token must not actually invalidate
+        // In a multi node cluster, in a small % of cases, the search might find a document that has been deleted but not yet refreshed
+        // in that node's shard.
+        // Our assertion, therefore, is that an attempt to invalidate the refresh token must not actually invalidate
         // anything (concurrency controls must prevent that), nor may return any errors,
-        // but it might _temporarily_ find an "already invalidated" token.
+        // but it might _temporarily_ find an "already deleted" token.
         final InvalidateTokenRequest invalidateRefreshTokenRequest = InvalidateTokenRequest.refreshToken(refreshToken);
         InvalidateTokenResponse invalidateRefreshTokenResponse = restClient.security().invalidateToken(
             invalidateRefreshTokenRequest, SECURITY_REQUEST_OPTIONS);
         assertThat(invalidateRefreshTokenResponse.getInvalidatedTokens(), equalTo(0));
-        assertThat(invalidateRefreshTokenResponse.getErrors(), empty());
+        assertThat(invalidateRefreshTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
 
-        // 99% of the time, this will already be zero, but if not ensure it goes to zero within the allowed timeframe
-        if (invalidateRefreshTokenResponse.getPreviouslyInvalidatedTokens() > 0) {
+        // 99% of the time, this will already be empty, but if not ensure it goes to empty within the allowed timeframe
+        if (false == invalidateRefreshTokenResponse.getErrors().isEmpty()) {
             assertBusy(() -> {
                 var newResponse = restClient.security().invalidateToken(invalidateRefreshTokenRequest, SECURITY_REQUEST_OPTIONS);
-                assertThat(newResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+                assertThat(newResponse.getErrors(), empty());
             });
         }
+    }
+
+    public void testAccessTokenAndRefreshTokenCanBeInvalidatedIndependently() throws IOException {
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        CreateTokenResponse response = restClient.security().createToken(CreateTokenRequest.passwordGrant(
+            SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
+        final InvalidateTokenRequest invalidateRequest1, invalidateRequest2;
+        if (randomBoolean()) {
+            invalidateRequest1 = InvalidateTokenRequest.accessToken(response.getAccessToken());
+            invalidateRequest2 = InvalidateTokenRequest.refreshToken(response.getRefreshToken());
+        } else {
+            invalidateRequest1 = InvalidateTokenRequest.refreshToken(response.getRefreshToken());
+            invalidateRequest2 = InvalidateTokenRequest.accessToken(response.getAccessToken());
+        }
+
+        final InvalidateTokenResponse response1 =
+            restClient.security().invalidateToken(invalidateRequest1, SECURITY_REQUEST_OPTIONS);
+        assertThat(response1.getInvalidatedTokens(), equalTo(1));
+        assertThat(response1.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(response1.getErrors(), empty());
+
+        final InvalidateTokenResponse response2 =
+            restClient.security().invalidateToken(invalidateRequest2, SECURITY_REQUEST_OPTIONS);
+        assertThat(response2.getInvalidatedTokens(), equalTo(1));
+        assertThat(response2.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(response2.getErrors(), empty());
     }
 
     public void testInvalidateAllTokensForUser() throws Exception {

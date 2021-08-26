@@ -128,6 +128,11 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
     }
 
     @Override
+    public boolean isAllocateOnly() {
+        return false;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(numTopClasses);
         out.writeString(topClassesResultsField);

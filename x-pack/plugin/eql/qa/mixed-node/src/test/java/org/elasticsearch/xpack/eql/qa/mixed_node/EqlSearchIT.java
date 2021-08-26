@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.eql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -47,7 +46,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.readResource;
 /**
  * Class testing the behavior of events and sequence queries in a mixed cluster scenario (during rolling upgrade).
  * The test is against a three-node cluster where one node is upgraded, the other two are on the old version.
- *  
+ *
  */
 public class EqlSearchIT extends ESRestTestCase {
 
@@ -66,7 +65,7 @@ public class EqlSearchIT extends ESRestTestCase {
         numDocs = randomIntBetween(numShards, 15);
         newNodes = new ArrayList<>(nodes.getNewNodes());
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
-        
+
         String mappings = readResource(EqlSearchIT.class.getResourceAsStream("/eql_mapping.json"));
         createIndex(
             index,
@@ -119,13 +118,10 @@ public class EqlSearchIT extends ESRestTestCase {
             .collect(Collectors.toSet());
         // each function has a query and query results associated to it
         Set<String> testedFunctions = new HashSet<>();
-        // TODO: remove the 8.0.0 version check after code reaches 7.x as well
-        boolean multiValued = newNodes.get(0).getVersion() != Version.V_8_0_0
-            && nodes.getBWCVersion().onOrAfter(RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
+        boolean multiValued = nodes.getBWCVersion().onOrAfter(RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
         try (
-            // TODO: use newNodes (instead of bwcNodes) after code reaches 7.x as well
             RestClient client = buildClient(restClientSettings(),
-                bwcNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
+                newNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
         ) {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._id";
@@ -171,8 +167,8 @@ public class EqlSearchIT extends ESRestTestCase {
                 "PROCESS where modulo(ppid, 10) == 0",
                 multiValued ? new int[] {121, 122} : new int[] {121});
             assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "multiply",
-                "PROCESS where multiply(pid, 10) == 120",
-                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119, 120, 122});
+                "PROCESS where string(multiply(pid, 10) == 120) == \\\"true\\\"",
+                multiValued ? new int[] {116, 117, 118, 119, 120, 122} : new int[] {116, 117, 118, 119});
             assertMultiValueFunctionQuery(availableFunctions, testedFunctions, request, client, "number",
                 "PROCESS where number(command_line) + pid >= 360",
                 multiValued ? new int[] {122, 123} : new int[] {123});

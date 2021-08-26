@@ -17,6 +17,7 @@ source "`dirname "$0"`"/elasticsearch-env
 
 CHECK_KEYSTORE=true
 AUTO_CONFIG="${AUTO_CONFIG:-true}"
+AUTO_CONFIG_DONE=false
 DAEMONIZE=false
 QUIET=false
 for option in "$@"; do
@@ -30,9 +31,6 @@ for option in "$@"; do
       ;;
     -q|--quiet)
       QUIET=true
-      ;;
-    -e|--enroll)
-      AUTO_CONFIG=false
       ;;
   esac
 done
@@ -54,19 +52,27 @@ then
   fi
 fi
 
-# TODO filter out arguments but ensure all required arguments can be read by the command
 if [[ $AUTO_CONFIG = true ]]; then
-  # it is possible that an auto-configuration failure can prevent the node from starting, but this is only the exceptional case
-  # most likely an auto-configuration failure will leave the configuration untouched, optionally printing a message
-  # if the error is unexpected, but the node will start as usual
-  # TODO get error code to see if auto config really worked
-  # TODO this can return non-zero exit code!!
-  ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigInitialNode \
+  # It is possible that an auto-conf failure prevents the node from starting, but this is only the exceptional case (exit code 1).
+  # Most likely an auto-conf failure will leave the configuration untouched (exit codes 63, 73, and 78), optionally printing a message
+  # if the error is uncommon or unexpected, but it should otherwise let the node to start as usual.
+  # This is passed in all the command line options in order to read the node settings ones (-E), while the others are ignored
+  # (a small caveat is that this also handles the -v option in order to provide more information on how auto-config went)
+  if ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigInitialNode \
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
     "$(dirname "$0")/elasticsearch-cli" \
     "$@" \
-    <<<"$KEYSTORE_PASSWORD"
+    <<<"$KEYSTORE_PASSWORD"; then
+      AUTO_CONFIG_DONE=true
+  else
+    ret=$?
+    AUTO_CONFIG_DONE=false
+    # these exit codes cover the cases where auto-conf cannot run, but the node should not be prevented from starting as usual
+    if [[ $ret -ne 63 ]] && [[ $ret -ne 73 ]] && [[ $ret -ne 78 ]]; then
+      exit $ret
+    fi
+  fi
 fi
 
 # The JVM options parser produces the final JVM options to start Elasticsearch.
@@ -80,8 +86,7 @@ ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasti
 
 # manual parsing to find out if process should be detached
 if [[ $DAEMONIZE = false ]]; then
-# TODO only run if auto config successfully
-  if [[ ("$AUTO_CONFIG" = true) && ("$QUIET" = false) ]]; then
+  if [[ ("$AUTO_CONFIG_DONE" = true) && ("$QUIET" = false) ]]; then
 # First check if the banner can be displayed given the OS and terminal type
     if "$JAVA" "$XSHARE" -cp "$ES_HOME/lib/jansi-2.3.4.jar:$ES_HOME/lib/elasticsearch-launchers-@project.version@.jar" \
       org.elasticsearch.tools.launchers.TerminalOutputFormatter; then

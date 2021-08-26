@@ -1261,7 +1261,6 @@ public final class PainlessLookupBuilder {
 
     public PainlessLookup build() {
         buildPainlessClassHierarchy();
-        //copyPainlessClassMembers();
         setFunctionalInterfaceMethods();
         generateRuntimeMethods();
         cacheRuntimeHandles();
@@ -1338,70 +1337,6 @@ public final class PainlessLookupBuilder {
                         superInterfaces.addAll(Arrays.asList(superInterface.getInterfaces()));
                     }
                 }
-            }
-        }
-    }
-
-    private void copyPainlessClassMembers() {
-        for (Class<?> parentClass : classesToPainlessClassBuilders.keySet()) {
-            copyPainlessInterfaceMembers(parentClass, parentClass);
-
-            Class<?> childClass = parentClass.getSuperclass();
-
-            while (childClass != null) {
-                if (classesToPainlessClassBuilders.containsKey(childClass)) {
-                    copyPainlessClassMembers(childClass, parentClass);
-                }
-
-                copyPainlessInterfaceMembers(childClass, parentClass);
-                childClass = childClass.getSuperclass();
-            }
-        }
-
-        for (Class<?> javaClass : classesToPainlessClassBuilders.keySet()) {
-            if (javaClass.isInterface()) {
-                copyPainlessClassMembers(Object.class, javaClass);
-            }
-        }
-    }
-
-    private void copyPainlessInterfaceMembers(Class<?> parentClass, Class<?> targetClass) {
-        for (Class<?> childClass : parentClass.getInterfaces()) {
-            if (classesToPainlessClassBuilders.containsKey(childClass)) {
-                copyPainlessClassMembers(childClass, targetClass);
-            }
-
-            copyPainlessInterfaceMembers(childClass, targetClass);
-        }
-    }
-
-    private void copyPainlessClassMembers(Class<?> originalClass, Class<?> targetClass) {
-        PainlessClassBuilder originalPainlessClassBuilder = classesToPainlessClassBuilders.get(originalClass);
-        PainlessClassBuilder targetPainlessClassBuilder = classesToPainlessClassBuilders.get(targetClass);
-
-        Objects.requireNonNull(originalPainlessClassBuilder);
-        Objects.requireNonNull(targetPainlessClassBuilder);
-
-        for (Map.Entry<String, PainlessMethod> painlessMethodEntry : originalPainlessClassBuilder.methods.entrySet()) {
-            String painlessMethodKey = painlessMethodEntry.getKey();
-            PainlessMethod newPainlessMethod = painlessMethodEntry.getValue();
-            PainlessMethod existingPainlessMethod = targetPainlessClassBuilder.methods.get(painlessMethodKey);
-
-            if (existingPainlessMethod == null || existingPainlessMethod.targetClass != newPainlessMethod.targetClass &&
-                    existingPainlessMethod.targetClass.isAssignableFrom(newPainlessMethod.targetClass)) {
-                targetPainlessClassBuilder.methods.put(painlessMethodKey.intern(), newPainlessMethod);
-            }
-        }
-
-        for (Map.Entry<String, PainlessField> painlessFieldEntry : originalPainlessClassBuilder.fields.entrySet()) {
-            String painlessFieldKey = painlessFieldEntry.getKey();
-            PainlessField newPainlessField = painlessFieldEntry.getValue();
-            PainlessField existingPainlessField = targetPainlessClassBuilder.fields.get(painlessFieldKey);
-
-            if (existingPainlessField == null ||
-                    existingPainlessField.javaField.getDeclaringClass() != newPainlessField.javaField.getDeclaringClass() &&
-                    existingPainlessField.javaField.getDeclaringClass().isAssignableFrom(newPainlessField.javaField.getDeclaringClass())) {
-                targetPainlessClassBuilder.fields.put(painlessFieldKey.intern(), newPainlessField);
             }
         }
     }

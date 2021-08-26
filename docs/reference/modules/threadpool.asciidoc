@@ -44,7 +44,7 @@ There are several thread pools, but the important ones include:
 `snapshot_meta`::
     For snapshot repository metadata read operations. Thread pool type is `scaling` with a
     keep-alive of `5m` and a max of `min(50, (`<<node.processors,
-    `# of allocated processors`>>` pass:[ * 3]))`.
+    `# of allocated processors`>>`* 3))`.
 
 `warmer`::
     For segment warm-up operations. Thread pool type is `scaling` with a

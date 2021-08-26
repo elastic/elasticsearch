@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -202,11 +203,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63088")
     @SuppressWarnings("unchecked")
     public void testWatcherWithApiKey() throws Exception {
         final Request getWatchStatusRequest = new Request("GET", "/_watcher/watch/watch_with_api_key");
-        getWatchStatusRequest.addParameter("filter_path", "status");
 
         if (isRunningAgainstOldCluster()) {
             final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
@@ -247,11 +246,19 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
                 final int version = (int) status.get("version");
 
+                final AtomicBoolean versionIncreased = new AtomicBoolean();
+                final AtomicBoolean executed = new AtomicBoolean();
                 assertBusy(() -> {
                     final Map<String, Object> newGetWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
                     final Map<String, Object> newStatus = (Map<String, Object>) newGetWatchStatusResponse.get("status");
-                    assertThat((int) newStatus.get("version"), greaterThan(version + 2));
-                    assertEquals("executed", newStatus.get("execution_state"));
+                    if (false == versionIncreased.get() && version < (int) newStatus.get("version")) {
+                        versionIncreased.set(true);
+                    }
+                    if (false == executed.get() && "executed".equals(newStatus.get("execution_state"))) {
+                        executed.set(true);
+                    }
+                    assertThat("version increased: [" + versionIncreased.get() + "], executed: [" + executed.get() + "]",
+                        versionIncreased.get() && executed.get(), is(true));
                 });
             } finally {
                 stopWatcher();

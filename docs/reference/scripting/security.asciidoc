@@ -62,5 +62,4 @@ are allowed, set `script.allowed_contexts` to `none`.
 ----
 script.allowed_contexts: score, update <1>
 ----
-<1> This will allow only scoring and update scripts to be executed but not
-aggs or plugin scripts (or any other contexts).
+<1> Scripts can only run in a scoring and update context.

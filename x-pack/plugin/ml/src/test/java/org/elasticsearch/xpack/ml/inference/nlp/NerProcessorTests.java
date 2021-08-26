@@ -108,7 +108,7 @@ public class NerProcessorTests extends ESTestCase {
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANISATION.toString()));
+        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANIZATION.toString()));
         assertThat(result.getEntityGroups().get(1).getWord(), equalTo("london"));
         assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION.toString()));
     }
@@ -144,7 +144,7 @@ public class NerProcessorTests extends ESTestCase {
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANISATION.toString()));
+        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANIZATION.toString()));
         assertThat(result.getEntityGroups().get(1).getWord(), equalTo("london"));
         assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION.toString()));
     }
@@ -169,7 +169,7 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(entityGroups.get(0).getWord(), equalTo("Sarah Jessica"));
         assertThat(entityGroups.get(1).getLabel(), equalTo("location"));
         assertThat(entityGroups.get(1).getWord(), equalTo("Manchester"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("organisation"));
+        assertThat(entityGroups.get(2).getLabel(), equalTo("organization"));
         assertThat(entityGroups.get(2).getWord(), equalTo("Elastic"));
     }
 
@@ -214,7 +214,7 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(entityGroups.get(0).getWord(), equalTo("FirstName SecondName"));
         assertThat(entityGroups.get(1).getLabel(), equalTo("person"));
         assertThat(entityGroups.get(1).getWord(), equalTo("NextPerson NextPersonSecondName"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("organisation"));
+        assertThat(entityGroups.get(2).getLabel(), equalTo("organization"));
     }
 
     private static TokenizationResult tokenize(List<String> vocab, String input) {

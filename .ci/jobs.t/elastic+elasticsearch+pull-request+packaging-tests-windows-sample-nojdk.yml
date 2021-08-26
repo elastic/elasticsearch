@@ -1,8 +1,8 @@
 ---
 - job:
-    name: "elastic+elasticsearch+pull-request+packaging-tests-windows"
-    display-name: "elastic / elasticsearch - pull request packaging-tests-windows"
-    description: "Testing of Elasticsearch pull requests - packaging-tests-windows"
+    name: "elastic+elasticsearch+pull-request+packaging-tests-windows-sample-nojdk"
+    display-name: "elastic / elasticsearch - pull request packaging-tests-windows-sample-nojdk"
+    description: "Testing of Elasticsearch pull requests - packaging-tests-windows-sample-nojdk"
     # We use a hard-coded workspace directory here to avoid hitting windows path length limits
     child-workspace: "C:\\Users\\jenkins\\workspace\\pr-packaging-windows\\${BUILD_NUMBER}"
     project-type: matrix
@@ -17,31 +17,31 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/packaging-tests-windows.*'
+          trigger-phrase: '.*run\W+elasticsearch-ci/packaging-tests-windows-sample.*'
           github-hooks: true
-          status-context: elasticsearch-ci/packaging-tests-windows
+          status-context: elasticsearch-ci/packaging-tests-windows-sample
           cancel-builds-on-update: true
-          white-list-target-branches:
+          # We've removed the no-jdk distribution on master as well
+          black-list-target-branches:
             - master
+            - 6.8
           excluded-regions:
             - ^docs/.*
-          white-list-labels:
-            - ':Delivery/Packaging'
           black-list-labels:
             - '>test-mute'
+            - ':Delivery/Packaging'
     axes:
       - axis:
           type: label-expression
           name: os
           values:
-            - "windows-2012-r2"
-            - "windows-2016"
             - "windows-2019"
       - axis:
           type: user-defined
           name: PACKAGING_TASK
           values:
             - 'default-windows-archive'
+            - 'default-windows-archive-no-jdk'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

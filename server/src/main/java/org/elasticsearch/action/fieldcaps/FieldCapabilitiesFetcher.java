@@ -43,12 +43,12 @@ class FieldCapabilitiesFetcher {
     }
 
     public FieldCapabilitiesIndexResponse fetch(FieldCapabilitiesIndexRequest request) throws IOException {
-        final ShardId shardId = request.shardId();
-        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        final IndexShard indexShard = indexService.getShard(request.shardId().getId());
+        ShardId shardId = request.shardId();
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(request.shardId().getId());
         try (Engine.Searcher searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
 
-            final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(shardId.id(), 0,
+            SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(shardId.id(), 0,
                 searcher, request::nowInMillis, null, request.runtimeFields());
 
             if (canMatchShard(request, searchExecutionContext) == false) {

@@ -39,13 +39,13 @@ class SamlLogoutRequestMessageBuilder extends SamlMessageBuilder {
         }
 
         final SessionIndex sessionIndex = SamlUtils.buildObject(SessionIndex.class, SessionIndex.DEFAULT_ELEMENT_NAME);
-        sessionIndex.setSessionIndex(session);
+        sessionIndex.setValue(session);
 
         final Issuer issuer = buildIssuer();
 
         final LogoutRequest request = SamlUtils.buildObject(LogoutRequest.class, LogoutRequest.DEFAULT_ELEMENT_NAME);
         request.setID(buildId());
-        request.setIssueInstant(now());
+        request.setIssueInstant(clock.instant());
         request.setDestination(logoutUrl);
         request.setNameID(nameId);
         request.getSessionIndexes().add(sessionIndex);

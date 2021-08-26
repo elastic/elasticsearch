@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.LogoutRequest;
@@ -23,6 +21,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Base64;
 import java.util.Collections;
 
@@ -152,7 +154,7 @@ public class SamlRedirectTests extends SamlTestCase {
     private LogoutRequest buildLogoutRequest(String logoutUrl) {
         final LogoutRequest logoutRequest = SamlUtils.buildObject(LogoutRequest.class, LogoutRequest.DEFAULT_ELEMENT_NAME);
         logoutRequest.setDestination(logoutUrl);
-        logoutRequest.setIssueInstant(new DateTime(2018, 1, 14, 22, 47, DateTimeZone.UTC));
+        logoutRequest.setIssueInstant(ZonedDateTime.of(LocalDate.of(2018, 1, 14), LocalTime.of(22, 47), ZoneOffset.UTC).toInstant());
         logoutRequest.setID("_id123456789");
         final Issuer issuer = SamlUtils.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         issuer.setValue(IDP_ENTITY_ID);

@@ -128,8 +128,8 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         assertThat(spDescriptor.getAttributeConsumingServices(), iterableWithSize(1));
         assertThat(spDescriptor.getAttributeConsumingServices().get(0).isDefault(), equalTo(true));
         assertThat(spDescriptor.getAttributeConsumingServices().get(0).getIndex(), equalTo(1));
-        assertThat(spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes(), iterableWithSize(1));
-        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes().get(0);
+        assertThat(spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes(), iterableWithSize(1));
+        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes().get(0);
         assertThat(uidAttribute.getName(), equalTo("urn:oid:0.9.2342.19200300.100.1.1"));
         assertThat(uidAttribute.getFriendlyName(), equalTo("principal"));
 
@@ -257,7 +257,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final SPSSODescriptor spDescriptor = (SPSSODescriptor) descriptor.getRoleDescriptors().get(0);
 
         assertThat(spDescriptor.getAttributeConsumingServices(), iterableWithSize(1));
-        final List<RequestedAttribute> attributes = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes();
+        final List<RequestedAttribute> attributes = spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes();
         assertThat(attributes, iterableWithSize(4));
 
         assertThat(attributes.get(0).getFriendlyName(), equalTo("mail"));
@@ -302,7 +302,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final SPSSODescriptor spDescriptor = (SPSSODescriptor) descriptor.getRoleDescriptors().get(0);
 
         assertThat(spDescriptor.getAttributeConsumingServices(), iterableWithSize(1));
-        final List<RequestedAttribute> attributes = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes();
+        final List<RequestedAttribute> attributes = spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes();
         assertThat(attributes, iterableWithSize(2));
 
         assertThat(attributes.get(0).getFriendlyName(), nullValue());
@@ -364,7 +364,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         assertThat(spDescriptor.getAssertionConsumerServices().get(0).getIndex(), equalTo(1));
         assertThat(spDescriptor.getAssertionConsumerServices().get(0).getBinding(), equalTo(SAMLConstants.SAML2_POST_BINDING_URI));
 
-        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes().get(0);
+        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes().get(0);
         assertThat(uidAttribute.getName(), equalTo("urn:oid:0.9.2342.19200300.100.1.1"));
         assertThat(uidAttribute.getFriendlyName(), equalTo("principal"));
 
@@ -648,8 +648,8 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         assertThat(spDescriptor.getAttributeConsumingServices(), iterableWithSize(1));
         assertThat(spDescriptor.getAttributeConsumingServices().get(0).isDefault(), equalTo(true));
         assertThat(spDescriptor.getAttributeConsumingServices().get(0).getIndex(), equalTo(1));
-        assertThat(spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes(), iterableWithSize(1));
-        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes().get(0);
+        assertThat(spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes(), iterableWithSize(1));
+        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes().get(0);
         assertThat(uidAttribute.getName(), equalTo("urn:oid:0.9.2342.19200300.100.1.1"));
         assertThat(uidAttribute.getFriendlyName(), equalTo("principal"));
 

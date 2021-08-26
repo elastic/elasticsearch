@@ -14,11 +14,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
 import org.hamcrest.Matchers;
-import org.joda.time.Duration;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.NameID;
 
 import java.net.URL;
+import java.time.Duration;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.emptyIterable;
@@ -148,9 +148,8 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
     private ServiceProviderDefaults configureIdentityProviderDefaults() {
         final String defaultNameId = NameID.TRANSIENT;
         final String defaultApplication = randomAlphaOfLengthBetween(4, 12);
-        final Duration defaultExpiry = Duration.standardMinutes(12);
-        final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
-            defaultApplication, defaultNameId, defaultExpiry);
+        final Duration defaultExpiry = Duration.ofMinutes(12);
+        final ServiceProviderDefaults defaults = new ServiceProviderDefaults(defaultApplication, defaultNameId, defaultExpiry);
         when(identityProvider.getServiceProviderDefaults()).thenReturn(defaults);
         return defaults;
     }

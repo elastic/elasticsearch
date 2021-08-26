@@ -661,7 +661,7 @@ public class SamlRealmTests extends SamlTestCase {
             assertThat(request.getDestination(), equalTo("https://logout.saml/"));
             assertThat(request.getNameID(), equalTo(nameId));
             assertThat(request.getSessionIndexes(), iterableWithSize(1));
-            assertThat(request.getSessionIndexes().get(0).getSessionIndex(), equalTo(session));
+            assertThat(request.getSessionIndexes().get(0).getValue(), equalTo(session));
         }
     }
 

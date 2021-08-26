@@ -881,7 +881,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 ClusterState.EMPTY_STATE,
                 new XPackLicenseState(Settings.EMPTY, () -> 0));
         assertNotNull(issue.getDetails());
-        assertThat(issue.getDetails(), containsString("remove the system property "));
+        assertThat(issue.getDetails(), containsString("system property is deprecated and will be removed in the next major release"));
         assertThat(issue.getUrl(),
             equalTo("https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_transport_changes"));
         System.clearProperty("es.unsafely_permit_handshake_from_incompatible_builds");

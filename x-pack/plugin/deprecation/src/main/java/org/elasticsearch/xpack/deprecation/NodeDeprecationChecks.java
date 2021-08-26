@@ -30,6 +30,7 @@ import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -600,17 +601,17 @@ class NodeDeprecationChecks {
                                                                          final PluginsAndModules pluginsAndModules,
                                                                          final ClusterState clusterState,
                                                                          final XPackLicenseState licenseState) {
-        final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
-        if (System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY) != null) {
+        if (System.getProperty(TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY) != null) {
             final String message = String.format(
                 Locale.ROOT,
-                "system property [%s] must not be set",
-                PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
+                "the [%s] system property is deprecated and will be removed in the next major release",
+                TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
             );
             final String details = String.format(
                 Locale.ROOT,
-                "remove the system property [%s]",
-                PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
+                "allowing handshakes from incompatibile builds is deprecated and will be removed in the next major release; the [%s] " +
+                    "system property must be removed",
+                TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
             );
             String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_transport_changes";
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);

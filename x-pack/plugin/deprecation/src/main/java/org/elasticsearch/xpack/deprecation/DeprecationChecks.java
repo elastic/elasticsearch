@@ -95,6 +95,9 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
                     NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
+                    NodeDeprecationChecks::checkAcceptDefaultPasswordSetting,
+                    NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
+                    NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
                 )
             ).collect(Collectors.toList());

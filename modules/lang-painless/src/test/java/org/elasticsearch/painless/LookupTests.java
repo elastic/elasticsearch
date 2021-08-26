@@ -48,13 +48,9 @@ public class LookupTests extends ESTestCase {
 
     public void testDirectSubClasses() {
         Set<Class<?>> directSubClasses = painlessLookup.getDirectSubClasses(Object.class);
-        assertEquals(8, directSubClasses.size());
+        assertEquals(4, directSubClasses.size());
         assertTrue(directSubClasses.contains(A.class));
         assertTrue(directSubClasses.contains(Z.class));
-        assertTrue(directSubClasses.contains(V.class));
-        assertTrue(directSubClasses.contains(U.class));
-        assertTrue(directSubClasses.contains(T.class));
-        assertTrue(directSubClasses.contains(S.class));
         assertTrue(directSubClasses.contains(AA.class));
         assertTrue(directSubClasses.contains(AD.class));
 

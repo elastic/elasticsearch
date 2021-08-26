@@ -1305,15 +1305,29 @@ public final class PainlessLookupBuilder {
         for (Class<?> subClass : classesToPainlessClassBuilders.keySet()) {
             List<Class<?>> superInterfaces = new ArrayList<>(Arrays.asList(subClass.getInterfaces()));
 
-            if (subClass.isInterface() && classesToPainlessClassBuilders.containsKey(Object.class)) {
+            // we check for Object.class as part of the allow listed classes because
+            // it is possible for the compiler to work without Object
+            if (subClass.isInterface() && superInterfaces.isEmpty() && classesToPainlessClassBuilders.containsKey(Object.class)) {
                 classesToDirectSubClasses.get(Object.class).add(subClass);
             } else {
                 Class<?> superClass = subClass.getSuperclass();
 
+                // this finds the nearest super class for a given sub class
+                // because the allow list may have gaps between classes
+                // example:
+                // class A {}        // allowed
+                // class B extends A // not allowed
+                // class C extends B // allowed
+                // in this case C is considered a direct sub class of A
                 while (superClass != null) {
                     if (classesToPainlessClassBuilders.containsKey(superClass)) {
                         break;
                     } else {
+                        // this ensures all interfaces from a sub class that
+                        // is not allow listed are checked if they are
+                        // considered a direct super class of the sub class
+                        // because these interfaces may still be allow listed
+                        // even if their sub class is not
                         superInterfaces.addAll(Arrays.asList(superClass.getInterfaces()));
                     }
 

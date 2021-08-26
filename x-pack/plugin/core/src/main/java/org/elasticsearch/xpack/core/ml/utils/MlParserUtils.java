@@ -95,8 +95,8 @@ public final class MlParserUtils {
 
         double [][][] val = new double[values.size()][values.get(0).size()][values.get(0).get(0).size()];
 
-        for (int i=0; i<val.length; i++) {
-            for (int j=0; j<val[0].length; j++) {
+        for (int i = 0; i < val.length; i++) {
+            for (int j = 0; j < val[0].length; j++) {
                 double[] doubles = values.get(i).get(j).stream().mapToDouble(d -> d).toArray();
                 System.arraycopy(doubles, 0, val[i][j], 0, doubles.length);
             }

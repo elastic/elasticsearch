@@ -13,9 +13,14 @@ import org.gradle.process.ExecOperations;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * This class wraps certain {@code git} operations. This is partly for convenience, and partly so that these
+ * operations can be easily mocked in testing.
+ */
 public class GitWrapper {
 
     private final ExecOperations execOperations;
@@ -24,6 +29,9 @@ public class GitWrapper {
         this.execOperations = execOperations;
     }
 
+    /**
+     * @return a mapping from remote names to remote URLs.
+     */
     public Map<String, String> listRemotes() {
         return runCommand("git", "remote", "-v").lines()
             .filter(l -> l.contains("(fetch)"))
@@ -43,18 +51,38 @@ public class GitWrapper {
         return stdout.toString(StandardCharsets.UTF_8);
     }
 
+    /**
+     * Updates the git repository from the specified remote
+     * @param remote the remote to use to update
+     */
     public void updateRemote(String remote) {
-        runCommand("git", "fetch", remote);
+        runCommand("git", "fetch", Objects.requireNonNull(remote));
     }
 
+    /**
+     * Updates the git repository's tags from the specified remote
+     * @param remote the remote to use to update
+     */
     public void updateTags(String remote) {
-        runCommand("git", "fetch", "--tags", remote);
+        runCommand("git", "fetch", "--tags", Objects.requireNonNull(remote));
     }
 
+    /**
+     * Fetch all tags matching the specified pattern, returning them as {@link QualifiedVersion} instances.
+     * @param pattern the tag pattern to match
+     * @return matching versions
+     */
     public Stream<QualifiedVersion> listVersions(String pattern) {
         return runCommand("git", "tag", "-l", pattern).lines().map(QualifiedVersion::of);
     }
 
+    /**
+     * Returns all files at the specified {@param path} for the state of the git repository at {@param ref}.
+     *
+     * @param ref the ref to use
+     * @param path the path to list
+     * @return A stream of file names. No path information is included.
+     */
     public Stream<String> listFiles(String ref, String path) {
         return runCommand("git", "ls-tree", "--name-only", "-r", ref, path).lines();
     }

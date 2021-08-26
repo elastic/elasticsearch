@@ -18,7 +18,8 @@ import java.util.regex.Pattern;
 /**
  * Encapsulates comparison and printing logic for an x.y.z version with optional qualifier. This class is very similar
  * to {@link Version}, but it dissects the qualifier in such a way that is incompatible
- * with how {@link Version} is used in the build.
+ * with how {@link Version} is used in the build. It also retains any qualifier (prerelease) information, and uses
+ * that information when comparing instances.
  */
 public final class QualifiedVersion implements Comparable<QualifiedVersion> {
     private final int major;

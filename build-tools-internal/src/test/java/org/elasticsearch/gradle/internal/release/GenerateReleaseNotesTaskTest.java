@@ -95,7 +95,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     @Test
     public void partitionFiles_withSnapshot_returnsSingleMapping() {
         // when:
-        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFiles(
+        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFilesByVersion(
             gitWrapper,
             "8.0.0-SNAPSHOT",
             Set.of(new File("docs/changelog/1234.yaml"))
@@ -117,7 +117,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     @Test
     public void partitionFiles_withFirstRevision_returnsSingleMapping() {
         // when:
-        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFiles(
+        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFilesByVersion(
             gitWrapper,
             "8.5.0",
             Set.of(new File("docs/changelog/1234.yaml"))
@@ -135,7 +135,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     @Test
     public void partitionFiles_withFirstAlpha_returnsSingleMapping() {
         // when:
-        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFiles(
+        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFilesByVersion(
             gitWrapper,
             "8.0.0-alpha1",
             Set.of(new File("docs/changelog/1234.yaml"))
@@ -206,7 +206,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
         );
 
         // when:
-        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFiles(gitWrapper, "8.0.0-beta1", allFiles);
+        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFilesByVersion(gitWrapper, "8.0.0-beta1", allFiles);
 
         // then:
         verify(gitWrapper).listVersions("v8.0*");
@@ -269,7 +269,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
         );
 
         // when:
-        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFiles(gitWrapper, "8.0.2", allFiles);
+        Map<QualifiedVersion, Set<File>> partitionedFiles = GenerateReleaseNotesTask.partitionFilesByVersion(gitWrapper, "8.0.2", allFiles);
 
         // then:
         verify(gitWrapper).listVersions("v8.0*");

@@ -87,7 +87,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         LOGGER.info("Finding changelog files...");
 
-        final Map<QualifiedVersion, Set<File>> filesByVersion = partitionFiles(
+        final Map<QualifiedVersion, Set<File>> filesByVersion = partitionFilesByVersion(
             gitWrapper,
             VersionProperties.getElasticsearch(),
             this.changelogs.getFiles()
@@ -133,6 +133,12 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         );
     }
 
+    /**
+     * Find all tags in the `major.minor` series for the supplied version
+     * @param gitWrapper used to call `git`
+     * @param currentVersion the version to base the query upon
+     * @return all versions in the series
+     */
     @VisibleForTesting
     static Set<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
         QualifiedVersion v = QualifiedVersion.of(currentVersion);
@@ -141,8 +147,25 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         return versions;
     }
 
+    /**
+     * Group a set of files by the version in which they first appeared, up until the supplied version. Any files not
+     * present in an earlier version are assumed to have been introduced in the specified version.
+     *
+     * <p>This method works by finding all git tags prior to {@param versionString} in the same minor series, and
+     * examining the git tree for that tag. By doing this over each tag, it is possible to see how the contents
+     * of the changelog directory changed over time.
+     *
+     * @param gitWrapper used to call `git`
+     * @param versionString the "current" version. Does not require a tag in git.
+     * @param allFilesInCheckout the files to partition
+     * @return a mapping from version to the files added in that version.
+     */
     @VisibleForTesting
-    static Map<QualifiedVersion, Set<File>> partitionFiles(GitWrapper gitWrapper, String versionString, Set<File> allFilesInCheckout) {
+    static Map<QualifiedVersion, Set<File>> partitionFilesByVersion(
+        GitWrapper gitWrapper,
+        String versionString,
+        Set<File> allFilesInCheckout
+    ) {
         if (needsGitTags(versionString) == false) {
             return Map.of(QualifiedVersion.of(versionString), allFilesInCheckout);
         }
@@ -194,6 +217,10 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         return partitionedFiles;
     }
 
+    /**
+     * Ensure the upstream git remote is up-to-date. The upstream is whatever git remote references `elastic/elasticsearch`.
+     * @param gitWrapper used to call `git`
+     */
     private static void findAndUpdateUpstreamRemote(GitWrapper gitWrapper) {
         LOGGER.info("Finding upstream git remote");
         // We need to ensure the tags are up-to-date. Find the correct remote to use
@@ -217,9 +244,15 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         gitWrapper.updateTags(upstream);
     }
 
+    /**
+     * For some versions, it is not necessary to consult the git tags in order to generate changelog files. This methods checks
+     * the supplied version and answers {@code false} if the fetching of git tags can be skipped, or {@code true} otherwise.
+     * @param versionString the version string to check
+     * @return whether fetching git tags is required
+     */
     @VisibleForTesting
     static boolean needsGitTags(String versionString) {
-        if (versionString.endsWith(".0") || versionString.endsWith(".0-SNAPSHOT") || versionString.endsWith("-alpha1")) {
+        if (versionString.endsWith(".0") || versionString.endsWith(".0-SNAPSHOT") || versionString.endsWith(".0-alpha1")) {
             return false;
         }
 

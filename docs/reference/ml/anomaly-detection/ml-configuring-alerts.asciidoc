@@ -15,12 +15,17 @@ anomalies and to notify you in an email. To learn more about {kib}
 
 The following {ml} rules are available:
 
-* {anomaly-detect-cap} alert: checks if the {anomaly-job} results contain
-  anomalies that match the rule conditions.
-* {anomaly-jobs-cap} health: monitors job health and alerts if an operational 
-  issue occurred that may prevent the job from detecting anomalies. Recommended 
-  to use for jobs that already have associated {anomaly-detect} alert and you 
-  want to closely monitor if these jobs work as expected.
+{anomaly-detect-cap} alert:: 
+  checks if the {anomaly-job} results contain anomalies that match the rule 
+  conditions.
+
+{anomaly-jobs-cap} health:: 
+  monitors job health and alerts if an operational issue occurred that may 
+  prevent the job from detecting anomalies.
+
+  TIP: If you have created rules for specific {anomaly-jobs} and you want to 
+  monitor whether these jobs work as expected, {anomaly-jobs} health rules are 
+  ideal for this purpose.
 
 
 [[creating-ml-rules]]
@@ -51,9 +56,8 @@ image::images/ml-rule.jpg["Creating a new machine learning rule"]
 [[creating-anomaly-alert-rules]]
 === {anomaly-detect-cap} alert
 
-Select the {anomaly-job} or the group of {anomaly-jobs} that is checked against 
-the rule. If you assign additional jobs to the group, the new jobs are 
-automatically checked the next time the conditions are checked.
+Select the job or the group that the rule applies to. If you assign more jobs to 
+the group, they are included the next time the rule conditions are checked.
 
 You can select the result type of the job that is checked against the rule. In 
 particular, you can create rules based on bucket, record, or influencer results.
@@ -109,22 +113,26 @@ Enable the health check types that you want to apply. All checks are enabled by
 default. At least one check needs to be enabled to create the rule. The 
 following health checks are available:
 
-* _Datafeed is not started_: notifies if the corresponding {dfeed} of the job is 
-  not started but the job is in an opened state. The notification message 
-  recommends you the necessary actions to solve the error.
-* _Model memory limit reached_: notifies if the model memory status of the job 
-  reaches the soft or hard model memory limit. Optimize your job by following 
+_Datafeed is not started_:: 
+  notifies if the corresponding {dfeed} of the job is not started but the job is 
+  in an opened state. The notification message recommends you the necessary 
+  actions to solve the error.
+_Model memory limit reached_:: 
+  notifies if the model memory status of the job reaches the soft or hard model 
+  memory limit. Optimize your job by following 
   <<detector-configuration, these guidelines>> or consider 
   <<set-model-memory-limit, amending the model memory limit>>. 
-* _Data delay has occurred_: notifies when the job missed some data. You 
+_Data delay has occurred_:: 
+  notifies when the job missed some data. You 
   can define the threshold for the amount of missing documents you get 
   alerted on by setting _Number of documents_. You can control the lookback 
   interval for checking delayed data with _Time interval_. Refer to the 
   <<ml-delayed-data-detection>> page to see what to do about delayed data.
-* _Errors in job messages_: notifies when the job messages contain error 
-  messages. Review the notification; it contains the error messages, the 
-  corresponding job IDs and recommendations on how to fix the issue. This check 
-  looks for job errors emerged only after the rule is created.
+_Errors in job messages_:: 
+  notifies when the job messages contain error messages. Review the 
+  notification; it contains the error messages, the corresponding job IDs and 
+  recommendations on how to fix the issue. This check looks for job errors 
+  emerged only after the rule is created.
 
 [role="screenshot"]
 image::images/ml-health-check-config.jpg["Selecting health checkers"]
@@ -178,39 +186,32 @@ specific to the {ml} rule types.
 
 Every {anomaly-detect} alert has the following action variables:
 
-`context`::
-Contains properties that can be added to the notification messages.
-+
-.Properties of `context`
-[%collapsible%open]
-====
-`anomalyExplorerUrl`:::
+`context`.`anomalyExplorerUrl`::
 URL to open in the Anomaly Explorer.
 
-`isInterim`:::
+`context`.`isInterim`::
 Indicates if top hits contain interim results.
 
-`jobIds`:::
+`context`.`jobIds`::
 List of job IDs that triggered the alert.
 
-`message`::: 
+`context`.`message`::
 A preconstructed message for the alert.
 
-`score`:::
+`context`.`score`::
 Anomaly score at the time of the notification action.
 
-`timestamp`:::
+`context`.`timestamp`::
 The bucket timestamp of the anomaly.
 
-`timestampIso8601`:::
+`context`.`timestampIso8601`::
 The bucket timestamp of the anomaly in ISO8601 format.
 
-`topInfluencers`:::
+`context`.`topInfluencers`::
 The list of top influencers.
 
-`topRecords`::: 
+`context`.`topRecords`::
 The list of top records.
-====
 
 
 [[anomaly-jobs-health-action-variables]]

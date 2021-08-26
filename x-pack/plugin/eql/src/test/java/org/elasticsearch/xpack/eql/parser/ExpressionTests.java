@@ -380,7 +380,7 @@ public class ExpressionTests extends ESTestCase {
     public void testIdentifierForEventTypeDisallowed() {
         ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
                 () -> parser.createStatement("`identifier` where foo == true"));
-        assertEquals("line 1:1: no viable alternative at input '`identifier`'", e.getMessage());
+        assertThat(e.getMessage(), startsWith("line 1:1: mismatched input '`identifier`' expecting"));
     }
 
     public void testFunctions() {

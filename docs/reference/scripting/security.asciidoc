@@ -26,7 +26,7 @@ on Windows to prevent {es} from forking or executing other processes.
 
 You can modify the default security settings for scripts to limit the type of
 scripts that are allowed to run and the available 
-<<painless-contexts,contexts>> that scripts can run in. 
+{painless}/painless-contexts.html[contexts] that scripts can run in. 
 
 [[allowed-script-types-setting]]
 [discrete]

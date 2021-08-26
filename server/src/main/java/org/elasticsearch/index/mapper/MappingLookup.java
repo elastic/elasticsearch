@@ -161,9 +161,7 @@ public final class MappingLookup {
 
         this.shadowedFields = new HashSet<>();
         for (RuntimeField runtimeField : mapping.getRoot().runtimeFields()) {
-            for (MappedFieldType mft : runtimeField.asMappedFieldTypes()) {
-                shadowedFields.add(mft.name());
-            }
+            runtimeField.asMappedFieldTypes().forEach(mft -> shadowedFields.add(mft.name()));
         }
 
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
@@ -365,6 +363,16 @@ public final class MappingLookup {
     public boolean isSourceEnabled() {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
         return sfm != null && sfm.enabled();
+    }
+
+    /**
+     * Returns if this mapping contains a data-stream's timestamp meta-field and this field is enabled.
+     * Only indices that are a part of a data-stream have this meta-field enabled.
+     * @return {@code true} if contains an enabled data-stream's timestamp meta-field, {@code false} otherwise.
+     */
+    public boolean isDataStreamTimestampFieldEnabled() {
+        DataStreamTimestampFieldMapper dtfm = mapping.getMetadataMapperByClass(DataStreamTimestampFieldMapper.class);
+        return dtfm != null && dtfm.isEnabled();
     }
 
     /**

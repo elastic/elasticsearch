@@ -13,27 +13,27 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelDeploymentTaskId;
 
 public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAllocationAction.Response> {
 
@@ -122,13 +122,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
     }
 
-    public static class TaskParams implements PersistentTaskParams, MlTaskParams {
+    public static class TaskParams implements MlTaskParams, Writeable, ToXContentObject {
 
         // TODO add support for other roles? If so, it may have to be an instance method...
         // NOTE, whatever determines allocation should not be dynamically set on the node
         // Otherwise allocation logic might fail
         public static boolean mayAllocateToNode(DiscoveryNode node) {
-            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
+            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) && node.getVersion().onOrAfter(VERSION_INTRODUCED);
         }
 
         public static final Version VERSION_INTRODUCED = Version.V_8_0_0;
@@ -136,11 +136,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
             "trained_model_deployment_params",
             true,
-            a -> new TaskParams((String)a[0], (String)a[1], (Long)a[2])
+            a -> new TaskParams((String)a[0], (Long)a[1])
         );
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), TrainedModelConfig.MODEL_ID);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), IndexLocation.INDEX);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODEL_BYTES);
         }
 
@@ -156,12 +155,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(270);
 
         private final String modelId;
-        private final String index;
         private final long modelBytes;
 
-        public TaskParams(String modelId, String index, long modelBytes) {
+        public TaskParams(String modelId, long modelBytes) {
             this.modelId = Objects.requireNonNull(modelId);
-            this.index = Objects.requireNonNull(index);
             this.modelBytes = modelBytes;
             if (modelBytes < 0) {
                 throw new IllegalArgumentException("modelBytes must be non-negative");
@@ -170,7 +167,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         public TaskParams(StreamInput in) throws IOException {
             this.modelId = in.readString();
-            this.index = in.readString();
             this.modelBytes = in.readVLong();
         }
 
@@ -178,21 +174,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return modelId;
         }
 
-        public String getIndex() {
-            return index;
-        }
-
         public long estimateMemoryUsageBytes() {
             // While loading the model in the process we need twice the model size.
             return MEMORY_OVERHEAD.getBytes() + 2 * modelBytes;
         }
 
-        @Override
-        public String getWriteableName() {
-            return MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME;
-        }
-
-        @Override
         public Version getMinimalSupportedVersion() {
             return VERSION_INTRODUCED;
         }
@@ -200,7 +186,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(modelId);
-            out.writeString(index);
             out.writeVLong(modelBytes);
         }
 
@@ -208,7 +193,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
-            builder.field(IndexLocation.INDEX.getPreferredName(), index);
             builder.field(MODEL_BYTES.getPreferredName(), modelBytes);
             builder.endObject();
             return builder;
@@ -216,7 +200,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, index, modelBytes);
+            return Objects.hash(modelId, modelBytes);
         }
 
         @Override
@@ -226,7 +210,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
             TaskParams other = (TaskParams) o;
             return Objects.equals(modelId, other.modelId)
-                && Objects.equals(index, other.index)
                 && modelBytes == other.modelBytes;
         }
 
@@ -243,7 +226,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 if (Strings.isAllOrWildcard(expectedId)) {
                     return true;
                 }
-                String expectedDescription = MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + expectedId;
+                String expectedDescription = trainedModelDeploymentTaskId(expectedId);
                 return expectedDescription.equals(task.getDescription());
             }
             return false;

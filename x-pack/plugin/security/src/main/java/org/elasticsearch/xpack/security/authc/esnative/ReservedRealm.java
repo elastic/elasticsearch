@@ -59,6 +59,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final ReservedUserInfo bootstrapUserInfo;
     public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password",
             KeyStoreWrapper.SEED_SETTING);
+    public static final Setting<SecureString> AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH =
+        SecureSetting.secureString("autoconfig.password_hash", null);
 
     private final NativeUsersStore nativeUsersStore;
     private final AnonymousUser anonymousUser;

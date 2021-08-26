@@ -1,14 +1,21 @@
 [[modules-scripting-security]]
 == Scripting and security
+Painless and {es} implement layers of security to build a defense in depth
+strategy for running scripts safely.
+
+Painless uses a fine-grained allowlist. Anything that is not part of the
+allowlist results in a compilation error. This capability is the first layer of
+security in a defense in depth strategy for scripting.
+
 In addition to user privileges and script sandboxing, {es} uses the
 https://www.oracle.com/java/technologies/javase/seccodeguide.html[Java Security Manager]
 and native security tools as additional layers of security.
 
 As part of its startup sequence, {es} enables the Java Security Manager to limit
 the actions that can be taken by portions of the code. 
-<<modules-scripting-painless,Painless>> uses the Java Security Manager as a
-layer in a defense in depth strategy to prevent scripts from doing things like
-writing files and listening to sockets.
+<<modules-scripting-painless,Painless>> uses the Java Security Manager as an
+additional layer of defense to prevent scripts from doing things like writing
+files and listening to sockets.
 
 {es} uses
 {wikipedia}/Seccomp[seccomp] in Linux,
@@ -17,29 +24,18 @@ in macOS, and
 https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147[ActiveProcessLimit]
 on Windows to prevent {es} from forking or executing other processes.
 
-Painless uses a fine-grained allowlist with a granularity down to the members of
-a class. Anything that is not part of the allowlist results in a compilation 
-error. Even with this security, scripts can provide a very weak point of exploit 
-without restricting which users can run scripts. Allowing any user that can send 
-an HTTP request to run a script with potentially malicious code opens your 
-cluster to attack.
-
-[CAUTION]
-====
-The following sections describe security settings for scripts and how to alter
-the default settings. Take extreme caution when providing greater permissions
-to scripts beyond the default settings. Any extra permissions weakens the total
-security of your {es} deployment.
-====
+You can modify the default security settings for scripts to limit the type of
+scripts that are allowed to run and the available 
+<<painless-contexts,contexts>> that scripts can run in. 
 
 [[allowed-script-types-setting]]
 [discrete]
 === Allowed script types setting
 
-{es} supports two script types: `inline` and `stored` (<<modules-scripting-using>>).
-By default, {es} is configured to run both types of scripts.
-To limit what type of scripts are run, set `script.allowed_types` to `inline` or `stored`.
-To prevent any scripts from running, set `script.allowed_types` to `none`.
+{es} supports two script types: `inline` and `stored`. By default, {es} is 
+configured to run both types of scripts. To limit what type of scripts are run, 
+set `script.allowed_types` to `inline` or `stored`. To prevent any scripts from 
+running, set `script.allowed_types` to `none`.
 
 IMPORTANT: If you use {kib}, set `script.allowed_types` to `both` or `inline`.
 Some {kib} features rely on inline scripts and do not function as expected
@@ -51,18 +47,16 @@ For example, to run `inline` scripts but not `stored` scripts, specify:
 ----
 script.allowed_types: inline <1>
 ----
-<1> This will allow only inline scripts to be executed but not stored scripts
-(or any other types).
+<1> Only inline scripts are permitted.
 
 
 [[allowed-script-contexts-setting]]
 [discrete]
 === Allowed script contexts setting
 
-By default all script contexts are allowed to be executed. This can be modified using the
-setting `script.allowed_contexts`. Only the contexts specified as part of the setting will
-be allowed to be executed. To specify no contexts are allowed, set `script.allowed_contexts`
-to be `none`.
+By default, all script contexts are permitted. Use the `script.allowed_contexts`
+setting to specify the contexts that are allowed. To specify that no contexts
+are allowed, set `script.allowed_contexts` to `none`.
 
 [source,yaml]
 ----

@@ -1,8 +1,10 @@
 [[es-security-principles]]
 == {es} security principles
 Protecting your {es} cluster and the data it contains is of utmost importance.
-The following principles are foundational to running {es} in a secure manner
-and should be integrated into every production deployment of {es}.
+Implementing a defense in depth strategy provides multiple layers of security
+to help safeguard your system. The following principles provide a foundation
+for running {es} in a secure manner that helps to mitigate attacks on your
+system at multiple levels.
 
 [discrete]
 [[security-run-with-security]]
@@ -19,9 +21,9 @@ is secure.
 [discrete]
 [[security-not-root-user]]
 === Don't run {es} as `root`
-Never run {es} as the `root` user. Running as the `root` user provides an avenue
-to circumvent the other security layers and permit a user to do *anything* on
-your server. {es} will refuse to start if it detects that it is running as
+Never run {es} as the `root` user. Running as the `root` user sheds a layer of
+security in your defense in depth strategy and permits a user to do *anything*
+on your server. {es} will refuse to start if it detects that it is running as
 `root`, but it's worth double (or triple) checking the user that {es} runs as. 
 
 [discrete]
@@ -32,11 +34,8 @@ Using an application to sanitize requests to {es} still poses risks, such as
 a malicious user writing <<search,`_search`>> requests that could overwhelm an
 {es} cluster and bring it down. Keep {es} as isolated as possible, preferably
 behind a firewall and a VPN. Any internet-facing applications should run 
-pre-canned aggregations. 
+pre-canned aggregations, or not run aggregations at all.
 
-[discrete]
-[[security-implement-user-barrier]]
-=== Implement a barrier between {es} and users
 While you absolutely shouldn't expose {es} directly to the internet, you also
 shouldn't expose {es} directly to users. Instead, use an intermediary
 application to make requests on behalf of users. This implementation allows you 

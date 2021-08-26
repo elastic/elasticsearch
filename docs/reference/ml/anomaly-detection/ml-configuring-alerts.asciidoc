@@ -5,20 +5,20 @@
 beta::[]
 
 {kib} {alert-features} include support for {ml} rules, which run scheduled 
-checks on an {anomaly-job} or a group of jobs to detect anomalies or check the 
-health of the job with certain conditions. If a rule meets the conditions, an 
+checks for anomalies in one or more {anomaly-jobs} or check the 
+health of the job with certain conditions. If the conditions of the rule are met, an 
 alert is created and the associated action is triggered. For example, you can 
 create a rule to check an {anomaly-job} every fifteen minutes for critical 
 anomalies and to notify you in an email. To learn more about {kib} 
 {alert-features}, refer to 
 {kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting].
 
-The following {ml} alerts are available:
+The following {ml} rules are available:
 
 * {anomaly-detect-cap} alert: checks if the {anomaly-job} results contain
   anomalies that match the rule conditions.
 * {anomaly-jobs-cap} health: monitors job health and alerts if an operational 
-  issue occured that may prevent the job from detectiong anomalies. Recommended 
+  issue occurred that may prevent the job from detecting anomalies. Recommended 
   to use for jobs that already have associated {anomaly-detect} alert and you 
   want to closely monitor if these jobs work as expected.
 
@@ -42,7 +42,7 @@ alert changes to `OK`. For more details, refer to the documentation of
 Select the rule type you want to create under the {ml} section and continue to 
 configure it depending on whether it is an 
 <<creating-anomaly-alert-rules, {anomaly-detect} alert>> or an 
-<<creating-anomaly-jobs-health-rules, {anomaly-job} health>>.
+<<creating-anomaly-jobs-health-rules, {anomaly-job} health>> rule.
 
 [role="screenshot"]
 image::images/ml-rule.jpg["Creating a new machine learning rule"]
@@ -89,16 +89,16 @@ preview contains the number of potentially created alerts during the relative
 time range you defined.
 
 As the last step in the rule creation process, 
-<<defining-actions, define the actions>> to take in case the configured criteria 
+<<defining-actions, define the actions>> that occur when the conditions
 are met.
 
 
 [[creating-anomaly-jobs-health-rules]]
 === {anomaly-jobs-cap} health
 
-Select the {anomaly-job} or the group of {anomaly-jobs} that is checked against 
-the rule. If you assign additional jobs to the group, the new jobs are 
-automatically checked the next time the conditions are checked.
+Select the job or group that
+the rule applies to. If you assign more jobs to the group, they are
+included the next time the rule conditions are checked.
 
 You can also use a special character (`*`) to apply the rule to all your jobs. 
 Jobs created after the rule are automatically included. If you have many jobs, 
@@ -107,16 +107,16 @@ exclude jobs that are not critically important by using the _Exclude_ field.
 
 Enable the health check types that you want to apply. All checks are enabled by 
 default. At least one check needs to be enabled to create the rule. The 
-following health checkers are available:
+following health checks are available:
 
 * _Datafeed is not started_: notifies if the corresponding {dfeed} of the job is 
   not started but the job is in an opened state. The notification message 
   recommends you the necessary actions to solve the error.
-* _Model memory limit reached_: notfies if the model memory status of the job 
+* _Model memory limit reached_: notifies if the model memory status of the job 
   reaches the soft or hard model memory limit. Optimize your job by following 
   <<detector-configuration, these guidelines>> or consider 
   <<set-model-memory-limit, amending the model memory limit>>. 
-* _Data delay has occurred_: notifies when the job missed to analyze data. You 
+* _Data delay has occurred_: notifies when the job missed some data. You 
   can define the threshold for the amount of missing documents you get 
   alerted on by setting _Number of documents_. You can control the lookback 
   interval for checking delayed data with _Time interval_. Refer to the 
@@ -130,7 +130,7 @@ following health checkers are available:
 image::images/ml-health-check-config.jpg["Selecting health checkers"]
 
 As the last step in the rule creation process, 
-<<defining-actions, define the actions>> to take in case the configured criteria 
+<<defining-actions, define the actions>> that occur when the conditions
 are met.
   
 
@@ -216,49 +216,49 @@ The list of top records.
 [[anomaly-jobs-health-action-variables]]
 === {anomaly-jobs-cap} health action variables
 
-Every health checker has two main variables: `context.message` and 
+Every health check has two main variables: `context.message` and 
 `context.results`. The properties of `context.results` may vary based on the 
-checker type. You can find the possible properties for all the checkers below.
+type of check. You can find the possible properties for all the checks below.
 
-==== _Datafeed is not started_ checker
+==== _Datafeed is not started_ 
 
 `context.message`::
 A preconstructed message for the alert.
 
 `context.results`::
-Contains the collection of the following properties.
+Contains the following properties:
 +
 .Properties of `context.results`
 [%collapsible%open]
 ====
 `datafeed_id`:::
-The ID of the corresponding {dfeed}.
+The ID of the {dfeed}.
 
 `datafeed_state`:::
-The state of the corresponding {dfeed}. It can be `starting`, `started`, 
+The state of the {dfeed}. It can be `starting`, `started`, 
 `stopping`, `stopped`.
 
 `job_id`:::
-The ID of the affected job.
+The job identifier.
 
 `job_state`:::
-The state of the affected job. It can be `opening`, `opened`, `closing`, 
+The state of the job. It can be `opening`, `opened`, `closing`, 
 `closed`, or `failed`.
 ====
 
-==== _Model memory limit reached_ checker
+==== _Model memory limit reached_
 
 `context.message`::
 A preconstructed message for the rule.
 
 `context.results`::
-Contains the collection of the following properties.
+Contains the following properties:
 +
 .Properties of `context.results` 
 [%collapsible%open]
 ====
 `job_id`:::
-The ID of the affected job.
+The job identifier.
 
 `memory_status`:::
 The status of the mathematical model. It can have one of the following values:
@@ -281,13 +281,13 @@ The timestamp of the model size statistics according to server time.
 The peak number of bytes of memory ever used by the model.
 ====
 
-==== _Data delay has occured_ checker
+==== _Data delay has occured_
 
 `context.message`::
 A preconstructed message for the rule.
 
 `context.results`::
-Contains the collection of the following properties.
+Contains the following properties:
 +
 .Properties of `context.results`
 [%collapsible%open]
@@ -299,19 +299,19 @@ The annotation corresponding to the data delay in the job.
 Timestamp of the latest finalized buckets with missing documents.
 
 `job_id`:::
-The ID of the affected job.
+The job identifier.
 
 `missed_docs_count`:::
 The number of missed documents.
 ====
 
-==== _Error in job messages_ checker
+==== _Error in job messages_
 
 `context.message`::
 A preconstructed message for the rule.
 
 `context.results`::
-Contains the collection of the following properties.
+Contains the following properties:
 +
 .Properties of `context.results`
 [%collapsible%open]
@@ -323,7 +323,7 @@ The level of...
 Timestamp of the latest finalized buckets with missing documents.
 
 `job_id`:::
-The ID of the affected job.
+The job identifier.
 
 `message`:::
 The error message.

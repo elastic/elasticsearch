@@ -204,17 +204,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         };
     }
 
-    private FieldCapabilitiesIndexRequest prepareLocalIndexRequest(FieldCapabilitiesRequest request,
-                                                                   String index,
-                                                                   OriginalIndices originalIndices,
-                                                                   long nowInMillis) {
+    private static  FieldCapabilitiesIndexRequest prepareLocalIndexRequest(FieldCapabilitiesRequest request,
+                                                                           String index,
+                                                                           OriginalIndices originalIndices,
+                                                                           long nowInMillis) {
         return new FieldCapabilitiesIndexRequest(request.fields(), index, originalIndices,
             request.indexFilter(), nowInMillis, request.runtimeFields());
     }
 
-    private FieldCapabilitiesRequest prepareRemoteRequest(FieldCapabilitiesRequest request,
-                                                          OriginalIndices originalIndices,
-                                                          long nowInMillis) {
+    private static FieldCapabilitiesRequest prepareRemoteRequest(FieldCapabilitiesRequest request,
+                                                                 OriginalIndices originalIndices,
+                                                                 long nowInMillis) {
         FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
         remoteRequest.setMergeResults(false); // we need to merge on this node
         remoteRequest.indicesOptions(originalIndices.indicesOptions());

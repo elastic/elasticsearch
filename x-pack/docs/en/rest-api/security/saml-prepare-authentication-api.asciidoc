@@ -51,6 +51,11 @@ clients. See also <<security-api-saml-authenticate,SAML authenticate API>>,
   used to generate the authentication request. You must specify either this parameter or the `acs`
   parameter.
 
+`relay_state`::
+  (Optional, string) A string that will be included in the redirect URL that this API returns
+  as the RelayState query parameter. If the Authentication Request is signed, this value is
+  used as part of the signature computation.
+
 [[security-api-saml-prepare-authentication-response-body]]
 ==== {api-response-body-title}
 

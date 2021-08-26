@@ -83,4 +83,31 @@ in 7.10.0.
 Use the {ref}/repositories-metering-apis.html[repositories metering APIs]
 instead.
 ====
+
+.The get snapshots API starts interpreting `-` in multi pattern queries as exclude pattern instead of as a literal string.
+[%collapsible]
+====
+*Details* +
+The {ref}/get-snapshot-api.html.html[get snapshots API] supports comma separated lists of patterns for both the snapshot- and repository-names.
+Starting in version 7.16, patterns starting with `-` will be interpreted as exclude statement in the presence of other patterns that include
+wild-cards.
+
+*Impact* +
+Only use-cases that involve either snapshots or repositories with names starting in `-` are affected. Also this change only affects use
+cases that involved a combination of a wildcard pattern and a `-` prefixed pattern in the same request to the get-snapshots API.
+For example, `snapshot-*,-snapshot-a` used to return all snapshots with names starting in `snapshot-` as well as the snapshot `-snapshot-a`.
+Now the same query string will return all snapshots with names starting in `snapshot-` except for the snapshot `snapshot-a`.
+
+====
+
+.Creating snapshot- and repositories with names starting in `-` is no longer allowed.
+[%collapsible]
+====
+*Details* +
+Creating new snapshots or new snapshot repositories with names starting in `-` is deprecated starting in version 7.16 and will fail starting
+in 8.0.
+
+*Impact* +
+Snapshot or repository naming that involves leading `-` should be adjusted to use a different naming pattern.
+====
 // end::notable-breaking-changes[]

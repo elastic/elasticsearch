@@ -42,7 +42,7 @@ repository.
 
 [source,console]
 ----
-GET _snapshot/my_repository/*?filter_path=*.snapshot,*.version_id,*.start_time
+GET _snapshot/my_repository/*?verbose=false
 ----
 // TEST[setup:setup-snapshots]
 

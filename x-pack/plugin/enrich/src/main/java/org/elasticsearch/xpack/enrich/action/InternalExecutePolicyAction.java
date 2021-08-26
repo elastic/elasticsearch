@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.enrich.EnrichPolicyExecutor.TASK_ACTION;
  * The {@link TransportExecuteEnrichPolicyAction} is a transport action that runs on the elected master node and
  * the actual policy execution may be heavy for the elected master node.
  * Although {@link org.elasticsearch.xpack.enrich.EnrichPolicyRunner} doesn't do heavy operations, the coordination
- * of certain operations may have a non-neglectable overhead (for example the coordination of the reindex step).
+ * of certain operations may have a non-negligible overhead (for example the coordination of the reindex step).
  */
 public class InternalExecutePolicyAction extends ActionType<Response> {
 

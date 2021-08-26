@@ -820,14 +820,6 @@ use the EQL search API's <<eql-search-filter-query-dsl,Query DSL `filter`>>
 parameter.
 
 [discrete]
-[[eql-array-fields]]
-==== Array field values are not supported
-
-EQL does not support <<array,array>> field values, also known as
-multi-value fields. EQL searches on array field values may return inconsistent
-results.
-
-[discrete]
 [[eql-nested-fields]]
 ==== EQL search on nested fields
 

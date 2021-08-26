@@ -55,6 +55,8 @@ import static org.elasticsearch.gradle.distribution.ElasticsearchDistributionTyp
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.ALL_INTERNAL;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DEB;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_CLOUD;
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_CLOUD_ESS;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_IRONBANK;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_UBI;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.RPM;
@@ -67,8 +69,8 @@ import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertWi
 public class DistroTestPlugin implements Plugin<Project> {
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
     private static final String SYSTEM_JDK_VENDOR = "openjdk";
-    private static final String GRADLE_JDK_VERSION = "16.0.1+9";
-    private static final String GRADLE_JDK_VENDOR = "adoptopenjdk";
+    private static final String GRADLE_JDK_VERSION = "16.0.2+7";
+    private static final String GRADLE_JDK_VENDOR = "adoptium";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String EXAMPLE_PLUGIN_CONFIGURATION = "examplePlugin";
@@ -231,6 +233,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         lifecyleTasks.put(DOCKER, project.getTasks().register(taskPrefix + ".docker"));
         lifecyleTasks.put(DOCKER_UBI, project.getTasks().register(taskPrefix + ".docker-ubi"));
         lifecyleTasks.put(DOCKER_IRONBANK, project.getTasks().register(taskPrefix + ".docker-ironbank"));
+        lifecyleTasks.put(DOCKER_CLOUD, project.getTasks().register(taskPrefix + ".docker-cloud"));
+        lifecyleTasks.put(DOCKER_CLOUD_ESS, project.getTasks().register(taskPrefix + ".docker-cloud-ess"));
         lifecyleTasks.put(ARCHIVE, project.getTasks().register(taskPrefix + ".archives"));
         lifecyleTasks.put(DEB, project.getTasks().register(taskPrefix + ".packages"));
         lifecyleTasks.put(RPM, lifecyleTasks.get(DEB));
@@ -360,38 +364,16 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            ALL_INTERNAL.stream().forEach(type -> {
-                for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    if (bundledJdk == false) {
-                        // We'll never publish an ARM (aarch64) build without a bundled JDK.
-                        if (architecture == Architecture.AARCH64) {
-                            continue;
-                        }
-                        // All our Docker images include a bundled JDK so it doesn't make sense to test without one.
-                        if (type.isDocker()) {
-                            continue;
-                        }
-                    }
-                    currentDistros.add(
-                        createDistro(distributions, architecture, type, null, bundledJdk, VersionProperties.getElasticsearch())
-                    );
-                }
-            });
+            ALL_INTERNAL.stream().forEach(type -> currentDistros.add(
+                createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
+            ));
         }
 
         for (Architecture architecture : Architecture.values()) {
             for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
-                for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    if (bundledJdk == false && architecture != Architecture.X64) {
-                        // We will never publish distributions for non-x86 (amd64) platforms
-                        // without a bundled JDK
-                        continue;
-                    }
-
-                    currentDistros.add(
-                        createDistro(distributions, architecture, ARCHIVE, platform, bundledJdk, VersionProperties.getElasticsearch())
-                    );
-                }
+                currentDistros.add(
+                    createDistro(distributions, architecture, ARCHIVE, platform, true, VersionProperties.getElasticsearch())
+                );
             }
         }
 

@@ -71,7 +71,7 @@ Task Management::
 * Track cancellable tasks by parent ID {es-pull}76186[#76186] (issue: {es-issue}75316[#75316])
 
 Transform::
-* [ML][Transform] reset failure count when a transform aggregation page is handled successfully {es-pull}76355[#76355] (issue: {es-issue}76074[#76074])
+* Reset failure count when a transform aggregation page is handled successfully {es-pull}76355[#76355] (issue: {es-issue}76074[#76074])
 
 Watcher::
 * Save some Memory in Watcher XContent -> Map Round Trip {es-pull}76864[#76864] (issue: {es-issue}74513[#74513])

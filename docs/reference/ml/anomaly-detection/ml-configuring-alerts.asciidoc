@@ -317,9 +317,6 @@ Contains the following properties:
 .Properties of `context.results`
 [%collapsible%open]
 ====
-`level`:::
-The level of...
-
 `timestamp`:::
 Timestamp of the latest finalized buckets with missing documents.
 

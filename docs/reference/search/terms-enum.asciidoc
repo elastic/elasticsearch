@@ -98,7 +98,7 @@ Defaults to false.
 query rewrites to `match_none`.
 
 [[terms-enum-search_after-param]]
-`string`::
+`search_after`::
 (Optional, string)
 The string after which terms in the index should be returned. Allows for a form of
 pagination if the last result from one request is passed as the search_after

@@ -107,12 +107,12 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         builder.field(REQUEST_ID.getPreferredName(), requestId);
         if (inference != null) {
             builder.startArray(INFERENCE.getPreferredName());
-            for (int i=0; i<inference.length; i++) {
+            for (int i = 0; i < inference.length; i++) {
                 builder.startArray();
-                for (int j=0; j<inference[0].length; j++)
+                for (int j = 0; j < inference[0].length; j++)
                 {
                     builder.startArray();
-                    for (int k=0; k< inference[0][0].length; k++) {
+                    for (int k = 0; k < inference[0][0].length; k++) {
                         builder.value(inference[i][j][k]);
                     }
                     builder.endArray();

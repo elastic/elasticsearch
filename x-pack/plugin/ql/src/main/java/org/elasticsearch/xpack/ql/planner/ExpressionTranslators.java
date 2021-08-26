@@ -215,11 +215,11 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(IsNotNull isNotNull, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), (field) -> translate(isNotNull, field, handler));
+            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), () -> translate(isNotNull, handler));
         }
 
-        private static Query translate(IsNotNull isNotNull, FieldAttribute field, TranslatorHandler handler) {
-            return new ExistsQuery(isNotNull.source(), handler.nameOf(field));
+        private static Query translate(IsNotNull isNotNull, TranslatorHandler handler) {
+            return new ExistsQuery(isNotNull.source(), handler.nameOf(isNotNull.field()));
         }
     }
 
@@ -231,11 +231,11 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(IsNull isNull, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(isNull, isNull.field(), (field) -> translate(isNull, field, handler));
+            return handler.wrapFunctionQuery(isNull, isNull.field(), () -> translate(isNull, handler));
         }
 
-        private static Query translate(IsNull isNull, FieldAttribute field, TranslatorHandler handler) {
-            return new NotQuery(isNull.source(), new ExistsQuery(isNull.source(), handler.nameOf(field)));
+        private static Query translate(IsNull isNull, TranslatorHandler handler) {
+            return new NotQuery(isNull.source(), new ExistsQuery(isNull.source(), handler.nameOf(isNull.field())));
         }
     }
 
@@ -256,10 +256,11 @@ public final class ExpressionTranslators {
 
         public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {
             checkBinaryComparison(bc);
-            return handler.wrapFunctionQuery(bc, bc.left(), (field) -> translate(bc, field, handler));
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
         }
 
-        static Query translate(BinaryComparison bc, FieldAttribute field, TranslatorHandler handler) {
+        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
+            FieldAttribute field = checkIsFieldAttribute(bc.left());
             Source source = bc.source();
             String name = handler.nameOf(field);
             Object value = valueOf(bc.right());
@@ -331,10 +332,12 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(Range r, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(r, r.value(), (field) -> translate(r, field, handler));
+            return handler.wrapFunctionQuery(r, r.value(), () -> translate(r, handler));
         }
 
-        private static RangeQuery translate(Range r, FieldAttribute field, TranslatorHandler handler) {
+        private static RangeQuery translate(Range r, TranslatorHandler handler) {
+            Check.isTrue(r.value() instanceof FieldAttribute, "Expected [{}] to be FieldAttribute but was not.", r.value());
+
             Object lower = valueOf(r.lower());
             Object upper = valueOf(r.upper());
             String format = null;
@@ -360,7 +363,7 @@ public final class ExpressionTranslators {
                 format = formatter.pattern();
             }
             return new RangeQuery(
-                r.source(), handler.nameOf(field), lower, r.includeLower(), upper, r.includeUpper(), format, r.zoneId());
+                r.source(), handler.nameOf(r.value()), lower, r.includeLower(), upper, r.includeUpper(), format, r.zoneId());
         }
     }
 
@@ -372,10 +375,11 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(In in, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(in, in.value(), (field) -> translate(in, field, handler));
+            return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
         }
 
-        private static Query translate(In in, FieldAttribute field, TranslatorHandler handler) {
+        private static Query translate(In in, TranslatorHandler handler) {
+            FieldAttribute field = checkIsFieldAttribute(in.value());
             boolean isDateTimeComparison = DataTypes.isDateTime(field.dataType());
 
             Set<Object> terms = new LinkedHashSet<>();
@@ -385,7 +389,7 @@ public final class ExpressionTranslators {
                 if (DataTypes.isNull(rhs.dataType()) == false) {
                     if (isDateTimeComparison) {
                         // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
-                        Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), field, handler);
+                        Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), handler);
 
                         if (query instanceof TermQuery) {
                             terms.add(((TermQuery) query).value());
@@ -420,7 +424,7 @@ public final class ExpressionTranslators {
             if (q != null) {
                 return q;
             }
-            return handler.wrapFunctionQuery(f, f, (field) -> new ScriptQuery(f.source(), f.asScript()));
+            return handler.wrapFunctionQuery(f, f, () -> new ScriptQuery(f.source(), f.asScript()));
         }
 
         public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {

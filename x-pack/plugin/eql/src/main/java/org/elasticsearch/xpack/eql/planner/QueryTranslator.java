@@ -101,7 +101,7 @@ final class QueryTranslator {
 
         public static Query doTranslate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
             checkInsensitiveComparison(bc);
-            return handler.wrapFunctionQuery(bc, bc.left(), (field) -> translate(bc, field, handler));
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
         }
 
         public static void checkInsensitiveComparison(InsensitiveBinaryComparison bc) {
@@ -111,21 +111,23 @@ final class QueryTranslator {
                 Expressions.name(bc.right()), bc.symbol());
         }
 
-        private static Query translate(InsensitiveBinaryComparison bc, FieldAttribute field, TranslatorHandler handler) {
+        private static Query translate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
+            FieldAttribute field = checkIsFieldAttribute(bc.left());
             Source source = bc.source();
-            String name = field.exactAttribute().name();
             Object value = valueOf(bc.right());
 
             if (bc instanceof InsensitiveEquals || bc instanceof InsensitiveNotEquals) {
+                // equality should always be against an exact match
+                // (which is important for strings)
+                String name = field.exactAttribute().name();
+
                 Query query = new TermQuery(source, name, value, true);
 
                 if (bc instanceof InsensitiveNotEquals) {
                     query = new NotQuery(source, query);
                 }
-
                 return query;
             }
-
             throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
         }
     }
@@ -175,7 +177,7 @@ final class QueryTranslator {
                 }
             }
 
-            return handler.wrapFunctionQuery(f, f, (field) -> new ScriptQuery(f.source(), f.asScript()));
+            return handler.wrapFunctionQuery(f, f, () -> new ScriptQuery(f.source(), f.asScript()));
         }
     }
 

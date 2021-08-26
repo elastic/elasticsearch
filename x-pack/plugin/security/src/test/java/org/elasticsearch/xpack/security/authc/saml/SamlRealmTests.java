@@ -436,7 +436,6 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(credential.getPublicKey(), equalTo(encryptionCert.getPublicKey()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testCreateEncryptionCredentialFromKeyStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
@@ -486,7 +485,6 @@ public class SamlRealmTests extends SamlTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testCreateSigningCredentialFromKeyStoreSuccessScenarios() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
@@ -527,7 +525,6 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(credential.getPublicKey(), equalTo(certKeyPair1.v1().getPublicKey()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testCreateSigningCredentialFromKeyStoreFailureScenarios() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();

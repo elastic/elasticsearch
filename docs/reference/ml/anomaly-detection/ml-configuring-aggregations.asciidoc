@@ -78,48 +78,30 @@ PUT _ml/anomaly_detectors/farequote
   },
   "data_description": {
     "time_field":"time"  <1>
-  }
-}
-----------------------------------
-// TEST[skip:setup:farequote_data]
-
-<1> The `airline`, `responsetime`, and `time` fields are aggregations. Only the
-aggregated fields defined in the `analysis_config` object are analyzed by the
-{anomaly-job}.
-
-NOTE: When the `summary_count_field_name` property is set to a non-null value,
-the job expects to receive aggregated input. The property must be set to the
-name of the field that contains the count of raw data points that have been
-aggregated. It applies to all detectors in the job.
-
-The aggregations are defined in the {dfeed} as follows:
-
-[source,console]
-----------------------------------
-PUT _ml/datafeeds/datafeed-farequote
-{
-  "job_id":"farequote",
-  "indices": ["farequote"],
-  "aggregations": {
-    "buckets": {
-      "date_histogram": {
-        "field": "time",
-        "fixed_interval": "360s",
-        "time_zone": "UTC"
-      },
-      "aggregations": {
-        "time": {  <1>
-          "max": {"field": "time"}
+  }, 
+  "datafeed_config":{
+    "indices": ["farequote"],
+    "aggregations": {
+      "buckets": {
+        "date_histogram": {
+          "field": "time",
+          "fixed_interval": "360s",
+          "time_zone": "UTC"
         },
-        "airline": {  <2>
-          "terms": {
-            "field": "airline",
-            "size": 100
+        "aggregations": {
+          "time": {  <2>
+            "max": {"field": "time"}
           },
-          "aggregations": {
-            "responsetime": {  <3>
-              "avg": {
-                "field": "responsetime"
+          "airline": {  <3>
+            "terms": {
+             "field": "airline",
+              "size": 100
+            },
+            "aggregations": {
+              "responsetime": {  <4>
+                "avg": {
+                  "field": "responsetime"
+                }
               }
             }
           }
@@ -129,19 +111,27 @@ PUT _ml/datafeeds/datafeed-farequote
   }
 }
 ----------------------------------
-// TEST[skip:setup:farequote_job]
+// TEST[skip:setup:farequote_data]
 
-<1> The aggregations have names that match the fields that they operate on. The
+<1> The `airline`, `responsetime`, and `time` fields are aggregations. Only the
+aggregated fields defined in the `analysis_config` object are analyzed by the
+{anomaly-job}.
+<2> The aggregations have names that match the fields that they operate on. The
 `max` aggregation is named `time` and its field also needs to be `time`.
-<2> The `term` aggregation is named `airline` and its field is also named
+<3> The `term` aggregation is named `airline` and its field is also named
 `airline`.
-<3> The `avg` aggregation is named `responsetime` and its field is also named
+<4> The `avg` aggregation is named `responsetime` and its field is also named
 `responsetime`.
+
+When the `summary_count_field_name` property is set to a non-null value, the job
+expects to receive aggregated input. The property must be set to the name of the
+field that contains the count of raw data points that have been aggregated. It
+applies to all detectors in the job.
 
 TIP: If you are using a `term` aggregation to gather influencer or partition
 field information, consider using a `composite` aggregation. It performs
-better than a `date_histogram` with a nested `term` aggregation and also includes
-all the values of the field instead of the top values per bucket.
+better than a `date_histogram` with a nested `term` aggregation and also
+includes all the values of the field instead of the top values per bucket.
 
 [discrete]
 [[aggs-using-composite]]
@@ -153,15 +143,17 @@ For `composite` aggregation support, there must be exactly one `date_histogram` 
 source. That value source must not be sorted in descending order. Additional
 `composite` aggregation value sources are allowed, such as `terms`.
 
-NOTE: A {dfeed} that uses composite aggregations may not be as performant as datafeeds that use scrolling or
-date histogram aggregations. Composite aggregations are optimized
-for queries that are either `match_all` or `range` filters. Other types of
+NOTE: A {dfeed} that uses composite aggregations may not be as performant as
+{dfeeds} that use scrolling or date histogram aggregations. Composite
+aggregations are optimized for queries that are either `match_all` or `range`
+filters. Other types of
 queries may cause the `composite` aggregation to be ineffecient.
 
 Here is an example that uses a `composite` aggregation instead of a
 `date_histogram`.
 
-Assuming the same job configuration as above.
+This is an example of a job with a {dfeed} that uses a `composite` aggregation
+to bucket the metrics based on time and terms:
 
 [source,console]
 ----------------------------------
@@ -178,54 +170,42 @@ PUT _ml/anomaly_detectors/farequote-composite
   },
   "data_description": {
     "time_field":"time"
-  }
-}
-----------------------------------
-// TEST[skip:setup:farequote_data]
-
-This is an example of a datafeed that uses a `composite` aggregation to bucket
-the metrics based on time and terms:
-
-[source,console]
-----------------------------------
-PUT _ml/datafeeds/datafeed-farequote-composite
-{
-  "job_id": "farequote-composite",
-  "indices": [
-    "farequote"
-  ],
-  "aggregations": {
-    "buckets": {
-      "composite": {
-        "size": 1000,  <1>
-        "sources": [
-          {
-            "time_bucket": {  <2>
-              "date_histogram": {
-                "field": "time",
-                "fixed_interval": "360s",
-                "time_zone": "UTC"
+  },
+  "datafeed_config":{
+    "indices": ["farequote"],
+    "aggregations": {
+      "buckets": {
+        "composite": {
+          "size": 1000,  <1>
+          "sources": [
+            {
+              "time_bucket": {  <2>
+                "date_histogram": {
+                  "field": "time",
+                  "fixed_interval": "360s",
+                  "time_zone": "UTC"
+                }
               }
+            },
+            {
+              "airline": {  <3>
+                "terms": {
+                  "field": "airline"
+                }
+              }
+            }
+          ]
+        },
+        "aggregations": {
+          "time": {  <4>
+            "max": {
+              "field": "time"
             }
           },
-          {
-            "airline": {  <3>
-              "terms": {
-                "field": "airline"
-              }
+          "responsetime": { <5>
+            "avg": {
+              "field": "responsetime"
             }
-          }
-        ]
-      },
-      "aggregations": {
-        "time": {  <4>
-          "max": {
-            "field": "time"
-          }
-        },
-        "responsetime": { <5>
-          "avg": {
-            "field": "responsetime"
           }
         }
       }
@@ -233,10 +213,8 @@ PUT _ml/datafeeds/datafeed-farequote-composite
   }
 }
 ----------------------------------
-// TEST[skip:setup:farequote_job]
-
 <1> Provide the `size` to the composite agg to control how many resources
-are used when aggregating the data. A larger `size` means a faster datafeed but
+are used when aggregating the data. A larger `size` means a faster {dfeed} but
 more cluster resources are used when searching.
 <2> The required `date_histogram` composite aggregation source. Make sure it
 is named differently than your desired time field.
@@ -364,7 +342,7 @@ When using a `date_histogram` aggregation to bucket by time:
     "bucket_agg": {
       ...
     },
-    "aggregations": {]
+    "aggregations": {
       "data_histogram_aggregation": {
         "date_histogram": {
           "field": "time",

@@ -12,8 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 
 import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -58,7 +56,7 @@ public class LatestChangeCollectorTests extends ESTestCase {
                     "t_id",
                     123513L,
                     42L,
-                    Map.of(
+                    org.elasticsearch.core.Map.of(
                         "index-1",
                         indexSequenceIds1,
                         "index-2",
@@ -74,7 +72,7 @@ public class LatestChangeCollectorTests extends ESTestCase {
                     "t_id",
                     123456759L,
                     43L,
-                    Map.of(
+                    org.elasticsearch.core.Map.of(
                         "index-1",
                         indexSequenceIds1,
                         "index-2",
@@ -97,7 +95,7 @@ public class LatestChangeCollectorTests extends ESTestCase {
                     "t_id",
                     123513L,
                     42L,
-                    Map.of(
+                    org.elasticsearch.core.Map.of(
                         "index-1",
                         indexSequenceIds1,
                         "index-2",
@@ -113,7 +111,7 @@ public class LatestChangeCollectorTests extends ESTestCase {
                     "t_id",
                     123456759L,
                     43L,
-                    Map.of(
+                    org.elasticsearch.core.Map.of(
                         "index-1",
                         indexSequenceIds1,
                         "index-2",
@@ -126,7 +124,7 @@ public class LatestChangeCollectorTests extends ESTestCase {
                     123456789L
                 )
             ),
-            equalTo(Set.of("index-3", "index-4"))
+            equalTo(org.elasticsearch.core.Set.of("index-3", "index-4"))
         );
 
         // only 3 changed (no order)
@@ -136,7 +134,7 @@ public class LatestChangeCollectorTests extends ESTestCase {
                     "t_id",
                     123513L,
                     42L,
-                    Map.of(
+                    org.elasticsearch.core.Map.of(
                         "index-1",
                         indexSequenceIds1,
                         "index-2",
@@ -152,7 +150,7 @@ public class LatestChangeCollectorTests extends ESTestCase {
                     "t_id",
                     123456759L,
                     43L,
-                    Map.of(
+                    org.elasticsearch.core.Map.of(
                         "index-1",
                         indexSequenceIds1,
                         "index-2",
@@ -171,16 +169,22 @@ public class LatestChangeCollectorTests extends ESTestCase {
         // all have changed
         assertThat(
             changeCollector.getIndicesToQuery(
-                new TransformCheckpoint("t_id", 123513L, 42L, Map.of("index-3", indexSequenceIds3, "index-4", indexSequenceIds4), 123543L),
+                new TransformCheckpoint(
+                    "t_id",
+                    123513L,
+                    42L,
+                    org.elasticsearch.core.Map.of("index-3", indexSequenceIds3, "index-4", indexSequenceIds4),
+                    123543L
+                ),
                 new TransformCheckpoint(
                     "t_id",
                     123456759L,
                     43L,
-                    Map.of("index-3", indexSequenceIds3_1, "index-4", indexSequenceIds4_1),
+                    org.elasticsearch.core.Map.of("index-3", indexSequenceIds3_1, "index-4", indexSequenceIds4_1),
                     123456789L
                 )
             ),
-            equalTo(Set.of("index-3", "index-4"))
+            equalTo(org.elasticsearch.core.Set.of("index-3", "index-4"))
         );
 
         // a new index appeared
@@ -190,14 +194,14 @@ public class LatestChangeCollectorTests extends ESTestCase {
                     "t_id",
                     123513L,
                     42L,
-                    Map.of("index-2", indexSequenceIds2, "index-3", indexSequenceIds3, "index-4", indexSequenceIds4),
+                    org.elasticsearch.core.Map.of("index-2", indexSequenceIds2, "index-3", indexSequenceIds3, "index-4", indexSequenceIds4),
                     123543L
                 ),
                 new TransformCheckpoint(
                     "t_id",
                     123456759L,
                     43L,
-                    Map.of(
+                    org.elasticsearch.core.Map.of(
                         "index-1",
                         indexSequenceIds1,
                         "index-2",
@@ -210,7 +214,7 @@ public class LatestChangeCollectorTests extends ESTestCase {
                     123456789L
                 )
             ),
-            equalTo(Set.of("index-1", "index-3", "index-4"))
+            equalTo(org.elasticsearch.core.Set.of("index-1", "index-3", "index-4"))
         );
 
         // index disappeared
@@ -220,7 +224,7 @@ public class LatestChangeCollectorTests extends ESTestCase {
                     "t_id",
                     123513L,
                     42L,
-                    Map.of(
+                    org.elasticsearch.core.Map.of(
                         "index-1",
                         indexSequenceIds1,
                         "index-2",
@@ -236,11 +240,18 @@ public class LatestChangeCollectorTests extends ESTestCase {
                     "t_id",
                     123456759L,
                     43L,
-                    Map.of("index-2", indexSequenceIds2, "index-3", indexSequenceIds3_1, "index-4", indexSequenceIds4_1),
+                    org.elasticsearch.core.Map.of(
+                        "index-2",
+                        indexSequenceIds2,
+                        "index-3",
+                        indexSequenceIds3_1,
+                        "index-4",
+                        indexSequenceIds4_1
+                    ),
                     123456789L
                 )
             ),
-            equalTo(Set.of("index-3", "index-4"))
+            equalTo(org.elasticsearch.core.Set.of("index-3", "index-4"))
         );
     }
 }

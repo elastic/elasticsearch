@@ -339,6 +339,9 @@ public class IndexDeprecationChecks {
 
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkGeoShapeMappings(IndexMetadata indexMetadata) {
+        if (indexMetadata == null || indexMetadata.mapping() == null) {
+            return null;
+        }
         Map<String, Object> sourceAsMap = indexMetadata.mapping().getSourceAsMap();
         List<String> messages = findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE, sourceAsMap,
             IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,

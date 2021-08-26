@@ -30,6 +30,7 @@ import java.util.TreeSet;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.startsWith;
 
 public class VerifierTests extends ESTestCase {
 
@@ -94,7 +95,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStartsWithNumber() {
-        assertEquals("1:1: no viable alternative at input '42'", errorParsing("42 where true"));
+        assertThat(errorParsing("42 where true"), startsWith("1:1: mismatched input '42' expecting"));
     }
 
     public void testMissingColumn() {

@@ -82,7 +82,7 @@ one of the following types of analysis: {classification}, {oldetection}, or
 `classification`:::
 (Required^*^, object)
 The configuration information necessary to perform
-{ml-docs}/dfa-classification.html[{classification}].
+{ml-docs}/ml-dfa-classification.html[{classification}].
 +
 TIP: Advanced parameters are for fine-tuning {classanalysis}. They are set
 automatically by hyperparameter optimization to give the minimum validation
@@ -263,9 +263,9 @@ a large number of categories, there could be a significant effect on the size of
 +
 --
 NOTE: To use the
-{ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[AUC ROC evaluation method],
-`num_top_classes` must be set to `-1` or a value greater than or equal to the
-total number of categories.
+{ml-docs}/ml-dfa-classification.html#ml-dfanalytics-class-aucroc[AUC ROC] 
+evaluation method, `num_top_classes` must be set to `-1` or a value greater than 
+or equal to the total number of categories.
 
 --
 
@@ -300,7 +300,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 `outlier_detection`:::
 (Required^*^, object)
 The configuration information necessary to perform
-{ml-docs}/dfa-outlier-detection.html[{oldetection}]:
+{ml-docs}/ml-dfa-finding-outliers.html[{oldetection}]:
 +
 .Properties of `outlier_detection`
 [%collapsible%open]
@@ -334,7 +334,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 `regression`:::
 (Required^*^, object)
 The configuration information necessary to perform
-{ml-docs}/dfa-regression.html[{regression}].
+{ml-docs}/ml-dfa-regression.html[{regression}].
 +
 TIP: Advanced parameters are for fine-tuning {reganalysis}. They are set
 automatically by hyperparameter optimization to give the minimum validation
@@ -391,8 +391,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
 (Optional, string)
 The loss function used during {regression}. Available options are `mse` (mean
 squared error), `msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber
-loss). Defaults to `mse`. Refer to
-{ml-docs}/dfa-regression.html#dfa-regression-lossfunction[Loss functions for {regression} analyses]
+loss). Defaults to `mse`.
+Refer to
+{ml-docs}/dfa-regression-lossfunction.html[Loss functions for {regression} analyses]
 to learn more.
 
 `loss_function_parameter`::::

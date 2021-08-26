@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -83,6 +83,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     private ThreadPool threadPool;
     private Client client;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void createRegistryAndClient() {
         threadPool = mock(ThreadPool.class);

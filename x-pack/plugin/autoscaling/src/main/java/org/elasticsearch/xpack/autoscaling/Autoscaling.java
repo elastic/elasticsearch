@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfoService;
+import org.elasticsearch.xpack.autoscaling.existence.FrozenExistenceDeciderService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
@@ -176,6 +177,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 AutoscalingDeciderResult.Reason.class,
                 FrozenStorageDeciderService.NAME,
                 FrozenStorageDeciderService.FrozenReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                FrozenExistenceDeciderService.NAME,
+                FrozenExistenceDeciderService.FrozenExistenceReason::new
             )
         );
     }
@@ -208,7 +214,8 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 allocationDeciders.get()
             ),
             new FrozenShardsDeciderService(),
-            new FrozenStorageDeciderService()
+            new FrozenStorageDeciderService(),
+            new FrozenExistenceDeciderService()
         );
     }
 

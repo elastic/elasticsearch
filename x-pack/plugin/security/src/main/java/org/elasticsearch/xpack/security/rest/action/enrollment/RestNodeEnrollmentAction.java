@@ -19,12 +19,11 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentRequest;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
 
-public final class RestNodeEnrollmentAction extends SecurityBaseRestHandler {
+public final class RestNodeEnrollmentAction extends EnrollmentBaseRestHandler {
 
     /**
      * @param settings the node's settings
@@ -40,7 +39,7 @@ public final class RestNodeEnrollmentAction extends SecurityBaseRestHandler {
 
     @Override public List<Route> routes() {
         return List.of(
-            new Route(RestRequest.Method.GET, "_security/enroll_node")
+            new Route(RestRequest.Method.GET, "_security/enroll/node")
         );
     }
 

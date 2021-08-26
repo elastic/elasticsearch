@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.elasticsearch.xpack.core.ilm.GenerateUniqueIndexNameStep.generateValidIndexName;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
@@ -73,8 +72,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         CleanupShrinkIndexStep cleanupShrinkIndexStep = createRandomInstance();
         cleanupShrinkIndexStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
             @Override
-            public void onResponse(Boolean complete) {
-                assertThat(complete, is(true));
+            public void onResponse(Void unused) {
             }
 
             @Override
@@ -104,7 +102,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
             step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
                 @Override
-                public void onResponse(Boolean complete) {
+                public void onResponse(Void complete) {
                 }
 
                 @Override
@@ -114,7 +112,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         }
     }
 
-    public void testDeleteSkippedIfManagedIndexIsShrunkAndSourceDoesntExist() throws Exception {
+    public void testDeleteSkippedIfManagedIndexIsShrunkAndSourceDoesntExist() {
         String sourceIndex = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         String shrinkIndexName = generateValidIndexName("shrink-", sourceIndex);
@@ -137,8 +135,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
             step.performAction(shrunkIndexMetadata, clusterState, null, new ActionListener<>() {
                 @Override
-                public void onResponse(Boolean complete) {
-                    assertThat(complete, is(true));
+                public void onResponse(Void complete) {
                 }
 
                 @Override

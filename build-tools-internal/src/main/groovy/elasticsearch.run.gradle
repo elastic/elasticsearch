@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.RunTask
 
 // gradle has an open issue of failing applying plugins in
@@ -14,9 +15,9 @@ import org.elasticsearch.gradle.testclusters.RunTask
 
 testClusters {
   runTask {
-    testDistribution = System.getProperty('run.distribution', 'default')
-    if (System.getProperty('run.distribution', 'default') == 'default') {
-      String licenseType = System.getProperty("run.license_type", "basic")
+    testDistribution = providers.systemProperty('run.distribution').orElse('default').forUseAtConfigurationTime().get()
+    if (providers.systemProperty('run.distribution').orElse('default').forUseAtConfigurationTime().get() == 'default') {
+      String licenseType = providers.systemProperty("run.license_type").orElse("basic").forUseAtConfigurationTime().get()
       if (licenseType == 'trial') {
         setting 'xpack.ml.enabled', 'true'
         setting 'xpack.graph.enabled', 'true'
@@ -28,7 +29,6 @@ testClusters {
       setting 'xpack.security.enabled', 'true'
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
-      systemProperty 'es.shutdown_feature_flag_enabled', 'true'
     }
   }
 }

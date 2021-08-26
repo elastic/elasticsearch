@@ -11,7 +11,8 @@ import com.unboundid.ldap.sdk.ResultCode;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.Environment;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
@@ -420,7 +420,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
                 .put(getFullSettingKey(REALM_ID, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS);
         if (randomBoolean()) {
             builder.put(getFullSettingKey(REALM_ID, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
-                    hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
+                    hostnameVerification ? SslVerificationMode.FULL : SslVerificationMode.CERTIFICATE);
         } else {
             builder.put(getFullSettingKey(REALM_ID, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
         }

@@ -38,6 +38,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
@@ -667,7 +668,9 @@ public class JobManagerTests extends ESTestCase {
             threadPool,
             client,
             updateJobProcessNotifier,
-            xContentRegistry());
+            xContentRegistry(),
+            TestIndexNameExpressionResolver.newInstance()
+        );
     }
 
     private ClusterState createClusterState() {

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.eql.action;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,7 +42,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class EqlSearchResponse extends ActionResponse implements ToXContentObject {
+public class EqlSearchResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
 
     private final Hits hits;
     private final long tookInMillis;
@@ -150,14 +151,17 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         return hits;
     }
 
+    @Override
     public String id() {
         return asyncExecutionId;
     }
 
+    @Override
     public boolean isRunning() {
         return isRunning;
     }
 
+    @Override
     public boolean isPartial() {
         return isPartial;
     }
@@ -226,7 +230,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }, FIELDS);
         }
 
-        private final String index;
+        private String index;
         private final String id;
         private final BytesReference source;
         private final Map<String, DocumentField> fetchFields;
@@ -286,6 +290,10 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
         public static Event fromXContent(XContentParser parser) throws IOException {
             return PARSER.apply(parser, null);
+        }
+
+        public void index(String index) {
+            this.index = index;
         }
 
         public String index() {

@@ -19,8 +19,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,7 +30,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
@@ -844,7 +844,7 @@ public abstract class StreamInput extends InputStream {
         return list8;
     }
 
-    private Map readLinkedHashMap() throws IOException {
+    private Map<String, Object> readLinkedHashMap() throws IOException {
         int size9 = readArraySize();
         if (size9 == 0) {
             return Collections.emptyMap();
@@ -856,7 +856,7 @@ public abstract class StreamInput extends InputStream {
         return map9;
     }
 
-    private Map readHashMap() throws IOException {
+    private Map<String, Object> readHashMap() throws IOException {
         int size10 = readArraySize();
         if (size10 == 0) {
             return Collections.emptyMap();

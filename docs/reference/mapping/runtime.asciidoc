@@ -14,6 +14,11 @@ sees runtime fields no differently. You can define runtime fields in the
 <<runtime-search-request,search request>>. Your choice, which is part of the
 inherent flexibility of runtime fields.
 
+Use the <<search-fields,`fields`>> parameter on the `_search` API to
+<<runtime-retrieving-fields,retrieve the values of runtime fields>>. Runtime
+fields won't display in `_source`, but the `fields` API works for all fields,
+even those that were not sent as part of the original `_source`.
+
 Runtime fields are useful when working with log data
 (see <<runtime-examples,examples>>), especially when you're unsure about the
 data structure. Your search speed decreases, but your index size is much
@@ -41,6 +46,38 @@ mapping decisions because you don't have to decide how to parse your data up
 front, and can use runtime fields to amend the mapping at any time. Using
 runtime fields allows for a smaller index and faster ingest time, which
 combined use less resources and reduce your operating costs.
+
+[discrete]
+[[runtime-incentives]]
+=== Incentives
+Runtime fields can replace many of the ways you can use scripting with the
+`_search` API. How you use a runtime field is impacted by the number of
+documents that the included script runs against. For example, if you're using
+the `fields` parameter on the `_search` API to 
+<<runtime-retrieving-fields,retrieve the values of a runtime field>>, the script
+runs only against the top hits just like script fields do.
+
+You can use <<script-fields,script fields>> to access values in `_source` and
+return calculated values based on a script valuation. Runtime fields have these
+same capabilities, but provide greater flexibility because you can query and
+aggregate on runtime fields in a search request. Script fields can only fetch
+values.
+
+Similarly, you could write a <<query-dsl-script-query,script query>> that
+filters documents in a search request based on a script. Runtime fields provide
+a very similar feature that is more flexible. You write a script to create
+field values and they are available everywhere, such as
+<<search-fields,`fields`>>, <<query-dsl, all queries>>, and
+<<search-aggregations, aggregations>>.
+
+You can also use scripts to <<script-based-sorting,sort search results>>, but
+that same script works exactly the same in a runtime field.
+
+If you move a script from any of these sections in a search request to a
+runtime field that is computing values from the same number of documents, the
+performance should be about the same. The performance for these features is
+largely dependent upon the calculations that the included script is running and
+how many documents the script runs against. 
 
 [discrete]
 [[runtime-compromises]]
@@ -592,12 +629,12 @@ which still returns in the response:
 
 [[runtime-retrieving-fields]]
 === Retrieve a runtime field
+
 Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
 the values of runtime fields. Runtime fields won't display in `_source`, but
 the `fields` API works for all fields, even those that were not sent as part of
 the original `_source`.
 
-[discrete]
 [[runtime-define-field-dayofweek]]
 ==== Define a runtime field to calculate the day of week
 For example, the following request adds a runtime field called `day_of_week`.
@@ -626,7 +663,6 @@ PUT my-index-000001/
 }
 ----
 
-[discrete]
 [[runtime-ingest-data]]
 ==== Ingest some data
 Let's ingest some sample data, which will result in two indexed fields:
@@ -660,7 +696,6 @@ POST /my-index-000001/_bulk?refresh
 ----
 //TEST[continued]
 
-[discrete]
 [[runtime-search-dayofweek]]
 ==== Search for the calculated day of week
 The following request uses the search API to retrieve the `day_of_week` field
@@ -1006,8 +1041,8 @@ POST my-index-000001/_bulk?refresh=true
 
 You can now retrieve calculated values in a search query, and find documents
 based on precise values. The following range query returns all documents where
-the calculated `voltage_corrected` is greater than or equal to `10`, but less
-than or equal to `16`. Again, use the <<search-fields,`fields`>> parameter on
+the calculated `voltage_corrected` is greater than or equal to `16`, but less
+than or equal to `20`. Again, use the <<search-fields,`fields`>> parameter on
 the `_search` API to retrieve the fields you want:
 
 [source,console]

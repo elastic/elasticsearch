@@ -14,20 +14,20 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -37,13 +37,15 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
@@ -57,6 +59,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
@@ -75,6 +78,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -90,7 +94,6 @@ public class JobManager {
     private static final Version MIN_NODE_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER = Version.V_7_14_0;
 
     private static final Logger logger = LogManager.getLogger(JobManager.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JobManager.class);
 
     private final JobResultsProvider jobResultsProvider;
     private final JobResultsPersister jobResultsPersister;
@@ -101,16 +104,27 @@ public class JobManager {
     private final UpdateJobProcessNotifier updateJobProcessNotifier;
     private final JobConfigProvider jobConfigProvider;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
+    private final NamedXContentRegistry xContentRegistry;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
 
     /**
      * Create a JobManager
      */
-    public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
-                      JobResultsPersister jobResultsPersister, ClusterService clusterService, AnomalyDetectionAuditor auditor,
-                      ThreadPool threadPool, Client client, UpdateJobProcessNotifier updateJobProcessNotifier,
-                      NamedXContentRegistry xContentRegistry) {
+    public JobManager(
+        Environment environment,
+        Settings settings,
+        JobResultsProvider jobResultsProvider,
+        JobResultsPersister jobResultsPersister,
+        ClusterService clusterService,
+        AnomalyDetectionAuditor auditor,
+        ThreadPool threadPool,
+        Client client,
+        UpdateJobProcessNotifier updateJobProcessNotifier,
+        NamedXContentRegistry xContentRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -119,8 +133,9 @@ public class JobManager {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.updateJobProcessNotifier = updateJobProcessNotifier;
         this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
+        this.xContentRegistry = xContentRegistry;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
-
+        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
@@ -173,6 +188,36 @@ public class JobManager {
     }
 
     /**
+     * Get the jobs as builder objects that match the given {@code expression}.
+     * Note that when the {@code jobId} is {@link Metadata#ALL} all jobs are returned.
+     *
+     * @param expression   the jobId or an expression matching jobIds
+     * @param allowNoMatch if {@code false}, an error is thrown when no job matches the {@code jobId}
+     * @param jobsListener The jobs listener
+     */
+    public void expandJobBuilders(String expression, boolean allowNoMatch, ActionListener<List<Job.Builder>> jobsListener) {
+        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoMatch, clusterService.state());
+        jobConfigProvider.expandJobs(expression, allowNoMatch, false, ActionListener.wrap(
+            jobBuilders -> {
+                // Check for duplicate jobs
+                for (Job.Builder jb : jobBuilders) {
+                    if (clusterStateJobs.containsKey(jb.getId())) {
+                        jobsListener.onFailure(new IllegalStateException("Job [" + jb.getId() + "] configuration " +
+                            "exists in both clusterstate and index"));
+                        return;
+                    }
+                }
+                // Merge cluster state and index jobs
+                List<Job.Builder> jobs = new ArrayList<>(jobBuilders);
+                jobs.addAll(clusterStateJobs.values().stream().map(Job.Builder::new).collect(Collectors.toList()));
+                jobs.sort(Comparator.comparing(Job.Builder::getId));
+                jobsListener.onResponse(jobs);
+            },
+            jobsListener::onFailure
+        ));
+    }
+
+    /**
      * Get the jobs that match the given {@code expression}.
      * Note that when the {@code jobId} is {@link Metadata#ALL} all jobs are returned.
      *
@@ -181,30 +226,15 @@ public class JobManager {
      * @param jobsListener The jobs listener
      */
     public void expandJobs(String expression, boolean allowNoMatch, ActionListener<QueryPage<Job>> jobsListener) {
-        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoMatch, clusterService.state());
-
-        jobConfigProvider.expandJobs(expression, allowNoMatch, false, ActionListener.wrap(
-                jobBuilders -> {
-                    // Check for duplicate jobs
-                    for (Job.Builder jb : jobBuilders) {
-                        if (clusterStateJobs.containsKey(jb.getId())) {
-                            jobsListener.onFailure(new IllegalStateException("Job [" + jb.getId() + "] configuration " +
-                                    "exists in both clusterstate and index"));
-                            return;
-                        }
-                    }
-
-                    // Merge cluster state and index jobs
-                    List<Job> jobs = new ArrayList<>();
-                    for (Job.Builder jb : jobBuilders) {
-                        jobs.add(jb.build());
-                    }
-
-                    jobs.addAll(clusterStateJobs.values());
-                    Collections.sort(jobs, Comparator.comparing(Job::getId));
-                    jobsListener.onResponse(new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
-                },
-                jobsListener::onFailure
+        expandJobBuilders(expression, allowNoMatch, ActionListener.wrap(
+            jobBuilders -> jobsListener.onResponse(
+                new QueryPage<>(
+                    jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList()),
+                    jobBuilders.size(),
+                    Job.RESULTS_FIELD
+                )
+            ),
+            jobsListener::onFailure
         ));
     }
 
@@ -267,11 +297,6 @@ public class JobManager {
 
         Job job = jobBuilder.build(new Date());
 
-        if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "ml_create_job_delimited_data",
-                "Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
-        }
-
         // Check for the job in the cluster state first
         MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(state);
         if (currentMlMetadata.getJobs().containsKey(job.getId())) {
@@ -324,6 +349,14 @@ public class JobManager {
         ActionListener<List<String>> checkForLeftOverDocs = ActionListener.wrap(
                 matchedIds -> {
                     if (matchedIds.isEmpty()) {
+                        if (job.getDatafeedConfig().isPresent()) {
+                            try {
+                                DatafeedJobValidator.validate(job.getDatafeedConfig().get(), job, xContentRegistry);
+                            } catch (Exception e) {
+                                actionListener.onFailure(e);
+                                return;
+                            }
+                        }
                         jobResultsProvider.createJobResultIndex(job, state, addDocMappingsListener);
                     } else {
                         // A job has the same Id as one of the group names
@@ -407,6 +440,59 @@ public class JobManager {
         } else {
             checkMappingsAreUpToDate.run();
         }
+    }
+
+    public void deleteJob(DeleteJobAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+        deleteJob(request, client, state, listener);
+    }
+
+    public void deleteJob(
+        DeleteJobAction.Request request,
+        Client client,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        final String jobId = request.getJobId();
+
+        // Step 4. When the job has been removed from the cluster state, return a response
+        // -------
+        CheckedConsumer<Boolean, Exception> apiResponseHandler = jobDeleted -> {
+            if (jobDeleted) {
+                logger.info("Job [" + jobId + "] deleted");
+                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            } else {
+                listener.onResponse(AcknowledgedResponse.FALSE);
+            }
+        };
+
+        // Step 3. When the physical storage has been deleted, delete the job config document
+        // -------
+        // Don't report an error if the document has already been deleted
+        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobConfigProvider.deleteJob(
+            jobId,
+            false,
+            ActionListener.wrap(
+                deleteResponse -> apiResponseHandler.accept(Boolean.TRUE),
+                listener::onFailure
+            )
+        );
+
+        // Step 2. Remove the job from any calendars
+        CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> jobResultsProvider.removeJobFromCalendars(
+            jobId,
+            ActionListener.wrap(deleteJobStateHandler, listener::onFailure)
+        );
+
+
+        // Step 1. Delete the physical storage
+        new JobDataDeleter(client, jobId).deleteJobDocuments(
+            jobConfigProvider,
+            indexNameExpressionResolver,
+            state,
+            removeFromCalendarsHandler,
+            listener::onFailure
+        );
     }
 
     private void postJobUpdate(UpdateJobAction.Request request, Job updatedJob, ActionListener<PutJobAction.Response> actionListener) {
@@ -660,5 +746,9 @@ public class JobManager {
             },
             actionListener::onFailure
         ));
+    }
+
+    public void updateJobBlockReason(String jobId, Blocked blocked, ActionListener<PutJobAction.Response> listener) {
+        jobConfigProvider.updateJobBlockReason(jobId, blocked, listener);
     }
 }

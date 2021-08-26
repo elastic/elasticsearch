@@ -39,7 +39,7 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -392,13 +392,17 @@ public class TrainedModelProvider {
      * do not.
      *
      * @param modelId The model tp get
+     * @param unsafe when true, the compressed bytes size is not checked and the circuit breaker is solely responsible for
+     *               preventing OOMs
      * @param listener The listener
      */
-    public void getTrainedModelForInference(final String modelId, final ActionListener<InferenceDefinition> listener) {
+    public void getTrainedModelForInference(final String modelId, boolean unsafe, final ActionListener<InferenceDefinition> listener) {
         // TODO Change this when we get more than just langIdent stored
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
             try {
-                TrainedModelConfig config = loadModelFromResource(modelId, false).build().ensureParsedDefinition(xContentRegistry);
+                TrainedModelConfig config = loadModelFromResource(modelId, false)
+                    .build()
+                    .ensureParsedDefinitionUnsafe(xContentRegistry);
                 assert config.getModelDefinition().getTrainedModel() instanceof LangIdentNeuralNetwork;
                 assert config.getModelType() == TrainedModelType.LANG_IDENT;
                 listener.onResponse(
@@ -425,10 +429,9 @@ public class TrainedModelProvider {
             success -> {
                 try {
                     BytesReference compressedData = getDefinitionFromDocs(docs, modelId);
-                    InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
-                        compressedData,
-                        InferenceDefinition::fromXContent,
-                        xContentRegistry);
+                    InferenceDefinition inferenceDefinition = unsafe ?
+                    InferenceToXContentCompressor.inflateUnsafe(compressedData, InferenceDefinition::fromXContent, xContentRegistry) :
+                    InferenceToXContentCompressor.inflate(compressedData, InferenceDefinition::fromXContent, xContentRegistry);
 
                     listener.onResponse(inferenceDefinition);
                 } catch (Exception e) {

@@ -25,7 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -90,7 +90,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request,
-                                         SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
+                                         SearchTask task, SearchActionListener<? super SearchPhaseResult> listener) {
                 int shardId = request.shardId().id();
                 if (request.canReturnNullResponseIfMatchNoDocs()) {
                     canReturnNullResponse.set(true);
@@ -145,12 +145,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchRequest.source().collapse(new CollapseBuilder("collapse_field"));
         }
         searchRequest.allowPartialSearchResults(false);
-        SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        SearchPhaseController controller = new SearchPhaseController(r -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
-            shardsIter.size(), exc -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), shardsIter.size(), exc -> {});
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
@@ -243,12 +241,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.allowPartialSearchResults(false);
 
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null);
-        SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        SearchPhaseController controller = new SearchPhaseController(r -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
-            shardsIter.size(), exc -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), shardsIter.size(), exc -> {});
         final List<Object> responses = new ArrayList<>();
         SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
@@ -312,7 +308,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request,
-                                         SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
+                                         SearchTask task, SearchActionListener<? super SearchPhaseResult> listener) {
                 int shardId = request.shardId().id();
                 QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("N/A", 123),
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE), null);
@@ -338,12 +334,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 new Thread(() -> listener.onResponse(queryResult)).start();
             }
         };
-        SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        SearchPhaseController controller = new SearchPhaseController(r -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
-            shardsIter.size(), exc -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), shardsIter.size(), exc -> {});
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
@@ -412,7 +406,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request,
-                                         SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
+                                         SearchTask task, SearchActionListener<? super SearchPhaseResult> listener) {
                 int shardId = request.shardId().id();
                 QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("N/A", 123),
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE), null);
@@ -438,12 +432,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 new Thread(() -> listener.onResponse(queryResult)).start();
             }
         };
-        SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        SearchPhaseController controller = new SearchPhaseController(r -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
-            shardsIter.size(), exc -> {});
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), shardsIter.size(), exc -> {});
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),

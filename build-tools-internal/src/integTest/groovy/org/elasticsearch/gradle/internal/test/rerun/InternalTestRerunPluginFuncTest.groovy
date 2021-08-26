@@ -9,7 +9,9 @@
 package org.elasticsearch.gradle.internal.test.rerun
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import spock.lang.Ignore
 
+@Ignore
 class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
 
     def "does not rerun on failed tests"() {

@@ -235,17 +235,29 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testOutOfRangeValues() throws IOException {
-
         for(OutOfRangeSpec item : outOfRangeSpecs()) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", item.type.typeName())));
-            try {
-                mapper.parse(source(item::write));
-                fail("Mapper parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
-            } catch (MapperParsingException e) {
-                assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
-                    e.getCause().getMessage(), containsString(item.message));
-            }
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(item::write)));
+            assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                e.getCause().getMessage(), containsString(item.message));
         }
+    }
+
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        // dimension = false is allowed
+        assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
+
+        // dimension = true is not allowed
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Parameter [dimension] cannot be set"));
     }
 
     @Override

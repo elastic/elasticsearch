@@ -8,11 +8,10 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -40,11 +39,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -89,16 +88,16 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         internalCluster().startDataOnlyNode();
 
         int numShards = 2;
-        {
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(false), ShrinkAction.NAME,
-                new ShrinkAction(numShards + randomIntBetween(1, numShards), null)));
-            LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("warm", warmPhase));
-            PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-            assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
-        }
+        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(false), ShrinkAction.NAME,
+            new ShrinkAction(1, null)));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("warm", warmPhase));
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
+        // we're configuring a very high number of replicas. this will make ths shrunk index unable to allocate successfully, so ILM will
+        // wait in the `shrunk-shards-allocated` step (we don't wait for the original index to be GREEN before)
         Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(SETTING_NUMBER_OF_REPLICAS, 0).put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(SETTING_NUMBER_OF_REPLICAS, 42).put(LifecycleSettings.LIFECYCLE_NAME, policy)
             // configuring the threshold to the minimum value
             .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h")
             .build();
@@ -106,35 +105,15 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         assertTrue(res.isAcknowledged());
 
         String[] firstAttemptShrinkIndexName = new String[1];
-        // ILM will retry the shrink step because the number of shards to shrink to is gt the current number of shards
         assertBusy(() -> {
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
                 explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
-            assertThat(indexLifecycleExplainResponse.getFailedStepRetryCount(), greaterThanOrEqualTo(1));
-
             firstAttemptShrinkIndexName[0] = indexLifecycleExplainResponse.getShrinkIndexName();
             assertThat(firstAttemptShrinkIndexName[0], is(notNullValue()));
         }, 30, TimeUnit.SECONDS);
-
-
-        // we're manually shrinking the index but configuring a very high number of replicas and waiting for all active shards
-        // this will make ths shrunk index unable to allocate successfully, so ILM will wait in the `shrunk-shards-allocated` step
-        ResizeRequest resizeRequest = new ResizeRequest(firstAttemptShrinkIndexName[0], managedIndex);
-        Settings.Builder builder = Settings.builder();
-        // a very high number of replicas, coupled with an `all` wait for active shards configuration will block the shrink action in the
-        // `shrunk-shards-allocated` step.
-        builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 42)
-            .put("index.write.wait_for_active_shards", "all")
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
-        Settings relevantTargetSettings = builder.build();
-        resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
-        client().admin().indices().resizeIndex(resizeRequest).get();
-        ensureYellow(firstAttemptShrinkIndexName[0]);
 
         // let's check ILM for the managed index is waiting in the `shrunk-shards-allocated` step
         assertBusy(() -> {
@@ -180,24 +159,23 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // the shrink index generated in the first attempt must've been deleted!
         assertBusy(() -> assertFalse(indexExists(firstAttemptShrinkIndexName[0])));
 
-        // at this point, the manged index is looping into the `shrink` step as the action is trying to shrink to a higher number of
-        // shards than the source index has. we'll update the policy to shrink to 1 shard and this should unblock the policy and it
-        // should successfully shrink the managed index to the second cycle shrink index name
-        {
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(false), ShrinkAction.NAME,
-                new ShrinkAction(1, null)));
-            LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("warm", warmPhase));
-            PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-            assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
-        }
-
         assertBusy(() -> assertTrue(indexExists(secondCycleShrinkIndexName[0])), 30, TimeUnit.SECONDS);
+
+        // at this point, the second shrink attempt was executed and the manged index is looping into the `shrunk-shards-allocated` step as
+        // waiting for the huge numbers of replicas for the shrunk index to allocate. this will never happen, so let's unblock this
+        // situation and allow for shrink to complete by reducing the number of shards for the shrunk index to 0
+        Settings.Builder zeroReplicasSetting = Settings.builder().put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(secondCycleShrinkIndexName[0]).setSettings(zeroReplicasSetting)
+        );
+
         assertBusy(() -> {
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(secondCycleShrinkIndexName[0]);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE,
                 explainRequest).get();
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses()
                 .get(secondCycleShrinkIndexName[0]);
+            assertThat(indexLifecycleExplainResponse.getPhase(), equalTo("warm"));
             assertThat(indexLifecycleExplainResponse.getStep(), equalTo(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
     }

@@ -30,12 +30,18 @@ public class ResetFeatureStateResponseTests extends AbstractWireSerializingTestC
         List<ResetFeatureStateResponse.ResetFeatureStateStatus> resetStatuses = new ArrayList<>();
         String feature1 = randomAlphaOfLengthBetween(4, 10);
         String feature2 = randomValueOtherThan(feature1, () -> randomAlphaOfLengthBetween(4, 10));
-        resetStatuses.add(randomFrom(
-            ResetFeatureStateResponse.ResetFeatureStateStatus.success(feature1),
-            ResetFeatureStateResponse.ResetFeatureStateStatus.failure(feature1, new ElasticsearchException("bad"))));
-        resetStatuses.add(randomFrom(
-            ResetFeatureStateResponse.ResetFeatureStateStatus.success(feature2),
-            ResetFeatureStateResponse.ResetFeatureStateStatus.failure(feature2, new ElasticsearchException("bad"))));
+        resetStatuses.add(
+            randomFrom(
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success(feature1),
+                ResetFeatureStateResponse.ResetFeatureStateStatus.failure(feature1, new ElasticsearchException("bad"))
+            )
+        );
+        resetStatuses.add(
+            randomFrom(
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success(feature2),
+                ResetFeatureStateResponse.ResetFeatureStateStatus.failure(feature2, new ElasticsearchException("bad"))
+            )
+        );
         return new ResetFeatureStateResponse(resetStatuses);
     }
 
@@ -45,11 +51,18 @@ public class ResetFeatureStateResponseTests extends AbstractWireSerializingTestC
         if (instance.getFeatureStateResetStatuses().size() == 0) {
             minSize = 1;
         }
-        Set<String> existingFeatureNames = instance.getFeatureStateResetStatuses().stream()
+        Set<String> existingFeatureNames = instance.getFeatureStateResetStatuses()
+            .stream()
             .map(ResetFeatureStateResponse.ResetFeatureStateStatus::getFeatureName)
             .collect(Collectors.toSet());
-        return new ResetFeatureStateResponse(randomList(minSize, 10,
-            () -> ResetFeatureStateResponse.ResetFeatureStateStatus.success(
-                randomValueOtherThanMany(existingFeatureNames::contains, () -> randomAlphaOfLengthBetween(4, 10)))));
+        return new ResetFeatureStateResponse(
+            randomList(
+                minSize,
+                10,
+                () -> ResetFeatureStateResponse.ResetFeatureStateStatus.success(
+                    randomValueOtherThanMany(existingFeatureNames::contains, () -> randomAlphaOfLengthBetween(4, 10))
+                )
+            )
+        );
     }
 }

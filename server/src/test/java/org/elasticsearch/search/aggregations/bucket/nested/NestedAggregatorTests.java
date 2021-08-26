@@ -27,14 +27,15 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -771,7 +772,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(NESTED_AGG, nested.getName());
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
-                InternalTerms<?, LongTerms.Bucket> terms = (InternalTerms) nested.getProperty("terms");
+                @SuppressWarnings("unchecked")
+                InternalTerms<?, LongTerms.Bucket> terms = (InternalTerms<?, LongTerms.Bucket>) nested.getProperty("terms");
                 assertNotNull(terms);
 
                 for (LongTerms.Bucket bucket : terms.getBuckets()) {
@@ -899,7 +901,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         nestedObject("nested_field")
     );
 
-    public static ObjectMapper nestedObject(String path) {
-        return new ObjectMapper.Builder(path, Version.CURRENT).nested(ObjectMapper.Nested.newNested()).build(new ContentPath());
+    public static NestedObjectMapper nestedObject(String path) {
+        return new NestedObjectMapper.Builder(path, Version.CURRENT).build(new ContentPath());
     }
 }

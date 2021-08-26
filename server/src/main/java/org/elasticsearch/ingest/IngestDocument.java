@@ -810,6 +810,7 @@ public final class IngestDocument {
 
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
+        TYPE("_type"),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
         VERSION(VersionFieldMapper.NAME),

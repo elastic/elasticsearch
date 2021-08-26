@@ -16,7 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -50,6 +50,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
             : b == null ? m : a.compareTo(b);
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void testRanges() throws Exception {
         boolean v4 = randomBoolean();
         IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg").field("field");

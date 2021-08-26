@@ -9,24 +9,25 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.DelayedBucket;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.TopBucketBuilder;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyAsc;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
@@ -63,11 +64,6 @@ public abstract class AbstractInternalTerms<
     }
 
     /**
-     * Create an array to hold some buckets. Used in collecting the results.
-     */
-    protected abstract B[] createBucketsArray(int size);
-
-    /**
      * Creates InternalTerms at the end of the merge
      */
     protected abstract A create(String name, List<B> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount);
@@ -80,7 +76,7 @@ public abstract class AbstractInternalTerms<
 
     protected abstract long getSumOfOtherDocCounts();
 
-    protected abstract long getDocCountError();
+    protected abstract Long getDocCountError();
 
     protected abstract void setDocCountError(long docCountError);
 
@@ -137,7 +133,7 @@ public abstract class AbstractInternalTerms<
         if (size == 0 || size < terms.getShardSize() || isKeyOrder(terms.getOrder())) {
             return 0;
         } else if (InternalOrder.isCountDesc(terms.getOrder())) {
-            if (terms.getDocCountError() > 0) {
+            if (terms.getDocCountError() != null) {
                 // If there is an existing docCountError for this agg then
                 // use this as the error for this aggregation
                 return terms.getDocCountError();
@@ -151,8 +147,39 @@ public abstract class AbstractInternalTerms<
         }
     }
 
-    private List<B> reduceMergeSort(List<InternalAggregation> aggregations,
-                                    BucketOrder thisReduceOrder, InternalAggregation.ReduceContext reduceContext) {
+    /**
+     * Reduce the buckets of sub-aggregations.
+     * @param sink Handle the reduced buckets. Returns false if we should stop iterating the buckets, true if we should continue.
+     * @return the order we used to reduce the buckets
+     */
+    private BucketOrder reduceBuckets(
+        List<InternalAggregation> aggregations,
+        InternalAggregation.ReduceContext reduceContext,
+        Function<DelayedBucket<B>, Boolean> sink
+    ) {
+        /*
+         * Buckets returned by a partial reduce or a shard response are sorted by key since {@link Version#V_7_10_0}.
+         * That allows to perform a merge sort when reducing multiple aggregations together.
+         * For backward compatibility, we disable the merge sort and use ({@link #reduceLegacy} if any of
+         * the provided aggregations use a different {@link #reduceOrder}.
+         */
+        BucketOrder thisReduceOrder = getReduceOrder(aggregations);
+        if (isKeyOrder(thisReduceOrder)) {
+            // extract the primary sort in case this is a compound order.
+            thisReduceOrder = InternalOrder.key(isKeyAsc(thisReduceOrder));
+            reduceMergeSort(aggregations, thisReduceOrder, reduceContext, sink);
+        } else {
+            reduceLegacy(aggregations, reduceContext, sink);
+        }
+        return thisReduceOrder;
+    }
+
+    private void reduceMergeSort(
+        List<InternalAggregation> aggregations,
+        BucketOrder thisReduceOrder,
+        InternalAggregation.ReduceContext reduceContext,
+        Function<DelayedBucket<B>, Boolean> sink
+    ) {
         assert isKeyOrder(thisReduceOrder);
         final Comparator<Bucket> cmp = thisReduceOrder.comparator();
         final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<>(aggregations.size()) {
@@ -168,21 +195,24 @@ public abstract class AbstractInternalTerms<
                 pq.add(new IteratorAndCurrent<>(terms.getBuckets().iterator()));
             }
         }
-        List<B> reducedBuckets = new ArrayList<>();
         // list of buckets coming from different shards that have the same key
-        List<B> currentBuckets = new ArrayList<>();
+        List<B> sameTermBuckets = new ArrayList<>();
         B lastBucket = null;
         while (pq.size() > 0) {
             final IteratorAndCurrent<B> top = pq.top();
             assert lastBucket == null || cmp.compare(top.current(), lastBucket) >= 0;
             if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
-                // the key changes, reduce what we already buffered and reset the buffer for current buckets
-                final B reduced = reduceBucket(currentBuckets, reduceContext);
-                reducedBuckets.add(reduced);
-                currentBuckets.clear();
+                // the key changed so bundle up the last key's worth of buckets
+                boolean shouldContinue = sink.apply(
+                    new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
+                );
+                if (false == shouldContinue) {
+                    return;
+                }
+                sameTermBuckets = new ArrayList<>();
             }
             lastBucket = top.current();
-            currentBuckets.add(top.current());
+            sameTermBuckets.add(top.current());
             if (top.hasNext()) {
                 top.next();
                 /*
@@ -197,14 +227,16 @@ public abstract class AbstractInternalTerms<
             }
         }
 
-        if (currentBuckets.isEmpty() == false) {
-            final B reduced = reduceBucket(currentBuckets, reduceContext);
-            reducedBuckets.add(reduced);
+        if (sameTermBuckets.isEmpty() == false) {
+            sink.apply(new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
         }
-        return reducedBuckets;
     }
 
-    private List<B> reduceLegacy(List<InternalAggregation> aggregations, InternalAggregation.ReduceContext reduceContext) {
+    private void reduceLegacy(
+        List<InternalAggregation> aggregations,
+        InternalAggregation.ReduceContext reduceContext,
+        Function<DelayedBucket<B>, Boolean> sink
+    ) {
         Map<Object, List<B>> bucketMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
             @SuppressWarnings("unchecked")
@@ -215,17 +247,19 @@ public abstract class AbstractInternalTerms<
                 }
             }
         }
-        List<B> reducedBuckets = new ArrayList<>();
         for (List<B> sameTermBuckets : bucketMap.values()) {
-            final B b = reduceBucket(sameTermBuckets, reduceContext);
-            reducedBuckets.add(b);
+            boolean shouldContinue = sink.apply(
+                new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
+            );
+            if (false == shouldContinue) {
+                return;
+            }
         }
-        return reducedBuckets;
     }
 
     public InternalAggregation reduce(List<InternalAggregation> aggregations, InternalAggregation.ReduceContext reduceContext) {
         long sumDocCountError = 0;
-        long otherDocCount = 0;
+        long[] otherDocCount = new long[] {0};
         A referenceTerms = null;
         for (InternalAggregation aggregation : aggregations) {
             @SuppressWarnings("unchecked")
@@ -240,7 +274,7 @@ public abstract class AbstractInternalTerms<
                     + referenceTerms.getName() + "] because the field you gave in the aggregation query existed as two different "
                     + "types in two different indices");
             }
-            otherDocCount += terms.getSumOfOtherDocCounts();
+            otherDocCount[0] += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError = getDocCountError(terms);
             if (sumDocCountError != -1) {
                 if (thisAggDocCountError == -1) {
@@ -262,62 +296,37 @@ public abstract class AbstractInternalTerms<
             }
         }
 
-        final List<B> reducedBuckets;
-        /**
-         * Buckets returned by a partial reduce or a shard response are sorted by key since {@link Version#V_7_10_0}.
-         * That allows to perform a merge sort when reducing multiple aggregations together.
-         * For backward compatibility, we disable the merge sort and use ({@link #reduceLegacy} if any of
-         * the provided aggregations use a different {@link #reduceOrder}.
-         */
-        BucketOrder thisReduceOrder = getReduceOrder(aggregations);
-        if (isKeyOrder(thisReduceOrder)) {
-            // extract the primary sort in case this is a compound order.
-            thisReduceOrder = InternalOrder.key(isKeyAsc(thisReduceOrder));
-            reducedBuckets = reduceMergeSort(aggregations, thisReduceOrder, reduceContext);
-        } else {
-            reducedBuckets = reduceLegacy(aggregations, reduceContext);
-        }
-        final B[] list;
+        BucketOrder thisReduceOrder;
+        List<B> result;
         if (reduceContext.isFinalReduce()) {
-            final int size = Math.min(getRequiredSize(), reducedBuckets.size());
-            // final comparator
-            final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, getOrder().comparator());
-            for (B bucket : reducedBuckets) {
-                if (sumDocCountError == -1) {
-                    bucket.setDocCountError(-1);
-                } else {
-                    bucket.updateDocCountError(sumDocCountError);
-                }
+            TopBucketBuilder<B> top = TopBucketBuilder.build(getRequiredSize(), getOrder(), removed -> {
+                otherDocCount[0] += removed.getDocCount();
+            });
+            thisReduceOrder = reduceBuckets(aggregations, reduceContext, bucket -> {
                 if (bucket.getDocCount() >= getMinDocCount()) {
-                    B removed = ordered.insertWithOverflow(bucket);
-                    if (removed != null) {
-                        otherDocCount += removed.getDocCount();
-                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
-                    } else {
-                        reduceContext.consumeBucketsAndMaybeBreak(1);
-                    }
-                } else {
-                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket));
+                    top.add(bucket);
                 }
-            }
-            list = createBucketsArray(ordered.size());
-            for (int i = ordered.size() - 1; i >= 0; i--) {
-                list[i] = ordered.pop();
-            }
+                return true;
+            });
+            result = top.build();
         } else {
-            // we can prune the list on partial reduce if the aggregation is ordered by key
-            // and not filtered (minDocCount == 0)
-            int size = isKeyOrder(getOrder()) && getMinDocCount() == 0 ? Math.min(getRequiredSize(), reducedBuckets.size()) :
-                reducedBuckets.size();
-            list = createBucketsArray(size);
-            for (int i = 0; i < size; i++) {
-                reduceContext.consumeBucketsAndMaybeBreak(1);
-                list[i] = reducedBuckets.get(i);
-                if (sumDocCountError == -1) {
-                    list[i].setDocCountError(-1);
-                } else {
-                    list[i].updateDocCountError(sumDocCountError);
-                }
+            /*
+             * We can prune the list on partial reduce if the aggregation is ordered
+             * by key and not filtered on doc count. The results come in key order
+             * so we can just stop iteration early.
+             */
+            boolean canPrune = isKeyOrder(getOrder()) && getMinDocCount() == 0;
+            result = new ArrayList<>();
+            thisReduceOrder = reduceBuckets(aggregations, reduceContext, bucket -> {
+                result.add(bucket.reduced());
+                return false == canPrune || result.size() < getRequiredSize();
+            });
+        }
+        for (B r : result) {
+            if (sumDocCountError == -1) {
+                r.setDocCountError(-1);
+            } else {
+                r.updateDocCountError(sumDocCountError);
             }
         }
         long docCountError;
@@ -326,13 +335,12 @@ public abstract class AbstractInternalTerms<
         } else {
             docCountError = aggregations.size() == 1 ? 0 : sumDocCountError;
         }
-        return create(name, Arrays.asList(list), reduceContext.isFinalReduce() ? getOrder() : thisReduceOrder, docCountError,
-            otherDocCount);
+        return create(name, result, reduceContext.isFinalReduce() ? getOrder() : thisReduceOrder, docCountError, otherDocCount[0]);
     }
 
     protected static XContentBuilder doXContentCommon(XContentBuilder builder,
                                                       Params params,
-                                                      long docCountError,
+                                                      Long docCountError,
                                                       long otherDocCount,
                                                       List<? extends AbstractTermsBucket> buckets) throws IOException {
         builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), docCountError);

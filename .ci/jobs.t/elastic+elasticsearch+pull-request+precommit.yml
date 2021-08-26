@@ -1,9 +1,9 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+precommit"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request precommit"
+    name: "elastic+elasticsearch+pull-request+precommit"
+    display-name: "elastic / elasticsearch - pull request precommit"
     description: "Testing of Elasticsearch pull requests - precommit"
-    workspace: "/dev/shm/elastic+elasticsearch+%BRANCH%+pull-request+precommit"
+    workspace: "/dev/shm/elastic+elasticsearch+pull-request+precommit"
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
@@ -18,9 +18,6 @@
           github-hooks: true
           status-context: elasticsearch-ci/precommit
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - %BRANCH%
-            - ^feat(ure)?/.*
           included-regions:
             - ^docs/.*
           black-list-labels:
@@ -31,6 +28,8 @@
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA8_HOME=$HOME/.java/java8
+            JAVA11_HOME=$HOME/.java/java11
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
           $WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed precommit

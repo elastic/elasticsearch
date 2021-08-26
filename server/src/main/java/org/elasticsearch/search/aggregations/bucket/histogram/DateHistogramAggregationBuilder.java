@@ -12,7 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,7 +42,7 @@ import static java.util.Map.entry;
  * A builder for histograms on date fields.
  */
 public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<DateHistogramAggregationBuilder>
-        implements DateIntervalConsumer {
+        implements DateIntervalConsumer<DateHistogramAggregationBuilder> {
 
     public static final String NAME = "date_histogram";
     public static final ValuesSourceRegistry.RegistryKey<DateHistogramAggregationSupplier> REGISTRY_KEY =
@@ -159,44 +159,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeOptionalWriteable(hardBounds);
         }
-    }
-
-    /** Get the current interval in milliseconds that is set on this builder. */
-    @Deprecated
-    public long interval() {
-        return dateHistogramInterval.interval();
-    }
-
-    /** Set the interval on this builder, and return the builder so that calls can be chained.
-     *  If both {@link #interval()} and {@link #dateHistogramInterval()} are set, then the
-     *  {@link #dateHistogramInterval()} wins.
-     *
-     *  @deprecated use {@link #fixedInterval(DateHistogramInterval)} or {@link #calendarInterval(DateHistogramInterval)} instead
-     *  @since 7.2.0
-     */
-    @Deprecated
-    public DateHistogramAggregationBuilder interval(long interval) {
-        dateHistogramInterval.interval(interval);
-        return this;
-    }
-
-    /** Get the current date interval that is set on this builder. */
-    @Deprecated
-    public DateHistogramInterval dateHistogramInterval() {
-       return dateHistogramInterval.dateHistogramInterval();
-    }
-
-    /** Set the interval on this builder, and return the builder so that calls can be chained.
-     *  If both {@link #interval()} and {@link #dateHistogramInterval()} are set, then the
-     *  {@link #dateHistogramInterval()} wins.
-     *
-     *  @deprecated use {@link #fixedInterval(DateHistogramInterval)} or {@link #calendarInterval(DateHistogramInterval)} instead
-     *  @since 7.2.0
-     */
-    @Deprecated
-    public DateHistogramAggregationBuilder dateHistogramInterval(DateHistogramInterval interval) {
-        dateHistogramInterval.dateHistogramInterval(interval);
-        return this;
     }
 
     /**

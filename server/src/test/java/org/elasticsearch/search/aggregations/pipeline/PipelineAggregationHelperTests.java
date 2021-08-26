@@ -129,7 +129,7 @@ public class PipelineAggregationHelperTests extends ESTestCase {
             for (double value : values) {
                 accumulator += value;
             }
-            return accumulator / values.length;
+            return values.length == 0 ? Double.NaN : accumulator / values.length ;
         }
 
         return 0.0;

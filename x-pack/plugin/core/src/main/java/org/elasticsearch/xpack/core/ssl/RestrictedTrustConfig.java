@@ -7,42 +7,40 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.common.ssl.StoredCertificate;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
-
-import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
+import javax.net.ssl.X509ExtendedTrustManager;
+
 /**
- * An implementation of {@link TrustConfig} that constructs a {@link RestrictedTrustManager}.
+ * An implementation of {@link SslTrustConfig} that constructs a {@link RestrictedTrustManager}.
  * This implementation always wraps another <code>TrustConfig</code> to perform the
  * underlying certificate validation.
  */
-public final class RestrictedTrustConfig extends TrustConfig {
+public final class RestrictedTrustConfig implements SslTrustConfig {
 
     private static final String RESTRICTIONS_KEY_SUBJECT_NAME = "trust.subject_name";
-    private final String groupConfigPath;
-    private final TrustConfig delegate;
+    private final Path groupConfigPath;
+    private final SslTrustConfig delegate;
 
-    RestrictedTrustConfig(String groupConfigPath, TrustConfig delegate) {
+    RestrictedTrustConfig(Path groupConfigPath, SslTrustConfig delegate) {
         this.groupConfigPath = Objects.requireNonNull(groupConfigPath);
         this.delegate = Objects.requireNonNull(delegate);
     }
 
     @Override
-    RestrictedTrustManager createTrustManager(@Nullable Environment environment) {
+    public RestrictedTrustManager createTrustManager() {
         try {
-            final X509ExtendedTrustManager delegateTrustManager = delegate.createTrustManager(environment);
-            final CertificateTrustRestrictions trustGroupConfig = readTrustGroup(resolveGroupConfigPath(environment));
+            final X509ExtendedTrustManager delegateTrustManager = delegate.createTrustManager();
+            final CertificateTrustRestrictions trustGroupConfig = readTrustGroup(groupConfigPath);
             return new RestrictedTrustManager(delegateTrustManager, trustGroupConfig);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to initialize TrustManager for {}", e, toString());
@@ -50,13 +48,13 @@ public final class RestrictedTrustConfig extends TrustConfig {
     }
 
     @Override
-    Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException {
-        return delegate.certificates(environment);
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        return delegate.getConfiguredCertificates();
     }
 
     @Override
-    List<Path> filesToMonitor(@Nullable Environment environment) {
-        return CollectionUtils.appendToCopy(delegate.filesToMonitor(environment), resolveGroupConfigPath(environment));
+    public Collection<Path> getDependentFiles() {
+        return CollectionUtils.appendToCopy(delegate.getDependentFiles(), groupConfigPath);
     }
 
     @Override
@@ -78,10 +76,6 @@ public final class RestrictedTrustConfig extends TrustConfig {
         int result = groupConfigPath.hashCode();
         result = 31 * result + delegate.hashCode();
         return result;
-    }
-
-    private Path resolveGroupConfigPath(@Nullable Environment environment) {
-        return CertParsingUtils.resolvePath(groupConfigPath, environment);
     }
 
     private CertificateTrustRestrictions readTrustGroup(Path path) throws IOException {

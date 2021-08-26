@@ -17,7 +17,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.SearchAfterJobsIterator;
 import org.elasticsearch.xpack.ml.job.retention.EmptyStateIndexRemover;
+import org.elasticsearch.xpack.ml.job.retention.ExpiredAnnotationsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredForecastsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
@@ -210,7 +211,10 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), threadPool, parentTaskId, jobResultsProvider, auditor),
             new UnusedStateRemover(client, clusterService, parentTaskId),
             new EmptyStateIndexRemover(client, parentTaskId),
-            new UnusedStatsRemover(client, parentTaskId));
+            new UnusedStatsRemover(client, parentTaskId),
+            new ExpiredAnnotationsRemover(client,
+                new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), parentTaskId, auditor, threadPool)
+        );
     }
 
     private List<MlDataRemover> createDataRemovers(List<Job> jobs, TaskId parentTaskId, AnomalyDetectionAuditor auditor) {
@@ -224,7 +228,9 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                 auditor),
             new UnusedStateRemover(client, clusterService, parentTaskId),
             new EmptyStateIndexRemover(client, parentTaskId),
-            new UnusedStatsRemover(client, parentTaskId));
+            new UnusedStatsRemover(client, parentTaskId),
+            new ExpiredAnnotationsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, auditor, threadPool)
+        );
     }
 
 }

@@ -22,6 +22,10 @@ PUT /_ccr/auto_follow/my_auto_follow_pattern
   [
     "leader_index*"
   ],
+  "leader_index_exclusion_patterns":
+  [
+    "leader_index_001"
+  ],
   "follow_index_pattern" : "{{leader_index}}-follower"
 }
 --------------------------------------------------
@@ -95,6 +99,10 @@ The API returns the following result:
         "leader_index_patterns" :
         [
           "leader_index*"
+        ],
+        "leader_index_exclusion_patterns":
+        [
+          "leader_index_001"
         ],
         "follow_index_pattern" : "{{leader_index}}-follower"
       }

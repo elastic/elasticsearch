@@ -19,6 +19,7 @@ if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
   ## On ARM we use a different properties file for setting java home
   ## Also, we don't bother attempting to resolve dependencies for the 6.8 branch
   source $(dirname "${SCRIPT}")/java-versions-aarch64.properties
+  export JAVA15_HOME="${HOME}"/.java/jdk15
 else
   source $(dirname "${SCRIPT}")/java-versions.properties
   ## We are caching BWC versions too, need these so we can build those

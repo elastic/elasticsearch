@@ -25,7 +25,7 @@ import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 public final class MonitoringTestUtils {
 
     // maximum number of milliseconds before a five digit year comes in, which could change formatting
-    private static  final long MAX_MILLIS_BEFORE_10000 = 253402300799999L;
+    public static  final long MAX_MILLIS_BEFORE_10000 = 253402300799999L;
 
     private MonitoringTestUtils() {
     }

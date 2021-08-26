@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -244,24 +244,28 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }
 
         if (ids.contains(transformTask.getTransformId())) {
-            transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(r -> {
-                try {
-                    transformTask.stop(request.isForce(), request.isWaitForCheckpoint());
-                    listener.onResponse(new Response(true));
-                } catch (ElasticsearchException ex) {
-                    listener.onFailure(ex);
-                }
-            },
-                e -> listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Failed to update transform task [{}] state value should_stop_at_checkpoint from [{}] to [{}]",
-                        RestStatus.CONFLICT,
-                        transformTask.getTransformId(),
-                        transformTask.getState().shouldStopAtNextCheckpoint(),
-                        request.isWaitForCheckpoint()
+            // move the call to the generic thread pool, so we do not block the network thread
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(r -> {
+                    try {
+                        transformTask.stop(request.isForce(), request.isWaitForCheckpoint());
+                        listener.onResponse(new Response(true));
+                    } catch (ElasticsearchException ex) {
+                        listener.onFailure(ex);
+                    }
+                },
+                    e -> listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Failed to update transform task [{}] state value should_stop_at_checkpoint from [{}] to [{}]",
+                            RestStatus.CONFLICT,
+                            e,
+                            transformTask.getTransformId(),
+                            transformTask.getState().shouldStopAtNextCheckpoint(),
+                            request.isWaitForCheckpoint()
+                        )
                     )
-                )
-            ));
+                ));
+            });
         } else {
             listener.onFailure(
                 new RuntimeException(

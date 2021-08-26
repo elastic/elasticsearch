@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.ml.inference;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -89,7 +89,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
     public static final ParseField LOCATION = new ParseField("location");
 
-    public static final Version VERSION_3RD_PARTY_CONFIG_ADDED = Version.V_8_0_0; 
+    public static final Version VERSION_3RD_PARTY_CONFIG_ADDED = Version.V_8_0_0;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -181,7 +181,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.description = description;
         this.tags = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(tags, TAGS));
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
-        this.input = ExceptionsHelper.requireNonNull(input, INPUT);
+        this.input = ExceptionsHelper.requireNonNull(handleDefaultInput(input, modelType), INPUT);
         if (ExceptionsHelper.requireNonNull(estimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES) < 0) {
             throw new IllegalArgumentException(
                 "[" + ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName() + "] must be greater than or equal to 0");
@@ -195,6 +195,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.defaultFieldMap = defaultFieldMap == null ? null : Collections.unmodifiableMap(defaultFieldMap);
         this.inferenceConfig = inferenceConfig;
         this.location = location;
+    }
+
+    private static TrainedModelInput handleDefaultInput(TrainedModelInput input, TrainedModelType modelType) {
+        if (modelType == null) {
+            return input;
+        }
+        return input == null ? modelType.getDefaultInput() : input;
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {
@@ -286,6 +293,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return this;
     }
 
+    public TrainedModelConfig ensureParsedDefinitionUnsafe(NamedXContentRegistry xContentRegistry) throws IOException {
+        if (definition == null) {
+            return null;
+        }
+        definition.ensureParsedDefinitionUnsafe(xContentRegistry);
+        return this;
+    }
+
     @Nullable
     public TrainedModelDefinition getModelDefinition() {
         if (definition == null) {
@@ -317,6 +332,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     public License.OperationMode getLicenseLevel() {
         return licenseLevel;
+    }
+
+    public boolean isAllocateOnly() {
+        return inferenceConfig.isAllocateOnly();
     }
 
     @Override
@@ -867,6 +886,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private void ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {
             if (parsedDefinition == null) {
                 parsedDefinition = InferenceToXContentCompressor.inflate(compressedRepresentation,
+                    parser -> TrainedModelDefinition.fromXContent(parser, true).build(),
+                    xContentRegistry);
+            }
+        }
+
+        private void ensureParsedDefinitionUnsafe(NamedXContentRegistry xContentRegistry) throws IOException {
+            if (parsedDefinition == null) {
+                parsedDefinition = InferenceToXContentCompressor.inflateUnsafe(compressedRepresentation,
                     parser -> TrainedModelDefinition.fromXContent(parser, true).build(),
                     xContentRegistry);
             }

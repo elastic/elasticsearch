@@ -16,6 +16,23 @@ setup:
             }
           }
 
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              airport:
+                type: text
+              responsetime:
+                type: float
+
 ---
 "Test force delete a closed job":
   - do:
@@ -65,11 +82,59 @@ setup:
         body:  >
           {
             "job_id":"force-delete-job",
-            "indexes":["index-foo"]
+            "indices":["index-foo"]
           }
   - match: { datafeed_id: force-delete-job-datafeed }
 
   - do:
-      catch: /Cannot delete job \[force-delete-job\] because datafeed \[force-delete-job-datafeed\] refers to it/
       ml.delete_job:
         job_id: force-delete-job
+  - match: { acknowledged: true }
+
+  - do:
+      ml.get_jobs:
+        job_id: "_all"
+  - match: { count: 0 }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: "_all"
+  - match: { count: 0 }
+
+---
+"Test force delete an open job that is referred by a started datafeed":
+
+  - do:
+      ml.open_job:
+        job_id: force-delete-job
+
+  - do:
+      ml.put_datafeed:
+        datafeed_id: force-delete-job-started-datafeed
+        body:  >
+          {
+            "job_id":"force-delete-job",
+            "indices":["airline-data"]
+          }
+  - match: { datafeed_id: force-delete-job-started-datafeed }
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: force-delete-job-started-datafeed
+        start: 0
+
+  - do:
+      ml.delete_job:
+        force: true
+        job_id: force-delete-job
+  - match: { acknowledged: true }
+
+  - do:
+      ml.get_jobs:
+        job_id: "_all"
+  - match: { count: 0 }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: "_all"
+  - match: { count: 0 }

@@ -17,21 +17,19 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -39,32 +37,20 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Abstract base {@linkplain MappedFieldType} for runtime fields based on a script.
  */
-abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType implements RuntimeField {
+abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
+
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
-    private final ToXContent toXContent;
 
     AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
         super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.factory = factory;
-        this.script = script;
-        this.toXContent = toXContent;
-    }
-
-    @Override
-    public final MappedFieldType asMappedFieldType() {
-        return this;
-    }
-
-    @Override
-    public final void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        toXContent.toXContent(builder, params);
+        this.script = Objects.requireNonNull(script);
     }
 
     @Override
@@ -204,36 +190,59 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
 
     // Placeholder Script for source-only fields
     // TODO rework things so that we don't need this
-    private static final Script DEFAULT_SCRIPT = new Script("");
+    protected static final Script DEFAULT_SCRIPT = new Script("");
 
     abstract static class Builder<Factory> extends RuntimeField.Builder {
         private final ScriptContext<Factory> scriptContext;
-        private final Factory parseFromSourceFactory;
 
         final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
             "script",
             true,
             () -> null,
-            Builder::parseScript,
-            initializerNotSupported()
+            RuntimeField::parseScript,
+            RuntimeField.initializerNotSupported()
         ).setSerializerCheck((id, ic, v) -> ic);
 
-        Builder(String name, ScriptContext<Factory> scriptContext, Factory parseFromSourceFactory) {
+        Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
             this.scriptContext = scriptContext;
-            this.parseFromSourceFactory = parseFromSourceFactory;
         }
 
-        abstract RuntimeField newRuntimeField(Factory scriptFactory);
+        abstract Factory getParseFromSourceFactory();
+
+        abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         @Override
-        protected final RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext) {
+        protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
             if (script.get() == null) {
-                return newRuntimeField(parseFromSourceFactory);
+                return createRuntimeField(getParseFromSourceFactory());
             }
             Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
-            return newRuntimeField(factory);
+            return createRuntimeField(factory);
         }
+
+        @Override
+        protected final RuntimeField createChildRuntimeField(MappingParserContext parserContext,
+                                                        String parent,
+                                                        Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            if (script.isConfigured()) {
+                throw new IllegalArgumentException("Cannot use [script] parameter on sub-field [" + name +
+                    "] of composite field [" + parent + "]");
+            }
+            String fullName = parent + "." + name;
+            return new LeafRuntimeField(
+                name,
+                createFieldType(fullName, getCompositeLeafFactory(parentScriptFactory), getScript(), meta()),
+                getParameters()
+            );
+        }
+
+        final RuntimeField createRuntimeField(Factory scriptFactory) {
+            AbstractScriptFieldType<?> fieldType = createFieldType(name, scriptFactory, getScript(), meta());
+            return new LeafRuntimeField(name, fieldType, getParameters());
+        }
+
+        abstract AbstractScriptFieldType<?> createFieldType(String name, Factory factory, Script script, Map<String, String> meta);
 
         @Override
         protected List<FieldMapper.Parameter<?>> getParameters() {
@@ -248,17 +257,5 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
             }
             return script.get();
         }
-
-        private static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {
-            Script script = Script.parse(scriptObject);
-            if (script.getType() == ScriptType.STORED) {
-                throw new IllegalArgumentException("stored scripts are not supported for runtime field [" + name + "]");
-            }
-            return script;
-        }
-    }
-
-    static <T> Function<FieldMapper, T> initializerNotSupported() {
-        return mapper -> { throw new UnsupportedOperationException(); };
     }
 }

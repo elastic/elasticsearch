@@ -54,6 +54,16 @@ sameConstantsWithLimitV2
 SELECT 5, 3, 3 FROM "test_emp" LIMIT 5;
 sameConstantsWithLimitV3
 SELECT 3, 5, 3, 3 FROM "test_emp" LIMIT 5;
+constantWithWhere
+SELECT 1 FROM "test_emp" WHERE gender = 'F';
+constantsWithWhere
+SELECT 1, 1, SUBSTRING('test', 1, 1) AS c FROM "test_emp" WHERE gender = 'F';
+constantWithWhereConjunction
+SELECT 1 FROM "test_emp" WHERE gender = 'F' AND SUBSTRING(first_name, 1, 1) = 'A';
+constantWithWhereOrderAndLimit
+SELECT 1 FROM "test_emp" WHERE gender = 'F' ORDER BY emp_no LIMIT 5;
+constantsWithWhereOrderAndLimit
+SELECT 1, SUBSTRING('test', 1, 1) AS c FROM "test_emp" WHERE gender = 'F' AND SUBSTRING(first_name, 1, 1) = 'A' ORDER BY emp_no;
 constantAndColumnWithLimit
 SELECT 3, first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
 constantComparisonWithLimit
@@ -143,17 +153,39 @@ selectOrderByOrderByOrderByLimit
 SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) ORDER BY emp_no DESC LIMIT 5;
 selectOrderByOrderByOrderByLimitLimit
 SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) ORDER BY emp_no DESC LIMIT 12) LIMIT 6;
-selectOrderByLimitSameOrderBy
-SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp LIMIT 10) ORDER BY emp_no) ORDER BY emp_no LIMIT 5;
 selectGroupByOrderByLimit
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages) ORDER BY max DESC LIMIT 3;
 selectGroupByOrderByLimitNulls
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages) ORDER BY max DESC NULLS FIRST LIMIT 3;
-selectGroupByLimitOrderByLimit
-SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp WHERE languages IS NOT NULL GROUP BY languages LIMIT 5) ORDER BY max DESC LIMIT 3;
 selectGroupByOrderByOrderByLimit
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC) ORDER BY max DESC NULLS FIRST LIMIT 4;
 selectGroupByOrderByOrderByLimitNulls
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) ORDER BY max DESC NULLS FIRST LIMIT 4;
 selectGroupByWithAliasedSubQuery
 SELECT max, languages FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) AS subquery;
+selectConstantFromSubQuery
+SELECT * FROM (SELECT * FROM (SELECT 1));
+
+//
+// SELECT with multiple ORDER BY
+//
+selectTwoDistinctOrderBy
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY gender NULLS FIRST) ORDER BY languages NULLS FIRST;
+selectThreeDistinctOrderBy
+SELECT emp_no FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY salary) ORDER BY languages NULLS FIRST) ORDER BY gender NULLS FIRST;
+selectThreeDistinctOrderBy2
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY salary) ORDER BY languages NULLS FIRST, gender NULLS FIRST;
+selectThreeDistinctOrderBy3
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY salary, languages NULLS FIRST) ORDER BY gender NULLS FIRST;
+selectTwoDistinctOrderByWithDuplicate1
+SELECT emp_no FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY salary) ORDER BY languages NULLS FIRST) ORDER BY salary;
+selectTwoDistinctOrderByWithDuplicate2
+SELECT emp_no FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY salary) ORDER BY salary) ORDER BY languages NULLS FIRST;
+selectTwoOrderByWithDistinctOrder
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY gender ASC NULLS FIRST) ORDER BY gender DESC NULLS LAST;
+selectTwoOrderByWithShadowedOrder
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY salary, gender ASC, languages NULLS LAST) ORDER BY languages NULLS FIRST, gender DESC NULLS LAST;
+selectTwoOrderByWithWhere
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY gender NULLS FIRST) WHERE salary > 10000 ORDER BY languages NULLS FIRST;
+selectThreeDerivedOrderBy
+SELECT emp_no FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY DAY(hire_date)) ORDER BY emp_no + 100) ORDER BY salary / 10;

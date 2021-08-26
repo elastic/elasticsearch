@@ -11,7 +11,7 @@ This guide helps beginners learn how to:
 
 [discrete]
 [[run-elasticsearch]]
-=== Step 1. Run {es}
+=== Run {es}
 
 The simplest way to set up {es} is to create a managed deployment with {ess} on
 {ecloud}. If you prefer to manage your own test environment, you can install and
@@ -22,7 +22,7 @@ include::{es-repo-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
 
 [discrete]
 [[send-requests-to-elasticsearch]]
-=== Step 2. Send requests to {es}
+=== Send requests to {es}
 
 You send data and other requests to {es} using REST APIs. This lets you interact
 with {es} using any client that sends HTTP requests, such as
@@ -33,7 +33,7 @@ include::{es-repo-dir}/tab-widgets/api-call-widget.asciidoc[]
 
 [discrete]
 [[add-data]]
-=== Step 3. Add data
+=== Add data
 
 You add data to {es} as JSON objects called documents. {es} stores these
 documents in searchable indices.
@@ -94,9 +94,9 @@ The response includes metadata that {es} generates for the document:
 [[add-multiple-documents]]
 ==== Add multiple documents
 
-To add multiple documents in one request, use the bulk API. Bulk data must be
-newline-delimited JSON (NDJSON). Each line must end in a newline character
-(`\n`), including the last line.
+Use the `_bulk` endpoint to add multiple documents in one request. Bulk data
+must be newline-delimited JSON (NDJSON). Each line must end in a newline
+character (`\n`), including the last line.
 
 [source,console]
 ----
@@ -111,13 +111,11 @@ PUT logs-my_app-default/_bulk
 
 [discrete]
 [[qs-search-data]]
-=== Step 4. Search data
+=== Search data
 
-Indexed documents are available for search in near real-time. To search your
-data stream, use the search API.
-
-The following search matches all log entries in `logs-my_app-default` and
-sorts them by `@timestamp` in descending order.
+Indexed documents are available for search in near real-time. The following
+search matches all log entries in `logs-my_app-default` and sorts them by
+`@timestamp` in descending order.
 
 [source,console]
 ----
@@ -486,7 +484,7 @@ To keep exploring, index more data to your data stream and check out <<common-se
 
 [discrete]
 [[clean-up]]
-=== Step 5. Clean up
+=== Clean up
 
 When you're done, delete your test data stream and its backing indices.
 

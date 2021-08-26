@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -28,12 +29,20 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Rest action for computing a score explanation for specific documents.
  */
 public class RestExplainAction extends BaseRestHandler {
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
+        "Specifying a type in explain requests is deprecated.";
 
     @Override
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/{index}/_explain/{id}"),
-            new Route(POST, "/{index}/_explain/{id}"));
+            new Route(POST, "/{index}/_explain/{id}"),
+            Route.builder(GET, "/{index}/{type}/{id}/_explain")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/{id}/_explain")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build());
     }
 
     @Override
@@ -43,6 +52,9 @@ public class RestExplainAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if(request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+            request.param("type");
+        }
         ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("id"));
 
         explainRequest.parent(request.param("parent"));

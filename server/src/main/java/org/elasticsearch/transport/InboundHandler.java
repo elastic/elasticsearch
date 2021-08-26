@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -160,7 +160,7 @@ public class InboundHandler {
             final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
             assertRemoteVersion(stream, header.getVersion());
             final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                header.isCompressed(), header.isHandshake(), message.takeBreakerReleaseControl());
+                header.getCompressionScheme(), header.isHandshake(), message.takeBreakerReleaseControl());
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
@@ -175,7 +175,7 @@ public class InboundHandler {
             }
         } else {
             final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                header.isCompressed(), header.isHandshake(), message.takeBreakerReleaseControl());
+                header.getCompressionScheme(), header.isHandshake(), message.takeBreakerReleaseControl());
             try {
                 messageListener.onRequestReceived(requestId, action);
                 if (message.isShortCircuit()) {

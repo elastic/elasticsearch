@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;

@@ -602,8 +602,8 @@ tag::bulk-dynamic-templates[]
 `dynamic_templates`::
 (Optional, map)
 A map from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
-Defaults to an empty map. If a name matches a dynamic template, then that template will be 
-applied regardless of other match predicates defined in the template. And if a field is 
+Defaults to an empty map. If a name matches a dynamic template, then that template will be
+applied regardless of other match predicates defined in the template. And if a field is
 already defined in the mapping, then this parameter won't be used.
 end::bulk-dynamic-templates[]
 
@@ -896,11 +896,11 @@ end::source-transforms[]
 tag::source-index-transforms[]
 The _source indices_ for the {transform}. It can be a single index, an index
 pattern (for example, `"my-index-*"`), an array of indices (for example,
-`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for 
-example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax 
+`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for
+example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax
 `"remote_name:index_name"`.
 
-NOTE: If any indices are in remote clusters then the master node and at least 
+NOTE: If any indices are in remote clusters then the master node and at least
 one transform node must have the `remote_cluster_client` node role.
 end::source-index-transforms[]
 
@@ -910,8 +910,8 @@ A query clause that retrieves a subset of data from the source index. See
 end::source-query-transforms[]
 
 tag::source-runtime-mappings-transforms[]
-Definitions of search-time runtime fields that can be used by the transform. For 
-search runtime fields all data nodes, including remote nodes, must be 7.12 or 
+Definitions of search-time runtime fields that can be used by the transform. For
+search runtime fields all data nodes, including remote nodes, must be 7.12 or
 later.
 end::source-runtime-mappings-transforms[]
 
@@ -971,7 +971,7 @@ unique key.
 end::transform-latest[]
 
 tag::transform-retention[]
-Defines a retention policy for the {transform}. Data that meets the defined 
+Defines a retention policy for the {transform}. Data that meets the defined
 criteria is deleted from the destination index.
 end::transform-retention[]
 
@@ -984,7 +984,7 @@ The date field that is used to calculate the age of the document.
 end::transform-retention-time-field[]
 
 tag::transform-retention-time-max-age[]
-Specifies the maximum age of a document in the destination index. Documents that 
+Specifies the maximum age of a document in the destination index. Documents that
 are older than the configured value are removed from the destination index.
 end::transform-retention-time-max-age[]
 
@@ -1005,10 +1005,18 @@ throttles the {transform} by adding a wait time between search requests. The
 default value is `null`, which disables throttling.
 end::transform-settings-docs-per-second[]
 
+tag::transform-settings-align-checkpoints[]
+Specifies whether the transform checkpoint ranges should be optimized for performance.
+Such optimization can align checkpoint ranges with date histogram interval when date histogram
+is specified as a group source in the transform config. As an effect, less document updates in the
+destination index will be performed thus improving overall performance.
+The default value is `true`, which means the checkpoint ranges will be optimized if possible.
+end::transform-settings-align-checkpoints[]
+
 tag::transform-settings-max-page-search-size[]
 Defines the initial page size to use for the composite aggregation for each
 checkpoint. If circuit breaker exceptions occur, the page size is dynamically
-adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
+adjusted to a lower value. The minimum value is `10` and the maximum is `65,536`.
 The default value is `500`.
 end::transform-settings-max-page-search-size[]
 

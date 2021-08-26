@@ -93,6 +93,9 @@ public class FirstNonBlankLineCharFilter extends BaseCharFilter {
         }
 
         addOffCorrectMap(0, prevNewlineIndex + 1);
+        if (endIndex < input.length()) {
+            addOffCorrectMap(endIndex - prevNewlineIndex - 1, input.length() - endIndex + prevNewlineIndex + 1);
+        }
         return input.subSequence(prevNewlineIndex + 1, endIndex);
     }
 }

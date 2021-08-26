@@ -12,14 +12,14 @@ according to your performance, resiliency, and retention requirements.
 
 Index lifecycle policies can trigger actions such as:
 
-* **Rollover**: 
-include::../glossary.asciidoc[tag=rollover-def-short]
-* **Shrink**: 
-include::../glossary.asciidoc[tag=shrink-def-short]
-* **Force merge**: 
-include::../glossary.asciidoc[tag=force-merge-def-short]
+* **Rollover**: Creates a new write index when the current one reaches a certain
+size, number of docs, or age.
+* **Shrink**: Reduces the number of primary shards in an index.
+* **Force merge**: Triggers a <<indices-forcemerge,force merge>> to reduce the
+number of segments in an index's shards.
 * **Freeze**: <<freeze-index-api, Freezes>> an index and makes it read-only.
-* **Delete**: Permanently remove an index, including all of its data and metadata.
+* **Delete**: Permanently remove an index, including all of its data and
+metadata.
 
 {ilm-init} makes it easier to manage indices in hot-warm-cold architectures,
 which are common when you're working with time series data such as logs and metrics.

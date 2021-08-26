@@ -23,8 +23,8 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -142,17 +142,17 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         }
 
         /** Whether missing values should be sorted first. */
-        public final boolean sortMissingFirst(Object missingValue) {
+        public static final boolean sortMissingFirst(Object missingValue) {
             return "_first".equals(missingValue);
         }
 
         /** Whether missing values should be sorted last, this is the default. */
-        public final boolean sortMissingLast(Object missingValue) {
+        public static final boolean sortMissingLast(Object missingValue) {
             return missingValue == null || "_last".equals(missingValue);
         }
 
         /** Return the missing object value according to the reduced type of the comparator. */
-        public final Object missingObject(Object missingValue, boolean reversed) {
+        public Object missingObject(Object missingValue, boolean reversed) {
             if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                 final boolean min = sortMissingFirst(missingValue) ^ reversed;
                 switch (reducedType()) {
@@ -199,7 +199,7 @@ public interface IndexFieldData<FD extends LeafFieldData> {
                 case STRING:
                 case STRING_VAL:
                     if (missingValue instanceof BytesRef) {
-                        return (BytesRef) missingValue;
+                        return missingValue;
                     } else if (missingValue instanceof byte[]) {
                         return new BytesRef((byte[]) missingValue);
                     } else {

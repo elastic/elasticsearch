@@ -81,7 +81,7 @@ public class SerialDiffIT extends ESIntegTestCase {
         }
     }
 
-    private void assertValidIterators(Iterator expectedBucketIter, Iterator expectedCountsIter, Iterator expectedValuesIter) {
+    private void assertValidIterators(Iterator<?> expectedBucketIter, Iterator<?> expectedCountsIter, Iterator<?> expectedValuesIter) {
         if (expectedBucketIter.hasNext() == false) {
             fail("`expectedBucketIter` iterator ended before `actual` iterator, size mismatch");
         }
@@ -127,7 +127,7 @@ public class SerialDiffIT extends ESIntegTestCase {
         numBuckets = randomIntBetween(10, 80);
         lag = randomIntBetween(1, numBuckets / 2);
 
-        gapPolicy = randomBoolean() ? BucketHelpers.GapPolicy.SKIP : BucketHelpers.GapPolicy.INSERT_ZEROS;
+        gapPolicy = randomFrom(BucketHelpers.GapPolicy.values());
         metric = randomMetric("the_metric", VALUE_FIELD);
         mockHisto = PipelineAggregationHelperTests.generateHistogram(interval, numBuckets, randomDouble(), randomDouble());
 
@@ -171,6 +171,12 @@ public class SerialDiffIT extends ESIntegTestCase {
                     metricValue = 0.0;
                 } else {
                     metricValue = PipelineAggregationHelperTests.calculateMetric(docValues, metric);
+                    if (gapPolicy.equals(BucketHelpers.GapPolicy.KEEP_VALUES)) {
+                        if (Double.isInfinite(metricValue) || Double.isNaN(metricValue)) {
+                            // serial diff ignores these values and replaces them with null
+                            metricValue = Double.NaN;
+                        }
+                    }
                 }
 
             } else {
@@ -204,12 +210,7 @@ public class SerialDiffIT extends ESIntegTestCase {
             }
 
             lagWindow.add(metricValue);
-
-
-
-
         }
-
 
         testValues.put(target.toString(), values);
     }

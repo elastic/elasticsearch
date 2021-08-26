@@ -11,12 +11,16 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.sort.SortOrder;
 
 /**
  * Get snapshots request builder
  */
-public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<GetSnapshotsRequest,
-        GetSnapshotsResponse, GetSnapshotsRequestBuilder> {
+public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<
+    GetSnapshotsRequest,
+    GetSnapshotsResponse,
+    GetSnapshotsRequestBuilder> {
 
     /**
      * Constructs the new get snapshot request with specified repositories
@@ -53,7 +57,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
      * @return this builder
      */
     public GetSnapshotsRequestBuilder setCurrentSnapshot() {
-        request.snapshots(new String[]{GetSnapshotsRequest.CURRENT_SNAPSHOT});
+        request.snapshots(new String[] { GetSnapshotsRequest.CURRENT_SNAPSHOT });
         return this;
     }
 
@@ -90,6 +94,35 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
      */
     public GetSnapshotsRequestBuilder setVerbose(boolean verbose) {
         request.verbose(verbose);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setAfter(String after) {
+        return setAfter(after == null ? null : GetSnapshotsRequest.After.fromQueryParam(after));
+    }
+
+    public GetSnapshotsRequestBuilder setAfter(@Nullable GetSnapshotsRequest.After after) {
+        request.after(after);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setSort(GetSnapshotsRequest.SortBy sort) {
+        request.sort(sort);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setSize(int size) {
+        request.size(size);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setOffset(int offset) {
+        request.offset(offset);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setOrder(SortOrder order) {
+        request.order(order);
         return this;
     }
 

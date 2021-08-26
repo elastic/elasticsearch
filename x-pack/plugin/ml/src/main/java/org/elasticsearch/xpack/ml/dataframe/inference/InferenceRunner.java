@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -91,7 +91,7 @@ public class InferenceRunner {
         LOGGER.info("[{}] Started inference on test data against model [{}]", config.getId(), modelId);
         try {
             PlainActionFuture<LocalModel> localModelPlainActionFuture = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(modelId, localModelPlainActionFuture);
+            modelLoadingService.getModelForInternalInference(modelId, localModelPlainActionFuture);
             InferenceState inferenceState = restoreInferenceState();
             dataCountsTracker.setTestDocsCount(inferenceState.processedTestDocsCount);
             TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config,

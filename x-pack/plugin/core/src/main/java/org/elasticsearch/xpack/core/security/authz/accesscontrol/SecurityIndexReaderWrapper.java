@@ -12,7 +12,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -63,8 +63,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
     @Override
     public DirectoryReader apply(final DirectoryReader reader) {
-        if (licenseState.isSecurityEnabled() == false ||
-            licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+        if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
             return reader;
         }
 

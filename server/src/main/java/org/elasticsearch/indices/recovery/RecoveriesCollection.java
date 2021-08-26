@@ -12,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,9 +50,12 @@ public class RecoveriesCollection {
      *
      * @return the id of the new recovery.
      */
-    public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
-                              PeerRecoveryTargetService.RecoveryListener listener, TimeValue activityTimeout) {
-        RecoveryTarget recoveryTarget = new RecoveryTarget(indexShard, sourceNode, listener);
+    public long startRecovery(IndexShard indexShard,
+                              DiscoveryNode sourceNode,
+                              SnapshotFilesProvider snapshotFilesProvider,
+                              PeerRecoveryTargetService.RecoveryListener listener,
+                              TimeValue activityTimeout) {
+        RecoveryTarget recoveryTarget = new RecoveryTarget(indexShard, sourceNode, snapshotFilesProvider, listener);
         startRecoveryInternal(recoveryTarget, activityTimeout);
         return recoveryTarget.recoveryId();
     }

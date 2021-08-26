@@ -9,7 +9,7 @@
 package org.elasticsearch.common.blobstore.url;
 
 import org.apache.http.ConnectionClosedException;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
@@ -18,13 +18,12 @@ import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
@@ -43,13 +42,13 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
     }
 
     @AfterClass
-    public static void tearDownHttpClient() throws IOException {
+    public static void tearDownHttpClient() {
         factory.close();
     }
 
     @Override
-    protected String downloadStorageEndpoint(String blob) {
-        return "/" + blob;
+    protected String downloadStorageEndpoint(BlobContainer container, String blob) {
+        return "/" + container.path().buildAsString() + blob;
     }
 
     @Override

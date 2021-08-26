@@ -41,6 +41,42 @@ setup:
             user: SYSTEM
             id: 123
             valid: true
+          - index:
+              _index: eql_test
+              _id:    4
+          - event:
+              - category: network
+            "@timestamp": 2020-02-06T12:34:56Z
+            user: ADMIN
+            id: 123
+            valid: true
+          - index:
+              _index: eql_test
+              _id:    5
+          - event:
+              - category: network
+            "@timestamp": 2020-02-07T12:34:56Z
+            user: SYSTEM
+            id: 123
+            valid: true
+          - index:
+              _index: eql_test
+              _id:    6
+          - event:
+              - category: network
+            "@timestamp": 2020-02-08T12:34:56Z
+            user: ADMIN
+            id: 123
+            valid: true
+          - index:
+              _index: eql_test
+              _id:    7
+          - event:
+              - category: network
+            "@timestamp": 2020-02-09T12:34:56Z
+            user: SYSTEM
+            id: 123
+            valid: true
 
 ---
 # Testing round-trip and the basic shape of the response
@@ -87,6 +123,25 @@ setup:
   - match: {hits.events.2.fields.id: [123]}
   - match: {hits.events.2.fields.valid: [true]}
   - match: {hits.events.2.fields.day_of_week: ["Wednesday"]}
+
+---
+"Execute EQL events query with wildcard (*) fields filtering.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'process where user == "SYSTEM"'
+          fields: [{"field":"*"}]
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 3}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._id: "1"}
+  - match: {hits.events.0.fields:{"valid":[false],"@timestamp":["2020-02-03T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Monday"]}}
+  - match: {hits.events.1._id: "2"}
+  - match: {hits.events.1.fields:{"valid":[true],"@timestamp":["2020-02-04T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Tuesday"]}}
+  - match: {hits.events.2._id: "3"}
+  - match: {hits.events.2.fields:{"valid":[true],"@timestamp":["2020-02-05T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Wednesday"]}}
 
 ---
 "Execute EQL events query with filter_path":
@@ -219,6 +274,50 @@ setup:
   - match: {hits.sequences.1.events.1.fields.day_of_week: ["Wednesday"]}
 
 ---
+"Execute EQL sequence with wildcard (*) fields filtering.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [process where true]'
+          fields: [{"field":"*"}]
+  - match: {timed_out: false}
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.0.fields:{"valid":[false],"@timestamp":["2020-02-03T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Monday"]}}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.0.events.1.fields:{"valid":[true],"@timestamp":["2020-02-04T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Tuesday"]}}
+  - match: {hits.sequences.1.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.1.events.0._id: "2"}
+  - match: {hits.sequences.1.events.0.fields:{"valid":[true],"@timestamp":["2020-02-04T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Tuesday"]}}
+  - match: {hits.sequences.1.events.1._id: "3"}
+  - match: {hits.sequences.1.events.1.fields:{"valid":[true],"@timestamp":["2020-02-05T12:34:56.000Z"],"event.category":["process"],"event.category.keyword":["process"],"id":[123],"user.keyword":["SYSTEM"],"user":["SYSTEM"],"day_of_week":["Wednesday"]}}
+
+---
+"Execute EQL sequence with custom format for timestamp field.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [process where true]'
+          fields: [{"field":"@timestamp","format":"yyyy"},{"field":"day_of_week"}]
+  - match: {timed_out: false}
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.0.fields:{"@timestamp":["2020"],"day_of_week":["Monday"]}}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.0.events.1.fields:{"@timestamp":["2020"],"day_of_week":["Tuesday"]}}
+  - match: {hits.sequences.1.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.1.events.0._id: "2"}
+  - match: {hits.sequences.1.events.0.fields:{"@timestamp":["2020"],"day_of_week":["Tuesday"]}}
+  - match: {hits.sequences.1.events.1._id: "3"}
+  - match: {hits.sequences.1.events.1.fields:{"@timestamp":["2020"],"day_of_week":["Wednesday"]}}
+
+---
 "Execute EQL sequence with filter_path":
   - do:
       eql.search:
@@ -246,6 +345,7 @@ setup:
 
   - is_true: id
   - set: {id: id}
+  - gte: {took: 0}
 
   - do:
       eql.get:
@@ -318,3 +418,13 @@ setup:
       catch: missing
       eql.get_status:
         id: $id
+---
+"Sequence checking correct join key ordering.":
+
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by user [network where valid == true] [network where true]'
+  - match: {hits.sequences.0.join_keys.0: "ADMIN"}
+  - match: {hits.sequences.1.join_keys.0: "SYSTEM"}

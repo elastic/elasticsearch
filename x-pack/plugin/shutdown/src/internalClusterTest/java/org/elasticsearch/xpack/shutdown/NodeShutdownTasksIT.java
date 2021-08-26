@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -72,13 +71,13 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ShutdownEnabledPlugin.class, TaskPlugin.class);
+        return Arrays.asList(ShutdownPlugin.class, TaskPlugin.class);
     }
 
     public void testTasksAreNotAssignedToShuttingDownNode() throws Exception {
         // Start two nodes, one will be marked as shutting down
-        final String node1 = internalCluster().startNode(Settings.EMPTY);
-        final String node2 = internalCluster().startNode(Settings.EMPTY);
+        final String node1 = internalCluster().startNode();
+        final String node2 = internalCluster().startNode();
 
         final String shutdownNode;
         final String candidateNode;
@@ -110,7 +109,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         // Mark the node as shutting down
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing")
+            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null)
         ).get();
 
         // Tell the persistent task executor it can start allocating the task
@@ -122,13 +121,6 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         // Check that the node that is not shut down is the only candidate
         assertThat(candidates.get().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()), contains(candidateNode));
         assertThat(candidates.get().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()), not(contains(shutdownNode)));
-    }
-
-    public static class ShutdownEnabledPlugin extends ShutdownPlugin {
-        @Override
-        public boolean isEnabled() {
-            return true;
-        }
     }
 
     public static class TaskPlugin extends Plugin implements PersistentTaskPlugin {

@@ -150,12 +150,12 @@ public class FunctionRefTests extends ScriptTestCase {
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
 
-    public void testOwnStaticMethodReference() {
+    public void testOwnMethodReference() {
         assertEquals(2, exec("int mycompare(int i, int j) { j - i } " +
                              "List l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
     }
 
-    public void testOwnStaticMethodReferenceDef() {
+    public void testOwnMethodReferenceDef() {
         assertEquals(2, exec("int mycompare(int i, int j) { j - i } " +
                              "def l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
     }

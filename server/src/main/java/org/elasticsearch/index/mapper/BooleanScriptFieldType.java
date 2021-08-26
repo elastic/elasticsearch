@@ -11,14 +11,14 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -27,32 +27,50 @@ import org.elasticsearch.search.runtime.BooleanScriptFieldTermQuery;
 
 import java.time.ZoneId;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, BooleanFieldScript.CONTEXT, BooleanFieldScript.PARSE_FROM_SOURCE) {
-            @Override
-            RuntimeField newRuntimeField(BooleanFieldScript.Factory scriptFactory) {
-                return new BooleanScriptFieldType(name, scriptFactory, getScript(), meta(), this);
-            }
-        });
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
 
-    public BooleanScriptFieldType(String name) {
-        this(name, BooleanFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+    private static class Builder extends AbstractScriptFieldType.Builder<BooleanFieldScript.Factory> {
+        Builder(String name) {
+            super(name, BooleanFieldScript.CONTEXT);
+        }
+
+        @Override
+        AbstractScriptFieldType<?> createFieldType(String name,
+                                                   BooleanFieldScript.Factory factory,
+                                                   Script script,
+                                                   Map<String, String> meta) {
+            return new BooleanScriptFieldType(name, factory, script, meta);
+        }
+
+        @Override
+        BooleanFieldScript.Factory getParseFromSourceFactory() {
+            return BooleanFieldScript.PARSE_FROM_SOURCE;
+        }
+
+        @Override
+        BooleanFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return BooleanFieldScript.leafAdapter(parentScriptFactory);
+        }
+
+    }
+
+    public static RuntimeField sourceOnly(String name) {
+        return new Builder(name).createRuntimeField(BooleanFieldScript.PARSE_FROM_SOURCE);
     }
 
     BooleanScriptFieldType(
         String name,
         BooleanFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
     }
 
     @Override

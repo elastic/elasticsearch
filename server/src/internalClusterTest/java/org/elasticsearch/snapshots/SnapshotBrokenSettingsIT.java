@@ -34,12 +34,27 @@ public class SnapshotBrokenSettingsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startNodes(2);
 
         Client client = client();
-        Consumer<String> setSettingValue = value -> client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
-                Settings.builder().put(BrokenSettingPlugin.BROKEN_SETTING.getKey(), value)).execute().actionGet();
+        Consumer<String> setSettingValue = value -> client.admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(BrokenSettingPlugin.BROKEN_SETTING.getKey(), value))
+            .execute()
+            .actionGet();
 
-        Consumer<String> assertSettingValue = value -> assertThat(client.admin().cluster().prepareState().setRoutingTable(false)
-                .setNodes(false).execute().actionGet().getState().getMetadata().persistentSettings()
-                .get(BrokenSettingPlugin.BROKEN_SETTING.getKey()), equalTo(value));
+        Consumer<String> assertSettingValue = value -> assertThat(
+            client.admin()
+                .cluster()
+                .prepareState()
+                .setRoutingTable(false)
+                .setNodes(false)
+                .execute()
+                .actionGet()
+                .getState()
+                .getMetadata()
+                .persistentSettings()
+                .get(BrokenSettingPlugin.BROKEN_SETTING.getKey()),
+            equalTo(value)
+        );
 
         logger.info("--> set test persistent setting");
         setSettingValue.accept("new value");
@@ -55,9 +70,15 @@ public class SnapshotBrokenSettingsIT extends AbstractSnapshotIntegTestCase {
         BrokenSettingPlugin.breakSetting();
 
         logger.info("--> restore snapshot");
-        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true)
-                        .setWaitForCompletion(true).execute()::actionGet);
+        final IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            client.admin()
+                .cluster()
+                .prepareRestoreSnapshot("test-repo", "test-snap")
+                .setRestoreGlobalState(true)
+                .setWaitForCompletion(true)
+                .execute()::actionGet
+        );
         assertEquals(BrokenSettingPlugin.EXCEPTION.getMessage(), ex.getMessage());
 
         assertSettingValue.accept("new value 2");
@@ -65,19 +86,17 @@ public class SnapshotBrokenSettingsIT extends AbstractSnapshotIntegTestCase {
 
     public static class BrokenSettingPlugin extends Plugin {
         private static boolean breakSetting = false;
-        private static final IllegalArgumentException EXCEPTION =  new IllegalArgumentException("this setting goes boom");
+        private static final IllegalArgumentException EXCEPTION = new IllegalArgumentException("this setting goes boom");
 
         static void breakSetting() {
             BrokenSettingPlugin.breakSetting = true;
         }
 
-        static final Setting<String> BROKEN_SETTING = new Setting<>("setting.broken", "default", s->s,
-                s-> {
-                    if ((s.equals("default") == false && breakSetting)) {
-                        throw EXCEPTION;
-                    }
-                },
-                Setting.Property.NodeScope, Setting.Property.Dynamic);
+        static final Setting<String> BROKEN_SETTING = new Setting<>("setting.broken", "default", s -> s, s -> {
+            if ((s.equals("default") == false && breakSetting)) {
+                throw EXCEPTION;
+            }
+        }, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
         @Override
         public List<Setting<?>> getSettings() {

@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -241,6 +241,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 throw new AssertionError(e);
             }
             assertNotNull(properties);
+            @SuppressWarnings("unchecked")
             Object fieldMapping = ((Map<String, Object>) properties).get("field");
             assertNotNull(fieldMapping);
         });

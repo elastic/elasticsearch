@@ -1,7 +1,7 @@
 [[security-api-node-enrollment]]
 === Enroll Node API
 ++++
-<titleabbrev>Enroll Node</titleabbrev>
+<titleabbrev>Enroll node</titleabbrev>
 ++++
 
 Allows a new node to join an existing cluster with security features enabled.
@@ -9,12 +9,7 @@ Allows a new node to join an existing cluster with security features enabled.
 [[security-api-node-enrollment-api-request]]
 ==== {api-request-title}
 
-`GET /_security/enroll_node`
-
-[[security-api-node-enrollment-api-prereqs]]
-==== {api-prereq-title}
-
-* You must have the `enroll` <<privileges-list-cluster,cluster privilege>> to use this API.
+`GET /_security/enroll/node`
 
 [[security-api-node-enrollment-api-desc]]
 ==== {api-description-title}
@@ -32,7 +27,7 @@ caller to generate valid signed certificates for the HTTP layer of all nodes in 
 
 [source,console]
 --------------------------------------------------
-GET /security/enroll_node
+GET /security/enroll/node
 --------------------------------------------------
 // TEST[skip:Determine behavior for keystore with multiple keys]
 The API returns a response such as
@@ -44,8 +39,7 @@ The API returns a response such as
   "http_ca_cert" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=", <2>
   "transport_key" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==", <3>
   "transport_cert" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==", <4>
-  "cluster_name" : "cluster-name",               <5>
-  "nodes_addresses" : [                          <6>
+  "nodes_addresses" : [                          <5>
     "192.168.1.2:9300"
   ]
 }
@@ -58,6 +52,5 @@ The API returns a response such as
     string of the ASN.1 DER encoding of the key.
 <4> The certificate that the node can use for  TLS for its transport layer, as a Base64 encoded
     string of the ASN.1 DER encoding of the certificate.
-<5> The name of the cluster the new node is joining
-<6> A list of transport addresses in the form of `host:port` for the nodes that are already
+<5> A list of transport addresses in the form of `host:port` for the nodes that are already
     members of the cluster.

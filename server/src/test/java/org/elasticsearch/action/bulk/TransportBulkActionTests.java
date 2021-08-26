@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
@@ -123,7 +123,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
         BulkResponse response = future.actionGet();
         assertFalse(bulkAction.indexCreated);
-        BulkItemResponse[] bulkResponses = ((BulkResponse) response).getItems();
+        BulkItemResponse[] bulkResponses = response.getItems();
         assertEquals(bulkResponses.length, 1);
         assertTrue(bulkResponses[0].isFailed());
         assertTrue(bulkResponses[0].getFailure().getCause() instanceof IndexNotFoundException);

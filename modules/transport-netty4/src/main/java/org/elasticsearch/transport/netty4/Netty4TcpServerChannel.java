@@ -10,7 +10,7 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.Channel;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.core.CompletableContext;
 import org.elasticsearch.transport.TcpServerChannel;
 
 import java.net.InetSocketAddress;
@@ -47,8 +47,6 @@ public class Netty4TcpServerChannel implements TcpServerChannel {
 
     @Override
     public String toString() {
-        return "Netty4TcpChannel{" +
-            "localAddress=" + getLocalAddress() +
-            '}';
+        return "Netty4TcpChannel{localAddress=" + getLocalAddress() + '}';
     }
 }

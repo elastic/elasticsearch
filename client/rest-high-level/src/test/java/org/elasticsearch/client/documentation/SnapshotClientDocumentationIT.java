@@ -38,9 +38,9 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
@@ -617,7 +617,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-snapshots-execute
 
         // tag::get-snapshots-response
-        List<SnapshotInfo> snapshotsInfos = response.getSnapshots(repositoryName);
+        List<SnapshotInfo> snapshotsInfos = response.getSnapshots();
         SnapshotInfo snapshotInfo = snapshotsInfos.get(0);
         RestStatus restStatus = snapshotInfo.status(); // <1>
         SnapshotId snapshotId = snapshotInfo.snapshotId(); // <2>

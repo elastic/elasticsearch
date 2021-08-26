@@ -24,7 +24,7 @@ import java.util.List;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.is;
 
-public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteStep> {
+public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
     @Override
     public DeleteStep createRandomInstance() {
@@ -58,8 +58,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         return new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    @Override
-    protected IndexMetadata getIndexMetadata() {
+    private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }
@@ -68,7 +67,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         assertFalse(createRandomInstance().indexSurvives());
     }
 
-    public void testDeleted() {
+    public void testDeleted() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
@@ -86,7 +85,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).build()
         ).build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -112,7 +111,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).build()
         ).build();
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
             f -> step.performAction(indexMetadata, clusterState, null, f))));
     }
 
@@ -133,7 +132,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
             () -> createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new ActionListener<>() {
                 @Override
-                public void onResponse(Boolean complete) {
+                public void onResponse(Void complete) {
                     fail("unexpected listener callback");
                 }
 
@@ -142,9 +141,17 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
                     fail("unexpected listener callback");
                 }
             }));
-        assertThat(illegalStateException.getMessage(),
-            is("index [" + indexName + "] is the write index for data stream [" + dataStreamName + "]. stopping execution of lifecycle" +
-                " [test-ilm-policy] as a data stream's write index cannot be deleted. manually rolling over the index will resume the " +
-                "execution of the policy as the index will not be the data stream's write index anymore"));
+        assertThat(
+            illegalStateException.getMessage(),
+            is(
+                "index ["
+                    + indexName
+                    + "] is the write index for data stream ["
+                    + dataStreamName
+                    + "]. stopping execution of lifecycle [test-ilm-policy] as a data stream's write index cannot be deleted. "
+                    + "manually rolling over the index will resume the execution of the policy as the index will not be the "
+                    + "data stream's write index anymore"
+            )
+        );
     }
 }

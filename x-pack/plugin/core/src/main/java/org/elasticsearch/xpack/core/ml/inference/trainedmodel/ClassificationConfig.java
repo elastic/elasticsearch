@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -125,6 +125,11 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
     @Override
     public boolean requestingImportance() {
         return numTopFeatureImportanceValues > 0;
+    }
+
+    @Override
+    public boolean isAllocateOnly() {
+        return false;
     }
 
     @Override

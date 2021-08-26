@@ -21,7 +21,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -380,8 +380,6 @@ public final class IndexModule {
     public static Type defaultStoreType(final boolean allowMmap) {
         if (allowMmap && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
             return Type.HYBRIDFS;
-        } else if (Constants.WINDOWS) {
-            return Type.SIMPLEFS;
         } else {
             return Type.NIOFS;
         }
@@ -490,8 +488,9 @@ public final class IndexModule {
         return factory;
     }
 
+    // By default we flush first so that the snapshot is as up-to-date as possible.
     public static final IndexStorePlugin.SnapshotCommitSupplier DEFAULT_SNAPSHOT_COMMIT_SUPPLIER
-            = e -> e.acquireLastIndexCommit(true); // by default we flush first so that the snapshot is as up-to-date as possible.
+            = e -> e.acquireLastIndexCommit(true);
 
     private static IndexStorePlugin.SnapshotCommitSupplier getSnapshotCommitSupplier(
             final IndexSettings indexSettings,

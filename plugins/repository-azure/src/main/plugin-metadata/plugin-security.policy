@@ -14,9 +14,4 @@ grant {
   // Used by jackson bean deserialization
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-  // needed by netty dns resolver
-  permission java.io.FilePermission "/etc/hosts", "read";
-  permission java.io.FilePermission "/etc/resolv.conf", "read";
-  permission java.io.FilePermission "/etc/resolver", "read";
-  permission java.io.FilePermission "/etc/resolver/-", "read";
 };

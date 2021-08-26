@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Great
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -34,7 +33,11 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.eql.parser.AbstractBuilder.unquoteString;
+import static org.elasticsearch.xpack.eql.parser.LogicalPlanBuilder.HEAD_PIPE;
+import static org.elasticsearch.xpack.eql.parser.LogicalPlanBuilder.SUPPORTED_PIPES;
+import static org.elasticsearch.xpack.eql.parser.LogicalPlanBuilder.TAIL_PIPE;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -399,7 +402,7 @@ public class ExpressionTests extends ESTestCase {
         Expression value = expr(valueText);
 
         assertEquals(new Equals(null, field, value, UTC), expr(fieldText + "==" + valueText));
-        assertEquals(new NotEquals(null, field, value, UTC), expr(fieldText + "!=" + valueText));
+        assertEquals(new Not(null, new Equals(null, field, value, UTC)), expr(fieldText + "!=" + valueText));
         assertEquals(new LessThanOrEqual(null, field, value, UTC), expr(fieldText + "<=" + valueText));
         assertEquals(new GreaterThanOrEqual(null, field, value, UTC), expr(fieldText + ">=" + valueText));
         assertEquals(new GreaterThan(null, field, value, UTC), expr(fieldText + ">" + valueText));
@@ -508,5 +511,12 @@ public class ExpressionTests extends ESTestCase {
             "' expecting {<EOF>, 'and', 'in', 'in~', 'like', 'like~', 'not', 'or', "
             + "'regex', 'regex~', ':', '+', '-', '*', '/', '%', '.', '['}",
             e.getMessage());
+    }
+
+    public void testUnsupportedPipes() {
+        String pipe = randomValueOtherThanMany(Arrays.asList(HEAD_PIPE, TAIL_PIPE)::contains, () -> randomFrom(SUPPORTED_PIPES));
+        ParsingException pe = expectThrows(ParsingException.class, "Expected parsing exception",
+            () -> parser.createStatement("process where foo == true | " + pipe));
+        assertThat(pe.getMessage(), endsWith("Pipe [" + pipe + "] is not supported"));
     }
 }

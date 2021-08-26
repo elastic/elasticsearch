@@ -16,3 +16,9 @@ restResources {
     include '_common', 'indices', 'index', 'cluster', 'search'
   }
 }
+
+tasks.named('splitPackagesAudit').configure {
+  // aggs is owned by server, these should be moved to delayedaggs
+  ignoreClasses 'org.elasticsearch.search.aggregations.DelayedShardAggregationBuilder',
+    'org.elasticsearch.search.aggregations.DelayedShardAggregationPlugin'
+}

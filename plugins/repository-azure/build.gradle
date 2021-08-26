@@ -1,4 +1,5 @@
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.PropertyNormalization
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
@@ -22,35 +23,38 @@ esplugin {
 }
 
 versions << [
-  'azure': '12.11.1',
-  'azureCore': '1.16.0',
-  'azureCoreHttpNetty': '1.9.1',
-  'azureAvro': '12.0.4',
+  'azure': '12.9.0',
+  'azureCore': '1.10.0',
+  'azureCoreHttpNetty': '1.6.3',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
   'stax2API': '4.2',
-  'woodstox': '6.2.4',
+  'woodstox': '6.0.2',
 
-  'azureNetty': '4.1.63.Final',
-  'reactorNetty': '1.0.6',
-  'reactorCore': '3.4.5',
+  'reactorNetty': '0.9.12.RELEASE',
+  'reactorCore': '3.3.10.RELEASE',
   'reactiveStreams': '1.0.3',
 ]
 
 dependencies {
+  api project(path: 'azure-storage-blob', configuration: 'shadow')
+  if (isEclipse) {
+    /*
+     * Eclipse can't pick up the shadow dependency so we point it at *something*
+     * so it can compile things.
+     */
+    api project(path: 'azure-storage-blob')
+  }
   api "com.azure:azure-storage-common:${versions.azure}"
-  api "com.azure:azure-storage-blob:${versions.azure}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"
-  api "com.azure:azure-storage-internal-avro:${versions.azureAvro}"
 
   // jackson
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
 
   // jackson xml
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
@@ -62,24 +66,19 @@ dependencies {
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
 
   // netty
-  api "io.netty:netty-buffer:${versions.azureNetty}"
-  api "io.netty:netty-codec:${versions.azureNetty}"
-  api "io.netty:netty-codec-dns:${versions.azureNetty}"
-  api "io.netty:netty-codec-http:${versions.azureNetty}"
-  api "io.netty:netty-codec-http2:${versions.azureNetty}"
-  api "io.netty:netty-codec-socks:${versions.azureNetty}"
-  api "io.netty:netty-common:${versions.azureNetty}"
-  api "io.netty:netty-handler:${versions.azureNetty}"
-  api "io.netty:netty-handler-proxy:${versions.azureNetty}"
-  api "io.netty:netty-resolver:${versions.azureNetty}"
-  api "io.netty:netty-resolver-dns:${versions.azureNetty}"
-  api "io.netty:netty-transport:${versions.azureNetty}"
-  api "io.netty:netty-transport-native-unix-common:${versions.azureNetty}"
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec-http:${versions.netty}"
+  api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-codec-socks:${versions.netty}"
+  api "io.netty:netty-codec:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "io.netty:netty-handler-proxy:${versions.netty}"
+  api "io.netty:netty-handler:${versions.netty}"
+  api "io.netty:netty-resolver:${versions.netty}"
+  api "io.netty:netty-transport:${versions.netty}"
 
   // reactor
   api "io.projectreactor.netty:reactor-netty:${versions.reactorNetty}"
-  api "io.projectreactor.netty:reactor-netty-core:${versions.reactorNetty}"
-  api "io.projectreactor.netty:reactor-netty-http:${versions.reactorNetty}"
   api "io.projectreactor:reactor-core:${versions.reactorCore}"
   api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
 
@@ -109,12 +108,18 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
   mapping from: /jaxb-.*/, to: 'jaxb'
   mapping from: /stax-.*/, to: 'stax'
-  mapping from: /reactor-netty-.*/, to: 'reactor-netty'
   mapping from: /reactive-streams.*/, to: 'reactive-streams'
 }
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+
     // from reactory-netty metric collection
     'io.micrometer.core.instrument.Clock',
     'io.micrometer.core.instrument.Counter',
@@ -200,6 +205,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.jcraft.jzlib.JZlib$WrapperType',
     'com.jcraft.jzlib.JZlib',
 
+    'com.github.luben.zstd.Zstd',
+
     // from io.netty.handler.codec.compression.LzfDecoder
     // from io.netty.handler.codec.compression.LzfEncoder (netty-codec)
     'com.ning.compress.BufferRecycler',
@@ -213,15 +220,6 @@ tasks.named("thirdPartyAudit").configure {
     // from io.netty.handler.codec.compression.LzmaFrameEncoder (netty-codec)
     'lzma.sdk.lzma.Encoder',
 
-    // from io.netty.handler.codec.compression.Lz4FrameDecoder (netty-codec)
-    'net.jpountz.lz4.LZ4Compressor',
-    'net.jpountz.lz4.LZ4Factory',
-    'net.jpountz.lz4.LZ4FastDecompressor',
-
-    // from io.netty.handler.codec.compression.Lz4XXHash32 (netty-codec)
-    'net.jpountz.xxhash.XXHash32',
-    'net.jpountz.xxhash.XXHashFactory',
-
     // from io.netty.handler.ssl.JettyAlpnSslEngin (netty-handler optional dependency)
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
@@ -234,6 +232,8 @@ tasks.named("thirdPartyAudit").configure {
     'org.conscrypt.HandshakeListener',
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
     'io.netty.internal.tcnative.Buffer',
     'io.netty.internal.tcnative.Library',
     'io.netty.internal.tcnative.SSL',
@@ -241,6 +241,7 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
     'io.netty.internal.tcnative.CertificateCallback',
     'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.ResultCallback',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
     'io.netty.internal.tcnative.SSLSession',
@@ -253,23 +254,14 @@ tasks.named("thirdPartyAudit").configure {
     // it uses NIO
     'io.netty.channel.kqueue.KQueue',
     'io.netty.channel.kqueue.KQueueDatagramChannel',
-    'io.netty.channel.kqueue.KQueueDomainSocketChannel',
     'io.netty.channel.kqueue.KQueueEventLoopGroup',
-    'io.netty.channel.kqueue.KQueueServerDomainSocketChannel',
     'io.netty.channel.kqueue.KQueueServerSocketChannel',
     'io.netty.channel.kqueue.KQueueSocketChannel',
     'io.netty.channel.epoll.Epoll',
     'io.netty.channel.epoll.EpollDatagramChannel',
-    'io.netty.channel.epoll.EpollDomainSocketChannel',
     'io.netty.channel.epoll.EpollEventLoopGroup',
-    'io.netty.channel.epoll.EpollServerDomainSocketChannel',
     'io.netty.channel.epoll.EpollServerSocketChannel',
     'io.netty.channel.epoll.EpollSocketChannel',
-    'io.netty.incubator.channel.uring.IOUring',
-    'io.netty.incubator.channel.uring.IOUringDatagramChannel',
-    'io.netty.incubator.channel.uring.IOUringEventLoopGroup',
-    'io.netty.incubator.channel.uring.IOUringServerSocketChannel',
-    'io.netty.incubator.channel.uring.IOUringSocketChannel',
 
     // from reactor.netty.http.server.HttpServer (reactor-netty)
     'io.netty.handler.codec.haproxy.HAProxyMessage',
@@ -279,11 +271,13 @@ tasks.named("thirdPartyAudit").configure {
     'org.osgi.framework.BundleActivator',
     'org.osgi.framework.BundleContext',
 
+    // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
+    'com.sun.org.apache.xml.internal.resolver.Catalog',
+    'com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver',
+
     'org.slf4j.impl.StaticLoggerBinder',
     'org.slf4j.impl.StaticMDCBinder',
     'org.slf4j.impl.StaticMarkerBinder',
-
-    'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
   )
 
   ignoreViolations(
@@ -309,7 +303,11 @@ tasks.named("thirdPartyAudit").configure {
     'javax.activation.MailcapCommandMap',
     'javax.activation.MimetypesFileTypeMap',
 
+    'reactor.core.publisher.MultiProducerRingBuffer',
+    'reactor.core.publisher.RingBufferFields',
     'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
+    'reactor.core.publisher.UnsafeSequence',
+    'reactor.core.publisher.UnsafeSupport'
   )
 }
 boolean useFixture = false
@@ -339,14 +337,14 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   testFixtures.useFixture ':test:fixtures:azure-fixture', 'azure-fixture'
 }
 
-Map<String, Object> expansions = [
+Map<String, String> expansions = [
   'container': azureContainer,
   'base_path': azureBasePath + "_integration_tests"
 ]
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {
@@ -365,7 +363,9 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
     if (useFixture) {
       setting 'azure.client.integration_test.endpoint_suffix', azureAddress
       String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
-      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
+
+      def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').forUseAtConfigurationTime().isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
+      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), ignoreTestSeed
     }
 }
 

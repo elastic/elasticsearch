@@ -28,7 +28,7 @@ import org.elasticsearch.client.searchable_snapshots.CachesStatsResponse;
 import org.elasticsearch.client.searchable_snapshots.CachesStatsResponse.NodeCachesStats;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;

@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -615,7 +615,6 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
         assertThat(stats.getTotal().getSegments().getCount(), equalTo((long) test1.totalNumShards));
-        assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0L));
         if (includeSegmentFileSizes) {
             assertThat(stats.getTotal().getSegments().getFiles().size(), greaterThan(0));
             for (ObjectObjectCursor<String, SegmentsStats.FileStats> cursor : stats.getTotal().getSegments().getFiles()) {
@@ -735,7 +734,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
                 Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Completion, Flag.Segments,
-                Flag.Translog, Flag.RequestCache, Flag.Recovery, Flag.Bulk};
+                Flag.Translog, Flag.RequestCache, Flag.Recovery, Flag.Bulk, Flag.Shards};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -914,6 +913,10 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Bulk:
                 builder.setBulk(set);
                 break;
+            case Shards:
+                // We don't actually expose shards in IndexStats, but this test fails if it isn't handled
+                builder.request().flags().set(Flag.Shards, set);
+                break;
             default:
                 fail("new flag? " + flag);
                 break;
@@ -956,6 +959,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getRecoveryStats() != null;
             case Bulk:
                 return response.getBulk() != null;
+            case Shards:
+                return response.getShards() != null;
             default:
                 fail("new flag? " + flag);
                 return false;

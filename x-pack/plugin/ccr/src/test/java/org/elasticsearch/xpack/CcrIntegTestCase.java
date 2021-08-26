@@ -46,7 +46,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -259,6 +259,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             clusterGroup.leaderCluster.wipe(Collections.emptySet());
             clusterGroup.followerCluster.wipe(Collections.emptySet());
         }
+
+        clusterGroup.leaderCluster.assertAfterTest();
+        clusterGroup.followerCluster.assertAfterTest();
     }
 
     private NodeConfigurationSource createNodeConfigurationSource(final String leaderSeedAddress, final boolean leaderCluster) {

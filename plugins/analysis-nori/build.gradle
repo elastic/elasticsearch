@@ -26,3 +26,12 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
+
+tasks.named('splitPackagesAudit').configure {
+    // Lucene packages should be owned by Lucene!
+  ignoreClasses 'org.elasticsearch.index.analysis.NoriAnalyzerProvider',
+    'org.elasticsearch.index.analysis.NoriNumberFilterFactory',
+    'org.elasticsearch.index.analysis.NoriPartOfSpeechStopFilterFactory',
+    'org.elasticsearch.index.analysis.NoriReadingFormFilterFactory',
+    'org.elasticsearch.index.analysis.NoriTokenizerFactory'
+}

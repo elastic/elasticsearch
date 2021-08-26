@@ -47,6 +47,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -327,7 +328,10 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 shards.add(shard);
             }
         }
-        final TransportBroadcastByNodeAction.BroadcastByNodeTransportRequestHandler handler =
+        final TransportBroadcastByNodeAction<
+            Request,
+            Response,
+            TransportBroadcastByNodeAction.EmptyResult>.BroadcastByNodeTransportRequestHandler handler =
                 action.new BroadcastByNodeTransportRequestHandler();
 
         final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
@@ -389,7 +393,10 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 shards.add(shard);
             }
         }
-        final TransportBroadcastByNodeAction.BroadcastByNodeTransportRequestHandler handler =
+        final TransportBroadcastByNodeAction<
+            Request,
+            Response,
+            TransportBroadcastByNodeAction.EmptyResult>.BroadcastByNodeTransportRequestHandler handler =
                 action.new BroadcastByNodeTransportRequestHandler();
 
         final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
@@ -402,6 +409,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         TransportResponse response = future.actionGet();
         assertTrue(response instanceof TransportBroadcastByNodeAction.NodeResponse);
+        @SuppressWarnings("rawtypes")
         TransportBroadcastByNodeAction.NodeResponse nodeResponse = (TransportBroadcastByNodeAction.NodeResponse) response;
 
         // check the operation was executed on the correct node
@@ -421,6 +429,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         assertEquals("successful shards", successfulShards, nodeResponse.getSuccessfulShards());
         assertEquals("total shards", action.getResults().size(), nodeResponse.getTotalShards());
         assertEquals("failed shards", failedShards, nodeResponse.getExceptions().size());
+        @SuppressWarnings("unchecked")
         List<BroadcastShardOperationFailedException> exceptions = nodeResponse.getExceptions();
         for (BroadcastShardOperationFailedException exception : exceptions) {
             assertThat(exception.getMessage(), is("operation indices:admin/test failed"));
@@ -481,8 +490,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                     }
                 }
                 totalSuccessfulShards += shardResults.size();
-                TransportBroadcastByNodeAction.NodeResponse nodeResponse = action.new NodeResponse(entry.getKey(), shards.size(),
-                    shardResults, exceptions);
+                TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult>.NodeResponse nodeResponse =
+                    action.new NodeResponse(entry.getKey(), shards.size(), shardResults, exceptions);
                 transport.handleResponse(requestId, nodeResponse);
             }
         }
@@ -512,12 +521,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     private static Task cancelledTask() {
-        return new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap()) {
-            @Override
-            public boolean isCancelled() {
-                return true;
-            }
-        };
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        TaskCancelHelper.cancel(task, "simulated");
+        return task;
     }
 
 }

@@ -10,11 +10,11 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 
@@ -160,6 +160,7 @@ public class StreamTests extends ESTestCase {
         }
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeGenericValue(write);
+        @SuppressWarnings("unchecked")
         LinkedHashMap<String, Integer> read = (LinkedHashMap<String, Integer>) out.bytes().streamInput().readGenericValue();
         assertEquals(size, read.size());
         int index = 0;

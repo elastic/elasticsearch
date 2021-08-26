@@ -1,7 +1,7 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+packaging-tests-windows"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request packaging-tests-windows"
+    name: "elastic+elasticsearch+pull-request+packaging-tests-windows"
+    display-name: "elastic / elasticsearch - pull request packaging-tests-windows"
     description: "Testing of Elasticsearch pull requests - packaging-tests-windows"
     # We use a hard-coded workspace directory here to avoid hitting windows path length limits
     child-workspace: "C:\\Users\\jenkins\\workspace\\pr-packaging-windows\\${BUILD_NUMBER}"
@@ -22,8 +22,7 @@
           status-context: elasticsearch-ci/packaging-tests-windows
           cancel-builds-on-update: true
           white-list-target-branches:
-            - %BRANCH%
-            - ^feat(ure)?/.*
+            - master
           excluded-regions:
             - ^docs/.*
           white-list-labels:
@@ -43,7 +42,6 @@
           name: PACKAGING_TASK
           values:
             - 'default-windows-archive'
-            - 'default-windows-archive-no-jdk'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
@@ -55,5 +53,5 @@
           mkdir %USERPROFILE%\.gradle\init.d
           copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
           (
-             echo powershell.exe .\.ci\os.ps1 -GradleTasks destructiveDistroTest.%PACKAGING_TASK%   ^|^| exit /b 1
+             echo powershell.exe .\.ci\scripts\packaging-test.ps1 -GradleTasks destructiveDistroTest.%PACKAGING_TASK%   ^|^| exit /b 1
           ) | java -jar "C:\Program Files\infra\bin\runbld" --redirect-stderr -

@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
@@ -74,7 +74,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
     exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
   }
-
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     mustRunAfter("precommit")

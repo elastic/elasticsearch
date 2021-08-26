@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.transport.filter;
 
 import io.netty.handler.ipfilter.IpFilterRuleType;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;

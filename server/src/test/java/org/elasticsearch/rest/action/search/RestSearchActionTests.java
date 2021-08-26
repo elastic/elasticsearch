@@ -8,7 +8,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;

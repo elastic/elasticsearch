@@ -286,7 +286,7 @@ public final class Elements {
         }
 
         @Override
-        public RecordingBinder skipSources(Class... classesToSkip) {
+        public RecordingBinder skipSources(Class<?>... classesToSkip) {
             // if a source is specified explicitly, we don't need to skip sources
             if (source != null) {
                 return this;

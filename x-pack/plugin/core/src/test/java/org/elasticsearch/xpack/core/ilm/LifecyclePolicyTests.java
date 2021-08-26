@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -312,7 +312,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
-        List<Step> steps = policy.toSteps(client);
+        List<Step> steps = policy.toSteps(client, null);
         assertThat(steps.size(), equalTo(2));
         assertThat(steps.get(0), instanceOf(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(new StepKey("new", "init", "init")));
@@ -334,7 +334,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
         StepKey firstStepKey = InitializePolicyContextStep.KEY;
         StepKey secondStepKey = PhaseCompleteStep.finalStep("new").getKey();
-        List<Step> steps = policy.toSteps(client);
+        List<Step> steps = policy.toSteps(client, null);
         assertThat(steps.size(), equalTo(4));
         assertSame(steps.get(0).getKey(), firstStepKey);
         assertThat(steps.get(0).getNextStepKey(), equalTo(secondStepKey));
@@ -368,7 +368,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.put(secondPhase.getName(), secondPhase);
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
 
-        List<Step> steps = policy.toSteps(client);
+        List<Step> steps = policy.toSteps(client, null);
         assertThat(steps.size(), equalTo(7));
         assertThat(steps.get(0).getClass(), equalTo(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(init.getKey()));

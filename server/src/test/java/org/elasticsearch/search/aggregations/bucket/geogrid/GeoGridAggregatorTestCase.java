@@ -20,7 +20,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
@@ -184,7 +184,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             for (StringTerms.Bucket tb: terms.getBuckets()) {
                 InternalGeoGrid<?> gg = tb.getAggregations().get("gg");
                 Map<String, Long> sub = new TreeMap<>();
-                for (InternalGeoGridBucket<?> ggb : gg.getBuckets()) {
+                for (InternalGeoGridBucket ggb : gg.getBuckets()) {
                     sub.put(ggb.getKeyAsString(), ggb.getDocCount());
                 }
                 actual.put(tb.getKeyAsString(), sub);
@@ -305,7 +305,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();
-        verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
+        @SuppressWarnings("unchecked")
+        InternalGeoGrid<T> topLevel = (InternalGeoGrid<T>) aggregator.buildTopLevel();
+        verify.accept(topLevel);
 
         indexReader.close();
         directory.close();

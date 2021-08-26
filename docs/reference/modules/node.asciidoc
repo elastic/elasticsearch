@@ -36,7 +36,18 @@ set `node.roles`, the node is assigned the following roles:
 [IMPORTANT]
 ====
 If you set `node.roles`, ensure you specify every node role your cluster needs.
-Some {stack} features require specific node roles:
+Every cluster requires the following node roles:
+
+* `master`
+* {blank}
++
+--
+`data_content` and `data_hot` +
+OR +
+`data`
+--
+
+Some {stack} features also require specific node roles:
 
 - {ccs-cap} and {ccr} require the `remote_cluster_client` role.
 - {stack-monitor-app} and ingest pipelines require the `ingest` role.
@@ -75,10 +86,9 @@ as a remote client.
 
 <<ml-node,Machine learning node>>::
 
-A node that has `xpack.ml.enabled` and the `ml` role. If you want to use
-{ml-features}, there must be at least one {ml} node in your cluster. For more
-information about {ml-features}, see {ml-docs}/index.html[Machine learning in
-the {stack}].
+A node that has the `ml` role. If you want to use {ml-features}, there must be
+at least one {ml} node in your cluster. For more information, see
+<<ml-settings>> and {ml-docs}/index.html[Machine learning in the {stack}].
 
 <<transform-node,{transform-cap} node>>::
 
@@ -224,8 +234,9 @@ assign data nodes to specific tiers: `data_content`,`data_hot`, `data_warm`,
 `data_cold`, or `data_frozen`. A node can belong to multiple tiers, but a node
 that has one of the specialized data roles cannot have the generic `data` role.
 
+[role="xpack"]
 [[data-content-node]]
-==== [x-pack]#Content data node#
+==== Content data node
 
 Content data nodes accommodate user-created content. They enable operations like CRUD,
 search and aggregations.
@@ -236,8 +247,9 @@ To create a dedicated content node, set:
 node.roles: [ data_content ]
 ----
 
+[role="xpack"]
 [[data-hot-node]]
-==== [x-pack]#Hot data node#
+==== Hot data node
 
 Hot data nodes store time series data as it enters {es}. The hot tier must be fast for
 both reads and writes, and requires more hardware resources (such as SSD drives).
@@ -248,8 +260,9 @@ To create a dedicated hot node, set:
 node.roles: [ data_hot ]
 ----
 
+[role="xpack"]
 [[data-warm-node]]
-==== [x-pack]#Warm data node#
+==== Warm data node
 
 Warm data nodes store indices that are no longer being regularly updated, but are still being
 queried. Query volume is usually at a lower frequency than it was while the index was in the hot tier.
@@ -261,8 +274,9 @@ To create a dedicated warm node, set:
 node.roles: [ data_warm ]
 ----
 
+[role="xpack"]
 [[data-cold-node]]
-==== [x-pack]#Cold data node#
+==== Cold data node
 
 Cold data nodes store read-only indices that are accessed less frequently. This tier uses less performant hardware and may leverage searchable snapshot indices to minimize the resources required.
 
@@ -272,8 +286,9 @@ To create a dedicated cold node, set:
 node.roles: [ data_cold ]
 ----
 
+[role="xpack"]
 [[data-frozen-node]]
-==== [x-pack]#Frozen data node#
+==== Frozen data node
 
 The frozen tier stores <<partially-mounted,partially mounted indices>>
 exclusively. We recommend you use dedicated nodes in the frozen tier.
@@ -343,31 +358,20 @@ node.roles: [ remote_cluster_client ]
 [[ml-node]]
 ==== [xpack]#Machine learning node#
 
-The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API
-requests. If `xpack.ml.enabled` is set to `true` and the node does not have the
-`ml` role, the node can service API requests but it cannot run jobs.
-
-If you want to use {ml-features} in your cluster, you must enable {ml}
-(set `xpack.ml.enabled` to `true`) on all master-eligible nodes. If you want to
-use {ml-features} in clients (including {kib}), it must also be enabled on all
-coordinating nodes.
-
-For more information about these settings, see <<ml-settings>>.
+{ml-cap} nodes run jobs and handle {ml} API requests. For more information, see
+<<ml-settings>>.
 
 To create a dedicated {ml} node, set:
 
 [source,yaml]
 ----
-node.roles: [ ml, remote_cluster_client] <1>
-xpack.ml.enabled: true <2>
+node.roles: [ ml, remote_cluster_client]
 ----
-<1> The `remote_cluster_client` role is optional but strongly recommended.
-Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
-<2> The `xpack.ml.enabled` setting is enabled by default.
 
-NOTE: If you use {ccs} in your {anomaly-jobs}, the `remote_cluster_client` role 
-is also required on all master-eligible nodes. Otherwise, the {dfeed} cannot 
-start.
+The `remote_cluster_client` role is optional but strongly recommended.
+Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. If you use {ccs} in
+your {anomaly-jobs}, the `remote_cluster_client` role is also required on all
+master-eligible nodes. Otherwise, the {dfeed} cannot start. See <<remote-node>>.
 
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#
@@ -379,9 +383,10 @@ To create a dedicated {transform} node, set:
 
 [source,yaml]
 ----
-node.roles: [ transform, remote_cluster_client ] <1>
+node.roles: [ transform, remote_cluster_client ]
 ----
-<1> The `remote_cluster_client` role is optional but strongly recommended.
+
+The `remote_cluster_client` role is optional but strongly recommended.
 Otherwise, {ccs} fails when used in {transforms}. See <<remote-node>>.
 
 [[change-node-role]]

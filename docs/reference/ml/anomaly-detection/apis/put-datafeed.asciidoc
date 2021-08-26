@@ -36,10 +36,10 @@ each interval. See {ml-docs}/ml-delayed-data-detection.html[Handling delayed dat
 
 [IMPORTANT]
 ====
-* You must use {kib} or this API to create a {dfeed}. Do not add a
-{dfeed} directly to the `.ml-config` index using the {es} index API. If {es}
-{security-features} are enabled, do not give users `write` privileges on the
-`.ml-config` index.
+* You must use {kib}, this API, or the <<ml-put-job,create {anomaly-jobs} API>>
+to create a {dfeed}. Do not add a {dfeed} directly to the `.ml-config` index
+using the {es} index API. If {es} {security-features} are enabled, do not give
+users `write` privileges on the `.ml-config` index.
 * When {es} {security-features} are enabled, your {dfeed} remembers which roles
 the user who created it had at the time of creation and runs the query using
 those same roles. If you provide
@@ -65,10 +65,34 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
 `chunking_config`::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
++
+.Properties of `chunking_config`
+[%collapsible%open]
+====
+`mode`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
+====
 
 `delayed_data_check_config`::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
++
+.Properties of `delayed_data_check_config`
+[%collapsible%open]
+====
+`check_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-window]
+
+`enabled`::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-enabled]
+====
 
 `frequency`::
 (Optional, <<time-units, time units>>)

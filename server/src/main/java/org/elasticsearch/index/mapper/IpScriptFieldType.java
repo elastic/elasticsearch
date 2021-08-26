@@ -13,16 +13,16 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -38,15 +38,29 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, IpFieldScript.CONTEXT, IpFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<>(name, IpFieldScript.CONTEXT) {
             @Override
-            RuntimeField newRuntimeField(IpFieldScript.Factory scriptFactory) {
-                return new IpScriptFieldType(name, scriptFactory, getScript(), meta(), this);
+            AbstractScriptFieldType<?> createFieldType(String name,
+                                                       IpFieldScript.Factory factory,
+                                                       Script script,
+                                                       Map<String, String> meta) {
+                return new IpScriptFieldType(name, factory, getScript(), meta());
+            }
+
+            @Override
+            IpFieldScript.Factory getParseFromSourceFactory() {
+                return IpFieldScript.PARSE_FROM_SOURCE;
+            }
+
+            @Override
+            IpFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+                return IpFieldScript.leafAdapter(parentScriptFactory);
             }
         });
 
@@ -54,10 +68,9 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         String name,
         IpFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
     }
 
     @Override

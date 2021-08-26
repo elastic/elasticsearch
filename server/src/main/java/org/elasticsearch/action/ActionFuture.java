@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;

@@ -32,7 +32,7 @@ public final class MonitoringTemplateUtils {
      * Note that the templates were last updated in 7.11.0, but the versions were not updated, meaning that upgrades
      * to 7.11.0 would not have updated the templates. See https://github.com/elastic/elasticsearch/pull/69317.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_7_12_0.id;
+    public static final int LAST_UPDATED_VERSION = Version.V_7_14_0.id;
 
     /**
      * Current version of templates used in their name to differentiate from breaking changes (separate from product version).

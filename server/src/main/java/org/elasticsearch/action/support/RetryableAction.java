@@ -13,7 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,12 +103,12 @@ public abstract class RetryableAction<Response> {
 
     public abstract boolean shouldRetry(Exception e);
 
-    protected long calculateDelay(long previousDelay) {
-        return Math.min(previousDelay * 2, Integer.MAX_VALUE);
+    protected long calculateDelayBound(long previousDelayBound) {
+        return Math.min(previousDelayBound * 2, Integer.MAX_VALUE);
     }
 
     protected long minimumDelayMillis() {
-        return 1L;
+        return 0L;
     }
 
     public void onFinished() {
@@ -145,10 +145,12 @@ public abstract class RetryableAction<Response> {
                 } else {
                     addException(e);
 
-                    final long nextDelayMillisBound = calculateDelay(delayMillisBound);
+                    final long nextDelayMillisBound = calculateDelayBound(delayMillisBound);
                     final RetryingListener retryingListener = new RetryingListener(nextDelayMillisBound, caughtExceptions);
                     final Runnable runnable = createRunnable(retryingListener);
-                    final long delayMillis = Randomness.get().nextInt(Math.toIntExact(delayMillisBound)) + minimumDelayMillis();
+                    int range = Math.toIntExact((delayMillisBound + 1) / 2);
+                    final long delayMillis = Randomness.get().nextInt(range) + delayMillisBound - range + 1L;
+                    assert delayMillis > 0;
                     if (isDone.get() == false) {
                         final TimeValue delay = TimeValue.timeValueMillis(delayMillis);
                         logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}", delay), e);

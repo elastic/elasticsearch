@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.actions.webhook;
 
 import com.sun.net.httpserver.HttpsServer;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;

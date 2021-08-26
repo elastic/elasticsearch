@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -21,8 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -31,18 +33,23 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
@@ -62,8 +69,8 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     private final Client client;
     private final PersistentTasksService persistentTasksService;
     private final AnomalyDetectionAuditor auditor;
-    private final JobResultsProvider jobResultsProvider;
     private final JobConfigProvider jobConfigProvider;
+    private final JobManager jobManager;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final MlMemoryTracker memoryTracker;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
@@ -80,20 +87,20 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     public TransportDeleteJobAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
-                                    Client client, AnomalyDetectionAuditor auditor, JobResultsProvider jobResultsProvider,
+                                    Client client, AnomalyDetectionAuditor auditor,
                                     JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
-                                    MlMemoryTracker memoryTracker) {
+                                    MlMemoryTracker memoryTracker, JobManager jobManager) {
         super(DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 DeleteJobAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.client = client;
         this.persistentTasksService = persistentTasksService;
         this.auditor = auditor;
-        this.jobResultsProvider = jobResultsProvider;
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.memoryTracker = memoryTracker;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.listenersByJobId = new HashMap<>();
+        this.jobManager = jobManager;
     }
 
     @Override
@@ -110,7 +117,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             return;
         }
 
-        logger.debug("Deleting job '{}'", request.getJobId());
+        logger.debug(() -> new ParameterizedMessage("[{}] deleting job ", request.getJobId()));
 
         if (request.isForce() == false) {
             checkJobIsNotOpen(request.getJobId(), state);
@@ -122,8 +129,11 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         // Check if there is a deletion task for this job already and if yes wait for it to complete
         synchronized (listenersByJobId) {
             if (listenersByJobId.containsKey(request.getJobId())) {
-                logger.debug("[{}] Deletion task [{}] will wait for existing deletion task to complete",
-                        request.getJobId(), task.getId());
+                logger.debug(() -> new ParameterizedMessage(
+                    "[{}] Deletion task [{}] will wait for existing deletion task to complete",
+                    request.getJobId(),
+                    task.getId()
+                ));
                 listenersByJobId.get(request.getJobId()).add(listener);
                 return;
             } else {
@@ -144,28 +154,37 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                 }
         );
 
-        ActionListener<Boolean> markAsDeletingListener = ActionListener.wrap(
+        ActionListener<PutJobAction.Response> markAsDeletingListener = ActionListener.wrap(
                 response -> {
                     if (request.isForce()) {
-                        forceDeleteJob(parentTaskClient, request, finalListener);
+                        forceDeleteJob(parentTaskClient, request, state, finalListener);
                     } else {
-                        normalDeleteJob(parentTaskClient, request, finalListener);
+                        normalDeleteJob(parentTaskClient, request, state, finalListener);
                     }
                 },
                 finalListener::onFailure);
 
-        ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
+        ActionListener<AcknowledgedResponse> datafeedDeleteListener = ActionListener.wrap(
             response -> {
                 auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
-                markJobAsDeletingIfNotUsed(request.getJobId(), markAsDeletingListener);
+                cancelResetTaskIfExists(request.getJobId(), ActionListener.wrap(
+                    r -> jobConfigProvider.updateJobBlockReason(request.getJobId(), new Blocked(Blocked.Reason.DELETE, taskId),
+                        markAsDeletingListener),
+                    finalListener::onFailure
+                ));
             },
+            finalListener::onFailure
+        );
+
+        ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
+            response -> deleteDatafeedIfNecessary(request, datafeedDeleteListener),
             e -> {
                 if (request.isForce()
                     && MlTasks.getJobTask(request.getJobId(), state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE)) != null) {
                     logger.info(
                         "[{}] config is missing but task exists. Attempting to delete tasks and stop process",
                         request.getJobId());
-                    forceDeleteJob(parentTaskClient, request, finalListener);
+                    forceDeleteJob(parentTaskClient, request, state, finalListener);
                 } else {
                     finalListener.onFailure(e);
                 }
@@ -193,79 +212,49 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         }
     }
 
-    private void normalDeleteJob(ParentTaskAssigningClient parentTaskClient, DeleteJobAction.Request request,
+    private void normalDeleteJob(ParentTaskAssigningClient parentTaskClient,
+                                 DeleteJobAction.Request request,
+                                 ClusterState state,
                                  ActionListener<AcknowledgedResponse> listener) {
         String jobId = request.getJobId();
 
         // We clean up the memory tracker on delete rather than close as close is not a master node action
         memoryTracker.removeAnomalyDetectorJob(jobId);
-
-        // Step 4. When the job has been removed from the cluster state, return a response
-        // -------
-        CheckedConsumer<Boolean, Exception> apiResponseHandler = jobDeleted -> {
-            if (jobDeleted) {
-                logger.info("Job [" + jobId + "] deleted");
-                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
-                listener.onResponse(AcknowledgedResponse.TRUE);
-            } else {
-                listener.onResponse(AcknowledgedResponse.FALSE);
-            }
-        };
-
-        // Step 3. When the physical storage has been deleted, delete the job config document
-        // -------
-        // Don't report an error if the document has already been deleted
-        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobConfigProvider.deleteJob(jobId, false,
-                ActionListener.wrap(
-                        deleteResponse -> apiResponseHandler.accept(Boolean.TRUE),
-                        listener::onFailure
-                )
-        );
-
-        // Step 2. Remove the job from any calendars
-        CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> jobResultsProvider.removeJobFromCalendars(jobId,
-                ActionListener.wrap(deleteJobStateHandler::accept, listener::onFailure));
-
-
-        // Step 1. Delete the physical storage
-        new JobDataDeleter(parentTaskClient, jobId).deleteJobDocuments(
-            jobId, jobConfigProvider, indexNameExpressionResolver, clusterService.state(), removeFromCalendarsHandler, listener::onFailure);
+        jobManager.deleteJob(request, parentTaskClient, state, listener);
     }
 
-    private void forceDeleteJob(ParentTaskAssigningClient parentTaskClient, DeleteJobAction.Request request,
-                                ActionListener<AcknowledgedResponse> listener) {
+    private void forceDeleteJob(
+        ParentTaskAssigningClient parentTaskClient,
+        DeleteJobAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
 
-        logger.debug("Force deleting job [{}]", request.getJobId());
-
-        final ClusterState state = clusterService.state();
         final String jobId = request.getJobId();
+        logger.debug(() -> new ParameterizedMessage("[{}] force deleting job", jobId));
 
         // 3. Delete the job
-        ActionListener<Boolean> removeTaskListener = new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean response) {
-                normalDeleteJob(parentTaskClient, request, listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+        ActionListener<Boolean> removeTaskListener = ActionListener.wrap(
+            response -> normalDeleteJob(parentTaskClient, request, clusterService.state(), listener),
+            e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                    normalDeleteJob(parentTaskClient, request, listener);
+                    // use clusterService.state() here so that the updated state without the task is available
+                    normalDeleteJob(parentTaskClient, request, clusterService.state(), listener);
                 } else {
                     listener.onFailure(e);
                 }
             }
-        };
+        );
 
         // 2. Cancel the persistent task. This closes the process gracefully so
         // the process should be killed first.
         ActionListener<KillProcessAction.Response> killJobListener = ActionListener.wrap(
-                response -> removePersistentTask(request.getJobId(), state, removeTaskListener),
+                response -> removePersistentTask(jobId, state, removeTaskListener),
                 e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ElasticsearchStatusException) {
                         // Killing the process marks the task as completed so it
                         // may have disappeared when we get here
-                        removePersistentTask(request.getJobId(), state, removeTaskListener);
+                        removePersistentTask(jobId, state, removeTaskListener);
                     } else {
                         listener.onFailure(e);
                     }
@@ -304,18 +293,72 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         }
     }
 
-    private void markJobAsDeletingIfNotUsed(String jobId, ActionListener<Boolean> listener) {
+    private void deleteDatafeedIfNecessary(DeleteJobAction.Request deleteJobRequest, ActionListener<AcknowledgedResponse> listener) {
 
-        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
-                datafeedIds -> {
-                    if (datafeedIds.isEmpty() == false) {
-                        listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because datafeed ["
-                                + datafeedIds.iterator().next() + "] refers to it"));
-                        return;
-                    }
-                    jobConfigProvider.markJobAsDeleting(jobId, listener);
-                },
-                listener::onFailure
+        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList(deleteJobRequest.getJobId()), ActionListener.wrap(
+            datafeedIds -> {
+                // Since it's only possible to delete a single job at a time there should not be more than one datafeed
+                assert datafeedIds.size() <= 1 : "Expected at most 1 datafeed for a single job, got " + datafeedIds;
+                if (datafeedIds.isEmpty()) {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                    return;
+                }
+                DeleteDatafeedAction.Request deleteDatafeedRequest = new DeleteDatafeedAction.Request(datafeedIds.iterator().next());
+                deleteDatafeedRequest.setForce(deleteJobRequest.isForce());
+                deleteDatafeedRequest.timeout(deleteJobRequest.timeout());
+                ClientHelper.executeAsyncWithOrigin(
+                    client,
+                    ClientHelper.ML_ORIGIN,
+                    DeleteDatafeedAction.INSTANCE,
+                    deleteDatafeedRequest,
+                    ActionListener.wrap(
+                        listener::onResponse,
+                        e -> {
+                            // It's possible that a simultaneous call to delete the datafeed has deleted it in between
+                            // us finding the datafeed ID and trying to delete it in this method - this is OK
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                                listener.onResponse(AcknowledgedResponse.TRUE);
+                            } else {
+                                listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                    "failed to delete job [{}] as its datafeed [{}] could not be deleted", e,
+                                    deleteJobRequest.getJobId(), deleteDatafeedRequest.getDatafeedId())
+                                );
+                            }
+                        }
+                    )
+                );
+            },
+            listener::onFailure
         ));
+    }
+
+    private void cancelResetTaskIfExists(String jobId, ActionListener<Boolean> listener) {
+        ActionListener<Job.Builder> jobListener = ActionListener.wrap(
+            jobBuilder -> {
+                Job job = jobBuilder.build();
+                if (job.getBlocked().getReason() == Blocked.Reason.RESET) {
+                    logger.info("[{}] Cancelling reset task [{}] because delete was requested", jobId, job.getBlocked().getTaskId());
+                    CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+                    cancelTasksRequest.setReason("deleting job");
+                    cancelTasksRequest.setActions(ResetJobAction.NAME);
+                    cancelTasksRequest.setTaskId(job.getBlocked().getTaskId());
+                    executeAsyncWithOrigin(client, ML_ORIGIN, CancelTasksAction.INSTANCE, cancelTasksRequest, ActionListener.wrap(
+                        cancelTasksResponse -> listener.onResponse(true),
+                        e -> {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                                listener.onResponse(true);
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    ));
+                } else {
+                    listener.onResponse(false);
+                }
+            },
+            listener::onFailure
+        );
+
+        jobConfigProvider.getJob(jobId, jobListener);
     }
 }

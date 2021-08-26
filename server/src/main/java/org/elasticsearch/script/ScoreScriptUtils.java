@@ -16,7 +16,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
@@ -43,7 +43,7 @@ public final class ScoreScriptUtils {
     // random score based on the documents' values of the given field
     public static final class RandomScoreField {
         private final ScoreScript scoreScript;
-        private final ScriptDocValues docValues;
+        private final ScriptDocValues<?> docValues;
         private final int saltedSeed;
 
 

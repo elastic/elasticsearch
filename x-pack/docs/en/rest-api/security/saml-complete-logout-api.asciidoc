@@ -46,9 +46,13 @@ clients. See also <<security-api-saml-authenticate,SAML authenticate API>>,
   (Required, array) A json array with all the valid SAML Request Ids that the caller of
   the API has for the current user.
 
-`queryString`::
+`query_string`::
   (Optional, string) If the SAML IdP sends the logout response with the HTTP-Redirect
   binding, this field must be set to the query string of the redirect URI.
+
+`queryString`::
+deprecated:[7.14.0, "Use query_string instead"]
+  See `query_string`
 
 `content`::
   (Optional, string) If the SAML IdP sends the logout response with the HTTP-Post
@@ -67,7 +71,7 @@ POST /_security/saml/complete_logout
 {
   "realm": "saml1",
   "ids": [ "_1c368075e0b3..." ],
-  "queryString": "SAMLResponse=fZHLasMwEEVbfb1bf...&SigAlg=http%3A%2F%2Fwww.w3.org%2F2000%2F09%2Fxmldsig%23rsa-sha1&Signature=CuCmFn%2BLqnaZGZJqK..."
+  "query_string": "SAMLResponse=fZHLasMwEEVbfb1bf...&SigAlg=http%3A%2F%2Fwww.w3.org%2F2000%2F09%2Fxmldsig%23rsa-sha1&Signature=CuCmFn%2BLqnaZGZJqK..."
 }
 --------------------------------------------------
 // TEST[skip:can't test this without a valid SAML Logout Response]

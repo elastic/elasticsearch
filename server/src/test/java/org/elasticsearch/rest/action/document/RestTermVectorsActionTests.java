@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,7 +17,8 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -110,23 +109,6 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public void toCompositeAggXContent(XContentBuilder builder) throws IOException {
-        builder.startObject();
-        builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
-        builder.startArray();
-
-        for (Entry<String, SingleGroupSource> groupBy : groups.getGroups().entrySet()) {
-            builder.startObject();
-            builder.startObject(groupBy.getKey());
-            builder.field(groupBy.getValue().getType().value(), groupBy.getValue());
-            builder.endObject();
-            builder.endObject();
-        }
-
-        builder.endArray();
-        builder.endObject(); // sources
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         groups.writeTo(out);
@@ -170,9 +152,13 @@ public class PivotConfig implements Writeable, ToXContentObject {
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
-        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > 10_000)) {
+
+        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > MultiBucketConsumerService.DEFAULT_MAX_BUCKETS)) {
             validationException = addValidationError(
-                "pivot.max_page_search_size [" + maxPageSearchSize + "] must be greater than 10 and less than 10,000",
+                "pivot.max_page_search_size ["
+                    + maxPageSearchSize
+                    + "] is out of range. The minimum value is 10 and the maximum is "
+                    + MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
                 validationException
             );
         }

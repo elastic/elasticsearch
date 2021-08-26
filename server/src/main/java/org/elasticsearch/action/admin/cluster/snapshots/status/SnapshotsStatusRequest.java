@@ -13,8 +13,13 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -29,8 +34,7 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
 
     private boolean ignoreUnavailable;
 
-    public SnapshotsStatusRequest() {
-    }
+    public SnapshotsStatusRequest() {}
 
     /**
      * Constructs a new get snapshots request with given repository name and list of snapshots
@@ -77,6 +81,11 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
             validationException = addValidationError("snapshots is null", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     /**
@@ -137,5 +146,13 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
      */
     public boolean ignoreUnavailable() {
         return ignoreUnavailable;
+    }
+
+    @Override
+    public String getDescription() {
+        final StringBuilder stringBuilder = new StringBuilder("repository[").append(repository).append("], snapshots[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(snapshots), ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 }

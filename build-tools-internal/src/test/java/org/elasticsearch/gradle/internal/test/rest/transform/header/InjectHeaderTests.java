@@ -14,9 +14,12 @@ import org.elasticsearch.gradle.internal.test.rest.transform.feature.InjectFeatu
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class InjectHeaderTests extends InjectFeatureTests {
 
@@ -57,6 +60,34 @@ public class InjectHeaderTests extends InjectFeatureTests {
         validateBodyHasHeaders(transformedTests, headers);
     }
 
+
+    @Test
+    public void testNotInjectingHeaders() throws Exception {
+        String testName = "/rest/transform/header/with_operation_to_skip_adding_headers.yml";
+        List<ObjectNode> tests = getTests(testName);
+        validateSetupExist(tests);
+        validateBodyHasHeaders(tests, Map.of("foo", "bar"));
+
+        List<RestTestTransform<?>> transformations =
+            Collections.singletonList(new InjectHeaders(headers, Set.of(InjectHeaderTests::applyCondition)));
+        List<ObjectNode> transformedTests = transformTests(tests, transformations);
+        printTest(testName, transformedTests);
+        validateSetupAndTearDown(transformedTests);
+        validateBodyHasHeaders(tests, Map.of("foo", "bar"));
+        validateBodyHasHeaders(transformedTests, Map.of("foo", "bar"));
+    }
+
+    private static boolean applyCondition(ObjectNode doNodeValue) {
+        final Iterator<String> fieldNamesIterator = doNodeValue.fieldNames();
+        while (fieldNamesIterator.hasNext()) {
+            final String fieldName = fieldNamesIterator.next();
+            if (fieldName.startsWith("something_to_skip")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     protected List<String> getKnownFeatures() {
         return Collections.singletonList("headers");
@@ -64,7 +95,7 @@ public class InjectHeaderTests extends InjectFeatureTests {
 
     @Override
     protected List<RestTestTransform<?>> getTransformations() {
-        return Collections.singletonList(new InjectHeaders(headers));
+        return Collections.singletonList(new InjectHeaders(headers, Collections.emptySet()));
     }
 
     @Override

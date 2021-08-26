@@ -14,7 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -38,13 +38,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
 
     private static boolean securityEnabled;
-    private static boolean securityExplicitlySet;
 
     @BeforeClass
     public static void checkTestMode() {
         final String hasSecurity = System.getProperty("tests.has_security");
-        securityExplicitlySet = hasSecurity != null;
-        securityEnabled = hasSecurity == null ? false : Booleans.parseBoolean(hasSecurity);
+        securityEnabled = Booleans.parseBoolean(hasSecurity);
     }
 
     @Override
@@ -65,7 +63,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
 
     @Override
     protected boolean preserveClusterUponCompletion() {
-        // If this is one of the first two runs (security not yet enabled), then don't clean up afterwards because we want to test restart
+        // If this is the first run (security is disabled), then don't clean up afterwards because we want to test restart
         // with data
         return securityEnabled == false;
     }
@@ -74,11 +72,6 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
-        if (System.getProperty("tests.has_security") != null) {
-            builder.setStrictDeprecationMode(true);
-        } else {
-            builder.setStrictDeprecationMode(false);
-        }
         return builder.build();
     }
 
@@ -95,8 +88,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         }
 
         checkAllowedWrite("index_allowed");
-        // Security runs third, and should see the docs from the first two (non-security) runs
-        // Security explicitly disabled runs second and should see the doc from the first (implicitly disabled) run
+        // Security runs second, and should see the docs from the first (non-security) run
         final int expectedIndexCount = securityEnabled ? 2 : 1;
         checkIndexCount("index_allowed", expectedIndexCount);
 
@@ -113,15 +105,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         final Request request = new Request("GET", "/_cat/indices");
         Response response = client().performRequest(request);
         List<String> warningHeaders = response.getWarnings();
-        if (securityExplicitlySet) {
-            assertThat (warningHeaders, Matchers.empty());
-        } else {
-            assertThat (warningHeaders, Matchers.hasSize(1));
-            assertThat (warningHeaders.get(0),
-                containsString("Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be " +
-                    "accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-                    Version.CURRENT.minor + "/security-minimal-setup.html to enable security."));
-        }
+        assertThat (warningHeaders, Matchers.empty());
     }
 
     private String getClusterInfo() throws IOException {

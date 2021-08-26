@@ -22,8 +22,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.cluster.RemoteInfoResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -35,6 +36,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
@@ -65,6 +67,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     protected static final String CONFLICT_PIPELINE_ID = "conflict_pipeline";
 
     private static RestHighLevelClient restHighLevelClient;
+    private static RestHighLevelClient adminRestHighLevelClient;
     private static boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
 
     @Before
@@ -73,16 +76,33 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         if (restHighLevelClient == null) {
             restHighLevelClient = new HighLevelClient(client());
         }
+        if (adminRestHighLevelClient == null) {
+            adminRestHighLevelClient = new HighLevelClient(adminClient());
+        }
     }
 
     @AfterClass
     public static void cleanupClient() throws IOException {
         IOUtils.close(restHighLevelClient);
+        IOUtils.close(adminRestHighLevelClient);
         restHighLevelClient = null;
+        adminRestHighLevelClient = null;
     }
 
     protected static RestHighLevelClient highLevelClient() {
         return restHighLevelClient;
+    }
+
+    @Override
+    protected Settings restAdminSettings() {
+        String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
+    }
+
+    protected static RestHighLevelClient adminHighLevelClient() {
+        return adminRestHighLevelClient;
     }
 
     /**
@@ -324,7 +344,10 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             }
             TaskGroup taskGroup = taskGroups.get(0);
             assertThat(taskGroup.getChildTasks(), empty());
-            return taskGroup.getTaskInfo().getTaskId();
+            // check that the task initialized enough that it can rethrottle too.
+            if (((RawTaskStatus) taskGroup.getTaskInfo().getStatus()).toMap().containsKey("batches")) {
+                return taskGroup.getTaskInfo().getTaskId();
+            }
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
         throw new AssertionError("Couldn't find tasks to rethrottle. Here are the running tasks " +
             highLevelClient().tasks().list(request, RequestOptions.DEFAULT));

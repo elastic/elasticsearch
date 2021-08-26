@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicInteger;

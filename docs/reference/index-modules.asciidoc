@@ -47,8 +47,10 @@ NOTE: The number of shards are limited to `1024` per index. This limitation is a
 `index.number_of_routing_shards`::
 +
 ====
-Number of routing shards used to <<indices-split-index,split>> an index.
+Integer value used with <<index-number-of-shards,`index.number_of_shards`>> to
+route documents to a primary shard. See <<mapping-routing-field>>.
 
+{es} uses this value when <<indices-split-index,splitting>> an index.
 For example, a 5 shard index with `number_of_routing_shards` set to `30` (`5 x
 2 x 3`) could be split by a factor of `2` or `3`. In other words, it could be
 split as follows:
@@ -68,19 +70,6 @@ document distribution. See the
 {ref-70}/breaking-changes-7.0.html#_document_distribution_changes[related
 breaking change].
 ====
-
-`index.shard.check_on_startup`::
-
-Whether or not shards should be checked for corruption before opening. When
-corruption is detected, it will prevent the shard from being opened.
-Accepts:
-`false`::: (default) Don't check for corruption when opening a shard.
-`checksum`::: Check for physical corruption.
-`true`::: Check for both physical and logical corruption. This is much more
-expensive in terms of CPU and memory usage.
-+
-WARNING: Expert only. Checking shards may take a lot of time on large
-indices.
 
 [[index-codec]] `index.codec`::
 
@@ -130,6 +119,45 @@ to incomplete history on the leader. Defaults to `12h`.
     per request through the use of the `expand_wildcards` parameter. Possible values are
     `true` and `false` (default).
 
+[[index-shard-check-on-startup]] `index.shard.check_on_startup`::
++
+====
+WARNING: Expert users only. This setting enables some very expensive processing
+at shard startup and is only ever useful while diagnosing a problem in your
+cluster. If you do use it, you should do so only temporarily and remove it
+once it is no longer needed.
+
+{es} automatically performs integrity checks on the contents of shards at
+various points during their lifecycle. For instance, it verifies the checksum
+of every file transferred when recovering a replica or taking a snapshot. It
+also verifies the integrity of many important files when opening a shard, which
+happens when starting up a node and when finishing a shard recovery or
+relocation. You can therefore manually verify the integrity of a whole shard
+while it is running by taking a snapshot of it into a fresh repository or by
+recovering it onto a fresh node.
+
+This setting determines whether {es} performs additional integrity checks while
+opening a shard. If these checks detect corruption then they will prevent the
+shard from being opened. It accepts the following values:
+
+`false`::: Don't perform additional checks for corruption when opening a shard.
+This is the default and recommended behaviour.
+
+`checksum`::: Verify that the checksum of every file in the shard matches its
+contents. This will detect cases where the data read from disk differ from the
+data that {es} originally wrote, for instance due to undetected disk corruption
+or other hardware failures. These checks require reading the entire shard from
+disk which takes substantial time and IO bandwidth and may affect cluster
+performance by evicting important data from your filesystem cache.
+
+`true`::: Performs the same checks as `checksum` and also checks for logical
+inconsistencies in the shard, which could for instance be caused by the data
+being corrupted while it was being written due to faulty RAM or other hardware
+failures. These checks require reading the entire shard from disk which takes
+substantial time and IO bandwidth, and then performing various checks on the
+contents of the shard which take substantial time, CPU and memory.
+====
+
 [discrete]
 [[dynamic-index-settings]]
 === Dynamic index settings
@@ -142,6 +170,7 @@ specific index module:
 
     The number of replicas each primary shard has. Defaults to 1.
 
+[[dynamic-index-auto-expand-replicas]]
 `index.auto_expand_replicas`::
 Auto-expand the number of replicas based on the number of data nodes in the
 cluster. Set to a dash delimited lower and upper bound (e.g. `0-5`) or use `all`
@@ -157,6 +186,7 @@ awareness>> and
 <<cluster-routing-allocation-same-shard-host,`cluster.routing.allocation.same_shard.host`>>
 are ignored for this index.
 
+[[dynamic-index-search-idle-after]]
 `index.search.idle.after`::
     How long a shard can not receive a search or get request until it's considered
     search idle. (default is `30s`)
@@ -302,6 +332,13 @@ Defaults to `*`, which matches all fields eligible for
     The final pipeline always runs after the request pipeline (if specified) and
     the default pipeline (if it exists). The special pipeline name `_none`
     indicates no ingest pipeline will run.
+
+[[index-mapping-dimension-fields-limit]]
+`index.mapping.dimension_fields.limit`::
+For internal use by Elastic only. Maximum number of time series dimensions for
+the index. Defaults to `16`.
++
+You can mark a field as a dimension using the `dimension` mapping parameter.
 
 [discrete]
 === Settings in other index modules

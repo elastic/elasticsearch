@@ -15,14 +15,15 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.client.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.snapshots.SnapshotInfo.INCLUDE_REPOSITORY_XCONTENT_PARAM;
 import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_DETAILS_XCONTENT_PARAM;
 
 /**
@@ -42,7 +43,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Collections.singleton(INDEX_DETAILS_XCONTENT_PARAM);
+        return Set.of(INDEX_DETAILS_XCONTENT_PARAM, INCLUDE_REPOSITORY_XCONTENT_PARAM);
     }
 
     @Override
@@ -53,6 +54,19 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         GetSnapshotsRequest getSnapshotsRequest = getSnapshotsRequest(repositories).snapshots(snapshots);
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
         getSnapshotsRequest.verbose(request.paramAsBoolean("verbose", getSnapshotsRequest.verbose()));
+        final GetSnapshotsRequest.SortBy sort = GetSnapshotsRequest.SortBy.of(request.param("sort", getSnapshotsRequest.sort().toString()));
+        getSnapshotsRequest.sort(sort);
+        final int size = request.paramAsInt("size", getSnapshotsRequest.size());
+        getSnapshotsRequest.size(size);
+        final int offset = request.paramAsInt("offset", getSnapshotsRequest.offset());
+        getSnapshotsRequest.offset(offset);
+        final String afterString = request.param("after");
+        if (afterString != null) {
+            getSnapshotsRequest.after(GetSnapshotsRequest.After.fromQueryParam(afterString));
+        }
+
+        final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
+        getSnapshotsRequest.order(order);
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin().cluster()
                 .getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));

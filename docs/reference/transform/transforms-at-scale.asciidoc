@@ -154,7 +154,7 @@ extracted or computed at search time. While these fields provide flexibility in
 how you access your data, they increase performance costs at search time. If 
 {transform} performance using runtime fields or scripted fields is a concern, 
 you may wish to consider using indexed fields instead. For performance reasons, 
-we do not recommend using a runtime field as the time field that synchs a 
+we do not recommend using a runtime field as the time field that synchronizes a 
 {ctransform}. 
 
 

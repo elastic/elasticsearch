@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
 import java.util.Locale;
@@ -30,7 +31,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Boolean> listener) {
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Void> listener) {
         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         String indexName = indexMetadata.getIndex().getName();
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(indexName);
@@ -44,7 +45,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                 // needs to be deleted, because we can't have an empty data stream
                 DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(new String[]{dataStream.getName()});
                 getClient().execute(DeleteDataStreamAction.INSTANCE, deleteReq,
-                    ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+                    ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure));
                 return;
             } else if (dataStream.getWriteIndex().getIndex().getName().equals(indexName)) {
                 String errorMessage = String.format(Locale.ROOT, "index [%s] is the write index for data stream [%s]. " +
@@ -57,8 +58,8 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
         }
 
         getClient().admin().indices()
-            .delete(new DeleteIndexRequest(indexName).masterNodeTimeout(getMasterTimeout(currentState)),
-                ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+            .delete(new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE),
+                ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure));
     }
 
     @Override

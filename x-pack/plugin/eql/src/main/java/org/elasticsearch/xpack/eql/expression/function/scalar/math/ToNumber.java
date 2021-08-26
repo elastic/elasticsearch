@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -28,6 +27,8 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumberFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -56,7 +57,7 @@ public class ToNumber extends ScalarFunction implements OptionalArgument {
             return valueResolution;
         }
 
-        return isInteger(base, sourceText(), ParamOrdinal.SECOND);
+        return isInteger(base, sourceText(), SECOND);
     }
 
     @Override

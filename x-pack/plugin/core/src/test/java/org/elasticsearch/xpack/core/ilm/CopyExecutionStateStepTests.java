@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -100,6 +101,43 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         assertEquals(newIndexData.getStep(), targetNextStepKey.getName());
         assertEquals(newIndexData.getSnapshotRepository(), oldIndexData.getSnapshotRepository());
         assertEquals(newIndexData.getSnapshotName(), oldIndexData.getSnapshotName());
+    }
+
+    public void testAllStateCopied() {
+        CopyExecutionStateStep step = createRandomInstance();
+        String indexName = randomAlphaOfLengthBetween(5, 20);
+
+        IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
+            .numberOfReplicas(randomIntBetween(1,5))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, createCustomMetadata())
+            .build();
+        IndexMetadata shrunkIndexMetadata =
+            IndexMetadata.builder(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
+                .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
+                .numberOfReplicas(randomIntBetween(1,5))
+                .build();
+
+        ClusterState originalClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder()
+                .put(originalIndexMetadata, false)
+                .put(shrunkIndexMetadata, false))
+            .build();
+
+        ClusterState newClusterState = step.performAction(originalIndexMetadata.getIndex(), originalClusterState);
+
+        LifecycleExecutionState oldIndexData = LifecycleExecutionState.fromIndexMetadata(originalIndexMetadata);
+        LifecycleExecutionState newIndexData = LifecycleExecutionState
+            .fromIndexMetadata(newClusterState.metadata().index(step.getTargetIndexNameSupplier().apply(indexName,
+                LifecycleExecutionState.builder().build())));
+
+        Map<String, String> beforeMap = new HashMap<>(oldIndexData.asMap());
+        // The target step key's StepKey is used in the new metadata, so update the "before" map with the new info so it can be compared
+        beforeMap.put("phase", step.getTargetNextStepKey().getPhase());
+        beforeMap.put("action", step.getTargetNextStepKey().getAction());
+        beforeMap.put("step", step.getTargetNextStepKey().getName());
+        Map<String, String> newMap = newIndexData.asMap();
+        assertThat(beforeMap, equalTo(newMap));
     }
 
     public void testPerformActionWithNoTarget() {

@@ -11,9 +11,9 @@ package org.elasticsearch.gradle.fixtures;
 
 abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
 
-    void setupRestResources(List<String> apis, List<String> tests = [], List<String> xpackTests = []) {
+    def setup() {
         addSubProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
-        addSubProject(":distribution:archives:integ-test-zip") << "configurations { extracted }"
+
         addSubProject(":rest-api-spec") << """
         configurations { restSpecs\nrestTests }
         artifacts {
@@ -21,12 +21,18 @@ abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
           restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
         }
         """
+
         addSubProject(":x-pack:plugin") << """
         configurations { restXpackSpecs\nrestXpackTests }
         artifacts {
           restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
         }
         """
+
+        addSubProject(":distribution:archives:integ-test-zip") << "configurations { extracted }"
+    }
+
+    void setupRestResources(List<String> apis, List<String> tests = [], List<String> xpackTests = []) {
 
         xpackTests.each { test ->
             file("x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""

@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -256,6 +256,46 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             } finally {
                 stopWatcher();
             }
+        }
+    }
+
+    public void testServiceAccountApiKey() throws IOException {
+        assumeTrue("no service accounts in versions before " + Version.V_7_13_0, getOldClusterVersion().onOrAfter(Version.V_7_13_0));
+        if (isRunningAgainstOldCluster()) {
+            final Request createServiceTokenRequest = new Request("POST", "/_security/service/elastic/fleet-server/credential/token");
+            final Response createServiceTokenResponse = client().performRequest(createServiceTokenRequest);
+            assertOK(createServiceTokenResponse);
+            @SuppressWarnings("unchecked")
+            final String serviceToken = ((Map<String, String>) responseAsMap(createServiceTokenResponse).get("token")).get("value");
+            final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
+            createApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + serviceToken));
+            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\"}");
+            final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
+            final Map<String, Object> createApiKeyResponseMap = entityAsMap(createApiKeyResponse);
+            final String authHeader = "ApiKey " + Base64.getEncoder().encodeToString(
+                (createApiKeyResponseMap.get("id") + ":" + createApiKeyResponseMap.get("api_key")).getBytes(StandardCharsets.UTF_8));
+
+            final Request indexRequest = new Request("PUT", "/api_keys/_doc/key-1");
+            indexRequest.setJsonEntity("{\"auth_header\":\"" + authHeader + "\"}");
+            assertOK(client().performRequest(indexRequest));
+        } else {
+            final Request getRequest = new Request("GET", "/api_keys/_doc/key-1");
+            final Response getResponse = client().performRequest(getRequest);
+            assertOK(getResponse);
+            final Map<String, Object> getResponseMap = responseAsMap(getResponse);
+            @SuppressWarnings("unchecked")
+            final String authHeader = ((Map<String, String>) getResponseMap.get("_source")).get("auth_header");
+
+            final Request mainRequest = new Request("GET", "/");
+            mainRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+            assertOK(client().performRequest(mainRequest));
+
+            final Request getUserRequest = new Request("GET", "/_security/user");
+            getUserRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+            final ResponseException e =
+                expectThrows(ResponseException.class, () -> client().performRequest(getUserRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("is unauthorized"));
         }
     }
 

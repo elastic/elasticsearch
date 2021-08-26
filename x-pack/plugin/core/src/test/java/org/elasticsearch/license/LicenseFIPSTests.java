@@ -10,7 +10,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 import static org.hamcrest.Matchers.containsString;
@@ -29,7 +29,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.fips_mode.enabled", randomBoolean())
             .build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
 
         setInitialState(null, licenseState, settings);
         licenseService.start();
@@ -53,7 +53,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.fips_mode.enabled", true)
             .build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
 
         setInitialState(null, licenseState, settings);
         licenseService.start();
@@ -68,7 +68,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.fips_mode.enabled", false)
             .build();
-        licenseState = new XPackLicenseState(settings, () -> 0);
+        licenseState = new XPackLicenseState(() -> 0);
 
         setInitialState(null, licenseState, settings);
         licenseService.start();

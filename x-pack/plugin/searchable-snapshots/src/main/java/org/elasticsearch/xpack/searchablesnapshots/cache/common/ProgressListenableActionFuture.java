@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.AdapterActionFuture;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.List;

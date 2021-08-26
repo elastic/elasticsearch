@@ -133,15 +133,20 @@ public class IndexAbstractionResolver {
             if (includeDataStreams == false) {
                 return false;
             }
-
             if (indexAbstraction.isSystem()) {
                 final SystemIndexAccessLevel level = resolver.getSystemIndexAccessLevel();
-                if (level == SystemIndexAccessLevel.ALL) {
-                    return true;
-                } else if (level == SystemIndexAccessLevel.NONE) {
-                    return false;
-                } else if (level == SystemIndexAccessLevel.RESTRICTED) {
-                    return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
+                switch (level) {
+                    case ALL:
+                        return true;
+                    case NONE:
+                        return false;
+                    case RESTRICTED:
+                        return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
+                    case BACKWARDS_COMPATIBLE_ONLY:
+                        return resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName());
+                    default:
+                        assert false : "unexpected system index access level [" + level + "]";
+                        throw new IllegalStateException("unexpected system index access level [" + level + "]");
                 }
             } else {
                 return isVisible;
@@ -158,18 +163,43 @@ public class IndexAbstractionResolver {
             return false;
         }
         if (indexAbstraction.isSystem()) {
-            // system index that backs system data stream
+            // check if it is net new
+            if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
+                final SystemIndexAccessLevel level = resolver.getSystemIndexAccessLevel();
+                switch (level) {
+                    case ALL:
+                        return true;
+                    case NONE:
+                        return false;
+                    case RESTRICTED:
+                        return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
+                    case BACKWARDS_COMPATIBLE_ONLY:
+                        return resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName());
+                    default:
+                        assert false : "unexpected system index access level [" + level + "]";
+                        throw new IllegalStateException("unexpected system index access level [" + level + "]");
+                }
+            }
+
+            // does the system index back a system data stream?
             if (indexAbstraction.getParentDataStream() != null) {
                 if (indexAbstraction.getParentDataStream().isSystem() == false) {
+                    assert false : "system index is part of a data stream that is not a system data stream";
                     throw new IllegalStateException("system index is part of a data stream that is not a system data stream");
                 }
                 final SystemIndexAccessLevel level = resolver.getSystemIndexAccessLevel();
-                if (level == SystemIndexAccessLevel.ALL) {
-                    return true;
-                } else if (level == SystemIndexAccessLevel.NONE) {
-                    return false;
-                } else if (level == SystemIndexAccessLevel.RESTRICTED) {
-                    return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
+                switch (level) {
+                    case ALL:
+                        return true;
+                    case NONE:
+                        return false;
+                    case RESTRICTED:
+                        return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
+                    case BACKWARDS_COMPATIBLE_ONLY:
+                        return resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName());
+                    default:
+                        assert false : "unexpected system index access level [" + level + "]";
+                        throw new IllegalStateException("unexpected system index access level [" + level + "]");
                 }
             }
         }

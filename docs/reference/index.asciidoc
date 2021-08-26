@@ -69,8 +69,6 @@ include::commands/index.asciidoc[]
 
 include::how-to.asciidoc[]
 
-include::glossary.asciidoc[]
-
 include::rest-api/index.asciidoc[]
 
 include::migration/index.asciidoc[]

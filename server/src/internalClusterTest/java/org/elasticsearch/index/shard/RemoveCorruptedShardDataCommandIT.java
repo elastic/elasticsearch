@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -540,7 +540,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             nodeNameToNodeId.put(cursor.value.getName(), cursor.key);
         }
 
-        final GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{indexName}, false);
+        final GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
+            .activePrimaryShardsGrouped(new String[] { indexName }, false);
         final List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         final ShardRouting shardRouting = iterators.iterator().next().nextOrNull();
         assertThat(shardRouting, notNullValue());
@@ -573,7 +574,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
     private Path getPathToShardData(String indexName, String dirSuffix) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{indexName}, false);
+        GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
+            .activePrimaryShardsGrouped(new String[] { indexName }, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -41,6 +42,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
+
+    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(5);
 
     private DataFrameAnalyticsConfigProvider configProvider;
 
@@ -71,7 +74,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
             blockingCall(
-                actionListener -> configProvider.put(config, emptyMap(), actionListener), configHolder, exceptionHolder);
+                actionListener -> configProvider.put(config, emptyMap(), TIMEOUT, actionListener), configHolder, exceptionHolder);
 
             assertThat(configHolder.get(), is(notNullValue()));
             assertThat(configHolder.get(), is(equalTo(config)));
@@ -97,7 +100,8 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             AtomicReference<DataFrameAnalyticsConfig> configHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-            blockingCall(actionListener -> configProvider.put(config, securityHeaders, actionListener), configHolder, exceptionHolder);
+            blockingCall(actionListener -> configProvider.put(config, securityHeaders, TIMEOUT, actionListener),
+                configHolder, exceptionHolder);
 
             assertThat(configHolder.get(), is(notNullValue()));
             assertThat(
@@ -133,7 +137,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
 
             DataFrameAnalyticsConfig initialConfig = DataFrameAnalyticsConfigTests.createRandom(configId);
             blockingCall(
-                actionListener -> configProvider.put(initialConfig, emptyMap(), actionListener), configHolder, exceptionHolder);
+                actionListener -> configProvider.put(initialConfig, emptyMap(), TIMEOUT, actionListener), configHolder, exceptionHolder);
 
             assertThat(configHolder.get(), is(notNullValue()));
             assertThat(configHolder.get(), is(equalTo(initialConfig)));
@@ -145,7 +149,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
 
             DataFrameAnalyticsConfig configWithSameId = DataFrameAnalyticsConfigTests.createRandom(configId);
             blockingCall(
-                actionListener -> configProvider.put(configWithSameId, emptyMap(), actionListener),
+                actionListener -> configProvider.put(configWithSameId, emptyMap(), TIMEOUT, actionListener),
                 configHolder,
                 exceptionHolder);
 
@@ -163,7 +167,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
             blockingCall(
-                actionListener -> configProvider.put(initialConfig, emptyMap(), actionListener), configHolder, exceptionHolder);
+                actionListener -> configProvider.put(initialConfig, emptyMap(), TIMEOUT, actionListener), configHolder, exceptionHolder);
 
             assertNoException(exceptionHolder);
             assertThat(configHolder.get(), is(notNullValue()));
@@ -312,7 +316,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
             blockingCall(
-                actionListener -> configProvider.put(initialConfig, emptyMap(), actionListener), configHolder, exceptionHolder);
+                actionListener -> configProvider.put(initialConfig, emptyMap(), TIMEOUT, actionListener), configHolder, exceptionHolder);
 
             assertThat(configHolder.get(), is(notNullValue()));
             assertThat(configHolder.get(), is(equalTo(initialConfig)));

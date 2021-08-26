@@ -9,6 +9,7 @@
 package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;

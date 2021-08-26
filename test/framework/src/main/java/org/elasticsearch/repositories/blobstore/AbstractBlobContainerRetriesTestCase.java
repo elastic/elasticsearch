@@ -12,14 +12,14 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpStatus;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
@@ -68,16 +68,16 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         super.tearDown();
     }
 
-    protected abstract String downloadStorageEndpoint(String blob);
+    protected abstract String downloadStorageEndpoint(BlobContainer container, String blob);
 
     protected abstract String bytesContentType();
 
     protected abstract Class<? extends Exception> unresponsiveExceptionType();
 
     protected abstract BlobContainer createBlobContainer(@Nullable Integer maxRetries,
-        @Nullable TimeValue readTimeout,
-        @Nullable Boolean disableChunkedEncoding,
-        @Nullable ByteSizeValue bufferSize);
+                                                         @Nullable TimeValue readTimeout,
+                                                         @Nullable Boolean disableChunkedEncoding,
+                                                         @Nullable ByteSizeValue bufferSize);
 
     protected org.hamcrest.Matcher<Object> readTimeoutExceptionMatcher() {
         return either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
@@ -97,10 +97,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                     Streams.readFully(blobContainer.readBlob("read_nonexistent_blob", 0, 1));
                 }
             });
-        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("blob object [read_nonexistent_blob] not found"));
+        final String fullBlobPath = blobContainer.path().buildAsString() + "read_nonexistent_blob";
+        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("blob object [" + fullBlobPath + "] not found"));
         assertThat(expectThrows(NoSuchFileException.class,
             () -> Streams.readFully(blobContainer.readBlob("read_nonexistent_blob", position, length)))
-            .getMessage().toLowerCase(Locale.ROOT), containsString("blob object [read_nonexistent_blob] not found"));
+            .getMessage().toLowerCase(Locale.ROOT), containsString("blob object [" + fullBlobPath + "] not found"));
     }
 
     public void testReadBlobWithRetries() throws Exception {
@@ -108,7 +109,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final CountDown countDown = new CountDown(maxRetries + 1);
 
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext(downloadStorageEndpoint("read_blob_max_retries"), exchange -> {
+        final TimeValue readTimeout = TimeValue.timeValueSeconds(between(1, 3));
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_max_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
             if (countDown.countDown()) {
                 final int rangeStart = getRangeStart(exchange);
@@ -130,8 +133,6 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             }
         });
 
-        final TimeValue readTimeout = TimeValue.timeValueSeconds(between(1, 3));
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
         try (InputStream inputStream = blobContainer.readBlob("read_blob_max_retries")) {
             final int readLimit;
             final InputStream wrappedStream;
@@ -159,8 +160,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final int maxRetries = rarely() ? randomInt(5) : 1;
         final CountDown countDown = new CountDown(maxRetries + 1);
 
+        final TimeValue readTimeout = TimeValue.timeValueSeconds(between(5, 10));
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext(downloadStorageEndpoint("read_range_blob_max_retries"), exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_range_blob_max_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
             if (countDown.countDown()) {
                 final int rangeStart = getRangeStart(exchange);
@@ -188,8 +191,6 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             }
         });
 
-        final TimeValue readTimeout = TimeValue.timeValueSeconds(between(5, 10));
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(0, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
         try (InputStream inputStream = blobContainer.readBlob("read_range_blob_max_retries", position, length)) {
@@ -221,7 +222,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
 
         // HTTP server does not send a response
-        httpServer.createContext(downloadStorageEndpoint("read_blob_unresponsive"), exchange -> {});
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_unresponsive"), exchange -> {
+        });
 
         Exception exception = expectThrows(unresponsiveExceptionType(),
             () -> Streams.readFully(blobContainer.readBlob("read_blob_unresponsive")));
@@ -230,7 +232,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         // HTTP server sends a partial response
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext(downloadStorageEndpoint("read_blob_incomplete"), exchange -> sendIncompleteContent(exchange, bytes));
+        httpServer.createContext(
+            downloadStorageEndpoint(blobContainer, "read_blob_incomplete"),
+            exchange -> sendIncompleteContent(exchange, bytes)
+        );
 
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(1, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
@@ -253,7 +258,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final BlobContainer blobContainer = createBlobContainer(randomInt(5), readTimeout, null, null);
 
         // HTTP server closes connection immediately
-        httpServer.createContext(downloadStorageEndpoint("read_blob_no_response"), HttpExchange::close);
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_no_response"), HttpExchange::close);
 
         Exception exception = expectThrows(unresponsiveExceptionType(),
             () -> {
@@ -273,7 +278,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         // HTTP server sends a partial response
         final byte[] bytes = randomBlobContent(1);
-        httpServer.createContext(downloadStorageEndpoint("read_blob_incomplete"), exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_incomplete"), exchange -> {
             sendIncompleteContent(exchange, bytes);
             exchange.close();
         });

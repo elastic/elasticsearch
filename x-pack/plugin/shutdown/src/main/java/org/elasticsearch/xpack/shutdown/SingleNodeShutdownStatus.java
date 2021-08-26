@@ -11,11 +11,11 @@ import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
 import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -62,8 +62,23 @@ public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
     }
 
     public SingleNodeShutdownMetadata.Status overallStatus() {
-        // TODO: make this value calculated based on the status of all other pieces
-        return SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        return SingleNodeShutdownMetadata.Status.combine(
+            migrationStatus().getStatus(),
+            pluginsStatus().getStatus(),
+            persistentTasksStatus().getStatus()
+        );
+    }
+
+    public ShutdownShardMigrationStatus migrationStatus() {
+        return this.shardMigrationStatus;
+    }
+
+    public ShutdownPersistentTasksStatus persistentTasksStatus() {
+        return this.persistentTasksStatus;
+    }
+
+    public ShutdownPluginsStatus pluginsStatus() {
+        return this.pluginsStatus;
     }
 
     @Override
@@ -98,6 +113,12 @@ public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
             builder.field(SingleNodeShutdownMetadata.NODE_ID_FIELD.getPreferredName(), metadata.getNodeId());
             builder.field(SingleNodeShutdownMetadata.TYPE_FIELD.getPreferredName(), metadata.getType());
             builder.field(SingleNodeShutdownMetadata.REASON_FIELD.getPreferredName(), metadata.getReason());
+            if (metadata.getAllocationDelay() != null) {
+                builder.field(
+                    SingleNodeShutdownMetadata.ALLOCATION_DELAY_FIELD.getPreferredName(),
+                    metadata.getAllocationDelay().getStringRep()
+                );
+            }
             builder.timeField(
                 SingleNodeShutdownMetadata.STARTED_AT_MILLIS_FIELD.getPreferredName(),
                 SingleNodeShutdownMetadata.STARTED_AT_READABLE_FIELD,

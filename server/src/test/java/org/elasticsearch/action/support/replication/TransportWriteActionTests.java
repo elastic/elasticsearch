@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -66,6 +66,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -354,10 +355,11 @@ public class TransportWriteActionTests extends ESTestCase {
 
         protected TestAction(boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
             super(Settings.EMPTY, "internal:test",
-                    new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                        x -> null, null, Collections.emptySet()), TransportWriteActionTests.this.clusterService, null, null, null,
-                new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ignore -> ThreadPool.Names.SAME, false,
-                new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+                new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                    x -> null, null, Collections.emptySet()), TransportWriteActionTests.this.clusterService, null, null, null,
+                new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, (service, ignore) -> ThreadPool.Names.SAME, false,
+                new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE
+            );
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
@@ -365,9 +367,11 @@ public class TransportWriteActionTests extends ESTestCase {
         protected TestAction(Settings settings, String actionName, TransportService transportService,
                              ClusterService clusterService, ShardStateAction shardStateAction, ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService,
-                    mockIndicesService(clusterService), threadPool, shardStateAction,
-                    new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ignore -> ThreadPool.Names.SAME, false,
-                    new IndexingPressure(settings), EmptySystemIndices.INSTANCE);
+                mockIndicesService(clusterService), threadPool, shardStateAction,
+                new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, (service, ignore) -> ThreadPool.Names.SAME,
+                false,
+                new IndexingPressure(settings), EmptySystemIndices.INSTANCE
+            );
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;
         }
@@ -444,13 +448,15 @@ public class TransportWriteActionTests extends ESTestCase {
     private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService) {
         final IndexShard indexShard = mock(IndexShard.class);
         doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
             count.incrementAndGet();
             callback.onResponse(count::decrementAndGet);
             return null;
-        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject());
+        }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), anyString(), anyObject());
         doAnswer(invocation -> {
             long term = (Long)invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[1];
             final long primaryTerm = indexShard.getPendingPrimaryTerm();
             if (term < primaryTerm) {
@@ -461,7 +467,7 @@ public class TransportWriteActionTests extends ESTestCase {
             callback.onResponse(count::decrementAndGet);
             return null;
         }).when(indexShard)
-            .acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), any(ActionListener.class), anyString(), anyObject());
+            .acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), anyActionListener(), anyString(), anyObject());
         when(indexShard.routingEntry()).thenAnswer(invocationOnMock -> {
             final ClusterState state = clusterService.state();
             final RoutingNode node = state.getRoutingNodes().node(state.nodes().getLocalNodeId());

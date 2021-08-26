@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import javax.net.ssl.SSLSession;
 import java.security.cert.CertificateEncodingException;
@@ -20,10 +20,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class SslDiagnostics {
+
 
     public static List<String> describeValidHostnames(X509Certificate certificate) {
         try {
@@ -141,6 +144,44 @@ public class SslDiagnostics {
     }
 
     /**
+      * These names align with the values (and indices) defined by {@link X509Certificate#getKeyUsage()}
+      */
+    private static final String[] KEY_USAGE_NAMES = new String[] {
+        "digitalSignature",
+        "nonRepudiation",
+        "keyEncipherment",
+        "dataEncipherment",
+        "keyAgreement",
+        "keyCertSign",
+        "cRLSign",
+        "encipherOnly",
+        "decipherOnly" };
+
+    private enum ExtendedKeyUsage {
+        serverAuth ("1.3.6.1.5.5.7.3.1"),
+        clientAuth ("1.3.6.1.5.5.7.3.2"),
+        codeSigning ("1.3.6.1.5.5.7.3.3"),
+        emailProtection ("1.3.6.1.5.5.7.3.4"),
+        timeStamping ("1.3.6.1.5.5.7.3.8"),
+        ocspSigning ("1.3.6.1.5.5.7.3.9");
+
+        private String oid;
+
+        ExtendedKeyUsage(String oid) {
+            this.oid = Objects.requireNonNull(oid);
+        }
+
+        public static String decodeOid(String oid) {
+            for (ExtendedKeyUsage e : values()) {
+                if (e.oid.equals(oid)) {
+                    return e.name();
+                }
+            }
+            return oid;
+        }
+    }
+
+    /**
      * @param contextName    The descriptive name of this SSL context (e.g. "xpack.security.transport.ssl")
      * @param trustedIssuers A Map of DN to Certificate, for the issuers that were trusted in the context in which this failure occurred
      *                       (see {@link javax.net.ssl.X509TrustManager#getAcceptedIssuers()})
@@ -166,8 +207,14 @@ public class SslDiagnostics {
             .append(peerType.name().toLowerCase(Locale.ROOT))
             .append(" provided a certificate with subject name [")
             .append(peerCert.getSubjectX500Principal().getName())
-            .append("] and ")
-            .append(fingerprintDescription(peerCert));
+            .append("], ")
+            .append(fingerprintDescription(peerCert))
+            .append(", ")
+            .append(keyUsageDescription(peerCert))
+            .append(" and ")
+            .append(extendedKeyUsageDescription(peerCert));
+
+        addSessionDescription(session, message);
 
         if (peerType == PeerType.SERVER) {
             try {
@@ -376,7 +423,7 @@ public class SslDiagnostics {
 
     private static String fingerprintDescription(X509Certificate certificate) {
         try {
-            final String fingerprint = SslUtil.calculateFingerprint(certificate);
+            final String fingerprint = SslUtil.calculateFingerprint(certificate, "SHA-1");
             return "fingerprint [" + fingerprint + "]";
         } catch (CertificateEncodingException e) {
             return "invalid encoding [" + e.toString() + "]";
@@ -394,5 +441,48 @@ public class SslDiagnostics {
 
     private static boolean isSelfIssued(X509Certificate certificate) {
         return certificate.getIssuerX500Principal().equals(certificate.getSubjectX500Principal());
+    }
+
+    private static String keyUsageDescription(X509Certificate certificate) {
+        boolean[] keyUsage = certificate.getKeyUsage();
+        if (keyUsage == null || keyUsage.length == 0) {
+            return "no keyUsage";
+        }
+        final String keyUsageDescription = IntStream.range(0, keyUsage.length)
+            .filter(i -> keyUsage[i])
+            .mapToObj(i -> (i < KEY_USAGE_NAMES.length) ? KEY_USAGE_NAMES[i] : ("#" + i))
+            .collect(Collectors.joining(", "));
+        return keyUsageDescription.isEmpty() ? "no keyUsage" : ("keyUsage [" + keyUsageDescription + "]");
+    }
+
+    private static String extendedKeyUsageDescription(X509Certificate certificate) {
+        try {
+            return Optional.ofNullable(certificate.getExtendedKeyUsage())
+                .flatMap(keyUsage -> generateExtendedKeyUsageDescription(keyUsage))
+                .orElse("no extendedKeyUsage");
+        } catch (CertificateParsingException e) {
+            return "invalid extendedKeyUsage [" + e + "]";
+        }
+    }
+
+    private static Optional<String> generateExtendedKeyUsageDescription(List<String> oids) {
+        return oids.stream()
+            .map(ExtendedKeyUsage::decodeOid)
+            .reduce((x, y) -> x + ", " + y)
+            .map(str -> "extendedKeyUsage [" + str + "]");
+    }
+
+    private static void addSessionDescription(SSLSession session, StringBuilder message) {
+        String cipherSuite = Optional.ofNullable(session)
+            .map(SSLSession::getCipherSuite)
+            .orElse("<unknown cipherSuite>");
+        String protocol = Optional.ofNullable(session)
+            .map(SSLSession::getProtocol)
+            .orElse("<unknown protocol>");
+        message.append("; the session uses cipher suite [")
+            .append(cipherSuite)
+            .append("] and protocol [")
+            .append(protocol)
+            .append("]");
     }
 }

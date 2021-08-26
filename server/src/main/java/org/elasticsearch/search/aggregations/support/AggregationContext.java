@@ -11,11 +11,11 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -31,7 +31,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
-import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.FilterByFilter;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterByFilterAggregator;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
@@ -248,8 +248,8 @@ public abstract class AggregationContext implements Releasable {
 
     /**
      * Are aggregations allowed to try to rewrite themselves into
-     * {@link FilterByFilter} aggregations? <strong>Often</strong>
-     * {@linkplain FilterByFilter} is faster to execute, but it isn't
+     * {@link FilterByFilterAggregator} aggregations? <strong>Often</strong>
+     * {@linkplain FilterByFilterAggregator} is faster to execute, but it isn't
      * always. For now this just hooks into a cluster level setting
      * so users can disable the behavior when the existing heuristics
      * don't detect cases where its slower.

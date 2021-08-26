@@ -19,7 +19,7 @@ import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<UpdateSettingsStep> {
+public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettingsStep> {
 
     @Override
     public UpdateSettingsStep createRandomInstance() {
@@ -58,8 +58,7 @@ public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<U
         return new UpdateSettingsStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getSettings());
     }
 
-    @Override
-    protected IndexMetadata getIndexMetadata() {
+    private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }
@@ -79,7 +78,7 @@ public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<U
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        assertNull(PlainActionFuture.<Void, RuntimeException>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -102,7 +101,7 @@ public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<U
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
         assertSame(exception, expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

@@ -29,12 +29,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -113,7 +113,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
 
         // Adding rollover info to IndexMetadata to check that NamedXContentRegistry is properly configured
-        Condition rolloverCondition = randomFrom(
+        Condition<?> rolloverCondition = randomFrom(
             new MaxAgeCondition(new TimeValue(randomNonNegativeLong())),
             new MaxDocsCondition(randomNonNegativeLong()),
             new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),

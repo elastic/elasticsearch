@@ -17,11 +17,10 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-import org.elasticsearch.xpack.core.security.user.KibanaUser;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
@@ -37,8 +36,9 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
-    public static final String LEGACY_ALERTS_INDEX = ".siem-signals*";
-    public static final String ALERTS_INDEX = ".alerts*";
+    public static final String ALERTS_LEGACY_INDEX = ".siem-signals*";
+    public static final String ALERTS_BACKING_INDEX = ".internal.alerts*";
+    public static final String ALERTS_INDEX_ALIAS = ".alerts*";
 
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor("superuser",
             new String[] { "all" },
@@ -49,7 +49,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             },
             null, new String[] { "*" },
             MetadataUtils.DEFAULT_RESERVED_METADATA, Collections.emptyMap());
-    public static final Role SUPERUSER_ROLE = Role.builder(SUPERUSER_ROLE_DESCRIPTOR, null).build();
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
 
     private static Map<String, RoleDescriptor> initializeReservedRoles() {
@@ -115,80 +114,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
                     null))
-                .put("kibana_dashboard_only_user", new RoleDescriptor(
-                        "kibana_dashboard_only_user",
-                        null,
-                        null,
-                        new RoleDescriptor.ApplicationResourcePrivileges[] {
-                            RoleDescriptor.ApplicationResourcePrivileges.builder()
-                            .application("kibana-.kibana").resources("*").privileges("read").build() },
-                        null, null,
-                        MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
-                        null))
-                .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME,
-                        new String[] {
-                            "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml", "manage_token", "manage_oidc",
-                            InvalidateApiKeyAction.NAME, "grant_api_key",
-                            GetBuiltinPrivilegesAction.NAME, "delegate_pki", GetLifecycleAction.NAME,  PutLifecycleAction.NAME,
-                            // To facilitate ML UI functionality being controlled using Kibana security privileges
-                            "manage_ml",
-                            // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
-                            "cluster:admin/analyze",
-                            // To facilitate using the file uploader functionality
-                            "monitor_text_structure",
-                            // To cancel tasks and delete async searches
-                            "cancel_task"
-                        },
-                        new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".kibana*", ".reporting-*").privileges("all").build(),
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".management-beats").privileges("create_index", "read", "write").build(),
-                                // To facilitate ML UI functionality being controlled using Kibana security privileges
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".ml-anomalies*", ".ml-notifications*", ".ml-stats-*")
-                                        .privileges("read").build(),
-                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
-                                        .privileges("read", "write").build(),
-                                // APM agent configuration
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".apm-agent-configuration").privileges("all").build(),
-                                // APM custom link index creation
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".apm-custom-link").privileges("all").build(),
-                                // APM telemetry queries APM indices in kibana task runner
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("apm-*")
-                                    .privileges("read", "read_cross_cluster").build(),
-                                // Data telemetry reads mappings, metadata and stats of indices
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("*")
-                                    .privileges("view_index_metadata", "monitor").build(),
-                                // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".logs-endpoint.diagnostic.collection-*")
-                                    .privileges("read").build(),
-                                // Fleet Server indices. Kibana create this indice before Fleet Server use them.
-                                // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet*")
-                                    .privileges("all").build(),
-                                // Legacy "Alerts as data" index. Kibana user will create this index.
-                                // Kibana user will read / write to these indices
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(ReservedRolesStore.LEGACY_ALERTS_INDEX)
-                                    .privileges("all").build(),
-                                // "Alerts as data" index. Kibana user will create this index.
-                                // Kibana user will read / write to these indices
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(ReservedRolesStore.ALERTS_INDEX)
-                                    .privileges("all").build()
-                        },
-                        null,
-                        new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },
-                        null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                .put(KibanaSystemUser.ROLE_NAME, kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME))
                 .put("logstash_system", new RoleDescriptor("logstash_system", new String[] { "monitor", MonitoringBulkAction.NAME},
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("beats_admin", new RoleDescriptor("beats_admin",
@@ -345,7 +271,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("logstash_admin", new RoleDescriptor("logstash_admin", new String[] {"manage_logstash_pipelines"},
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".logstash*")
-                                .privileges("create", "delete", "index", "manage", "read").build() },
+                                .privileges("create", "delete", "index", "manage", "read")
+                                .build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("rollup_user", new RoleDescriptor("rollup_user", new String[] { "monitor_rollup" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
@@ -424,6 +351,86 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .resources("*").privileges("all")
                     .build() },
             null, null, metadata, null);
+    }
+
+    public static RoleDescriptor kibanaSystemRoleDescriptor(String name) {
+        return new RoleDescriptor(name,
+            new String[] {
+                "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml", "manage_token", "manage_oidc",
+                InvalidateApiKeyAction.NAME, "grant_api_key",
+                GetBuiltinPrivilegesAction.NAME, "delegate_pki", GetLifecycleAction.NAME,  PutLifecycleAction.NAME,
+                // To facilitate ML UI functionality being controlled using Kibana security privileges
+                "manage_ml",
+                // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
+                "cluster:admin/analyze",
+                // To facilitate using the file uploader functionality
+                "monitor_text_structure",
+                // To cancel tasks and delete async searches
+                "cancel_task"
+            },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".kibana*", ".reporting-*").privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".management-beats").privileges("create_index", "read", "write").build(),
+                // To facilitate ML UI functionality being controlled using Kibana security privileges
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".ml-anomalies*", ".ml-stats-*")
+                    .privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*", ".ml-notifications*")
+                    .privileges("read", "write").build(),
+                // APM agent configuration
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".apm-agent-configuration").privileges("all").build(),
+                // APM custom link index creation
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".apm-custom-link").privileges("all").build(),
+                // APM telemetry queries APM indices in kibana task runner
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("apm-*")
+                    .privileges("read", "read_cross_cluster").build(),
+                // Data telemetry reads mappings, metadata and stats of indices
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("*")
+                    .privileges("view_index_metadata", "monitor").build(),
+                // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.diagnostic.collection-*")
+                    .privileges("read").build(),
+                // Fleet Server indices. Kibana create this indice before Fleet Server use them.
+                // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet*")
+                    .privileges("all").build(),
+                // Legacy "Alerts as data" used in Security Solution.
+                // Kibana user creates these indices; reads / writes to them.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ALERTS_LEGACY_INDEX)
+                    .privileges("all").build(),
+                // "Alerts as data" internal backing indices used in Security Solution, Observability, etc.
+                // Kibana system user creates these indices; reads / writes to them via the aliases (see below).
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ALERTS_BACKING_INDEX)
+                    .privileges("all").build(),
+                // "Alerts as data" public index aliases used in Security Solution, Observability, etc.
+                // Kibana system user uses them to read / write alerts.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ALERTS_INDEX_ALIAS)
+                    .privileges("all").build(),
+                // Endpoint / Fleet policy responses. Kibana requires read access to send telemetry
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics-endpoint.policy-*")
+                    .privileges("read").build(),
+                // Endpoint metrics. Kibana requires read access to send telemetry
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics-endpoint.metrics-*")
+                    .privileges("read").build()
+            },
+            null,
+            new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },
+            null, MetadataUtils.DEFAULT_RESERVED_METADATA, null);
     }
 
     public static boolean isReserved(String role) {

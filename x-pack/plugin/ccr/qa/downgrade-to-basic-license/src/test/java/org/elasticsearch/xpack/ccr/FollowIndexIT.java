@@ -10,7 +10,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.logging.JsonLogLine;
 import org.elasticsearch.common.logging.JsonLogsStream;
 import org.elasticsearch.common.settings.SecureString;

@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import junit.framework.TestCase;
+
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;

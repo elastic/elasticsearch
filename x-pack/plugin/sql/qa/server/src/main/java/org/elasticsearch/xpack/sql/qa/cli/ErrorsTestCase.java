@@ -44,17 +44,6 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
     }
 
     @Override
-    public void testSelectFromEmptyIndex() throws Exception {
-        // Create an index without any types
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("{}");
-        client().performRequest(request);
-
-        assertFoundOneProblem(command("SELECT * FROM test"));
-        assertEquals("line 1:8: Cannot determine columns for [*]" + END, readLine());
-    }
-
-    @Override
     public void testSelectColumnFromEmptyIndex() throws Exception {
         Request request = new Request("PUT", "/test");
         request.setJsonEntity("{}");
@@ -104,7 +93,7 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
         index("test", body -> body.field("foo", 1));
         assertThat(
             command("SELECT SCORE().bar FROM test"),
-            startsWith(START + "Bad request [[3;33;22mline 1:15: extraneous input '.' expecting {<EOF>, ',',")
+            startsWith(START + "Bad request [[3;33;22mline 1:15: mismatched input '.' expecting {<EOF>, ")
         );
     }
 

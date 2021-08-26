@@ -595,4 +595,36 @@ class NodeDeprecationChecks {
             DeprecationIssue.Level.CRITICAL
         );
     }
+
+    static DeprecationIssue checkTransportClientProfilesFilterSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        ClusterState cs,
+        XPackLicenseState licenseState
+    ) {
+        final Setting.AffixSetting<String> TRANSPORT_TYPE_PROFILE_SETTING =
+            Setting.affixKeySetting("transport.profiles.","xpack.security.type", s -> Setting.simpleString(s));
+        List<Setting<?>> transportProfiles = TRANSPORT_TYPE_PROFILE_SETTING.getAllConcreteSettings(settings)
+            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
+
+        if (transportProfiles.isEmpty()) {
+            return null;
+        }
+
+        final String transportProfilesSettings = transportProfiles.stream().map(Setting::getKey).collect(Collectors.joining(","));
+        final String message = String.format(
+            Locale.ROOT,
+            "settings [%s] are deprecated and will be removed in the next major version",
+            transportProfilesSettings
+        );
+        final String details = String.format(
+            Locale.ROOT,
+            "transport client will be removed in the next major version so transport client related settings [%s] must be removed",
+            transportProfilesSettings
+        );
+
+        final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0" +
+            ".html#separating-node-and-client-traffic";
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+    }
 }

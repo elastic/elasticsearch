@@ -863,4 +863,42 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         assertThat(issues, empty());
     }
+
+    public void testCheckTransportClientProfilesFilterSetting() {
+        final int numProfiles = randomIntBetween(1, 3);
+        final String[] profileNames = new String[numProfiles];
+        final Settings.Builder b = Settings.builder();
+        for (int k = 0; k < numProfiles; k++) {
+            profileNames[k] = randomAlphaOfLength(5);
+            b.put("transport.profiles." + profileNames[k] + ".xpack.security.type", randomAlphaOfLengthBetween(3, 10));
+        }
+        final Settings settings = b.build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        DeprecationIssue issue = NodeDeprecationChecks.checkTransportClientProfilesFilterSetting(settings, null, null , licenseState);
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#separating-node-and-client-traffic";
+        final String joinedNames = Arrays
+            .stream(profileNames)
+            .map(s -> "transport.profiles." + s + ".xpack.security.type")
+            .sorted()
+            .collect(Collectors.joining(","));
+
+        assertThat(issue, equalTo(new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            String.format(
+                Locale.ROOT,
+                "settings [%s] are deprecated and will be removed in the next major version",
+                joinedNames
+            ),
+            expectedUrl,
+            String.format(
+                Locale.ROOT,
+                "transport client will be removed in the next major version so transport client related settings [%s] must be removed",
+                joinedNames
+            ), false, null)));
+
+        // test for absence of deprecated exporter passwords
+        issue = NodeDeprecationChecks.checkTransportClientProfilesFilterSetting(Settings.builder().build(), null, null, licenseState);
+        assertThat(issue, nullValue());
+    }
 }

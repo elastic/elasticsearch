@@ -333,6 +333,10 @@ Defaults to `*`, which matches all fields eligible for
     the default pipeline (if it exists). The special pipeline name `_none`
     indicates no ingest pipeline will run.
 
+    NOTE: Final pipelines are prohibited from changing the target index through
+    the `_index` field. The index request will fail if any changes are made to
+    the `_index` field.
+
 [[index-mapping-dimension-fields-limit]]
 `index.mapping.dimension_fields.limit`::
 For internal use by Elastic only. Maximum number of time series dimensions for

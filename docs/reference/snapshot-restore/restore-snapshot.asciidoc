@@ -53,8 +53,9 @@ GET _snapshot/my_repository/*?filter_path=*.snapshot,*.version_id,*.start_time
 You can restore an index or data stream from a snapshot using {kib}'s *Snapshot
 and Restore* feature or the <<restore-snapshot-api,restore snapshot API>>.
 
-You can only restore an existing index if it's closed. Use one of the following
-methods to avoid conflicts with existing indices or data streams:
+You can only restore an existing index if it's closed. You can't restore an
+existing data stream. Use one of the following methods to avoid conflicts with
+existing indices or data streams:
 
 * <<delete-restore>>
 * <<close-restore>>

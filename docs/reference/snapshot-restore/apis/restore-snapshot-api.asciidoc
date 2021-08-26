@@ -179,9 +179,10 @@ backing indices are configured using the data stream's matching index template.
 Supports <<api-multi-index,multi-target syntax>>. Defaults to all indices and
 data streams in the snapshot, including system indices.
 +
-You can only restore an existing index if it's closed. If you restore a data
-stream, you also restore it's backing indices. The restore operation
-automatically opens restored indices, including backing indices.
+You can only restore an existing index if it's closed. You can't restore an
+existing data stream. If you restore a data stream, you also restore it's
+backing indices. The restore operation automatically opens restored indices,
+including backing indices.
 +
 You can use this option to restore only a specific backing index from a data
 stream. However, the restore operation doesn't add the restored backing index to

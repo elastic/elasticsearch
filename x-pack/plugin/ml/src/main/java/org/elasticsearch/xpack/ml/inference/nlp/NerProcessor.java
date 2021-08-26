@@ -165,7 +165,7 @@ public class NerProcessor implements NlpTask.Processor {
          * gets labelled based on the average score of all its sub-tokens.
          */
         static List<TaggedToken> tagTokens(TokenizationResult.Tokenization tokenization,
-                                            double[][] scores,
+                                           double[][] scores,
                                            IobTag[] iobMap) {
             List<TaggedToken> taggedTokens = new ArrayList<>();
             int startTokenIndex = 0;

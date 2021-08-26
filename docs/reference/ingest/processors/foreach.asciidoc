@@ -4,45 +4,69 @@
 <titleabbrev>Foreach</titleabbrev>
 ++++
 
-Executes a processor on each element in an array or map.
+Runs an ingest processor on each element of an array or object.
 
-All processors can operate on elements inside arrays and maps, but if the
-number of elements is unknown, it can be cumbersome to process each element
-in the same way. The `foreach` processor allows users to specify a field holding
-an array or map and a processor that should be executed on each element in that
-field.
+All ingest processors can run on array or object elements. However, if the
+number of elements is unknown, it can be cumbersome to process each one in the
+same way.
 
-The processor specified inside the foreach processor typically works on a single
-element of the array or map. When iterating through the values of an array or
-map, the foreach processor places the current value in the ingest metadata under
-the `_ingest._value` key. If the value is a JSON object or other complex value,
-the entirety of the value and any of its children are accessible through
-`_ingest._value`.
-
-When iterating over map values, the foreach processor also places the key value
-under `_ingest._key`. Key values are always strings. Both the key and value for
-map entries may be modified. If the key is set to `null`, the empty string, or
-a string containing only whitespace, the map entry will be removed.
-
-Note that fields from the document other than `_ingest._value` and
-`_ingest._key` are accessible and modifiable from any processor specified inside
-the foreach processor.
-
-If the `foreach` processor fails to process an element and no `on_failure`
-processor has been specified, then it aborts execution and leaves the array
-or map unmodified.
+The `foreach` processor lets you specify a `field` containing array or object
+values and a `processor` to run on each element in the field.
 
 [[foreach-options]]
 .Foreach Options
 [options="header"]
 |======
 | Name             | Required  | Default  | Description
-| `field`          | yes       | -        | The array or map field
-| `processor`      | yes       | -        | The processor to execute against each element
-| `ignore_missing` | no        | false    | If `true` and `field` does not
-exist or is `null`, the processor quietly exits without modifying the document
+| `field`          | yes       | -        | Field containing array or object
+values.
+| `processor`      | yes       | -        | Ingest processor to run on each
+element.
+| `ignore_missing` | no        | false    | If `true`, the processor silently
+exits without changing the document if the `field` is `null` or missing.
 include::common-options.asciidoc[]
 |======
+
+[discrete]
+[[foreach-keys-values]]
+==== Access keys and values
+
+When iterating through an array or object, the `foreach` processor stores the
+current element's value in the `_ingest._value` <<access-ingest-metadata,ingest
+metadata>> field. `_ingest._value` contains the entire element value, including
+any child fields. You can access child field values using dot notation on the
+`_ingest._value` field.
+
+When iterating through an object, the `foreach` processor also stores the
+current element's key as a string in `_ingest._key`.
+
+You can access and change `_ingest._key` and `_ingest._value` in the
+`processor`. For an example, see the <<foreach-object-ex, object
+example>>.
+
+[discrete]
+[[foreach-failure-handling]]
+==== Failure handling
+
+If the `foreach` processor fails to process an element and no `on_failure`
+processor is specified, the `foreach` processor silently exits. This leaves the
+entire array or object value unchanged.
+
+[discrete]
+[[foreach-examples]]
+==== Examples
+
+The following examples show how you can use the `foreach` processor with
+different data types and options:
+
+* <<foreach-array-ex>>
+* <<foreach-array-objects-ex>>
+* <<foreach-object-ex>>
+* <<failure-handling-ex>>
+
+[discrete]
+[[foreach-array-ex]]
+===== Array
 
 Assume the following document:
 
@@ -81,7 +105,11 @@ Then the document will look like this after processing:
 --------------------------------------------------
 // NOTCONSOLE
 
-Let's take a look at another example:
+[discrete]
+[[foreach-array-objects-ex]]
+===== Array of objects
+
+Assume the following document:
 
 [source,js]
 --------------------------------------------------
@@ -135,7 +163,16 @@ After processing the result is:
 --------------------------------------------------
 // NOTCONSOLE
 
-The foreach processor can also be used on map fields such as:
+For another array of objects example, see
+{plugins}/ingest-attachment-with-arrays.html[attachment processor
+documentation].
+
+[discrete]
+[[foreach-object-ex]]
+===== Object
+
+You can also use the `foreach` processor on object fields. For example,
+the following document contains a `products` field with object values.
 
 [source,js]
 --------------------------------------------------
@@ -161,8 +198,8 @@ The foreach processor can also be used on map fields such as:
 --------------------------------------------------
 // NOTCONSOLE
 
-When the following `foreach` processor operates on the document above with a
-map field:
+The following `foreach` processor changes the value of `products.display_name`
+to uppercase.
 
 [source,js]
 --------------------------------------------------
@@ -179,7 +216,7 @@ map field:
 --------------------------------------------------
 // NOTCONSOLE
 
-Then the document will look like this after processing:
+When run on the document, the `foreach` processor returns:
 
 [source,js]
 --------------------------------------------------
@@ -205,9 +242,9 @@ Then the document will look like this after processing:
 --------------------------------------------------
 // NOTCONSOLE
 
-When this `foreach` processor operates on the document, it changes the map
-keys resulting in the deletion of one map entry whose key is set to an
-empty string.
+The following `foreach` processor sets each element's key to the
+value of `products.display_name`. If `products.display_name` contains an empty string,
+the processor deletes the element.
 
 [source,js]
 --------------------------------------------------
@@ -225,7 +262,7 @@ empty string.
 --------------------------------------------------
 // NOTCONSOLE
 
-The result of the above processor is:
+When run on the previous document, the `foreach` processor returns:
 
 [source,js]
 --------------------------------------------------
@@ -245,6 +282,10 @@ The result of the above processor is:
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+[discrete]
+[[failure-handling-ex]]
+===== Failure handling
 
 The wrapped processor can have a `on_failure` definition.
 For example, the `id` field may not exist on all person objects.
@@ -277,5 +318,3 @@ block to send the document to the 'failure_index' index for later inspection:
 In this example, if the `remove` processor does fail, then
 the array elements that have been processed thus far will
 be updated.
-
-Another advanced example can be found in the {plugins}/ingest-attachment-with-arrays.html[attachment processor documentation].

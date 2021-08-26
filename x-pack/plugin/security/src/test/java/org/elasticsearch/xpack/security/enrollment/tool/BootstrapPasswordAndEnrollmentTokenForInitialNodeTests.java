@@ -191,8 +191,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNodeTests extends Comm
     }
 
     public void testNoKeystorePassword() {
-        final UserException ex = expectThrows(UserException.class, () -> execute(""));
-        assertNull(ex.getMessage());
-        assertThat(ex.exitCode, is(ExitCodes.USAGE));
+        final IllegalStateException ex = expectThrows(IllegalStateException.class, () -> execute(""));
+        assertThat(ex.getMessage(), containsString("No secret input configured for prompt []"));
     }
 }

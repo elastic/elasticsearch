@@ -156,7 +156,6 @@ Here's how to resolve the most common errors reported in the `ERROR` step.
 TIP: Problems with rollover aliases are a common cause of errors.
 Consider using <<data-streams, data streams>> instead of managing rollover with aliases.
 
-
 [discrete]
 ==== Rollover alias [x] can point to multiple indices, found duplicated alias [x] in index template [z]
 
@@ -178,12 +177,14 @@ To see what aliases are configured, use <<cat-alias, _cat/aliases>>.
 
 [discrete]
 ==== Setting [index.lifecycle.rollover_alias] for index [y] is empty or not defined
+
 The `index.lifecycle.rollover_alias` setting must be configured for the rollover action to work. 
 
 Update the index settings to set `index.lifecycle.rollover_alias`.
 
 [discrete]
 ==== Alias [x] has more than one write index [y,z]
+
 Only one index can be designated as the write index for a particular alias. 
 
 Use the <<indices-aliases, aliases>> API to set `is_write_index:false` for all but one index.
@@ -199,6 +200,7 @@ Append a numeric value to the index name, for example `my-index-000001`.
 
 [discrete]
 ==== CircuitBreakingException: [x] data too large, data for [y]
+
 This indicates that the cluster is hitting resource limits. 
 
 Before continuing to set up {ilm-init}, you'll need to take steps to alleviate the resource issues.
@@ -207,8 +209,8 @@ https://www.elastic.co/blog/managing-and-troubleshooting-elasticsearch-memory[Ma
 
 [discrete]
 ==== High disk watermark [x] exceeded on [y]
+
 This indicates that the cluster is running out of disk space. 
 This can happen when you don't have {ilm} set up to roll over from hot to warm nodes. 
 
-Create some breathing room for your cluster by adding resources, removing unneeded indices,
-or deleting document data.  
+Consider adding nodes, upgrading your hardware, or deleting unneeded indices.

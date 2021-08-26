@@ -12,7 +12,6 @@ import groovy.text.SimpleTemplateEngine;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
 import java.io.File;
@@ -33,12 +32,12 @@ import java.util.stream.Collectors;
 public class ReleaseHighlightsGenerator {
     static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
         try (FileWriter output = new FileWriter(outputFile)) {
-            generateFile(VersionProperties.getElasticsearchVersion(), Files.readString(templateFile.toPath()), entries, output);
+            generateFile(QualifiedVersion.of(VersionProperties.getElasticsearch()), Files.readString(templateFile.toPath()), entries, output);
         }
     }
 
     @VisibleForTesting
-    static void generateFile(Version version, String templateFile, List<ChangelogEntry> entries, Writer outputWriter)
+    static void generateFile(QualifiedVersion version, String templateFile, List<ChangelogEntry> entries, Writer outputWriter)
         throws IOException {
         final List<String> priorVersions = new ArrayList<>();
 

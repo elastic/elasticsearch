@@ -48,6 +48,7 @@ public class ReleaseNotesGenerator {
         TYPE_LABELS.put("deprecation", "Deprecations");
         TYPE_LABELS.put("enhancement", "Enhancements");
         TYPE_LABELS.put("feature", "New features");
+        TYPE_LABELS.put("new-aggregation", "New aggregation");
         TYPE_LABELS.put("regression", "Regressions");
         TYPE_LABELS.put("upgrade", "Upgrades");
     }

@@ -88,7 +88,7 @@ DELETE my-index
 DELETE _data_stream/logs-my_app-default
 
 # Restore the index and data stream from a snapshot
-POST _snapshot/my_repository/my_snapshot/_restore 
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
 {
   "indices": "my-index,logs-my_app-default"
 }
@@ -119,7 +119,7 @@ endif::[]
 POST my-index/_close
 
 # Restore the index from a snapshot
-POST _snapshot/my_repository/my_snapshot/_restore 
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
 {
   "indices": "my-index"
 }
@@ -139,7 +139,7 @@ any restored index or data stream.
 
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot/_restore 
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
 {
   "indices": "my-index,logs-my_app-default",
   "rename_pattern": "(.+)",
@@ -281,7 +281,7 @@ For example, the following restore snapshot API request uses the
 +
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot/_restore
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
   "indices": "my-index,logs-my_app-default",
   "index_settings": {

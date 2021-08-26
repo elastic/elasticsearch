@@ -1534,7 +1534,7 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
   - do:
       snapshot.create:
         repository: my_repository
-        snapshot: my_snapshot
+        snapshot: my_snapshot_2099.05.06
         wait_for_completion: true
 '''
 

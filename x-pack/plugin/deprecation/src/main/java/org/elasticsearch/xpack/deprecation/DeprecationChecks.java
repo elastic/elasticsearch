@@ -98,6 +98,7 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkAcceptDefaultPasswordSetting,
                     NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
                     NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
+                    NodeDeprecationChecks::checkMaxLocalStorageNodesSetting,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
                 )
             ).collect(Collectors.toList());

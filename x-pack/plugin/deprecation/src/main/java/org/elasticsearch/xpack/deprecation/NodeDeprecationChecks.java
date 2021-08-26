@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -634,6 +635,17 @@ class NodeDeprecationChecks {
             Setting.timeSetting(SecurityField.setting("authz.store.roles.index.cache.ttl"), TimeValue.timeValueMinutes(20),
                 Setting.Property.Deprecated),
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_security_changes",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkMaxLocalStorageNodesSetting(final Settings settings,
+                                                          final PluginsAndModules pluginsAndModules,
+                                                          final ClusterState clusterState,
+                                                          final XPackLicenseState licenseState) {
+        return checkRemovedSetting(settings,
+            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_node_changes",
             DeprecationIssue.Level.CRITICAL
         );
     }

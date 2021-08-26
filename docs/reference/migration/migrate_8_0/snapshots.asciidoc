@@ -88,7 +88,7 @@ instead.
 [%collapsible]
 ====
 *Details* +
-The {ref}/get-snapshot-api.html.html[get snapshots API] supports comma separated lists of patterns for both the snapshot- and repository-names.
+The {ref}/get-snapshot-api.html[get snapshots API] supports comma separated lists of patterns for both the snapshot- and repository-names.
 Starting in version 7.16, patterns starting with `-` will be interpreted as exclude statement in the presence of other patterns that include
 wild-cards.
 

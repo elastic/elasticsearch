@@ -1,9 +1,104 @@
+[[release-notes-7.14.2]]
+== {es} version 7.14.2
+
+coming::[7.14.2]
+
+Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
+
 [[release-notes-7.14.1]]
 == {es} version 7.14.1
 
-coming::[7.14.1]
-
 Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
+
+[[enhancement-7.14.1]]
+[float]
+=== Enhancements
+
+Infra/Plugins::
+* Allow MBean permissions in plugin policies {es-pull}76329[#76329]
+
+[[bug-7.14.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Gracefully handle very large sizes on terms {es-pull}76578[#76578] (issues: {es-issue}74096[#74096], {es-issue}76492[#76492])
+
+CRUD::
+* Cap max `RetryableAction` wait time/timeout {es-pull}74940[#74940] (issue: {es-issue}70996[#70996])
+
+EQL::
+* Fix join keys ordering in a sequence {es-pull}76699[#76699] (issue: {es-issue}76209[#76209])
+
+ILM+SLM::
+* Rewind ILM if create-snapshot fails to take snapshot {es-pull}75961[#75961] (issue: {es-issue}75401[#75401])
+
+Indices APIs::
+* Fix null value usage for `index.number_of_routing_shards` setting {es-pull}76069[#76069] (issue: {es-issue}75139[#75139])
+
+Infra/Core::
+* Fix `path.data` as comma separated string {es-pull}76202[#76202] (issue: {es-issue}76181[#76181])
+
+Ingest::
+* Fix disabling GeoIP downloader through `elasticsearch.yml` {es-pull}76924[#76924] (issue: {es-issue}76586[#76586])
+
+Machine Learning::
+* Exceptions about starting native processes now include the node {es-pull}75937[#75937]
+* Fix null pointer exception after all datafeed indices deleted {es-pull}76401[#76401]
+* Fix serialization of datafeed running state for relocated datafeed {es-pull}75923[#75923] (issue: {es-issue}75507[#75507])
+
+Network::
+* Fix Issues in Netty4MessageChannelHandler {es-pull}75861[#75861]
+* Fix Leaking Http Channel Objects when Http Client Stats are Disabled {es-pull}76257[#76257] (issue: {es-issue}76183[#76183])
+* Fix memory/breaker leaks for outbound responses {es-pull}76474[#76474] (issue: {es-issue}65921[#65921])
+
+SQL::
+* Disallow queries with inner LIMIT that cannot be executed in ES {es-pull}75960[#75960] (issue: {es-issue}75830[#75830])
+* Fix groupings on empty results and HAVING on local relations {es-pull}74809[#74809] (issue: {es-issue}74311[#74311])
+* Fix nested ORDER BY {es-pull}76277[#76277] (issues: {es-issue}75960[#75960], {es-issue}76013[#76013])
+
+Search::
+* Fix `TransportFieldCapabilitiesAction` Blocking Transport Thread {es-pull}75022[#75022]
+* Fork Building Aggregate Index Capabilities Response to Management Pool {es-pull}76333[#76333]
+
+Security::
+* Handle a edge case for validation of API key role descriptors {es-pull}76959[#76959]
+
+Snapshot/Restore::
+* Fix Bug Causing Queued Snapshots of Deleted Indices to Never Finalize {es-pull}75942[#75942]
+* Fix Concurrent Snapshot Repository Corruption from Operations Queued after Failing Operations {es-pull}75733[#75733] (issues: {es-issue}75501[#75501], {es-issue}75598[#75598])
+* Fix Finalizing Failed Shard Snapshots {es-pull}75953[#75953]
+* Fix NPE in Cat Snapshots API Default {es-pull}76161[#76161] (issue: {es-issue}76158[#76158])
+* Fix S3 Streaming Writes Ignoring Relative Paths for Large Writes {es-pull}76273[#76273]
+* Fix Snapshot State Machine Issues around Failed Clones {es-pull}76419[#76419]
+* Noop repository update should skip verification {es-pull}76067[#76067] (issue: {es-issue}76012[#76012])
+
+Task Management::
+* Only start re-assigning persistent tasks if they are not already being reassigned {es-pull}76258[#76258]
+* Track cancellable tasks by parent ID {es-pull}76186[#76186] (issue: {es-issue}75316[#75316])
+
+Transform::
+* [ML][Transform] reset failure count when a transform aggregation page is handled successfully {es-pull}76355[#76355] (issue: {es-issue}76074[#76074])
+
+Watcher::
+* Save some Memory in Watcher XContent -> Map Round Trip {es-pull}76864[#76864] (issue: {es-issue}74513[#74513])
+
+[[regression-7.14.1]]
+[float]
+=== Regressions
+
+Mapping::
+* Make sure `copy_to` accepts null values {es-pull}76665[#76665] (issue: {es-issue}72820[#72820])
+
+Search::
+* Fix alias resolution in match query with synonyms {es-pull}76688[#76688] (issue: {es-issue}68795[#68795])
+
+[[upgrade-7.14.1]]
+[float]
+=== Upgrades
+
+Packaging::
+* Bump bundled JDK to 16.0.2 {es-pull}75981[#75981]
 
 [[release-notes-7.14.0]]
 == {es} version 7.14.0

@@ -23,9 +23,9 @@ The following {ml} rules are available:
   monitors job health and alerts if an operational issue occurred that may 
   prevent the job from detecting anomalies.
 
-  TIP: If you have created rules for specific {anomaly-jobs} and you want to 
-  monitor whether these jobs work as expected, {anomaly-jobs} health rules are 
-  ideal for this purpose.
+TIP: If you have created rules for specific {anomaly-jobs} and you want to 
+monitor whether these jobs work as expected, {anomaly-jobs} health rules are 
+ideal for this purpose.
 
 
 [[creating-ml-rules]]
@@ -114,22 +114,22 @@ default. At least one check needs to be enabled to create the rule. The
 following health checks are available:
 
 _Datafeed is not started_:: 
-  notifies if the corresponding {dfeed} of the job is not started but the job is 
+  Notifies if the corresponding {dfeed} of the job is not started but the job is 
   in an opened state. The notification message recommends you the necessary 
   actions to solve the error.
 _Model memory limit reached_:: 
-  notifies if the model memory status of the job reaches the soft or hard model 
+  Notifies if the model memory status of the job reaches the soft or hard model 
   memory limit. Optimize your job by following 
   <<detector-configuration, these guidelines>> or consider 
   <<set-model-memory-limit, amending the model memory limit>>. 
 _Data delay has occurred_:: 
-  notifies when the job missed some data. You 
-  can define the threshold for the amount of missing documents you get 
-  alerted on by setting _Number of documents_. You can control the lookback 
-  interval for checking delayed data with _Time interval_. Refer to the 
+  Notifies when the job missed some data. You can define the threshold for the 
+  amount of missing documents you get alerted on by setting 
+  _Number of documents_. You can control the lookback interval for checking 
+  delayed data with _Time interval_. Refer to the 
   <<ml-delayed-data-detection>> page to see what to do about delayed data.
 _Errors in job messages_:: 
-  notifies when the job messages contain error messages. Review the 
+  Notifies when the job messages contain error messages. Review the 
   notification; it contains the error messages, the corresponding job IDs and 
   recommendations on how to fix the issue. This check looks for job errors 
   emerged only after the rule is created.

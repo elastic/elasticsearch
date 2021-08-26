@@ -5,8 +5,8 @@
 ++++
 
 The `combined_fields` query supports searching multiple text fields as if their
-contents had been indexed into one combined field. {es} takes a term-centric
-view of the query: first it analyzes the query string into individual terms,
+contents had been indexed into one combined field. The query takes a term-centric
+view of the input string: first it analyzes the query string into individual terms,
 then looks for each term in any of the fields. This query is particularly
 useful when a match could span multiple text fields, for example the `title`,
 `abstract`, and `body` of an article:

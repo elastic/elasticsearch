@@ -115,18 +115,19 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                         ((List<Object>) state.get("list")).add(XContentMapValues.extractValue("vars.multiplier", vars));
                     }));
 
-            // Equivalent to:
-            //
-            // newaggregation = [];
-            // sum = 0;
-            //
-            // for (s in state.list) {
-            //      sum += s
-            // };
-            //
-            // newaggregation.add(sum);
-            // return newaggregation"
-            //
+            /*
+             *  Equivalent to:
+             *
+             *  newaggregation = [];
+             *  sum = 0;
+             *
+             *  for (s in state.list) {
+             *       sum += s
+             *  };
+             *
+             *  newaggregation.add(sum);
+             *  return newaggregation"
+             */
             scripts.put("sum state values as a new aggregation", vars -> {
                 List<Integer> newAggregation = new ArrayList<>();
                 Map<String, Object> state = (Map<String, Object>) vars.get("state");
@@ -146,20 +147,21 @@ public class ScriptedMetricIT extends ESIntegTestCase {
 
             scripts.put("no-op list aggregation", vars -> vars.get("states"));
 
-            // Equivalent to:
-            //
-            // newaggregation = [];
-            // sum = 0;
-            //
-            // for (state in states) {
-            //      for (s in state) {
-            //          sum += s
-            //      }
-            // };
-            //
-            // newaggregation.add(sum);
-            // return newaggregation"
-            //
+            /*
+             * Equivalent to:
+             *
+             * newaggregation = [];
+             * sum = 0;
+             *
+             * for (state in states) {
+             *      for (s in state) {
+             *          sum += s
+             *      }
+             * };
+             *
+             * newaggregation.add(sum);
+             * return newaggregation"
+             */
             scripts.put("sum all states (lists) values as a new aggregation", vars -> {
                 List<Integer> newAggregation = new ArrayList<>();
                 int sum = 0;
@@ -198,20 +200,22 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 return newAggregation;
             });
 
-            // Equivalent to:
-            //
-            // newaggregation = [];
-            // sum = 0;
-            //
-            // for (state in states) {
-            //      for (s in state) {
-            //          sum += s
-            //      }
-            // };
-            //
-            // newaggregation.add(sum * multiplier);
-            // return newaggregation"
-            //
+            /*
+             * Equivalent to:
+             *
+             * newaggregation = [];
+             * sum = 0;
+             *
+             * for (state in states) {
+             *      for (s in state) {
+             *          sum += s
+             *      }
+             * };
+             *
+             * newaggregation.add(sum * multiplier);
+             * return newaggregation"
+             *
+             */
             scripts.put("multiplied sum all states (lists) values as a new aggregation", vars -> {
                 Integer multiplier = (Integer) vars.get("multiplier");
                 List<Integer> newAggregation = new ArrayList<>();

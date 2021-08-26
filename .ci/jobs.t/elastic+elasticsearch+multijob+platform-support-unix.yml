@@ -20,6 +20,7 @@
             - "debian-8&&immutable"
             - "debian-9&&immutable"
             - "debian-10&&immutable"
+            - "debian-11&&immutable"
             - "opensuse-15-1&&immutable"
             - "oraclelinux-6&&immutable"
             - "oraclelinux-7&&immutable"

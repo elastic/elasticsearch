@@ -10,16 +10,16 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -111,10 +111,10 @@ public class FakeThreadPoolMasterService extends MasterService {
     }
 
     @Override
-    protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeMillis) {
+    protected void publish(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs) {
         assert waitForPublish == false;
         waitForPublish = true;
-        final AckListener ackListener = taskOutputs.createAckListener(threadPool, clusterChangedEvent.state());
+        final AckListener ackListener = taskOutputs.createAckListener(threadPool, clusterStatePublicationEvent.getNewState());
         final ActionListener<Void> publishListener = new ActionListener<Void>() {
 
             private boolean listenerCalled = false;
@@ -126,7 +126,7 @@ public class FakeThreadPoolMasterService extends MasterService {
                 assert waitForPublish;
                 waitForPublish = false;
                 try {
-                    onPublicationSuccess(clusterChangedEvent, taskOutputs);
+                    onPublicationSuccess(clusterStatePublicationEvent, taskOutputs);
                 } finally {
                     taskInProgress = false;
                     scheduleNextTaskIfNecessary();
@@ -140,7 +140,7 @@ public class FakeThreadPoolMasterService extends MasterService {
                 assert waitForPublish;
                 waitForPublish = false;
                 try {
-                    onPublicationFailed(clusterChangedEvent, taskOutputs, startTimeMillis, e);
+                    onPublicationFailed(clusterStatePublicationEvent, taskOutputs, e);
                 } finally {
                     taskInProgress = false;
                     scheduleNextTaskIfNecessary();
@@ -150,14 +150,15 @@ public class FakeThreadPoolMasterService extends MasterService {
         threadPool.generic().execute(threadPool.getThreadContext().preserveContext(new Runnable() {
             @Override
             public void run() {
-                clusterStatePublisher.publish(clusterChangedEvent, publishListener, wrapAckListener(ackListener));
+                clusterStatePublisher.publish(clusterStatePublicationEvent, publishListener, wrapAckListener(ackListener));
             }
 
             @Override
             public String toString() {
-                return "publish change of cluster state from version [" + clusterChangedEvent.previousState().version() + "] in term [" +
-                        clusterChangedEvent.previousState().term() + "] to version [" + clusterChangedEvent.state().version()
-                        + "] in term [" + clusterChangedEvent.state().term() + "]";
+                return "publish change of cluster state from version [" + clusterStatePublicationEvent.getOldState().version() +
+                    "] in term [" + clusterStatePublicationEvent.getOldState().term() + "] to version [" +
+                    clusterStatePublicationEvent.getNewState().version() + "] in term [" +
+                    clusterStatePublicationEvent.getNewState().term() + "]";
             }
         }));
     }

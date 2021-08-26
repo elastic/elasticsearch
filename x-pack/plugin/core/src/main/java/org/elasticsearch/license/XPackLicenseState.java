@@ -91,10 +91,11 @@ public class XPackLicenseState {
 
         Feature(OperationMode minimumOperationMode, boolean needsActive) {
             assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
+            String name = name().toLowerCase(Locale.ROOT);
             if (needsActive) {
-                this.feature = LicensedFeature.momentary(name().toLowerCase(Locale.ROOT), minimumOperationMode);
+                this.feature = LicensedFeature.momentary(name, name, minimumOperationMode);
             } else {
-                this.feature = LicensedFeature.momentaryLenient(name().toLowerCase(Locale.ROOT), minimumOperationMode);
+                this.feature = LicensedFeature.momentaryLenient(name, name, minimumOperationMode);
             }
         }
     }
@@ -694,16 +695,12 @@ public class XPackLicenseState {
             return Objects.hash(feature, context);
         }
 
-        public String featureName() {
-            return feature.name;
+        public LicensedFeature feature() {
+            return feature;
         }
 
         public String contextName() {
             return context;
-        }
-
-        public OperationMode minimumOperationMode() {
-            return feature.minimumOperationMode;
         }
     }
 }

@@ -67,9 +67,7 @@ index settings, which in turn defaults to `*`. `*` extracts all fields in the ma
 are eligible to term queries and filters the metadata fields. All extracted fields are then
 combined to build a query.
 
-WARNING: There is a limit on the number of fields that can be queried
-at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
-which defaults to 1024.
+include::combined-fields-query.asciidoc[tag=max-clause-limit]
 
 [[multi-match-types]]
 [discrete]

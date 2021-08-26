@@ -245,6 +245,12 @@ public final class XContentBuilder implements Closeable, Flushable {
     // Structure (object, array, field, null values...)
     //////////////////////////////////
 
+    public XContentBuilder object(String name, CheckedConsumer<XContentBuilder, IOException> callback) throws IOException {
+        field(name).startObject();
+        callback.accept(this);
+        return endObject();
+    }
+
     public XContentBuilder startObject() throws IOException {
         generator.writeStartObject();
         return this;
@@ -257,6 +263,12 @@ public final class XContentBuilder implements Closeable, Flushable {
     public XContentBuilder endObject() throws IOException {
         generator.writeEndObject();
         return this;
+    }
+
+    public XContentBuilder array(String name, CheckedConsumer<XContentBuilder, IOException> callback) throws IOException {
+        field(name).startArray();
+        callback.accept(this);
+        return endArray();
     }
 
     public XContentBuilder startArray() throws IOException {

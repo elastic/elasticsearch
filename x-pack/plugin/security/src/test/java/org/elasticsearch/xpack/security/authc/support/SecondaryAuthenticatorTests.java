@@ -99,7 +99,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         realm = new DummyUsernamePasswordRealm(new RealmConfig(new RealmIdentifier("dummy", "test_realm"), settings, env, threadContext));
-        when(realms.asList()).thenReturn(Collections.singletonList(realm));
+        when(realms.getActiveRealms()).thenReturn(Collections.singletonList(realm));
         when(realms.getUnlicensedRealms()).thenReturn(Collections.emptyList());
 
         final AuditTrailService auditTrail = new AuditTrailService(Collections.emptyList(), null);

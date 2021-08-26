@@ -27,4 +27,9 @@ public class MockLicenseState extends XPackLicenseState {
     public void enableUsageTracking(LicensedFeature feature, String contextName) {
         super.enableUsageTracking(feature, contextName);
     }
+
+    @Override
+    public void disableUsageTracking(LicensedFeature feature, String contextName) {
+        super.disableUsageTracking(feature, contextName);
+    }
 }

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.packaging.util;
+package org.elasticsearch.packaging.util.docker;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,32 +15,44 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Distribution.Packaging;
+import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell;
 
+import java.io.FileNotFoundException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
-import static org.elasticsearch.packaging.util.DockerRun.getImageName;
+import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.p444;
 import static org.elasticsearch.packaging.util.FileMatcher.p555;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
+import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
+import static org.elasticsearch.packaging.util.docker.DockerRun.getImageName;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertEquals;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -50,8 +62,8 @@ import static org.junit.Assert.fail;
 public class Docker {
     private static final Log logger = LogFactory.getLog(Docker.class);
 
-    static final Shell sh = new Shell();
-    private static final DockerShell dockerShell = new DockerShell();
+    public static final Shell sh = new Shell();
+    public static final DockerShell dockerShell = new DockerShell();
     public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
     public static final int STARTUP_ATTEMPTS_MAX = 10;
 
@@ -60,7 +72,7 @@ public class Docker {
      * but that appeared to cause problems with repeatedly destroying and recreating containers with
      * the same name.
      */
-    private static String containerId = null;
+    static String containerId = null;
 
     /**
      * Checks whether the required Docker image exists. If not, the image is loaded from disk. No check is made
@@ -239,28 +251,6 @@ public class Docker {
     }
 
     /**
-     * Extends {@link Shell} so that executed commands happen in the currently running Docker container.
-     */
-    public static class DockerShell extends Shell {
-        @Override
-        protected String[] getScriptCommand(String script) {
-            assert containerId != null;
-
-            List<String> cmd = new ArrayList<>();
-            cmd.add("docker");
-            cmd.add("exec");
-            cmd.add("--tty");
-
-            env.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
-
-            cmd.add(containerId);
-            cmd.add(script);
-
-            return super.getScriptCommand(String.join(" ", cmd));
-        }
-    }
-
-    /**
      * Checks whether a path exists in the Docker container.
      * @param path the path that ought to exist
      * @return whether the path exists
@@ -370,49 +360,6 @@ public class Docker {
     }
 
     /**
-     * Checks that the specified path's permissions and ownership match those specified.
-     * <p>
-     * The implementation supports multiple files being matched by the path, via bash expansion, although
-     * it is expected that only the final part of the path will contain expansions.
-     *
-     * @param path the path to check, possibly with e.g. a wildcard (<code>*</code>)
-     * @param expectedUser the file's expected user
-     * @param expectedGroup the file's expected group
-     * @param expectedPermissions the unix permissions that the path ought to have
-     */
-    public static void assertPermissionsAndOwnership(
-        Path path,
-        String expectedUser,
-        String expectedGroup,
-        Set<PosixFilePermission> expectedPermissions
-    ) {
-        logger.debug("Checking permissions and ownership of [" + path + "]");
-
-        final Shell.Result result = dockerShell.run("bash -c 'stat --format=\"%n %U %G %A\" '" + path);
-
-        final Path parent = path.getParent();
-
-        Arrays.asList(result.stdout.split("\\n")).forEach(line -> {
-            final String[] components = line.split("\\s+");
-
-            final String filename = components[0];
-            final String username = components[1];
-            final String group = components[2];
-            final String permissions = components[3];
-
-            // The final substring() is because we don't check the directory bit, and we
-            // also don't want any SELinux security context indicator.
-            Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
-
-            String fullPath = filename.startsWith("/") ? filename : parent + "/" + filename;
-
-            assertEquals("Permissions of " + fullPath + " are wrong", expectedPermissions, actualPermissions);
-            assertThat("File owner of " + fullPath + " is wrong", username, equalTo(expectedUser));
-            assertThat("File group of " + fullPath + " is wrong", group, equalTo(expectedGroup));
-        });
-    }
-
-    /**
      * Waits for up to 20 seconds for a path to exist in the container.
      * @param path the path to await
      */
@@ -444,36 +391,77 @@ public class Docker {
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
         assertThat("elasticsearch user's home directory is incorrect", homeDir, equalTo("/usr/share/elasticsearch"));
 
-        assertPermissionsAndOwnership(es.home, "root", "root", p775);
+        assertThat(es.home, file(Directory, "root", "root", p775));
 
-        Stream.of(es.bundledJdk, es.lib, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p555));
+        Stream.of(es.bundledJdk, es.lib, es.modules).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p555)));
 
-        // You can't install plugins that include configuration when running as `elasticsearch` and the `config`
+        // You couldn't install plugins that include configuration when running as `elasticsearch` if the `config`
         // dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
         // config directory.
         Stream.of(es.bin, es.config, es.logs, es.config.resolve("jvm.options.d"), es.data, es.plugins)
-            .forEach(dir -> assertPermissionsAndOwnership(dir, "elasticsearch", "root", p775));
+            .forEach(dir -> assertThat(dir, file(Directory, "elasticsearch", "root", p775)));
 
-        Stream.of(es.bin, es.bundledJdk.resolve("bin"), es.modules.resolve("x-pack-ml/platform/linux-*/bin"))
-            .forEach(binariesPath -> assertPermissionsAndOwnership(binariesPath.resolve("*"), "root", "root", p555));
+        final String arch = dockerShell.run("arch").stdout.trim();
+
+        Stream.of(es.bin, es.bundledJdk.resolve("bin"), es.modules.resolve("x-pack-ml/platform/linux-" + arch + "/bin"))
+            .forEach(
+                binariesPath -> listContents(binariesPath).forEach(
+                    binFile -> assertThat(binariesPath.resolve(binFile), file("root", "root", p555))
+                )
+            );
 
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), "root", "root", p664));
+            .forEach(configFile -> assertThat(es.config(configFile), file("root", "root", p664)));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc")
-            .forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), "root", "root", p444));
+            .forEach(doc -> assertThat(es.home.resolve(doc), file("root", "root", p444)));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
         // nc is useful for checking network issues
+        // tar is required in some k8s situations: https://github.com/kubernetes/kubernetes/issues/58512
         // zip/unzip are installed to help users who are working with certificates.
-        Stream.of("nc", "unzip", "zip")
+        Stream.of("nc", "tar", "unzip", "zip")
             .forEach(
                 cliBinary -> assertTrue(
                     cliBinary + " ought to be available.",
                     dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
                 )
             );
+
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+            verifyCloudContainerInstallation(es);
+        }
+    }
+
+    private static void verifyCloudContainerInstallation(Installation es) {
+        assertThat(Paths.get("/opt/plugins/plugin-wrapper.sh"), file("root", "root", p555));
+
+        final String pluginArchive = "/opt/plugins/archive";
+        final List<String> plugins = listContents(pluginArchive);
+
+        logger.info("Contents of [" + pluginArchive + "] : " + plugins);
+
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+            assertThat("ESS image should come with plugins in " + pluginArchive, plugins, not(empty()));
+
+            final List<String> repositoryPlugins = plugins.stream()
+                .filter(p -> p.matches("^repository-(?:s3|gcs|azure)$"))
+                .collect(Collectors.toList());
+            // Assert on equality to that the error reports the unexpected values.
+            assertThat(
+                "ESS image should not have repository plugins in " + pluginArchive,
+                repositoryPlugins,
+                equalTo(Collections.emptyList())
+            );
+        } else {
+            List<String> pluginsCopy = new ArrayList<>(plugins);
+            if (pluginsCopy.isEmpty() == false) {
+                logger.warn("plugins (and pluginsCopy) should be empty, but: " + plugins + " / " + pluginsCopy);
+                logger.warn("Contents of [" + pluginArchive + "] : " + dockerShell.run("ls -1 --color=never " + pluginArchive).stdout);
+            }
+            assertThat("Cloud image should not have any plugins in " + pluginArchive, pluginsCopy, empty());
+        }
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
@@ -578,5 +566,47 @@ public class Docker {
      */
     public static void restartContainer() {
         sh.run("docker restart " + containerId);
+    }
+
+    public static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
+        final Shell.Result result = dockerShell.runIgnoreExitCode("stat -c \"%U %G %A\" " + path);
+        if (result.isSuccess() == false) {
+            throw new FileNotFoundException(path + " does not exist");
+        }
+
+        final String[] components = result.stdout.split("\\s+");
+
+        final String permissions = components[2];
+        final String fileType = permissions.substring(0, 1);
+
+        // The final substring() is because we don't check the directory bit, and we
+        // also don't want any SELinux security context indicator.
+        Set<PosixFilePermission> posixPermissions = fromString(permissions.substring(1, 10));
+
+        final DockerFileAttributes attrs = new DockerFileAttributes();
+        attrs.owner = components[0];
+        attrs.group = components[1];
+        attrs.permissions = posixPermissions;
+        attrs.isDirectory = fileType.equals("d");
+        attrs.isSymbolicLink = fileType.equals("l");
+
+        return attrs;
+    }
+
+    /**
+     * Returns a list of the file contents of the supplied path.
+     * @param path the path to list
+     * @return the listing
+     */
+    public static List<String> listContents(String path) {
+        String stdout = dockerShell.run("ls -1 --color=never " + path).stdout;
+        if (stdout.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return Arrays.asList(stdout.split("\n"));
+    }
+
+    public static List<String> listContents(Path path) {
+        return listContents(path.toString());
     }
 }

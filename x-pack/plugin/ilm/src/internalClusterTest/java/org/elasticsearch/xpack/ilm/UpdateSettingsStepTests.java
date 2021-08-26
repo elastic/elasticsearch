@@ -132,9 +132,9 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
             new StepKey("hot", "action", "updateSetting"), new StepKey("hot", "action", "validate"), client(),
             invalidValueSetting);
 
-        step.performAction(indexMetadata, state, observer, new ActionListener<Boolean>() {
+        step.performAction(indexMetadata, state, observer, new ActionListener<Void>() {
             @Override
-            public void onResponse(Boolean complete) {
+            public void onResponse(Void complete) {
                 latch.countDown();
                 fail("expected the test to fail when updating the setting to an invalid value");
             }
@@ -149,11 +149,10 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
                     new StepKey("hot", "action", "updateSetting"), new StepKey("hot", "action", "validate"), client(),
                     validIndexSetting);
 
-                step.performAction(indexMetadata, state, observer, new ActionListener<Boolean>() {
+                step.performAction(indexMetadata, state, observer, new ActionListener<Void>() {
                     @Override
-                    public void onResponse(Boolean complete) {
+                    public void onResponse(Void complete) {
                         latch.countDown();
-                        assertThat(complete, is(true));
                     }
 
                     @Override

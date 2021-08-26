@@ -542,7 +542,7 @@ public class MetadataCreateIndexService {
                 isDataStream ? Collections.emptySet() : request.aliases(),
                 isDataStream ?
                     Collections.emptyList() :
-                    MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName, false),
+                    MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName),
                 currentState.metadata(),
                 aliasValidator,
                 xContentRegistry,
@@ -588,7 +588,7 @@ public class MetadataCreateIndexService {
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(template, componentTemplates, false, null), currentState.metadata(),
+                MetadataIndexTemplateService.resolveAliases(template, componentTemplates), currentState.metadata(),
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
@@ -1338,9 +1338,12 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
             (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.SETTINGS, "translog_retention",
+            DEPRECATION_LOGGER.deprecate(
+                DeprecationCategory.SETTINGS,
+                "translog_retention",
                 "Translog retention settings [index.translog.retention.age] "
-                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+                    + "and [index.translog.retention.size] are deprecated and "
+                    + "effectively ignored. They will be removed in a future version.");
         }
     }
 

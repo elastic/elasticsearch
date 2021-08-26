@@ -28,7 +28,7 @@ import java.util.Locale;
 public class NerProcessor implements NlpTask.Processor {
 
     public enum Entity implements Writeable {
-        NONE, MISC, PERSON, ORGANISATION, LOCATION;
+        NONE, MISC, PERSON, ORGANIZATION, LOCATION;
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -48,8 +48,8 @@ public class NerProcessor implements NlpTask.Processor {
         I_MISC(Entity.MISC),            // Miscellaneous entity
         B_PER(Entity.PERSON),           // Beginning of a person's name right after another person's name
         I_PER(Entity.PERSON),           // Person's name
-        B_ORG(Entity.ORGANISATION),     // Beginning of an organisation right after another organisation
-        I_ORG(Entity.ORGANISATION),     // Organisation
+        B_ORG(Entity.ORGANIZATION),     // Beginning of an organisation right after another organisation
+        I_ORG(Entity.ORGANIZATION),     // Organisation
         B_LOC(Entity.LOCATION),         // Beginning of a location right after another location
         I_LOC(Entity.LOCATION);         // Location
 

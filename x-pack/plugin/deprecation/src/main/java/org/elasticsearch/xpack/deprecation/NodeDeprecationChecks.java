@@ -600,12 +600,12 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkClusterRoutingRequireSetting(final Settings settings,
-                                                                                   final PluginsAndModules pluginsAndModules,
-                                                                                   final ClusterState clusterState,
-                                                                                   final XPackLicenseState licenseState) {
+                                                              final PluginsAndModules pluginsAndModules,
+                                                              final ClusterState clusterState,
+                                                              final XPackLicenseState licenseState) {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_REQUIRE_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -616,7 +616,7 @@ class NodeDeprecationChecks {
                                                               final XPackLicenseState licenseState) {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_INCLUDE_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -627,7 +627,7 @@ class NodeDeprecationChecks {
                                                               final XPackLicenseState licenseState) {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_EXCLUDE_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
             DeprecationIssue.Level.CRITICAL
         );
     }

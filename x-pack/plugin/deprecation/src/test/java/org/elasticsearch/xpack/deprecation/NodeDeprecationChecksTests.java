@@ -863,4 +863,42 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         assertThat(issues, empty());
     }
+
+    public void testCheckFixedAutoQueueSizeThreadpool() {
+        String settingKey = "thread_pool.search.min_queue_size";
+        String settingValue = "";
+        Settings settings = Settings.builder()
+            .put("thread_pool.search.min_queue_size", randomIntBetween(30, 100))
+            .put("thread_pool.search.max_queue_size", randomIntBetween(1, 25))
+            .put("thread_pool.search.auto_queue_frame_size", randomIntBetween(1, 25))
+            .put("thread_pool.search.target_response_time", randomIntBetween(1, 25))
+            .put("thread_pool.search_throttled.min_queue_size", randomIntBetween(30, 100))
+            .put("thread_pool.search_throttled.max_queue_size", randomIntBetween(1, 25))
+            .put("thread_pool.search_throttled.auto_queue_frame_size", randomIntBetween(1, 25))
+            .put("thread_pool.search_throttled.target_response_time", randomIntBetween(1, 25))
+            .build();
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "cannot use properties [thread_pool.search.min_queue_size,thread_pool.search.max_queue_size,thread_pool.search" +
+                ".auto_queue_frame_size,thread_pool.search.target_response_time,thread_pool.search_throttled.min_queue_size," +
+                "thread_pool.search_throttled.max_queue_size,thread_pool.search_throttled.auto_queue_frame_size,thread_pool" +
+                ".search_throttled.target_response_time] because fixed_auto_queue_size threadpool type has been deprecated" +
+                " and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_threadpool_changes",
+            "cannot use properties [thread_pool.search.min_queue_size,thread_pool.search.max_queue_size,thread_pool.search" +
+                ".auto_queue_frame_size,thread_pool.search.target_response_time,thread_pool.search_throttled.min_queue_size," +
+                "thread_pool.search_throttled.max_queue_size,thread_pool.search_throttled.auto_queue_frame_size,thread_pool" +
+                ".search_throttled.target_response_time] because fixed_auto_queue_size threadpool type has been deprecated" +
+                " and will be removed in the next major version",
+            false, null
+        );
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.getOperationMode())
+            .thenReturn(randomValueOtherThanMany((m -> m.equals(License.OperationMode.BASIC) || m.equals(License.OperationMode.TRIAL)),
+                () -> randomFrom(License.OperationMode.values())));
+        assertThat(
+            NodeDeprecationChecks.checkFixedAutoQueueSizeThreadpool(settings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+    }
 }

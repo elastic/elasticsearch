@@ -595,4 +595,40 @@ class NodeDeprecationChecks {
             DeprecationIssue.Level.CRITICAL
         );
     }
+
+    static DeprecationIssue checkFixedAutoQueueSizeThreadpool(final Settings settings,
+                                                              final PluginsAndModules pluginsAndModules,
+                                                              final ClusterState clusterState,
+                                                              final XPackLicenseState licenseState) {
+        List<Setting<Integer>> deprecatedSettings = new ArrayList<>();
+        deprecatedSettings.add(Setting.intSetting("thread_pool.search.min_queue_size", 1, Setting.Property.Deprecated));
+        deprecatedSettings.add(Setting.intSetting("thread_pool.search.max_queue_size", 1, Setting.Property.Deprecated));
+        deprecatedSettings.add(Setting.intSetting("thread_pool.search.auto_queue_frame_size", 1, Setting.Property.Deprecated));
+        deprecatedSettings.add(Setting.intSetting("thread_pool.search.target_response_time", 1, Setting.Property.Deprecated));
+        deprecatedSettings.add(Setting.intSetting("thread_pool.search_throttled.min_queue_size", 1, Setting.Property.Deprecated));
+        deprecatedSettings.add(Setting.intSetting("thread_pool.search_throttled.max_queue_size", 1, Setting.Property.Deprecated));
+        deprecatedSettings.add(Setting.intSetting("thread_pool.search_throttled.auto_queue_frame_size", 1, Setting.Property.Deprecated));
+        deprecatedSettings.add(Setting.intSetting("thread_pool.search_throttled.target_response_time", 1, Setting.Property.Deprecated));
+        List<Setting<Integer>> existingSettings =
+            deprecatedSettings.stream().filter(deprecatedSetting -> deprecatedSetting.exists(settings)).collect(Collectors.toList());
+        if (existingSettings.isEmpty()) {
+            return null;
+        }
+        final String settingNames = existingSettings.stream().map(Setting::getKey).collect(Collectors.joining(","));
+        final String message = String.format(
+            Locale.ROOT,
+            "cannot use properties [%s] because fixed_auto_queue_size threadpool type has been deprecated and will be removed in the next" +
+                " major version",
+            settingNames
+        );
+        final String details = String.format(
+            Locale.ROOT,
+            "cannot use properties [%s] because fixed_auto_queue_size threadpool type has been deprecated and will be removed in the next" +
+                " major version",
+            settingNames
+        );
+        final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0" +
+            ".html#breaking_80_threadpool_changes";
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+    }
 }

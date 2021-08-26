@@ -79,7 +79,6 @@ if [ "$PACKAGE" = "deb" ]; then
         /usr/share/elasticsearch/bin/elasticsearch-keystore create
         chown root:elasticsearch "${ES_PATH_CONF}"/elasticsearch.keystore
         chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
-        md5sum "${ES_PATH_CONF}"/elasticsearch.keystore > "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
     else
         if /usr/share/elasticsearch/bin/elasticsearch-keystore has-passwd --silent ; then
           echo "### Warning: unable to upgrade encrypted keystore" 1>&2

@@ -97,13 +97,17 @@ public class JarHell {
         String elements[] = classPath.split(pathSeparator);
         Set<URL> urlElements = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
         for (String element : elements) {
-            // Technically empty classpath element behaves like CWD.
-            // So below is the "correct" code, however in practice with ES, this is usually just a misconfiguration,
-            // from old shell scripts left behind or something:
-            //   if (element.isEmpty()) {
-            //      element = System.getProperty("user.dir");
-            //   }
-            // Instead we just throw an exception, and keep it clean.
+            /*
+             * Technically empty classpath element behaves like CWD.
+             * So below is the "correct" code, however in practice with ES, this is usually just a misconfiguration,
+             * from old shell scripts left behind or something:
+             *
+             *   if (element.isEmpty()) {
+             *      element = System.getProperty("user.dir");
+             *   }
+             *
+             * Instead we just throw an exception, and keep it clean.
+             */
             if (element.isEmpty()) {
                 throw new IllegalStateException("Classpath should not contain empty elements! (outdated shell script from a previous" +
                     " version?) classpath='" + classPath + "'");

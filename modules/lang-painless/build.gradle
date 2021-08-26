@@ -167,7 +167,17 @@ dependencies {
 }
 
 String grammarPath = 'src/main/antlr'
+// TODO: we shouldn't be generating files into the main source directory. Then we wouldn't
+// need to customize the spotless config below.
 String outputPath = 'src/main/java/org/elasticsearch/painless/antlr'
+
+pluginManager.withPlugin('com.diffplug.spotless') {
+  spotless {
+    java {
+      targetExclude "${outputPath}/*.java"
+    }
+  }
+}
 
 tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {

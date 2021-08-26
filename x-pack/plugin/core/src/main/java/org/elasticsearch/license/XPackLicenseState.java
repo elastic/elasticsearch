@@ -6,29 +6,26 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.LongAccumulator;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -48,11 +45,8 @@ public class XPackLicenseState {
      * Each value defines the licensed state necessary for the feature to be allowed.
      */
     public enum Feature {
-        SECURITY_IP_FILTERING(OperationMode.GOLD, false),
         SECURITY_AUDITING(OperationMode.GOLD, false),
         SECURITY_DLS_FLS(OperationMode.PLATINUM, false),
-        SECURITY_ALL_REALMS(OperationMode.PLATINUM, false),
-        SECURITY_STANDARD_REALMS(OperationMode.GOLD, false),
         SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.PLATINUM, true),
         SECURITY_TOKEN_SERVICE(OperationMode.STANDARD, false),
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
@@ -89,23 +83,21 @@ public class XPackLicenseState {
 
         AUTOSCALING(OperationMode.ENTERPRISE, true);
 
-        final OperationMode minimumOperationMode;
-        final boolean needsActive;
+        // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.
+        // Embedding the feature instance here is a stopgap to allow smaller initial PR,
+        // followed by PRs to convert the current consumers of the license state.
+        final LicensedFeature.Momentary feature;
 
         Feature(OperationMode minimumOperationMode, boolean needsActive) {
             assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
-            this.minimumOperationMode = minimumOperationMode;
-            this.needsActive = needsActive;
+            String name = name().toLowerCase(Locale.ROOT);
+            if (needsActive) {
+                this.feature = LicensedFeature.momentary(name, name, minimumOperationMode);
+            } else {
+                this.feature = LicensedFeature.momentaryLenient(name, name, minimumOperationMode);
+            }
         }
     }
-
-    // temporarily non tracked feeatures which need rework in how they are checked
-    // so they are not tracked as always used
-    private static final Set<Feature> NON_TRACKED_FEATURES = Set.of(
-        Feature.SECURITY_IP_FILTERING,
-        Feature.SECURITY_ALL_REALMS,
-        Feature.SECURITY_STANDARD_REALMS
-    );
 
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
@@ -398,7 +390,14 @@ public class XPackLicenseState {
     }
 
     private final List<LicenseStateListener> listeners;
-    private final Map<Feature, LongAccumulator> lastUsed;
+
+    /**
+     * A Map of features for which usage is tracked by a feature identifier and a last-used-time.
+     * A last used time of {@code -1} means that the feature is "on" and should report the current time as the last-used-time
+     * (See: {@link #epochMillisProvider}, {@link #getLastUsed}).
+     */
+    private final Map<FeatureUsage, Long> usage;
+
     private final LongSupplier epochMillisProvider;
 
     // Since Status is the only field that can be updated, we do not need to synchronize access to
@@ -409,24 +408,19 @@ public class XPackLicenseState {
 
     public XPackLicenseState(LongSupplier epochMillisProvider) {
         this.listeners = new CopyOnWriteArrayList<>();
-
-        // prepopulate feature last used map with entries for non basic features, which are the ones we
-        // care to actually keep track of
-        Map<Feature, LongAccumulator> lastUsed = new EnumMap<>(Feature.class);
-        for (Feature feature : Feature.values()) {
-            if (NON_TRACKED_FEATURES.contains(feature) == false) {
-                lastUsed.put(feature, new LongAccumulator(Long::max, 0));
-            }
-        }
-        this.lastUsed = lastUsed;
+        this.usage = new ConcurrentHashMap<>();
         this.epochMillisProvider = epochMillisProvider;
     }
 
-    private XPackLicenseState(List<LicenseStateListener> listeners, Status status, Map<Feature, LongAccumulator> lastUsed,
-        LongSupplier epochMillisProvider) {
+    private XPackLicenseState(
+        List<LicenseStateListener> listeners,
+        Status status,
+        Map<FeatureUsage, Long> usage,
+        LongSupplier epochMillisProvider
+    ) {
         this.listeners = listeners;
         this.status = status;
-        this.lastUsed = lastUsed;
+        this.usage = usage;
         this.epochMillisProvider = epochMillisProvider;
     }
 
@@ -446,11 +440,8 @@ public class XPackLicenseState {
      * @param mode   The mode (type) of the current license.
      * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
      * @param expirationDate Expiration date of the current license.
-     * @param mostRecentTrialVersion If this cluster has, at some point commenced a trial, the most recent version on which they did that.
-     *                               May be {@code null} if they have never generated a trial license on this cluster, or the most recent
-     *                               trial was prior to this metadata being tracked (6.1)
      */
-    void update(OperationMode mode, boolean active, long expirationDate, @Nullable Version mostRecentTrialVersion) {
+    protected void update(OperationMode mode, boolean active, long expirationDate) {
         status = new Status(mode, active, expirationDate);
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
@@ -470,33 +461,66 @@ public class XPackLicenseState {
         return executeAgainstStatus(status -> status.mode);
     }
 
-    /**
-     * Checks that the cluster has a valid licence of any level.
-     * @see #isActive()
-     */
-    public boolean allowForAllLicenses() {
-        return checkAgainstStatus(status -> status.active);
-    }
-
     // Package private for tests
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
         return checkAgainstStatus(status -> status.active);
     }
 
-    /**
-     * Checks whether the given feature is allowed, tracking the last usage time.
-     */
-    @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")
+    @Deprecated
     public boolean checkFeature(Feature feature) {
-        boolean allowed = isAllowed(feature);
-        LongAccumulator maxEpochAccumulator = lastUsed.get(feature);
-        final long licenseExpiryDate = getLicenseExpiryDate();
-        final long diff = licenseExpiryDate - System.currentTimeMillis();
-        if (maxEpochAccumulator != null) {
-            maxEpochAccumulator.accumulate(epochMillisProvider.getAsLong());
-        }
+        return feature.feature.check(this);
+    }
 
+    void featureUsed(LicensedFeature feature) {
+        usage.put(new FeatureUsage(feature, null), epochMillisProvider.getAsLong());
+        checkForExpiry(feature);
+    }
+
+    void enableUsageTracking(LicensedFeature feature, String contextName) {
+        Objects.requireNonNull(contextName, "Context name cannot be null");
+        usage.put(new FeatureUsage(feature, contextName), -1L);
+        checkForExpiry(feature);
+    }
+
+    void disableUsageTracking(LicensedFeature feature, String contextName) {
+        Objects.requireNonNull(contextName, "Context name cannot be null");
+        usage.replace(new FeatureUsage(feature, contextName), -1L, epochMillisProvider.getAsLong());
+    }
+
+    void cleanupUsageTracking() {
+        long cutoffTime = epochMillisProvider.getAsLong() - TimeValue.timeValueHours(24).getMillis();
+        usage.entrySet().removeIf(e -> {
+            long timeMillis = e.getValue();
+            if (timeMillis == -1) {
+                return false; // feature is still on, don't remove
+            }
+            return timeMillis < cutoffTime; // true if it has not been used in more than 24 hours
+        });
+    }
+
+    /**
+     * Checks whether the given feature is allowed by the current license.
+     * <p>
+     * This method should only be used when serializing whether a feature is allowed for telemetry.
+     */
+    @Deprecated
+    public boolean isAllowed(Feature feature) {
+        return isAllowed(feature.feature);
+    }
+
+    // Package protected: Only allowed to be called by LicensedFeature
+    boolean isAllowed(LicensedFeature feature) {
+        if (isAllowedByLicense(feature.minimumOperationMode, feature.needsActive)) {
+            return true;
+        }
+        return false;
+    }
+
+    private void checkForExpiry(LicensedFeature feature) {
+        final long licenseExpiryDate = getLicenseExpiryDate();
+        // TODO: this should use epochMillisProvider to avoid a system call + testability
+        final long diff = licenseExpiryDate - System.currentTimeMillis();
         if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
             LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
             final long days = TimeUnit.MILLISECONDS.toDays(diff);
@@ -506,17 +530,6 @@ public class XPackLicenseState {
             HeaderWarning.addWarning("Your license {}. " +
                 "Contact your administrator or update your license for continued use of features", expiryMessage);
         }
-
-        return allowed;
-    }
-
-    /**
-     * Checks whether the given feature is allowed by the current license.
-     * <p>
-     * This method should only be used when serializing whether a feature is allowed for telemetry.
-     */
-    public boolean isAllowed(Feature feature) {
-        return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
     }
 
     /**
@@ -524,10 +537,10 @@ public class XPackLicenseState {
      *
      * Note that if a feature has not been used, it will not appear in the map.
      */
-    public Map<Feature, Long> getLastUsed() {
-        return lastUsed.entrySet().stream()
-            .filter(e -> e.getValue().get() != 0) // feature was never used
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get()));
+    public Map<FeatureUsage, Long> getLastUsed() {
+        long currentTimeMillis = epochMillisProvider.getAsLong();
+        Function<Long, Long> timeConverter = v -> v == -1 ? currentTimeMillis : v;
+        return usage.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> timeConverter.apply(e.getValue())));
     }
 
     public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
@@ -578,7 +591,7 @@ public class XPackLicenseState {
      */
     public XPackLicenseState copyCurrentLicenseState() {
         return executeAgainstStatus(status ->
-            new XPackLicenseState(listeners, status, lastUsed, epochMillisProvider));
+            new XPackLicenseState(listeners, status, usage, epochMillisProvider));
     }
 
     /**
@@ -589,6 +602,7 @@ public class XPackLicenseState {
      *
      * @return true if feature is allowed, otherwise false
      */
+    @Deprecated
     public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
         return checkAgainstStatus(status -> {
             if (needActive && false == status.active) {
@@ -613,4 +627,41 @@ public class XPackLicenseState {
         return isAllowedByLicense(minimumMode, true);
     }
 
+    public static class FeatureUsage {
+        private final LicensedFeature feature;
+
+        @Nullable
+        private final String context;
+
+        private FeatureUsage(LicensedFeature feature, String context) {
+            this.feature = Objects.requireNonNull(feature, "Feature cannot be null");
+            this.context = context;
+        }
+
+        @Override
+        public String toString() {
+            return context == null ? feature.name : feature.name + ":" + context;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FeatureUsage usage = (FeatureUsage) o;
+            return Objects.equals(feature, usage.feature) && Objects.equals(context, usage.context);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(feature, context);
+        }
+
+        public LicensedFeature feature() {
+            return feature;
+        }
+
+        public String contextName() {
+            return context;
+        }
+    }
 }

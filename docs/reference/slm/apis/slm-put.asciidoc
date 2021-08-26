@@ -54,20 +54,9 @@ Configuration for each snapshot created by the policy.
 .Properties of `config`
 [%collapsible%open]
 ====
-`ignore_unavailable`::
-(Optional, Boolean)
-If `true`, missing data streams or indices do *not* cause snapshot creation to fail and return
-an error. Defaults to `false`.
-
-`include_global_state`::
-(Optional, Boolean)
-If `true`, cluster states are included in snapshots. Defaults to `false`.
-
-`indices`::
-(Optional, array of strings)
-Array of data streams and indices to include in snapshots.
-<<date-math-index-names,Date math>> and wildcard (`*`) expressions are
-supported.
+:page-id: put-slm-api
+include::{es-repo-dir}/snapshot-restore/apis/create-snapshot-api.asciidoc[tag=snapshot-config]
+:!page-id:
 ====
 
 `name`::

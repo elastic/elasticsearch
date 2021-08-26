@@ -894,12 +894,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         SignificantStringTerms buildEmptyResult() {
-            return buildEmptySignificantTermsAggregation(0, significanceHeuristic);
+            return buildEmptySignificantTermsAggregation(0, supersetSize, significanceHeuristic);
         }
 
         @Override
         SignificantStringTerms buildNoValuesResult(long owningBucketOrdinal) {
-            return buildEmptySignificantTermsAggregation(subsetSizes.get(owningBucketOrdinal), significanceHeuristic);
+            return buildEmptySignificantTermsAggregation(subsetSizes.get(owningBucketOrdinal), supersetSize, significanceHeuristic);
         }
 
         @Override

@@ -44,6 +44,14 @@ class RoundingValuesSource extends ValuesSource.Numeric {
         return rounding.round(value);
     }
 
+    public double roundingSize(long milliSeconds, Rounding.DateTimeUnit unit) {
+        return rounding.roundingSize(milliSeconds, unit);
+    }
+
+    public double roundingSize(Rounding.DateTimeUnit unit) {
+        return rounding.roundingSize(unit);
+    }
+
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
         SortedNumericDocValues values = vs.longValues(context);

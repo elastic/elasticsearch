@@ -254,11 +254,10 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                         LongConsumer addRequestCircuitBreakerBytes,
                         CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
                         final RoundingValuesSource roundingValuesSource = (RoundingValuesSource) compositeValuesSourceConfig.valuesSource();
-                        return new LongValuesSource(
+                        return new DateHistogramValuesSource(
                             bigArrays,
                             compositeValuesSourceConfig.fieldType(),
-                            roundingValuesSource::longValues,
-                            roundingValuesSource::round,
+                            roundingValuesSource,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
                             size,

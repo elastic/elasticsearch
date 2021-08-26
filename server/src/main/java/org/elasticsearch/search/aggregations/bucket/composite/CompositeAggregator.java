@@ -46,6 +46,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.histogram.SizedBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -61,7 +62,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
-final class CompositeAggregator extends BucketsAggregator {
+public final class CompositeAggregator extends BucketsAggregator {
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
@@ -514,6 +515,23 @@ final class CompositeAggregator extends BucketsAggregator {
                 }
             }
         };
+    }
+
+    public SizedBucketAggregator getSizedBucketAggregator() {
+        DateHistogramValuesSource fromSources = null;
+        for (SingleDimensionValuesSource<?> source : sources) {
+            if (source instanceof DateHistogramValuesSource) {
+                // We can't support a standard sized bucket aggregator if we have more than one date histogram source
+                if (fromSources != null) {
+                    return null;
+                }
+                fromSources = (DateHistogramValuesSource)source;
+            }
+        }
+        if (fromSources == null) {
+            return null;
+        }
+        return fromSources;
     }
 
     private static class Entry {

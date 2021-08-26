@@ -364,38 +364,16 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            ALL_INTERNAL.stream().forEach(type -> {
-                for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    if (bundledJdk == false) {
-                        // We'll never publish an ARM (aarch64) build without a bundled JDK.
-                        if (architecture == Architecture.AARCH64) {
-                            continue;
-                        }
-                        // All our Docker images include a bundled JDK so it doesn't make sense to test without one.
-                        if (type.isDocker()) {
-                            continue;
-                        }
-                    }
-                    currentDistros.add(
-                        createDistro(distributions, architecture, type, null, bundledJdk, VersionProperties.getElasticsearch())
-                    );
-                }
-            });
+            ALL_INTERNAL.stream().forEach(type -> currentDistros.add(
+                createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
+            ));
         }
 
         for (Architecture architecture : Architecture.values()) {
             for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
-                for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    if (bundledJdk == false && architecture != Architecture.X64) {
-                        // We will never publish distributions for non-x86 (amd64) platforms
-                        // without a bundled JDK
-                        continue;
-                    }
-
-                    currentDistros.add(
-                        createDistro(distributions, architecture, ARCHIVE, platform, bundledJdk, VersionProperties.getElasticsearch())
-                    );
-                }
+                currentDistros.add(
+                    createDistro(distributions, architecture, ARCHIVE, platform, true, VersionProperties.getElasticsearch())
+                );
             }
         }
 

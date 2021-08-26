@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 
 import java.util.List;
+import java.util.OptionalInt;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.VOCABULARY;
@@ -27,7 +28,7 @@ public interface NlpTokenizer {
 
     NlpTask.RequestBuilder requestBuilder();
 
-    Integer getPadToken();
+    OptionalInt getPadToken();
 
     static NlpTokenizer build(Vocabulary vocabulary, Tokenization params) {
         ExceptionsHelper.requireNonNull(params, TOKENIZATION);

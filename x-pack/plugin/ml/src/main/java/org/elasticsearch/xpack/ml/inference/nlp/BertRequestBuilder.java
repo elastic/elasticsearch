@@ -32,13 +32,13 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
 
     @Override
     public NlpTask.Request buildRequest(List<String> inputs, String requestId) throws IOException {
-        if (tokenizer.getPadToken() == null) {
+        if (tokenizer.getPadToken().isEmpty()) {
             throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN +
                 " token in its vocabulary");
         }
 
         TokenizationResult tokenization = tokenizer.tokenize(inputs);
-        return new NlpTask.Request(tokenization, jsonRequest(tokenization, tokenizer.getPadToken(), requestId));
+        return new NlpTask.Request(tokenization, jsonRequest(tokenization, tokenizer.getPadToken().getAsInt(), requestId));
     }
 
     static BytesReference jsonRequest(TokenizationResult tokenization,

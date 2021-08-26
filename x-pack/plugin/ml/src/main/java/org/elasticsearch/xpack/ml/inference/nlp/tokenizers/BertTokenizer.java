@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -159,8 +160,13 @@ public class BertTokenizer implements NlpTokenizer {
     }
 
     @Override
-    public Integer getPadToken() {
-        return vocab.get(PAD_TOKEN);
+    public OptionalInt getPadToken() {
+        Integer pad = vocab.get(PAD_TOKEN);
+        if (pad != null) {
+            return OptionalInt.of(pad);
+        } else {
+            return OptionalInt.empty();
+        }
     }
 
     @Override

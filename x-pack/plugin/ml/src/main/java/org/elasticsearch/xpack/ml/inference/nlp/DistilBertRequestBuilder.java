@@ -30,13 +30,13 @@ public class DistilBertRequestBuilder implements NlpTask.RequestBuilder {
 
     @Override
     public NlpTask.Request buildRequest(List<String> inputs, String requestId) throws IOException {
-        if (tokenizer.getPadToken() == null) {
+        if (tokenizer.getPadToken().isEmpty()) {
             throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN +
                 " token in its vocabulary");
         }
 
         TokenizationResult result = tokenizer.tokenize(inputs);
-        return new NlpTask.Request(result, jsonRequest(result, tokenizer.getPadToken(), requestId));
+        return new NlpTask.Request(result, jsonRequest(result, tokenizer.getPadToken().getAsInt(), requestId));
     }
 
     static BytesReference jsonRequest(TokenizationResult tokenization,

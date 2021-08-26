@@ -51,6 +51,10 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
             environment -> KeyStoreWrapper.load(environment.configFile()),
             environment -> new EnrollmentTokenGenerator(environment)
         );
+        // This "cli utility" must be invoked EXCLUSIVELY from the node startup script, where it is passed all the
+        // node startup options unfiltered.
+        // It cannot consume most of them, but it does need to inspect the `-E` ones
+        parser.allowsUnrecognizedOptions();
     }
 
     BootstrapPasswordAndEnrollmentTokenForInitialNode(Function<Environment, CommandLineHttpClient> clientFunction,

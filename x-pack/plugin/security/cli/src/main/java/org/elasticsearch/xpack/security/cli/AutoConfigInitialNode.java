@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
@@ -67,8 +66,8 @@ import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildDnFromDomai
  * is started. Subsequent nodes can be added to the cluster via the enrollment flow, but this is not used to
  * configure such nodes or to display the necessary configuration (ie the enrollment tokens) for such.
  *
- * This will not run if Security is explicitly configured or if the existing configuration otherwise clashes with the
- * intent of this (i.e. the node is configured so it cannot form a single node cluster).
+ * This will NOT run if Security is explicitly configured or if the existing configuration otherwise clashes with the
+ * intent of this (i.e. the node is configured so it might not form a single node cluster).
  */
 public class AutoConfigInitialNode extends EnvironmentAwareCommand {
 
@@ -85,10 +84,12 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
     private static final int HTTP_CERTIFICATE_DAYS = 2 * 365;
     private static final int HTTP_KEY_SIZE = 4096;
 
-    private final OptionSpec<Void> strictOption = parser.accepts("strict", "Error if auto config cannot be performed for any reason");
-
     public AutoConfigInitialNode() {
         super("Generates all the necessary security configuration for the initial node of a new secure cluster");
+        // This "cli utility" must be invoked EXCLUSIVELY from the node startup script, where it is passed all the
+        // node startup options unfiltered.
+        // It cannot consume most of them, but it does need to inspect the `-E` ones
+        parser.allowsUnrecognizedOptions();
     }
 
     public static void main(String[] args) throws Exception {
@@ -104,56 +105,38 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new " +
                             "clusters only.");
-            if (options.has(strictOption)) {
-                throw new UserException(ExitCodes.NOOP, null);
-            } else {
-                return; // silent error because we wish the node to start as usual (skip auto config) during a restart
-            }
+            // we wish the node to start as usual during a restart
+            // but still the exit code should indicate that this has not been run
+            throw new UserException(ExitCodes.NOOP, null);
         }
         // preflight checks for the files that are going to be changed
         // Skipping security auto configuration if configuration files cannot be mutated (ie are read-only)
         final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
         final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
-        try {
-            // it is odd for the `elasticsearch.yml` file to be missing or not be a regular (the node won't start)
-            // but auto configuration should not be concerned with fixing it (by creating the file) and let the node startup fail
-            if (false == Files.exists(ymlPath) || false == Files.isRegularFile(ymlPath, LinkOption.NOFOLLOW_LINKS)) {
-                terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because" +
-                        " the configuration file [%s] is missing or is not a regular file", ymlPath));
-                throw new UserException(ExitCodes.CONFIG, null);
-            }
-            // If the node's yml configuration is not readable, most probably auto-configuration isn't run under the suitable user
-            if (false == Files.isReadable(ymlPath)) {
-                terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because" +
-                        " the configuration file [%s] is not readable", ymlPath));
-                throw new UserException(ExitCodes.NOOP, null);
-            }
-            // Inform that auto-configuration will not run if keystore cannot be read.
-            if (Files.exists(keystorePath) && (false == Files.isRegularFile(keystorePath, LinkOption.NOFOLLOW_LINKS) ||
-                    false == Files.isReadable(keystorePath))) {
-                terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because" +
-                        " the node keystore file [%s] is not a readable regular file", keystorePath));
-                throw new UserException(ExitCodes.NOOP, null);
-            }
-        } catch (UserException e) {
-            if (options.has(strictOption)) {
-                throw e;
-            } else {
-                return; // silent error because we wish the node to start as usual (skip auto config) if the configuration is read-only
-            }
+        // it is odd for the `elasticsearch.yml` file to be missing or not be a regular (the node won't start)
+        // but auto configuration should not be concerned with fixing it (by creating the file) and let the node startup fail
+        if (false == Files.exists(ymlPath) || false == Files.isRegularFile(ymlPath, LinkOption.NOFOLLOW_LINKS)) {
+            terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because" +
+                    " the configuration file [%s] is missing or is not a regular file", ymlPath));
+            throw new UserException(ExitCodes.CONFIG, null);
+        }
+        // If the node's yml configuration is not readable, most probably auto-configuration isn't run under the suitable user
+        if (false == Files.isReadable(ymlPath)) {
+            terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because" +
+                    " the configuration file [%s] is not readable", ymlPath));
+            throw new UserException(ExitCodes.NOOP, null);
+        }
+        // Inform that auto-configuration will not run if keystore cannot be read.
+        if (Files.exists(keystorePath) && (false == Files.isRegularFile(keystorePath, LinkOption.NOFOLLOW_LINKS) ||
+                false == Files.isReadable(keystorePath))) {
+            terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because" +
+                    " the node keystore file [%s] is not a readable regular file", keystorePath));
+            throw new UserException(ExitCodes.NOOP, null);
         }
 
         // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
         // if it is, silently skip auto configuration
-        try {
-            checkExistingConfiguration(env, terminal);
-        } catch (UserException e) {
-            if (options.has(strictOption)) {
-                throw e;
-            } else {
-                return; // silent error because we wish the node to start as usual (skip auto config) if certain configurations are set
-            }
-        }
+        checkExistingConfiguration(env, terminal);
 
         final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
         final String instantAutoConfigName = "auto_config_on_" + autoConfigDate.toInstant().getEpochSecond();
@@ -178,31 +161,26 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             // or if the admin explicitly makes configuration immutable (read-only), both of which are reasons to skip auto-configuration
             // this will show a message to the console (the first time the node starts) and auto-configuration is effectively bypassed
             // the message will not be subsequently shown (because auto-configuration doesn't run for node restarts)
-            if (options.has(strictOption)) {
-                throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory", e);
-            } else {
-                return; // silent error because we wish the node to start as usual (skip auto config) if config dir is not writable
-            }
+            throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory", e);
         }
 
-        // Ensure that the files created by the auto-config command MUST have the same owner as the config dir itself,
-        // as well as that the replaced files don't change ownership.
+        // Ensure that the files created by the auto-config command have the same owner as the config dir itself,
+        // as well as that the replaced files (node's yml and keystore files) don't change ownership.
         // This is because the files created by this command have hard-coded "no" permissions for "group" and "other"
+        // This effectively requires that installation (unpacking) and running the node be performed by the same user
+        // We should investigate to relax this requirement
         UserPrincipal newFileOwner = Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS);
         if ((false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS))) ||
                 (false == newFileOwner.equals(Files.getOwner(ymlPath, LinkOption.NOFOLLOW_LINKS))) ||
                 (Files.exists(keystorePath) && false == newFileOwner.equals(Files.getOwner(keystorePath, LinkOption.NOFOLLOW_LINKS)))) {
             Files.deleteIfExists(instantAutoConfigDir);
-            if (options.has(strictOption)) {
-                throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because it would change config file owners");
-            } else {
-                return; // if a different user runs ES compared to the user that installed it, auto configuration will not run
-            }
+            // the following is only printed once, if the node starts successfully
+            throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because it changes file ownership");
         }
-        // TODO check group ownership as well
 
         // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
         final X500Principal certificatePrincipal = new X500Principal(buildDnFromDomain(System.getenv("HOSTNAME")));
+        // this does DNS resolve and could block
         final GeneralNames subjectAltNames = getSubjectAltNames();
 
         KeyPair transportKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_KEY_SIZE);
@@ -218,9 +196,8 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         X509Certificate httpCert = CertGenUtils.generateSignedCertificate(certificatePrincipal,
                 subjectAltNames, httpKeyPair, httpCACert, httpCAKeyPair.getPrivate(), false, HTTP_CERTIFICATE_DAYS, null);
 
-        // the HTTP CA PEM file is provided "just in case", the node configuration doesn't use it
-        // but clients (configured manually, outside of the enrollment process) might indeed need it and
-        // it is impossible to use the keystore because it is password protected because it contains the key
+        // the HTTP CA PEM file is provided "just in case". The node doesn't use it, but clients (configured manually, outside of the
+        // enrollment process) might indeed need it, and it is currently impossible to retrieve it
         try {
             fullyWriteFile(instantAutoConfigDir, HTTP_AUTOGENERATED_CA_NAME + ".crt", false, stream -> {
                 try (JcaPEMWriter pemWriter =
@@ -230,7 +207,9 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             });
         } catch (Exception e) {
             Files.deleteIfExists(instantAutoConfigDir);
-            throw e; // this is an error which mustn't be ignored during node startup
+            // this is an error which mustn't be ignored during node startup
+            // the exit code for unhandled Exceptions is "1"
+            throw e;
         }
 
         // save original keystore before updating (replacing)
@@ -260,8 +239,12 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             if (nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.keystore.secure_password") ||
                 nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.truststore.secure_password") ||
                 nodeKeystore.getSettingNames().contains("xpack.security.http.ssl.keystore.secure_password")) {
+                // this error condition is akin to condition of existing configuration in the yml file
+                // this is not a fresh install and the admin has something planned for Security
+                // Even though this is probably invalid configuration, do NOT fix it, let the node fail to start in its usual way.
+                // Still display a message, because this can be tricky to figure out (why auto-conf did not run) if by mistake.
                 throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because the node keystore contains password " +
-                        "settings already"); // it is OK to silently ignore these because the node won't start
+                        "settings already");
             }
             try (SecureString transportKeystorePassword = newKeystorePassword()) {
                 KeyStore transportKeystore = KeyStore.getInstance("PKCS12");
@@ -309,14 +292,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
-            if (false == (e instanceof UserException)) {
-                throw e; // unexpected exections should prevent the node from starting
-            }
-            if (options.has(strictOption)) {
-                throw e;
-            } else {
-                return; // ignoring if the keystore contains password values already, so that the node startup deals with it (fails)
-            }
+            throw e;
         } finally {
             if (nodeKeystorePassword.get() != null) {
                 nodeKeystorePassword.get().close();
@@ -421,10 +397,11 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
             }
             throw e;
         }
+        // only delete the backed up file if all went well
         Files.deleteIfExists(keystoreBackupPath);
     }
 
-    @SuppressForbidden(reason = "InetAddress#getCanonicalHostName used to populate auto generated HTTPS cert")
+    @SuppressForbidden(reason = "DNS resolve InetAddress#getCanonicalHostName used to populate auto generated HTTPS cert")
     private GeneralNames getSubjectAltNames() throws IOException {
         Set<GeneralName> generalNameSet = new HashSet<>();
         // use only ipv4 addresses

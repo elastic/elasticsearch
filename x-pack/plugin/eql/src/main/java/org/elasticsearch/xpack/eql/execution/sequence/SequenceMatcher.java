@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
-import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -31,7 +31,6 @@ public class SequenceMatcher {
 
     private static final String CB_INFLIGHT_LABEL = "sequence_inflight";
     private static final String CB_COMPLETED_LABEL = "sequence_completed";
-    private static final BigDecimal BD_ONE_MILLION = BigDecimal.valueOf(1_000_000);
 
     private final Logger log = LogManager.getLogger(SequenceMatcher.class);
 
@@ -185,18 +184,9 @@ public class SequenceMatcher {
         //
 
         // maxspan
-        if (maxSpanInNanos > 0) {
-            long timestampDiffNanos = ordinal.timestamp() instanceof BigDecimal
-                ? ((BigDecimal) ordinal.timestamp())
-                    .subtract((BigDecimal) sequence.startOrdinal().timestamp())
-                    .multiply(BD_ONE_MILLION)
-                    .longValue()
-                : (ordinal.timestamp().longValue() - sequence.startOrdinal().timestamp().longValue()) * 1_000_000L;
-
-            if (timestampDiffNanos > maxSpanInNanos) {
-                stats.rejectionMaxspan++;
-                return;
-            }
+        if (maxSpanInNanos > 0 && timestampDiffNanos(ordinal.timestamp(), sequence.startOrdinal().timestamp()) > maxSpanInNanos) {
+            stats.rejectionMaxspan++;
+            return;
         }
 
         // until
@@ -349,5 +339,28 @@ public class SequenceMatcher {
                 keyToSequences,
                 completed.size(),
                 stageToKeys);
+    }
+
+    private static long timestampDiffNanos(Object ts1, Object ts2) {
+        long timestampDiffNanos;
+        if (ts1 instanceof Instant) {
+            Instant i1 = (Instant) ts1;
+            Instant diff;
+            if (ts2 instanceof Instant) {
+                Instant i2 = (Instant) ts2;
+                diff = i1.minusNanos(i2.getNano()).minusSeconds(i2.getEpochSecond());
+            } else {
+                diff = i1.minusMillis(((Number) ts2).longValue());
+            }
+            timestampDiffNanos = diff.getEpochSecond() * 1_000_000_000L + diff.getNano();
+        } else if (ts2 instanceof Instant) {
+            Instant i2 = (Instant) ts2;
+            Instant i1 = Instant.ofEpochMilli(((Number) ts1).longValue());
+            Instant diff = i1.minusNanos(i2.getNano()).minusSeconds(i2.getEpochSecond());
+            timestampDiffNanos = diff.getEpochSecond() * 1_000_000_000L + diff.getNano();
+        } else {
+            timestampDiffNanos = (((Number) ts1).longValue() - ((Number) ts2).longValue()) * 1_000_000L;
+        }
+        return timestampDiffNanos;
     }
 }

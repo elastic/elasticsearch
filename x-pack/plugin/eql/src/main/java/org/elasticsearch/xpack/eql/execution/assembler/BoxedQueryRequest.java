@@ -78,7 +78,7 @@ public class BoxedQueryRequest implements QueryRequest {
      */
     public BoxedQueryRequest from(Ordinal begin) {
         from = begin;
-        timestampRange.gte(begin != null ? begin.timestamp() : null);
+        timestampRange.gte(begin != null ? begin.timestampAsString() : null);
         return this;
     }
 
@@ -88,7 +88,7 @@ public class BoxedQueryRequest implements QueryRequest {
      */
     public BoxedQueryRequest to(Ordinal end) {
         to = end;
-        timestampRange.lte(end != null ? end.timestamp() : null);
+        timestampRange.lte(end != null ? end.timestampAsString() : null);
         return this;
     }
 

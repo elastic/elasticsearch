@@ -39,7 +39,6 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -828,14 +827,6 @@ public abstract class StreamOutput extends OutputStream {
                     final OffsetTime offsetTime = (OffsetTime) v;
                     o.writeString(offsetTime.getOffset().getId());
                     o.writeLong(offsetTime.toLocalTime().toNanoOfDay());
-                }
-            ),
-            entry(
-                // TODO: improve serialization of BigDecimal
-                BigDecimal.class,
-                (o, v) -> {
-                    o.writeByte((byte) 28);
-                    o.writeString(v.toString());
                 }
             ));
 

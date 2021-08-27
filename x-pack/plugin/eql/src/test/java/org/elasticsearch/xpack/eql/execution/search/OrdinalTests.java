@@ -9,42 +9,42 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.math.BigDecimal;
+import java.time.Instant;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class OrdinalTests extends ESTestCase {
 
     public void testCompareToDifferentTs() {
-        Number ts1 = randomOrdinalNumber();
-        Number ts2 = randomValueOtherThan(ts1, () -> randomOrdinalNumber(ts1));
+        Object ts1 = randomTimestamp();
+        Object ts2 = randomValueOtherThan(ts1, OrdinalTests::randomTimestamp);
         Ordinal one = new Ordinal(ts1, (Comparable) randomLong(), randomLong());
         Ordinal two = new Ordinal(ts2, (Comparable) randomLong(), randomLong());
 
-        assertEquals(compareOrdinalNumbers(one.timestamp(), two.timestamp()), one.compareTo(two));
+        assertEquals(timestampCompare(ts1, ts2), one.compareTo(two));
     }
 
     public void testCompareToSameTsDifferentTie() {
-        Number ts = randomOrdinalNumber();
-        Number tie1 = randomOrdinalNumber();
-        Number tie2 = randomValueOtherThan(tie1, () -> randomOrdinalNumber(tie1));
-        Ordinal one = new Ordinal(ts, (Comparable) tie1, randomLong());
-        Ordinal two = new Ordinal(ts, (Comparable) tie2, randomLong());
+        Object ts = randomTimestamp();
+        Comparable tie1 = (Comparable) randomLong();
+        Comparable tie2 = randomValueOtherThan(tie1, () -> (Comparable) randomLong());
+        Ordinal one = new Ordinal(ts, tie1, randomLong());
+        Ordinal two = new Ordinal(ts, tie2, randomLong());
 
         assertEquals(one.tiebreaker().compareTo(two.tiebreaker()), one.compareTo(two));
     }
 
     public void testCompareToSameTsOneTieNull() {
-        Number ts = randomOrdinalNumber();
-        Ordinal one = new Ordinal(ts, (Comparable) randomOrdinalNumber(), randomOrdinalNumber());
-        Ordinal two = new Ordinal(ts, null, randomOrdinalNumber());
+        Object ts = randomTimestamp();
+        Ordinal one = new Ordinal(ts, (Comparable) randomLong(), randomLong());
+        Ordinal two = new Ordinal(ts, null, randomLong());
 
         assertEquals(-1, one.compareTo(two));
     }
 
     public void testCompareToSameTsSameTieSameImplicitTb() {
-        Number ts = randomOrdinalNumber();
-        Comparable c = (Comparable) randomOrdinalNumber();
-        Number implicitTb = randomOrdinalNumber();
+        Object ts = randomTimestamp();
+        Comparable c = randomLong();
+        long implicitTb = randomLong();
         Ordinal one = new Ordinal(ts, c, implicitTb);
         Ordinal two = new Ordinal(ts, c, implicitTb);
 
@@ -54,18 +54,18 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testCompareToSameTsSameTieDifferentImplicitTb() {
-        Number ts = randomOrdinalNumber();
-        Comparable c = (Comparable) randomOrdinalNumber();
-        Number implicitTb = randomOrdinalNumber();
+        Object ts = randomTimestamp();
+        Comparable c = randomLong();
+        long implicitTb = randomLong();
         Ordinal one = new Ordinal(ts, c, implicitTb);
-        Ordinal two = new Ordinal(ts, c, randomValueOtherThan(implicitTb, () -> randomOrdinalNumber(implicitTb)));
+        Ordinal two = new Ordinal(ts, c, randomValueOtherThan(implicitTb, () -> randomLong()));
 
-        assertEquals(compareOrdinalNumbers(one.implicitTiebreaker(), two.implicitTiebreaker()), one.compareTo(two));
+        assertEquals(Long.valueOf(one.implicitTiebreaker()).compareTo(two.implicitTiebreaker()), one.compareTo(two));
     }
 
     public void testCompareToSameTsSameTieNullSameImplicitTb() {
-        Number ts = randomOrdinalNumber();
-        Number implicitTb = randomOrdinalNumber();
+        Object ts = randomTimestamp();
+        long implicitTb = randomLong();
         Ordinal one = new Ordinal(ts, null, implicitTb);
         Ordinal two = new Ordinal(ts, null, implicitTb);
 
@@ -75,39 +75,31 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testCompareToSameTsSameTieNullDifferentImplicitTb() {
-        Number ts = randomOrdinalNumber();
-        Number implicitTb1 = randomOrdinalNumber();
-        Number implicitTb2 = randomValueOtherThan(implicitTb1, () -> randomOrdinalNumber(implicitTb1));
+        Object ts = randomTimestamp();
+        long implicitTb1 = randomLong();
+        long implicitTb2 = randomValueOtherThan(implicitTb1, () -> randomLong());
         Ordinal one = new Ordinal(ts, null, implicitTb1);
         Ordinal two = new Ordinal(ts, null, implicitTb2);
 
-        assertEquals(compareOrdinalNumbers(one.implicitTiebreaker(), two.implicitTiebreaker()), one.compareTo(two));
+        assertEquals(Long.valueOf(one.implicitTiebreaker()).compareTo(two.implicitTiebreaker()), one.compareTo(two));
     }
 
     public void testTestBetween() {
-        Ordinal before = new Ordinal(randomOrdinalNumberBetween(1000, 2000), (Comparable) randomOrdinalNumber(), randomOrdinalNumber());
-        Ordinal between = new Ordinal(randomOrdinalNumberBetween(3000, 4000, before.timestamp()),
-            (Comparable) randomOrdinalNumber(before.tiebreaker()), randomOrdinalNumber(before.implicitTiebreaker()));
-        Ordinal after = new Ordinal(randomOrdinalNumberBetween(5000, 6000, before.timestamp()),
-            (Comparable) randomOrdinalNumber(before.tiebreaker()), randomOrdinalNumber(before.implicitTiebreaker()));
+        Ordinal before = new Ordinal(randomTimestampBetween(1000, 2000), (Comparable) randomLong(), randomLong());
+        Ordinal between = new Ordinal(randomTimestampBetween(3000, 4000), (Comparable) randomLong(), randomLong());
+        Ordinal after = new Ordinal(randomTimestampBetween(5000, 6000), (Comparable) randomLong(), randomLong());
 
         assertTrue(before.between(before, after));
         assertTrue(after.between(before, after));
         assertTrue(between.between(before, after));
 
-        Ordinal beforeBefore = new Ordinal(randomOrdinalNumberBetween(0, 999, before.timestamp()), null,
-            randomOrdinalNumber(before.implicitTiebreaker()));
-        Ordinal afterAfter = new Ordinal(randomOrdinalNumberBetween(7000, 8000, before.timestamp()), null,
-            randomOrdinalNumber(before.implicitTiebreaker()));
-
-        assertFalse(beforeBefore.between(before, after));
-        assertFalse(afterAfter.between(before, after));
+        assertFalse(new Ordinal(randomTimestampBetween(0, 999), null, randomLong()).between(before, after));
+        assertFalse(new Ordinal(randomTimestampBetween(7000, 8000), null, randomLong()).between(before, after));
     }
 
     public void testTestBefore() {
-        Ordinal before = new Ordinal(randomOrdinalNumberBetween(1000, 2000), (Comparable) randomOrdinalNumber(), randomOrdinalNumber());
-        Ordinal after = new Ordinal(randomOrdinalNumberBetween(5000, 6000, before.timestamp()),
-            (Comparable) randomOrdinalNumber(before.tiebreaker()), randomOrdinalNumber(before.implicitTiebreaker()));
+        Ordinal before = new Ordinal(randomTimestampBetween(1000, 2000), (Comparable) randomLong(), randomLong());
+        Ordinal after = new Ordinal(randomTimestampBetween(5000, 6000), (Comparable) randomLong(), randomLong());
 
         assertTrue(before.before(after));
         assertFalse(before.before(before));
@@ -115,9 +107,8 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testBeforeOrAt() {
-        Ordinal before = new Ordinal(randomOrdinalNumberBetween(1000, 2000), (Comparable) randomOrdinalNumber(), randomOrdinalNumber());
-        Ordinal after = new Ordinal(randomOrdinalNumberBetween(5000, 6000, before.timestamp()),
-            (Comparable) randomOrdinalNumber(before.tiebreaker()), randomOrdinalNumber(before.implicitTiebreaker()));
+        Ordinal before = new Ordinal(randomTimestampBetween(1000, 2000), (Comparable) randomLong(), randomLong());
+        Ordinal after = new Ordinal(randomTimestampBetween(5000, 6000), (Comparable) randomLong(), randomLong());
 
         assertTrue(before.beforeOrAt(after));
         assertTrue(before.beforeOrAt(before));
@@ -125,9 +116,8 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testTestAfter() {
-        Ordinal before = new Ordinal(randomOrdinalNumberBetween(1000, 2000), (Comparable) randomOrdinalNumber(), randomOrdinalNumber());
-        Ordinal after = new Ordinal(randomOrdinalNumberBetween(5000, 6000, before.timestamp()),
-            (Comparable) randomOrdinalNumber(before.tiebreaker()), randomOrdinalNumber(before.implicitTiebreaker()));
+        Ordinal before = new Ordinal(randomTimestampBetween(1000, 2000), (Comparable) randomLong(), randomLong());
+        Ordinal after = new Ordinal(randomTimestampBetween(5000, 6000), (Comparable) randomLong(), randomLong());
 
         assertTrue(after.after(before));
         assertFalse(after.after(after));
@@ -135,38 +125,34 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testAfterOrAt() {
-        Ordinal before = new Ordinal(randomOrdinalNumberBetween(1000, 2000), (Comparable) randomOrdinalNumber(), randomOrdinalNumber());
-        Ordinal after = new Ordinal(randomOrdinalNumberBetween(5000, 6000, before.timestamp()),
-            (Comparable) randomOrdinalNumber(before.tiebreaker()), randomOrdinalNumber(before.implicitTiebreaker()));
+        Ordinal before = new Ordinal(randomTimestampBetween(1000, 2000), (Comparable) randomLong(), randomLong());
+        Ordinal after = new Ordinal(randomTimestampBetween(5000, 6000), (Comparable) randomLong(), randomLong());
 
         assertTrue(after.afterOrAt(before));
         assertTrue(after.afterOrAt(after));
         assertFalse(before.afterOrAt(after));
     }
 
-    static Number randomOrdinalNumber() {
-        return randomOrdinalNumber(null);
+    static Object randomTimestamp() {
+        if (randomBoolean()) {
+            return randomLongBetween(-3155701416721920000L, 3155688986440319900L);
+        } else {
+            return randomBoolean() ? Instant.ofEpochMilli(randomLongBetween(-3155701416721920000L, 3155688986440319900L)) :
+                Instant.ofEpochSecond(randomLongBetween(-31557014167219200L, 31556889864403199L), randomLongBetween(1, 999_999_999L));
+        }
     }
 
-    private static Number randomOrdinalNumberBetween(long min, long max) {
-        return randomOrdinalNumberBetween(min, max, null);
+    static Object randomTimestampBetween(long from, long to) {
+        return randomBoolean() ? randomLongBetween(from, to) : Instant.ofEpochMilli(randomLongBetween(from, to));
     }
 
-    private static Number randomOrdinalNumber(Object asType) {
-        return generateRandomLong(asType) ? randomLong() : new BigDecimal(randomBigInteger(), randomNonNegativeByte());
-    }
-
-    private static Number randomOrdinalNumberBetween(long min, long max, Object asType) {
-        long l = randomLongBetween(min, max);
-        return generateRandomLong(asType) ? l : BigDecimal.valueOf(l);
-    }
-
-    private static boolean generateRandomLong(Object asType) {
-        return (asType == null && randomBoolean()) || (asType != null && asType.getClass() == Long.class);
-    }
-
-    private static int compareOrdinalNumbers(Number n1, Number n2) {
-        assert n1.getClass() == n2.getClass();
-        return n1 instanceof Long ? Long.compare((long) n1, (long) n2) : ((BigDecimal) n1).compareTo((BigDecimal) n2);
+    static int timestampCompare(Object ts1, Object ts2) {
+        if (ts1 instanceof Long && ts2 instanceof Long) {
+            return Long.compare((Long) ts1, (Long) ts2);
+        } else {
+            Instant i1 = ts1 instanceof Long ? Instant.ofEpochMilli((Long) ts1) : (Instant) ts1;
+            Instant i2 = ts2 instanceof Long ? Instant.ofEpochMilli((Long) ts2) : (Instant) ts2;
+            return i1.compareTo(i2);
+        }
     }
 }

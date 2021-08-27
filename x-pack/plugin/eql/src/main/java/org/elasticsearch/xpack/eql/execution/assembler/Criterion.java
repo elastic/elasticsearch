@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
+import java.time.Instant;
 import java.util.List;
 
 public class Criterion<Q extends QueryRequest> {
@@ -77,8 +78,8 @@ public class Criterion<Q extends QueryRequest> {
     @SuppressWarnings({ "unchecked" })
     public Ordinal ordinal(SearchHit hit) {
         Object ts = timestamp.extract(hit);
-        if (ts instanceof Number == false) {
-            throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
+        if (ts instanceof Number == false && ts instanceof Instant == false) {
+            throw new EqlIllegalArgumentException("Expected timestamp as long or instant but got {}", ts);
         }
 
         Comparable<Object> tbreaker = null;
@@ -92,9 +93,11 @@ public class Criterion<Q extends QueryRequest> {
 
         Object implicitTbreaker = implicitTiebreaker.extract(hit);
         if (implicitTbreaker instanceof Number == false) {
-            throw new EqlIllegalArgumentException("Expected _shard_doc/implicit tiebreaker as long but got [{}]", implicitTbreaker);
+            throw new EqlIllegalArgumentException("Expected _shard_doc/implicit tiebreaker as long but got [{}]",
+                implicitTbreaker);
         }
-        return new Ordinal((Number) ts, tbreaker, (Number) implicitTbreaker);
+        long implicitTiebreaker = ((Number) implicitTbreaker).longValue();
+        return new Ordinal(ts, tbreaker, implicitTiebreaker);
     }
 
     @Override

@@ -10,32 +10,37 @@ package org.elasticsearch.xpack.eql.execution.search;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 
-import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Objects;
 
 public class Ordinal implements Comparable<Ordinal>, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Ordinal.class);
 
-    private final Number timestamp;
+    private final Object timestamp;
     private final Comparable<Object> tiebreaker;
-    private final Number implicitTiebreaker; // _shard_doc tiebreaker automatically added by ES PIT
+    private final long implicitTiebreaker; // _shard_doc tiebreaker automatically added by ES PIT
 
-    public Ordinal(Number timestamp, Comparable<Object> tiebreaker, Number implicitTiebreaker) {
+    public Ordinal(Object timestamp, Comparable<Object> tiebreaker, long implicitTiebreaker) {
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
         this.implicitTiebreaker = implicitTiebreaker;
     }
 
-    public Number timestamp() {
+    public Object timestamp() {
         return timestamp;
+    }
+
+    public String timestampAsString() {
+        // Instant#toString() produces an ISO8960 format, not conforming to epoch_millis
+        return timestamp instanceof Instant ? instantToMillisString((Instant) timestamp) : timestamp.toString();
     }
 
     public Comparable<Object> tiebreaker() {
         return tiebreaker;
     }
 
-    public Number implicitTiebreaker() {
+    public long implicitTiebreaker() {
         return implicitTiebreaker;
     }
 
@@ -72,7 +77,7 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
 
     @Override
     public int compareTo(Ordinal o) {
-        int timestampCompare = numbersCompare(timestamp, o.timestamp);
+        int timestampCompare = timestampCompare(timestamp, o.timestamp);
         if (timestampCompare < 0) {
             return -1;
         }
@@ -80,7 +85,7 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
             if (tiebreaker != null) {
                 if (o.tiebreaker != null) {
                     int tiebreakerCompare = tiebreaker.compareTo(o.tiebreaker);
-                    return tiebreakerCompare == 0 ? numbersCompare(implicitTiebreaker, o.implicitTiebreaker) : tiebreakerCompare;
+                    return tiebreakerCompare == 0 ? Long.compare(implicitTiebreaker, o.implicitTiebreaker) : tiebreakerCompare;
                 } else {
                     return -1;
                 }
@@ -91,7 +96,7 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
                 // this ordinal is greater (after) then the other tiebreaker
                 // so fall through to 1
                 if (o.tiebreaker == null) {
-                    return numbersCompare(implicitTiebreaker, o.implicitTiebreaker);
+                    return Long.compare(implicitTiebreaker, o.implicitTiebreaker);
                 }
             }
         }
@@ -120,19 +125,22 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
     }
 
     public Object[] toArray() {
-        // SearchAfterBuilder#setSortValues() won't handle BigDecimal
-        String timeStamp = timestamp.toString();
-        String implicitTbreaker = implicitTiebreaker.toString();
         return tiebreaker != null ?
-            new Object[] { timeStamp, tiebreaker, implicitTbreaker }
-            : new Object[] { timeStamp, implicitTbreaker };
+            new Object[] { timestampAsString(), tiebreaker, implicitTiebreaker }
+            : new Object[] { timestampAsString(), implicitTiebreaker };
     }
 
-    private static int numbersCompare(Number n1, Number n2) {
-        return n1 instanceof BigDecimal
-            ? (n2 instanceof BigDecimal ? ((BigDecimal) n1).compareTo((BigDecimal) n2) :
-                ((BigDecimal) n1).compareTo(BigDecimal.valueOf(n2.longValue())))
-            : (n2 instanceof BigDecimal ? BigDecimal.valueOf(n1.longValue()).compareTo((BigDecimal) n2) :
-                Long.compare(n1.longValue(), n2.longValue()));
+    private static String instantToMillisString(Instant instant) {
+        long nanos = instant.getNano();
+        long millisOfSecond = nanos / 1_000_000L;
+        return (instant.getEpochSecond() * 1000L + millisOfSecond) + "." + (nanos - millisOfSecond * 1_000_000);
+    }
+
+    private static int timestampCompare(Object ts1, Object ts2) {
+        return ts1 instanceof Instant
+            ? (ts2 instanceof Instant ? ((Instant) ts1).compareTo((Instant) ts2) :
+                ((Instant) ts1).compareTo(Instant.ofEpochMilli(((Number) ts2).longValue())))
+            : (ts2 instanceof Instant ? Instant.ofEpochMilli(((Number) ts1).longValue()).compareTo((Instant) ts2) :
+                Long.compare(((Number) ts1).longValue(), ((Number) ts2).longValue()));
     }
 }

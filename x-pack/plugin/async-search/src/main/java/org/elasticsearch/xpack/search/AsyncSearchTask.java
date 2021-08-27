@@ -379,7 +379,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             checkCancellation();
             searchResponse.get().addQueryFailure(shardIndex,
                 // the nodeId is null if all replicas of this shard failed
-                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
+                new ShardSearchFailure(exc, shardTarget != null && shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
         @Override

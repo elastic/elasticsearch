@@ -245,8 +245,14 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     }
 
     /**
-     * For some versions, it is not necessary to consult the git tags in order to generate changelog files. This methods checks
-     * the supplied version and answers {@code false} if the fetching of git tags can be skipped, or {@code true} otherwise.
+     * This methods checks the supplied version and answers {@code false} if the fetching of git
+     * tags can be skipped, or {@code true} otherwise.
+     * <p>
+     * The first version in a minor series will never have any preceding versions, so there's no
+     * need to fetch tags and examine the repository state in the past. This applies when the
+     * version is a release version, a snapshot, or the first alpha version. Subsequent alphas,
+     * betas and release candidates need to check the previous prelease tags.
+     *
      * @param versionString the version string to check
      * @return whether fetching git tags is required
      */

@@ -102,16 +102,16 @@ public class VersionTests extends GradleUnitTestCase {
 
     public void testQualifiers() {
         Version v = Version.fromString("1.2.3");
-        assertThat(v.getPrerelease(), nullValue());
+        assertThat(v.getRevision(), nullValue());
 
         v = Version.fromString("1.2.3-rc1");
-        assertThat(v.getPrerelease(), equalTo("rc1"));
+        assertThat(v.getRevision(), equalTo("rc1"));
 
         v = Version.fromString("1.2.3-SNAPSHOT");
-        assertThat(v.getPrerelease(), equalTo("SNAPSHOT"));
+        assertThat(v.getRevision(), equalTo("SNAPSHOT"));
 
         v = Version.fromString("1.2.3-SNAPSHOT-EXTRA", Version.Mode.RELAXED);
-        assertThat(v.getPrerelease(), equalTo("SNAPSHOT-EXTRA"));
+        assertThat(v.getRevision(), equalTo("SNAPSHOT-EXTRA"));
     }
 
     private void assertOrder(Version smaller, Version bigger) {

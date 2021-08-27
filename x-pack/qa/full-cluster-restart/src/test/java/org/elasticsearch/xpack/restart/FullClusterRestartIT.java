@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -59,7 +60,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
@@ -231,7 +231,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63088")
     @SuppressWarnings("unchecked")
     public void testWatcherWithApiKey() throws Exception {
         assumeTrue("API key is available since 6.7.0", getOldClusterVersion().onOrAfter(Version.V_6_7_0));
@@ -252,7 +251,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             assertBusy(() -> {
                 final Request getRequest = new Request("GET", getWatcherEndpoint() + "/watch/watch_with_api_key");
-                getRequest.addParameter("filter_path", "status");
                 final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getRequest));
                 final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
                 assertEquals("executed", status.get("execution_state"));
@@ -273,7 +271,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             try {
                 final Request getWatchStatusRequest = new Request("GET", "_watcher/watch/watch_with_api_key");
-                getWatchStatusRequest.addParameter("filter_path", "status");
                 if (getOldClusterVersion().before(Version.V_7_0_0)) {
                     getWatchStatusRequest.setOptions(
                         expectWarnings(
@@ -285,11 +282,19 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
                 final int version = (int) status.get("version");
 
+                final AtomicBoolean versionIncreased = new AtomicBoolean();
+                final AtomicBoolean executed = new AtomicBoolean();
                 assertBusy(() -> {
                     final Map<String, Object> newGetWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
                     final Map<String, Object> newStatus = (Map<String, Object>) newGetWatchStatusResponse.get("status");
-                    assertThat((int) newStatus.get("version"), greaterThan(version + 2));
-                    assertEquals("executed", newStatus.get("execution_state"));
+                    if (false == versionIncreased.get() && version < (int) newStatus.get("version")) {
+                        versionIncreased.set(true);
+                    }
+                    if (false == executed.get() && "executed".equals(newStatus.get("execution_state"))) {
+                        executed.set(true);
+                    }
+                    assertThat("version increased: [" + versionIncreased.get() + "], executed: [" + executed.get() + "]",
+                        versionIncreased.get() && executed.get(), is(true));
                 });
             } finally {
                 stopWatcher();

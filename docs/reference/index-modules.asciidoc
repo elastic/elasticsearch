@@ -271,11 +271,14 @@ specific index module:
     no ingest pipeline should be run.
 
  `index.final_pipeline`::
-    The final <<ingest,ingest node>> pipeline for this index. Index requests
-    will fail if the final pipeline is set and the pipeline does not exist.
-    The final pipeline always runs after the request pipeline (if specified) and
-    the default pipeline (if it exists). The special pipeline name `_none`
-    indicates no ingest pipeline will run.
+The final <<ingest,ingest node>> pipeline for this index. Indexing requests
+will fail if the final pipeline is set and the pipeline does not exist.
+The final pipeline always runs after the request pipeline (if specified) and
+the default pipeline (if it exists). The special pipeline name `_none`
+indicates no ingest pipeline will run.
++
+NOTE: You can't use a final pipelines to change the `_index` field. If the
+pipeline attempts to change the `_index` field, the indexing request will fail.
 
 [discrete]
 === Settings in other index modules

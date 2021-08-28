@@ -305,12 +305,17 @@ public class EnrichPolicyRunner implements Runnable {
                             );
                         } else {
                             createEnrichMappingBuilder(
-                                (builder) -> builder.field("type", matchType).field("doc_values", false).field("format", formatEntries.get(0)),
+                                (builder) -> builder.field("type", matchType)
+                                    .field("doc_values", false)
+                                    .field("format", formatEntries.get(0)),
                                 resultListener
                             );
                         }
                     } else {
-                        createEnrichMappingBuilder((builder) -> builder.field("type", matchType).field("doc_values", false), resultListener);
+                        createEnrichMappingBuilder(
+                            (builder) -> builder.field("type", matchType).field("doc_values", false),
+                            resultListener
+                        );
                     }
                 }
             }

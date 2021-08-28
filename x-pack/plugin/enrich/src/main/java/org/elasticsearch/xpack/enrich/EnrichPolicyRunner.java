@@ -256,14 +256,8 @@ public class EnrichPolicyRunner implements Runnable {
         ).fields(policy.getMatchField());
 
         client.execute(GetFieldMappingsAction.INSTANCE, fieldMappingsRequest, listener.delegateFailure((l, response) -> {
-            List<String> types = response.mappings()
-                .values()
-                .stream()
-                .map(Map::values)
-                .flatMap(Collection::stream)
-                .map(toFieldMappingType(policy.getMatchField()))
-                .distinct()
-                .collect(Collectors.toList());
+            String matchField = policy.getMatchField();
+            List<String> types = collapseFieldMappingsValue(response, toFieldMappingType(matchField));
             if (types.isEmpty()) {
                 resultListener.onFailure(
                     new ElasticsearchException(
@@ -292,16 +286,61 @@ public class EnrichPolicyRunner implements Runnable {
                         )
                     );
                 } else {
-                    createEnrichMappingBuilder((builder) -> builder.field("type", matchType).field("doc_values", false), resultListener);
+                    // date_range types mappings allow for the format to be specified, should be preserved in the created index
+                    if (matchType.equals("date_range")) {
+                        List<String> formatEntries = collapseFieldMappingsValue(response, toFielMappingFormat(matchField));
+                        if (types.isEmpty()) {
+                            createEnrichMappingBuilder(
+                                (builder) -> builder.field("type", matchType).field("doc_values", false),
+                                resultListener
+                            );
+                        } else if (types.size() > 1) {
+                            resultListener.onFailure(
+                                new ElasticsearchException(
+                                    "Multiple distinct date format specified for match field '{}' - indices({})  format entries({})",
+                                    policy.getMatchField(),
+                                    Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                                    Strings.collectionToCommaDelimitedString(formatEntries)
+                                )
+                            );
+                        } else {
+                            createEnrichMappingBuilder(
+                                (builder) -> builder.field("type", matchType).field("doc_values", false).field("format", formatEntries.get(0)),
+                                resultListener
+                            );
+                        }
+                    } else {
+                        createEnrichMappingBuilder((builder) -> builder.field("type", matchType).field("doc_values", false), resultListener);
+                    }
                 }
             }
         }));
     }
 
+    private List<String> collapseFieldMappingsValue(
+        GetFieldMappingsResponse response,
+        Function<GetFieldMappingsResponse.FieldMappingMetadata, String> getPropertyFunction
+    ) {
+        return response.mappings()
+            .values()
+            .stream()
+            .map(Map::values)
+            .flatMap(Collection::stream)
+            .map(getPropertyFunction)
+            .distinct()
+            .collect(Collectors.toList());
+    }
+
     @SuppressWarnings("unchecked")
-    private Function<GetFieldMappingsResponse.FieldMappingMetadata, String> toFieldMappingType(String field) {
+    private Function<GetFieldMappingsResponse.FieldMappingMetadata, String> toFieldMappingType(String matchField) {
         return data -> ((Map<String, String>) data.sourceAsMap()
-            .getOrDefault(field.substring(field.lastIndexOf('.') + 1), Map.of("type", "unknown"))).get("type");
+            .getOrDefault(matchField.substring(matchField.lastIndexOf('.') + 1), Map.of("type", "unknown"))).get("type");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Function<GetFieldMappingsResponse.FieldMappingMetadata, String> toFielMappingFormat(String matchField) {
+        return data -> ((Map<String, String>) data.sourceAsMap()
+            .getOrDefault(matchField.substring(matchField.lastIndexOf('.') + 1), Map.of("format", "unknown"))).get("format");
     }
 
     private String resolveMatchType(String type) {

@@ -1495,6 +1495,172 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         ensureEnrichIndexIsReadOnly(createdEnrichIndex);
     }
 
+    public void testRunnerTwoObjectLevelsSourceMappingDateRangeWithFormat() throws Exception {
+        final String sourceIndex = "source-index";
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
+            .startObject("data")
+            .startObject("properties")
+            .startObject("fields")
+            .startObject("properties")
+            .startObject("period")
+            .field("type", "date_range")
+            .field("format", "yyyy'/'MM'/'dd' at 'HH':'mm||strict_date_time")
+            .endObject()
+            .startObject("status")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("field3")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        CreateIndexResponse createResponse = client().admin()
+            .indices()
+            .create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder))
+            .actionGet();
+        assertTrue(createResponse.isAcknowledged());
+
+        IndexResponse indexRequest = client().index(
+            new IndexRequest().index(sourceIndex)
+                .id("id")
+                .source(
+                    "{"
+                        + "\"data\":{"
+                        + "\"fields\":{"
+                        + "\"period\": {"
+                        + "    \"gte\" : \"2021/08/20 at 12:00\","
+                        + "    \"lte\" : \"2021/08/28 at 23:00\""
+                        + "},"
+                        + "\"status\":\"enrolled\","
+                        + "\"field3\":\"ignored\""
+                        + "}"
+                        + "}"
+                        + "}",
+                    XContentType.JSON
+                )
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+        assertEquals(RestStatus.CREATED, indexRequest.status());
+
+        SearchResponse sourceSearchResponse = client().search(
+            new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
+        ).actionGet();
+        assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
+        assertNotNull(sourceDocMap);
+        Map<?, ?> dataField = ((Map<?, ?>) sourceDocMap.get("data"));
+        assertNotNull(dataField);
+        Map<?, ?> fieldsField = ((Map<?, ?>) dataField.get("fields"));
+        assertNotNull(fieldsField);
+        Map<?, ?> periodField = ((Map<?, ?>) fieldsField.get("period"));
+        assertNotNull(periodField);
+        assertThat(periodField.get("gte"), is(equalTo("2021/08/20 at 12:00")));
+        assertThat(periodField.get("lte"), is(equalTo("2021/08/28 at 23:00")));
+        assertThat(fieldsField.get("status"), is(equalTo("enrolled")));
+        assertThat(fieldsField.get("field3"), is(equalTo("ignored")));
+
+        String policyName = "test1";
+        List<String> enrichFields = List.of("data.fields.status", "missingField");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "data.fields.period", enrichFields);
+
+        final long createTime = randomNonNegativeLong();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
+
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        if (exception.get() != null) {
+            throw exception.get();
+        }
+
+        // Validate Index definition
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        GetIndexResponse enrichIndex = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
+        assertThat(enrichIndex.getIndices().length, equalTo(1));
+        assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
+        Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
+        assertNotNull(settings);
+        assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
+
+        // Validate Mapping
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
+        assertThat(mapping.get("dynamic"), is("false"));
+        Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
+        assertNotNull(properties);
+        assertThat(properties.size(), is(equalTo(1)));
+        Map<?, ?> data = (Map<?, ?>) properties.get("data");
+        assertNotNull(data);
+        assertThat(data.size(), is(equalTo(1)));
+        Map<?, ?> dataProperties = (Map<?, ?>) data.get("properties");
+        assertNotNull(dataProperties);
+        assertThat(dataProperties.size(), is(equalTo(1)));
+        Map<?, ?> fields = (Map<?, ?>) dataProperties.get("fields");
+        assertNotNull(fields);
+        assertThat(fields.size(), is(equalTo(1)));
+        Map<?, ?> fieldsProperties = (Map<?, ?>) fields.get("properties");
+        assertNotNull(fieldsProperties);
+        assertThat(fieldsProperties.size(), is(equalTo(1)));
+        Map<?, ?> field1 = (Map<?, ?>) fieldsProperties.get("period");
+        assertNotNull(field1);
+        assertThat(field1.get("type"), is(equalTo("date_range")));
+        assertThat(field1.get("doc_values"), is(false));
+
+        SearchResponse enrichSearchResponse = client().search(
+            new SearchRequest(".enrich-test1").source(
+                SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.fields.period", "2021-08-19T14:00:00Z"))
+            )
+        ).actionGet();
+
+        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+
+        enrichSearchResponse = client().search(
+            new SearchRequest(".enrich-test1").source(
+                SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.fields.period", "2021-08-20T14:00:00Z"))
+            )
+        ).actionGet();
+
+        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+        assertNotNull(enrichDocument);
+        assertThat(enrichDocument.size(), is(equalTo(1)));
+        Map<?, ?> resultDataField = ((Map<?, ?>) enrichDocument.get("data"));
+        assertNotNull(resultDataField);
+        Map<?, ?> resultFieldsField = ((Map<?, ?>) resultDataField.get("fields"));
+        assertNotNull(resultFieldsField);
+        assertThat(resultFieldsField.size(), is(equalTo(2)));
+        Map<?, ?> resultsPeriodField = ((Map<?, ?>) resultFieldsField.get("period"));
+        assertNotNull(periodField);
+        assertThat(resultsPeriodField.get("gte"), is(equalTo("2021/08/20 at 12:00")));
+        assertThat(resultsPeriodField.get("lte"), is(equalTo("2021/08/28 at 23:00")));
+        assertThat(resultFieldsField.get("status"), is(equalTo("enrolled")));
+        assertNull(resultFieldsField.get("field3"));
+
+        enrichSearchResponse = client().search(
+            new SearchRequest(".enrich-test1").source(
+                SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.fields.period", "2021/08/20 at 14:00"))
+            )
+        ).actionGet();
+        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+        // Validate segments
+        validateSegments(createdEnrichIndex, 1);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
+    }
+
     public void testRunnerDottedKeyNameSourceMapping() throws Exception {
         final String sourceIndex = "source-index";
         XContentBuilder mappingBuilder = JsonXContent.contentBuilder();

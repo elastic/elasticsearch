@@ -17,6 +17,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -26,9 +27,11 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import javax.security.auth.x500.X500Principal;
@@ -359,6 +362,18 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                             ".p12"));
                     bw.newLine();
 
+                    if (false == DiscoveryModule.isSingleNodeDiscovery(env.settings()) &&
+                            false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.exists(env.settings())) {
+                        bw.newLine();
+                        bw.write("# The initial node with security auto-configured must form a cluster by its own,");
+                        bw.newLine();
+                        bw.write("# and all the subsequent nodes should be added via the node enrollment flow");
+                        bw.newLine();
+                        bw.write(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey() + ": [" +
+                                Node.NODE_NAME_SETTING.get(env.settings()) + "]");
+                        bw.newLine();
+                    }
+
                     // if any address settings have been set, assume the admin has thought it through wrt to addresses,
                     // and don't try to be smart and mess with that
                     if (false == (env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey()) ||
@@ -443,27 +458,32 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                     "Skipping security auto configuration because enrollment is explicitly disabled.");
             throw new UserException(ExitCodes.NOOP, null);
         }
-        // Silently skipping security auto configuration because the node is configured for cluster formation.
-        // Auto-configuration assumes that this is done in order to configure a multi-node cluster,
-        // and Security auto-configuration doesn't work when bootstrapping a multi node clusters
-        if (environment.settings().hasValue(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey())) {
+        // Silently skip security auto configuration because the node is configured for multi-node cluster formation (bootstrap or join).
+        // Security auto-configuration for the initial node enables transport TLS with newly generated certificates,
+        // which the other cluster nodes don't yet know about.
+        if (false == DiscoveryModule.isSingleNodeDiscovery(environment.settings()) &&
+                (false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(environment.settings()).isEmpty() ||
+                        SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.exists(environment.settings()) ||
+                        DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.exists(environment.settings())) &&
+                false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(environment.settings())
+                        .equals(List.of(Node.NODE_NAME_SETTING.get(environment.settings())))) {
+            // the node is probably configured to form (join or bootstrap) a multi-node cluster(there's no way to know for sure)
+            // in this case security auto-configuration yields
             terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because this node is explicitly configured to form a new cluster.");
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "The node cannot be auto configured to participate in forming a new multi-node secure cluster.");
+                    "Skipping security auto configuration because this node is configured to bootstrap or to join a " +
+                            "multi-node cluster, which is not supported.");
             throw new UserException(ExitCodes.NOOP, null);
         }
         // Silently skipping security auto configuration because node cannot become master.
-        final List<DiscoveryNodeRole> nodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(environment.settings());
-        boolean canBecomeMaster = nodeRoles.contains(DiscoveryNodeRole.MASTER_ROLE) &&
-                false == nodeRoles.contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
+        boolean canBecomeMaster = DiscoveryNode.isMasterNode(environment.settings()) &&
+                false == DiscoveryNode.hasRole(environment.settings(), DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
         if (false == canBecomeMaster) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because the node is configured such that it cannot become master.");
             throw new UserException(ExitCodes.NOOP, null);
         }
         // Silently skipping security auto configuration, because the node cannot contain the Security index data
-        boolean canHoldSecurityIndex = nodeRoles.stream().anyMatch(DiscoveryNodeRole::canContainData);
+        boolean canHoldSecurityIndex = DiscoveryNode.canContainData(environment.settings());
         if (false == canHoldSecurityIndex) {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "Skipping security auto configuration because the node is configured such that it cannot contain data.");

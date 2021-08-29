@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.tool.HttpResponse.HttpResponseBuilder;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLHandshakeException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -205,7 +206,11 @@ public class CommandLineHttpClient {
         try {
             response = execute("GET", clusterHealthUrl, username, password, () -> null, CommandLineHttpClient::responseBuilder);
         } catch (Exception e) {
-            if (retries > 0) {
+            // this contacted the wrong node (when multiple are started on the same host)
+            // TODO try to remove the guess work from this helper's part (rely on the node's ports file?)
+            if (e instanceof SSLHandshakeException) {
+                throw e;
+            } else if (retries > 0) {
                 Thread.sleep(2000);
                 retries -= 1;
                 checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);

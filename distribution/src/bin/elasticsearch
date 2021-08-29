@@ -58,12 +58,28 @@ if [[ $AUTO_CONFIG = true ]]; then
   # if the error is uncommon or unexpected, but it should otherwise let the node to start as usual.
   # This is passed in all the command line options in order to read the node settings ones (-E), while the others are ignored
   # (a small caveat is that this also handles the -v option in order to provide more information on how auto-config went)
-  if ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigInitialNode \
-    ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
-    ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-    "$(dirname "$0")/elasticsearch-cli" \
-    "$@" \
-    <<<"$KEYSTORE_PASSWORD"; then
+  function try_auto_config() {
+    # run this in a subshell without sourcing the elasticsearch-env
+    (
+    source "$ES_HOME/bin/x-pack-env"
+    source "$ES_HOME/bin/x-pack-security-env"
+    ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/tools/security-cli/*"
+    exec \
+      "$JAVA" \
+      "$XSHARE" \
+      -Xms4m -Xmx64m -XX:+UseSerialGC \
+      -Des.path.home="$ES_HOME" \
+      -Des.path.conf="$ES_PATH_CONF" \
+      -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
+      -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
+      -cp "$ES_CLASSPATH" \
+      "org.elasticsearch.xpack.security.cli.AutoConfigInitialNode" \
+      "$@" \
+      <<<"$KEYSTORE_PASSWORD"
+    )
+  }
+
+  if try_auto_config; then
       AUTO_CONFIG_DONE=true
   else
     ret=$?
@@ -88,18 +104,31 @@ ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasti
 if [[ $DAEMONIZE = false ]]; then
   if [[ ("$AUTO_CONFIG_DONE" = true) && ("$QUIET" = false) ]]; then
 # First check if the banner can be displayed given the OS and terminal type
-    if "$JAVA" "$XSHARE" -cp "$ES_HOME/lib/jansi-2.3.4.jar:$ES_HOME/lib/elasticsearch-launchers-@project.version@.jar" \
+    if "$JAVA" "$XSHARE" -Xms2m -Xmx32m -XX:+UseSerialGC \
+      -cp "$ES_HOME/lib/jansi-2.3.4.jar:$ES_HOME/lib/elasticsearch-launchers-@project.version@.jar" \
       org.elasticsearch.tools.launchers.TerminalOutputFormatter; then
 # redirect the ES node's output to the formatter code in order to output the bottom persistent banner
-        exec > >(exec "$JAVA" "$XSHARE" -cp "$ES_HOME/lib/jansi-2.3.4.jar:$ES_HOME/lib/elasticsearch-launchers-@project.version@.jar" \
-        org.elasticsearch.tools.launchers.TerminalOutputFormatter "BANNER_EOF" \
-          <(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.BootstrapPasswordAndEnrollmentTokenForInitialNode \
-          ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
-          ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-          "$(dirname "$0")/elasticsearch-cli" \
-          "$@" \
-          "-eof-marker" "BANNER_EOF" \
-          <<<"$KEYSTORE_PASSWORD"))
+        exec > >(exec "$JAVA" "$XSHARE" -Xms4m -Xmx64m \
+          -cp "$ES_HOME/lib/jansi-2.3.4.jar:$ES_HOME/lib/elasticsearch-launchers-@project.version@.jar" \
+          org.elasticsearch.tools.launchers.TerminalOutputFormatter "BANNER_EOF" \
+            <(
+              source "$ES_HOME/bin/x-pack-env"
+              source "$ES_HOME/bin/x-pack-security-env"
+              ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/tools/security-cli/*"
+              exec \
+                "$JAVA" \
+                "$XSHARE" \
+                -Xms4m -Xmx64m -XX:+UseSerialGC \
+                -Des.path.home="$ES_HOME" \
+                -Des.path.conf="$ES_PATH_CONF" \
+                -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
+                -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
+                -cp "$ES_CLASSPATH" \
+                "org.elasticsearch.xpack.security.enrollment.tool.BootstrapPasswordAndEnrollmentTokenForInitialNode" \
+                "$@" \
+                "-eof-marker" "BANNER_EOF" \
+                <<<"$KEYSTORE_PASSWORD"
+              ))
     fi
   fi
   exec \

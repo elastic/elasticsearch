@@ -141,7 +141,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
         Template other = (Template) obj;
         return Objects.equals(settings, other.settings) &&
-            Objects.equals(mappings, other.mappings) &&
+            mappingsEquals(other.mappings) &&
             Objects.equals(aliases, other.aliases);
     }
 
@@ -184,5 +184,23 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         } else {
             return mapping;
         }
+    }
+
+    private boolean mappingsEquals(CompressedXContent other) {
+        if (this.mappings == other) {
+            return true;
+        }
+
+        if (this.mappings == null || other == null) {
+            return false;
+        }
+
+        if (this.mappings.equals(other)) {
+            return true;
+        }
+
+        Map<String, Object> thisUncompressedMapping = reduceMapping(XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON).v2());
+        Map<String, Object> otherUncompressedMapping = reduceMapping(XContentHelper.convertToMap(other.uncompressed(), true, XContentType.JSON).v2());
+        return thisUncompressedMapping.equals(otherUncompressedMapping);
     }
 }

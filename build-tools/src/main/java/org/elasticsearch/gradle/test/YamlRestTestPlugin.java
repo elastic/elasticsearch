@@ -83,7 +83,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         project.getPlugins().withType(PluginBuildPlugin.class, p -> {
             TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
             cluster.plugin(bundle.flatMap(Zip::getArchiveFile));
-            yamlRestTestTask.configure(t -> { t.dependsOn(bundle); });
+            yamlRestTestTask.configure(t -> t.dependsOn(bundle));
         });
     }
 

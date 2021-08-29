@@ -82,11 +82,11 @@ if [[ $AUTO_CONFIG = true ]]; then
   if try_auto_config; then
       AUTO_CONFIG_DONE=true
   else
-    ret=$?
+    retval=$?
     AUTO_CONFIG_DONE=false
     # these exit codes cover the cases where auto-conf cannot run but the node should not be prevented from starting as usual
-    if [[ $ret -ne 63 ]] && [[ $ret -ne 73 ]] && [[ $ret -ne 78 ]]; then
-      exit $ret
+    if [[ $retval -ne 63 ]] && [[ $retval -ne 73 ]] && [[ $retval -ne 78 ]]; then
+      exit $retval
     fi
   fi
 fi

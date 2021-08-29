@@ -106,9 +106,9 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
      * the response.
      */
     public RareTermsAggregationBuilder maxDocCount(long maxDocCount) {
-        if (maxDocCount <= 0) {
+        if (maxDocCount < 0) {
             throw new IllegalArgumentException(
-                "[" + MAX_DOC_COUNT_FIELD_NAME.getPreferredName() + "] must be greater than 0. Found ["
+                "[" + MAX_DOC_COUNT_FIELD_NAME.getPreferredName() + "] must be greater or equal to 0. Found ["
                     + maxDocCount + "] in [" + name + "]");
         }
         //TODO review: what size cap should we put on this?

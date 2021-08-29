@@ -116,6 +116,16 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
          */
         StringRareTerms.Bucket[][] rarestPerOrd = new StringRareTerms.Bucket[owningBucketOrds.length][];
         SetBackedScalingCuckooFilter[] filters = new SetBackedScalingCuckooFilter[owningBucketOrds.length];
+
+        /*
+        * Collecting entries with zero DocCount when maxDocCount is zero.
+         */
+        if(maxDocCount == 0) {
+            for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
+                collectZeroDocEntries(owningOrdIdx);
+            }
+        }
+
         long keepCount = 0;
         long[] mergeMap = new long[(int) bucketOrds.size()];
         Arrays.fill(mergeMap, -1);
@@ -180,6 +190,24 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new StringRareTerms(name, LongRareTermsAggregator.ORDER, metadata(), format, emptyList(), 0, newFilter());
+    }
+
+    void collectZeroDocEntries(long owningBucketOrd) throws IOException {
+        for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
+            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+
+            for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
+                if (values.advanceExact(docId)) {
+                    int valueCount = values.docValueCount();
+                    for (int i = 0; i < valueCount; ++i) {
+                        BytesRef term = values.nextValue();
+                        if (filter == null || filter.accept(term)) {
+                            bucketOrds.add(owningBucketOrd, term);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Override

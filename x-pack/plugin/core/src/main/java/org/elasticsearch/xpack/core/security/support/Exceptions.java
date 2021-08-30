@@ -34,4 +34,8 @@ public class Exceptions {
     public static ElasticsearchSecurityException authorizationError(String msg, Exception cause, Object... args) {
         return new ElasticsearchSecurityException(msg, RestStatus.FORBIDDEN, cause, args);
     }
+
+    public static ElasticsearchSecurityException internalServerError(String msg, Throwable cause, Object... args) {
+        return new ElasticsearchSecurityException(msg, RestStatus.INTERNAL_SERVER_ERROR, cause, args);
+    }
 }

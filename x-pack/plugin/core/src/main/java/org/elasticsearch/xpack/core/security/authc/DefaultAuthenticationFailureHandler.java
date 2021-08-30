@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -20,7 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
+import static org.elasticsearch.xpack.core.security.support.Exceptions.internalServerError;
 
 /**
  * The default implementation of a {@link AuthenticationFailureHandler}. This
@@ -160,6 +163,9 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
             } else {
                 containsNegotiateWithToken = false;
             }
+        } else if (t instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) t).status() == INTERNAL_SERVER_ERROR) {
+            ese = internalServerError(message, t, args);
+            containsNegotiateWithToken = false;
         } else {
             ese = authenticationError(message, t, args);
             containsNegotiateWithToken = false;

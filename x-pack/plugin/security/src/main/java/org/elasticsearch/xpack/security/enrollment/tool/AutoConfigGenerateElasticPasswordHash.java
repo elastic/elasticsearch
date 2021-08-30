@@ -19,7 +19,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
-import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH;
+import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_BOOTSTRAP_ELASTIC_PASSWORD_HASH;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
 /**
@@ -53,7 +53,7 @@ public class AutoConfigGenerateElasticPasswordHash extends KeyStoreAwareCommand 
             SecureString elasticPassword = new SecureString(generatePassword(20));
             KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> new SecureString(new char[0]))
         ) {
-            nodeKeystore.setString(AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH.getKey(), hasher.hash(elasticPassword));
+            nodeKeystore.setString(AUTOCONFIG_BOOTSTRAP_ELASTIC_PASSWORD_HASH.getKey(), hasher.hash(elasticPassword));
             nodeKeystore.save(env.configFile(), new char[0]);
             terminal.print(Terminal.Verbosity.NORMAL, elasticPassword.toString());
         } catch (Exception e) {

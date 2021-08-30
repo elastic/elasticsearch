@@ -31,7 +31,7 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
-import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH;
+import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_BOOTSTRAP_ELASTIC_PASSWORD_HASH;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -98,7 +98,7 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
         assertNotNull(keyStoreWrapper);
         keyStoreWrapper.decrypt(new char[0]);
         assertThat(keyStoreWrapper.getSettingNames(),
-            containsInAnyOrder(AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH.getKey(), "keystore.seed"));
+            containsInAnyOrder(AUTOCONFIG_BOOTSTRAP_ELASTIC_PASSWORD_HASH.getKey(), "keystore.seed"));
     }
 
     public void testExistingKeystoreWithWrongPassword() throws Exception {

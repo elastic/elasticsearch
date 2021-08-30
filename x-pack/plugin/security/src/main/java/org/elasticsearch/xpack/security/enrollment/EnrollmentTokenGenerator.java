@@ -15,6 +15,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.ssl.SslUtil;
+import org.elasticsearch.common.ssl.SslKeyConfig;
+import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
@@ -22,9 +24,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
-import org.elasticsearch.xpack.core.ssl.KeyConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.StoreKeyConfig;
 import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
 import org.elasticsearch.xpack.security.tool.HttpResponse;
 
@@ -179,14 +179,15 @@ public class EnrollmentTokenGenerator {
     }
 
     protected String getCaFingerprint() throws Exception {
-        final KeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
+        final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().getKeyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {
             throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration is " +
                 "not configured with a keystore");
         }
         final List<Tuple<PrivateKey, X509Certificate>> httpCaKeysAndCertificates =
-            ((StoreKeyConfig) keyConfig).getPrivateKeyEntries(environment).stream()
-                .filter(t -> t.v2().getBasicConstraints() != -1).collect(Collectors.toList());
+            ((StoreKeyConfig) keyConfig).getKeys().stream()
+                .filter(t -> t.v2().getBasicConstraints() != -1)
+                .collect(Collectors.toList());
         if (httpCaKeysAndCertificates.isEmpty()) {
             throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration " +
                 "Keystore doesn't contain any PrivateKey entries where the associated certificate is a CA certificate");

@@ -49,7 +49,7 @@ relative path, `my_fs_backup_location`, resolves to
 
 
 // tag::win[]
-Windows installations support both DOS and Microsoft UNC paths. Escaped any
+Windows installations support both DOS and Microsoft UNC paths. Escape any
 backslashes in the paths. For UNC paths, provide the server and share name as a
 prefix.
 

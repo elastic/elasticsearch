@@ -463,9 +463,48 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
         assertEquals(111L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
+        assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
 
         assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
+    }
+
+    public void testRewriteForUpdateAlignCheckpoints() throws IOException {
+        String pivotTransform = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } }"
+            + "},"
+            + " \"version\" : \""
+            + Version.V_7_12_0.toString()
+            + "\""
+            + "}";
+
+        TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
+        TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
+        assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
+        assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
+
+        TransformConfig explicitFalseAfter715 = new TransformConfig.Builder(transformConfig)
+            .setSettings(new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setAlignCheckpoints(false).build())
+            .setVersion(Version.V_7_15_0)
+            .build();
+        transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitFalseAfter715);
+
+        assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
+        // The config is not rewritten.
+        assertEquals(Version.V_7_15_0, transformConfigRewritten.getVersion());
     }
 
     public void testRewriteForUpdateMaxPageSizeSearchConflicting() throws IOException {
@@ -531,14 +570,25 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
 
-        TransformConfig explicitTrueAfter711 = new TransformConfig.Builder(transformConfig).setSettings(
-            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build()
-        ).setVersion(Version.V_7_11_0).build();
-
+        TransformConfig explicitTrueAfter711 = new TransformConfig.Builder(transformConfig)
+            .setSettings(new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build())
+            .setVersion(Version.V_7_11_0)
+            .build();
         transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitTrueAfter711);
 
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
-        assertEquals(Version.V_7_11_0, transformConfigRewritten.getVersion());
+        // The config is still being rewritten due to "settings.align_checkpoints".
+        assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
+
+        TransformConfig explicitTrueAfter715 = new TransformConfig.Builder(transformConfig)
+            .setSettings(new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build())
+            .setVersion(Version.V_7_15_0)
+            .build();
+        transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitTrueAfter715);
+
+        assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
+        // The config is not rewritten.
+        assertEquals(Version.V_7_15_0, transformConfigRewritten.getVersion());
     }
 
     public void testGetAdditionalSourceDestValidations_WithNoRuntimeMappings() throws IOException {

@@ -250,7 +250,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         } else {
             minCompatibleShardNode = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             this.enableFieldsEmulation = in.readBoolean();
         } else {
             this.enableFieldsEmulation = false;
@@ -295,7 +295,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 Version.writeVersion(minCompatibleShardNode, out);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeBoolean(enableFieldsEmulation);
         }
     }

@@ -141,7 +141,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
         Template other = (Template) obj;
         return Objects.equals(settings, other.settings) &&
-            mappingsEquals(other.mappings) &&
+            mappingsEquals(this.mappings, other.mappings) &&
             Objects.equals(aliases, other.aliases);
     }
 
@@ -186,21 +186,25 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
     }
 
-    private boolean mappingsEquals(CompressedXContent other) {
-        if (this.mappings == other) {
+    private static boolean mappingsEquals(CompressedXContent m1, CompressedXContent m2) {
+        if (m1 == m2) {
             return true;
         }
 
-        if (this.mappings == null || other == null) {
+        if (m1 == null || m2 == null) {
             return false;
         }
 
-        if (this.mappings.equals(other)) {
+        if (m1.equals(m2)) {
             return true;
         }
 
-        Map<String, Object> thisUncompressedMapping = reduceMapping(XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON).v2());
-        Map<String, Object> otherUncompressedMapping = reduceMapping(XContentHelper.convertToMap(other.uncompressed(), true, XContentType.JSON).v2());
+        Map<String, Object> thisUncompressedMapping = reduceMapping(
+            XContentHelper.convertToMap(m1.uncompressed(), true, XContentType.JSON).v2()
+        );
+        Map<String, Object> otherUncompressedMapping = reduceMapping(
+            XContentHelper.convertToMap(m2.uncompressed(), true, XContentType.JSON).v2()
+        );
         return thisUncompressedMapping.equals(otherUncompressedMapping);
     }
 }

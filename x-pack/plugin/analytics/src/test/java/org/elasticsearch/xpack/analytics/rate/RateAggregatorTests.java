@@ -40,7 +40,9 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.HistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -275,7 +277,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    public void testNoWrapping() throws IOException {
+    public void testNoWrapping() {
         MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("day");
@@ -292,6 +294,30 @@ public class RateAggregatorTests extends AggregatorTestCase {
                 + "composite aggregation with exactly one date histogram value source",
             ex.getMessage()
         );
+    }
+
+    public void testCompositeAggregationBadNumberOfDateHistogramValueSources() {
+        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("day");
+        List<CompositeValuesSourceBuilder<?>> valuesSourceBuilders = randomBoolean() ?
+            Collections.singletonList(new HistogramValuesSourceBuilder("histo").field("val")) :
+            Arrays.asList(
+                new DateHistogramValuesSourceBuilder("my_date").field(DATE_FIELD).calendarInterval(new DateHistogramInterval("month")),
+                new DateHistogramValuesSourceBuilder("my_date2").field(DATE_FIELD).calendarInterval(new DateHistogramInterval("month")),
+                new HistogramValuesSourceBuilder("histo").field("val")
+            );
+
+        CompositeAggregationBuilder compositeAggregationBuilder = new CompositeAggregationBuilder("my_buckets",valuesSourceBuilders).subAggregation(rateAggregationBuilder);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> testCase(compositeAggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
+                iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
+                iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
+            }, h -> fail("Shouldn't be here"), dateType, numType)
+        );
+        assertEquals(ex.getMessage(), "the ancestor composite aggregation [my_buckets] must have exactly one date_histogram group by");
     }
 
     public void testDoubleWrapping() throws IOException {

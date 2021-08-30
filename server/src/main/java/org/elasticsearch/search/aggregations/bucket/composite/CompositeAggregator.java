@@ -517,21 +517,14 @@ public final class CompositeAggregator extends BucketsAggregator {
         };
     }
 
-    public SizedBucketAggregator getSizedBucketAggregator() {
-        DateHistogramValuesSource fromSources = null;
+    public List<SizedBucketAggregator> getSizedBucketAggregators() {
+        List<SizedBucketAggregator> sizedBucketAggregators = new ArrayList<>();
         for (SingleDimensionValuesSource<?> source : sources) {
             if (source instanceof DateHistogramValuesSource) {
-                // We can't support a standard sized bucket aggregator if we have more than one date histogram source
-                if (fromSources != null) {
-                    return null;
-                }
-                fromSources = (DateHistogramValuesSource)source;
+                sizedBucketAggregators.add((DateHistogramValuesSource)source);
             }
         }
-        if (fromSources == null) {
-            return null;
-        }
-        return fromSources;
+        return sizedBucketAggregators;
     }
 
     private static class Entry {

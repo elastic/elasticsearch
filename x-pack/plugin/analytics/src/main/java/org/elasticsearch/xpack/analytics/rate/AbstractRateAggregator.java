@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public abstract class AbstractRateAggregator extends NumericMetricsAggregator.SingleValue {
@@ -72,7 +73,14 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         if (sizedBucketAggregator == null) {
             for (Aggregator ancestor = parent; ancestor != null; ancestor = ancestor.parent()) {
                 if (ancestor instanceof CompositeAggregator) {
-                    sizedBucketAggregator = ((CompositeAggregator)ancestor).getSizedBucketAggregator();
+                    List<SizedBucketAggregator> compositeSizedBucketAggregators = ((CompositeAggregator) ancestor)
+                        .getSizedBucketAggregators();
+                    if (compositeSizedBucketAggregators.size() != 1) {
+                        throw new IllegalArgumentException(
+                            "the ancestor composite aggregation [" + ancestor.name() + "] must have exactly one date_histogram group by"
+                        );
+                    }
+                    sizedBucketAggregator = compositeSizedBucketAggregators.get(0);
                     isParent = ancestor == parent;
                     break;
                 }

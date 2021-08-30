@@ -704,6 +704,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 case FAILED_SHARDS:
                     assertion = (s1, s2) -> assertThat(s2.failedShards(), greaterThanOrEqualTo(s1.failedShards()));
                     break;
+                case REPOSITORY:
+                    assertion = (s1, s2) -> assertThat(s2.repository(), greaterThanOrEqualTo(s1.repository()));
+                    break;
                 default:
                     throw new AssertionError("unknown sort column [" + sort + "]");
             }

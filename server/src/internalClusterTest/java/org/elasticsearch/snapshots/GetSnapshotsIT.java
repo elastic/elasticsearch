@@ -38,21 +38,36 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSortBy() throws Exception {
-        final String repoName = "test-repo";
+        final String repoNameA = "test-repo-a";
         final Path repoPath = randomRepoPath();
-        createRepository(repoName, "fs", repoPath);
-        maybeInitWithOldSnapshotVersion(repoName, repoPath);
-        final List<String> snapshotNamesWithoutIndex = createNSnapshots(repoName, randomIntBetween(3, 20));
+        createRepository(repoNameA, "fs", repoPath);
+        maybeInitWithOldSnapshotVersion(repoNameA, repoPath);
+        final String repoNameB = "test-repo-b";
+        createRepository(repoNameB, "fs");
+
+        final List<String> snapshotNamesWithoutIndexA = createNSnapshots(repoNameA, randomIntBetween(3, 20));
+        final List<String> snapshotNamesWithoutIndexB = createNSnapshots(repoNameB, randomIntBetween(3, 20));
 
         createIndexWithContent("test-index");
 
-        final List<String> snapshotNamesWithIndex = createNSnapshots(repoName, randomIntBetween(3, 20));
+        final List<String> snapshotNamesWithIndexA = createNSnapshots(repoNameA, randomIntBetween(3, 20));
+        final List<String> snapshotNamesWithIndexB = createNSnapshots(repoNameB, randomIntBetween(3, 20));
 
-        final Collection<String> allSnapshotNames = new HashSet<>(snapshotNamesWithIndex);
-        allSnapshotNames.addAll(snapshotNamesWithoutIndex);
+        final Collection<String> allSnapshotNamesA = new HashSet<>(snapshotNamesWithIndexA);
+        final Collection<String> allSnapshotNamesB = new HashSet<>(snapshotNamesWithIndexB);
+        allSnapshotNamesA.addAll(snapshotNamesWithoutIndexA);
+        allSnapshotNamesB.addAll(snapshotNamesWithoutIndexB);
 
-        doTestSortOrder(repoName, allSnapshotNames, SortOrder.ASC);
-        doTestSortOrder(repoName, allSnapshotNames, SortOrder.DESC);
+        doTestSortOrder(repoNameA, allSnapshotNamesA, SortOrder.ASC);
+        doTestSortOrder(repoNameA, allSnapshotNamesA, SortOrder.DESC);
+
+        doTestSortOrder(repoNameB, allSnapshotNamesB, SortOrder.ASC);
+        doTestSortOrder(repoNameB, allSnapshotNamesB, SortOrder.DESC);
+
+        final Collection<String> allSnapshots = new HashSet<>(allSnapshotNamesA);
+        allSnapshots.addAll(allSnapshotNamesB);
+        doTestSortOrder("*", allSnapshots, SortOrder.ASC);
+        doTestSortOrder("*", allSnapshots, SortOrder.DESC);
     }
 
     private void doTestSortOrder(String repoName, Collection<String> allSnapshotNames, SortOrder order) {
@@ -86,6 +101,11 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertSnapshotListSorted(
             allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.FAILED_SHARDS, order),
             GetSnapshotsRequest.SortBy.FAILED_SHARDS,
+            order
+        );
+        assertSnapshotListSorted(
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.REPOSITORY, order),
+            GetSnapshotsRequest.SortBy.REPOSITORY,
             order
         );
     }

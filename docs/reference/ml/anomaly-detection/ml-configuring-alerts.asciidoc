@@ -56,11 +56,10 @@ image::images/ml-rule.jpg["Creating a new machine learning rule"]
 [[creating-anomaly-alert-rules]]
 === {anomaly-detect-cap} alert
 
-Select the job or the group that the rule applies to. If you assign more jobs to 
-the group, they are included the next time the rule conditions are checked.
+Select the job that the rule applies to.
 
-You must select a type of {ml} result. In 
-particular, you can create rules based on bucket, record, or influencer results.
+You must select a type of {ml} result. In particular, you can create rules based 
+on bucket, record, or influencer results.
 
 [role="screenshot"]
 image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, and test interval"]
@@ -105,9 +104,8 @@ the rule applies to. If you assign more jobs to the group, they are
 included the next time the rule conditions are checked.
 
 You can also use a special character (`*`) to apply the rule to all your jobs. 
-Jobs created after the rule are automatically included. If you have many jobs, 
-you might receive numerous notifications. To avoid this situation, you can 
-exclude jobs that are not critically important by using the _Exclude_ field.
+Jobs created after the rule are automatically included. You can exclude jobs 
+that are not critically important by using the _Exclude_ field.
 
 Enable the health check types that you want to apply. All checks are enabled by 
 default. At least one check needs to be enabled to create the rule. The 
@@ -264,19 +262,21 @@ The job identifier.
 `memory_status`:::
 The status of the mathematical model. It can have one of the following values:
 
-* `ok`: The models stayed below the configured value.
 * `soft_limit`: The model used more than 60% of the configured memory limit and 
   older unused models will be pruned to free up space. In categorization jobs no 
   further category examples will be stored.
 * `hard_limit`: The model used more space than the configured memory limit. As a 
   result, not all incoming data was processed.
 
+`model_bytes`:::
+The number of bytes of memory used by the models.
+
+`model_bytes_memory_limit`:::
+The upper limit for model memory usage.
+
 `model_bytes_exceeded`:::
 The number of bytes over the high limit for memory usage at the last allocation 
 failure.
-
-`log_time`:::
-The timestamp of the model size statistics according to server time.
 
 `peak_model_bytes`:::
 The peak number of bytes of memory ever used by the model.
@@ -295,9 +295,6 @@ Contains the following properties:
 ====
 `annotation`:::
 The annotation corresponding to the data delay in the job.
-
-`end_timestamp`:::
-Timestamp of the latest finalized buckets with missing documents.
 
 `job_id`:::
 The job identifier.

@@ -9,8 +9,8 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -35,8 +35,14 @@ final class MatrixStatsAggregator extends MetricsAggregator {
     /** array of descriptive stats, per shard, needed to compute the correlation */
     ObjectArray<RunningStats> stats;
 
-    MatrixStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, AggregationContext context,
-                                 Aggregator parent, MultiValueMode multiValueMode, Map<String,Object> metadata) throws IOException {
+    MatrixStatsAggregator(
+        String name,
+        Map<String, ValuesSource.Numeric> valuesSources,
+        AggregationContext context,
+        Aggregator parent,
+        MultiValueMode multiValueMode,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         if (valuesSources != null && valuesSources.isEmpty() == false) {
             this.valuesSources = new NumericArrayValuesSource(valuesSources, multiValueMode);
@@ -52,8 +58,7 @@ final class MatrixStatsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-                                                final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }

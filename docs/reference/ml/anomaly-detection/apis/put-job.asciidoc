@@ -19,13 +19,24 @@ Instantiates an {anomaly-job}.
 Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 
+If you include a `datafeed_config`, you must also have `read` index privileges
+on the source index.
+
 [[ml-put-job-desc]]
 == {api-description-title}
 
-IMPORTANT: You must use {kib} or this API to create an {anomaly-job}. Do not put
+[IMPORTANT]
+====
+* You must use {kib} or this API to create an {anomaly-job}. Do not put
 a job directly to the `.ml-config` index using the {es} index API. If {es}
 {security-features} are enabled, do not give users `write` privileges on the
 `.ml-config` index.
+* If you include a `datafeed_config` and {es} {security-features} are enabled,
+your {dfeed} remembers which roles the user who created it had at the time of
+creation and runs the query using those same roles. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, those
+credentials are used instead.
+====
 
 [[ml-put-job-path-parms]]
 == {api-path-parms-title}
@@ -250,7 +261,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=data-description]
 //End data_description
 
 `datafeed_config`::
-(object) The {dfeed} configured for the current {anomaly-job}.
+(Optional, object) The {ml-docs}/ml-dfeeds.html[{dfeed}], which retrieves data
+from {es} for analysis by the job. You can associate only one {dfeed} with each
+{anomaly-job}.
 +
 .Properties of `datafeed`
 [%collapsible%open]

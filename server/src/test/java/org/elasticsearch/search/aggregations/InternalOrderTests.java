@@ -33,10 +33,13 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
     }
 
     private BucketOrder getRandomOrder() {
-        switch(randomInt(2)) {
-            case 0: return BucketOrder.key(randomBoolean());
-            case 1: return BucketOrder.count(randomBoolean());
-            default: return BucketOrder.aggregation(randomAlphaOfLength(10), randomBoolean());
+        switch (randomInt(2)) {
+            case 0:
+                return BucketOrder.key(randomBoolean());
+            case 1:
+                return BucketOrder.count(randomBoolean());
+            default:
+                return BucketOrder.aggregation(randomAlphaOfLength(10), randomBoolean());
         }
     }
 
@@ -67,7 +70,7 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
         // compound and aggregation order because _key and _count orders are static instances.
         assertEquals(expectedInstance, newInstance);
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
-        if(expectedInstance instanceof CompoundOrder || expectedInstance instanceof InternalOrder.Aggregation) {
+        if (expectedInstance instanceof CompoundOrder || expectedInstance instanceof InternalOrder.Aggregation) {
             assertNotSame(newInstance, expectedInstance);
         }
     }

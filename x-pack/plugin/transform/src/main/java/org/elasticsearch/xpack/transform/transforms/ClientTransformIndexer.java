@@ -30,6 +30,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -71,7 +73,7 @@ class ClientTransformIndexer extends TransformIndexer {
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
-    private volatile PointInTimeBuilder pit;
+    private final ConcurrentHashMap<String, PointInTimeBuilder> namedPits = new ConcurrentHashMap<>();
     private volatile long pitCheckpoint;
     private volatile boolean disablePit = false;
 
@@ -250,11 +252,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
-        SchemaUtil.getDestinationFieldMappings(
-            client,
-            getConfig().getDestination().getIndex(),
-            fieldMappingsListener
-        );
+        SchemaUtil.getDestinationFieldMappings(client, getConfig().getDestination().getIndex(), fieldMappingsListener);
     }
 
     /**
@@ -363,12 +361,20 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     private void closePointInTime() {
+        for (String name : namedPits.keySet()) {
+            closePointInTime(name);
+        }
+    }
+
+    private void closePointInTime(String name) {
+        PointInTimeBuilder pit = namedPits.remove(name);
+
         if (pit == null) {
             return;
         }
 
         String oldPit = pit.getEncodedId();
-        pit = null;
+
         ClosePointInTimeRequest closePitRequest = new ClosePointInTimeRequest(oldPit);
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
@@ -383,20 +389,25 @@ class ClientTransformIndexer extends TransformIndexer {
         );
     }
 
-    private void injectPointInTimeIfNeeded(SearchRequest searchRequest, ActionListener<SearchRequest> listener) {
+    private void injectPointInTimeIfNeeded(
+        Tuple<String, SearchRequest> namedSearchRequest,
+        ActionListener<Tuple<String, SearchRequest>> listener
+    ) {
         if (disablePit) {
-            listener.onResponse(searchRequest);
+            listener.onResponse(namedSearchRequest);
             return;
         }
 
+        SearchRequest searchRequest = namedSearchRequest.v2();
+        PointInTimeBuilder pit = namedPits.get(namedSearchRequest.v1());
         if (pit != null) {
             searchRequest.source().pointInTimeBuilder(pit);
-            listener.onResponse(searchRequest);
+            listener.onResponse(namedSearchRequest);
             return;
         }
 
         // no pit, create a new one
-        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(transformConfig.getSource().getIndex()).keepAlive(PIT_KEEP_ALIVE);
+        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(searchRequest.indices()).keepAlive(PIT_KEEP_ALIVE);
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
@@ -405,11 +416,17 @@ class ClientTransformIndexer extends TransformIndexer {
             OpenPointInTimeAction.INSTANCE,
             pitRequest,
             ActionListener.wrap(response -> {
-                pit = new PointInTimeBuilder(response.getPointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
-                searchRequest.source().pointInTimeBuilder(pit);
+                PointInTimeBuilder newPit = new PointInTimeBuilder(response.getPointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
+                namedPits.put(namedSearchRequest.v1(), newPit);
+                searchRequest.source().pointInTimeBuilder(newPit);
                 pitCheckpoint = getNextCheckpoint().getCheckpoint();
-                logger.trace("[{}] using pit search context with id [{}]", getJobId(), pit.getEncodedId());
-                listener.onResponse(searchRequest);
+                logger.trace(
+                    "[{}] using pit search context with id [{}]; request [{}]",
+                    getJobId(),
+                    newPit.getEncodedId(),
+                    namedSearchRequest.v1()
+                );
+                listener.onResponse(namedSearchRequest);
             }, e -> {
                 Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
                 // if point in time is not supported, disable it but do not remember forever (stopping and starting will give it another
@@ -433,25 +450,27 @@ class ClientTransformIndexer extends TransformIndexer {
                         e
                     );
                 }
-                listener.onResponse(searchRequest);
+                listener.onResponse(namedSearchRequest);
             })
         );
     }
 
-    private void doSearch(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        logger.trace("searchRequest: {}", searchRequest);
+    private void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
+        logger.trace(() -> new ParameterizedMessage("searchRequest: [{}]", namedSearchRequest.v2()));
+
+        PointInTimeBuilder pit = namedSearchRequest.v2().pointInTimeBuilder();
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
-            searchRequest,
+            namedSearchRequest.v2(),
             ActionListener.wrap(response -> {
                 // did the pit change?
                 if (response.pointInTimeId() != null && (pit == null || response.pointInTimeId() != pit.getEncodedId())) {
-                    pit = new PointInTimeBuilder(response.pointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
-                    logger.trace("point in time handle has changed");
+                    namedPits.put(namedSearchRequest.v1(), new PointInTimeBuilder(response.pointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE));
+                    logger.trace("point in time handle has changed; request [{}]", namedSearchRequest.v1());
                 }
 
                 listener.onResponse(response);
@@ -461,15 +480,22 @@ class ClientTransformIndexer extends TransformIndexer {
                 // succeeds a new pit gets created at the next run
                 Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
                 if (unwrappedException instanceof SearchContextMissingException) {
-                    logger.warn(new ParameterizedMessage("[{}] Search context missing, falling back to normal search.", getJobId()), e);
-                    pit = null;
-                    searchRequest.source().pointInTimeBuilder(null);
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "[{}] Search context missing, falling back to normal search; request [{}]",
+                            getJobId(),
+                            namedSearchRequest.v1()
+                        ),
+                        e
+                    );
+                    namedPits.remove(namedSearchRequest.v1());
+                    namedSearchRequest.v2().source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
                         SearchAction.INSTANCE,
-                        searchRequest,
+                        namedSearchRequest.v2(),
                         listener
                     );
                     return;

@@ -82,7 +82,6 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
         // a lookup from elasticsearch's ValuesSource
         class ValuesDiversifiedTopDocsCollector extends DiversifiedTopDocsCollector {
 
-
             ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
                 super(numHits, maxHitsPerKey);
             }
@@ -121,8 +120,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
                             // Check there isn't a second value for this
                             // document
                             if (globalOrds.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
-                                throw new IllegalArgumentException(
-                                        "Sample diversifying key must be a single valued-field");
+                                throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                             }
                             return true;
                         } else {

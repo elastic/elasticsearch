@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
-
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -22,7 +21,7 @@ public class PutJobActionRequestTests extends AbstractSerializingTestCase<Reques
 
     @Before
     public void setupJobID() {
-        jobId = randomAlphaOfLengthBetween(1,10);
+        jobId = randomAlphaOfLengthBetween(1, 10);
     }
 
     @Override

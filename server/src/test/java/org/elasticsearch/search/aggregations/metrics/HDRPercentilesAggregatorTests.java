@@ -48,16 +48,12 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new PercentilesAggregationBuilder("hdr_percentiles")
-            .field(fieldName)
-            .percentilesConfig(new PercentilesConfig.Hdr());
+        return new PercentilesAggregationBuilder("hdr_percentiles").field(fieldName).percentilesConfig(new PercentilesConfig.Hdr());
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.DATE,
-            CoreValuesSourceType.BOOLEAN);
+        return List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN);
     }
 
     public void testNoDocs() throws IOException {
@@ -75,12 +71,11 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     public void testStringField() throws IOException {
         final String fieldName = "string";
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
-        expectThrows(IllegalArgumentException.class,
-            () -> testCase(new DocValuesFieldExistsQuery(fieldName), iw -> {
-                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("bogus"))));
-                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("zwomp"))));
-                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foobar"))));
-            }, hdr -> {}, fieldType, fieldName));
+        expectThrows(IllegalArgumentException.class, () -> testCase(new DocValuesFieldExistsQuery(fieldName), iw -> {
+            iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("bogus"))));
+            iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("zwomp"))));
+            iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foobar"))));
+        }, hdr -> {}, fieldType, fieldName));
     }
 
     /**
@@ -91,12 +86,18 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         // Currently fails (throws ClassCast exception), but should be fixed once HDRPercentileAggregation uses the ValuesSource registry
         final String fieldName = "range";
         MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, RangeType.DOUBLE);
-        RangeFieldMapper.Range range =new RangeFieldMapper.Range(RangeType.DOUBLE, 1.0D, 5.0D, true, true);
+        RangeFieldMapper.Range range = new RangeFieldMapper.Range(RangeType.DOUBLE, 1.0D, 5.0D, true, true);
         BytesRef encodedRange = RangeType.DOUBLE.encodeRanges(Collections.singleton(range));
-        expectThrows(IllegalArgumentException.class,
-            () -> testCase(new DocValuesFieldExistsQuery(fieldName), iw -> {
-                iw.addDocument(singleton(new BinaryDocValuesField(fieldName, encodedRange)));
-            }, hdr -> {}, fieldType, fieldName));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> testCase(
+                new DocValuesFieldExistsQuery(fieldName),
+                iw -> { iw.addDocument(singleton(new BinaryDocValuesField(fieldName, encodedRange))); },
+                hdr -> {},
+                fieldType,
+                fieldName
+            )
+        );
     }
 
     public void testNoMatchingField() throws IOException {
@@ -166,8 +167,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     public void testHdrThenTdigestSettings() throws Exception {
         int sigDigits = randomIntBetween(1, 5);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            percentiles("percentiles")
-                .numberOfSignificantValueDigits(sigDigits)
+            percentiles("percentiles").numberOfSignificantValueDigits(sigDigits)
                 .method(PercentilesMethod.HDR)
                 .compression(100.0) // <-- this should trigger an exception
                 .field("value");
@@ -175,14 +175,19 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         assertThat(e.getMessage(), equalTo("Cannot set [compression] because the method has already been configured for HDRHistogram"));
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalHDRPercentiles> verify) throws IOException {
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalHDRPercentiles> verify)
+        throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         testCase(query, buildIndex, verify, fieldType, "number");
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalHDRPercentiles> verify, MappedFieldType fieldType, String fieldName) throws IOException {
+    private void testCase(
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalHDRPercentiles> verify,
+        MappedFieldType fieldType,
+        String fieldName
+    ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 buildIndex.accept(indexWriter);

@@ -162,6 +162,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         }
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeGenericValue(write);
+        @SuppressWarnings("unchecked")
         LinkedHashMap<String, Integer> read = (LinkedHashMap<String, Integer>) getStreamInput(out.bytes()).readGenericValue();
         assertEquals(size, read.size());
         int index = 0;
@@ -252,7 +253,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         }
 
         runWriteReadCollectionTest(
-                () -> new FooBar(randomInt(), randomInt()), StreamOutput::writeCollection, in -> in.readList(FooBar::new));
+            () -> new FooBar(randomInt(), randomInt()), StreamOutput::writeCollection, in -> in.readList(FooBar::new));
     }
 
     public void testStringCollection() throws IOException {
@@ -260,9 +261,9 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     private <T> void runWriteReadCollectionTest(
-            final Supplier<T> supplier,
-            final CheckedBiConsumer<StreamOutput, Collection<T>, IOException> writer,
-            final CheckedFunction<StreamInput, Collection<T>, IOException> reader) throws IOException {
+        final Supplier<T> supplier,
+        final CheckedBiConsumer<StreamOutput, Collection<T>, IOException> writer,
+        final CheckedFunction<StreamInput, Collection<T>, IOException> reader) throws IOException {
         final int length = randomIntBetween(0, 10);
         final Collection<T> collection = new ArrayList<>(length);
         for (int i = 0; i < length; i++) {

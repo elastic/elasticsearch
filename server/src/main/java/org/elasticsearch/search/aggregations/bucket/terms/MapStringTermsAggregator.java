@@ -446,7 +446,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             }
             return new StringTerms(name, reduceOrder, order, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
-                otherDocCount, Arrays.asList(topBuckets), 0L);
+                otherDocCount, Arrays.asList(topBuckets), null);
         }
 
         @Override
@@ -568,7 +568,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
         @Override
         SignificantStringTerms buildEmptyResult() {
-            return buildEmptySignificantTermsAggregation(0, significanceHeuristic);
+            return buildEmptySignificantTermsAggregation(0, supersetSize, significanceHeuristic);
         }
 
         @Override

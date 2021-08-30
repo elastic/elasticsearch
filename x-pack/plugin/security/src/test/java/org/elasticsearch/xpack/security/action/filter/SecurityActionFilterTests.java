@@ -60,7 +60,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
@@ -84,7 +83,6 @@ public class SecurityActionFilterTests extends ESTestCase {
         when(auditTrailService.get()).thenReturn(auditTrail);
         chain = mock(ActionFilterChain.class);
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -271,18 +269,6 @@ public class SecurityActionFilterTests extends ESTestCase {
         filter.apply(task, "_action", request, listener, chain);
         verify(listener).onFailure(exception);
         verifyNoMoreInteractions(chain);
-    }
-
-    public void testApplyUnlicensed() throws Exception {
-        ActionRequest request = mock(ActionRequest.class);
-        ActionListener listener = mock(ActionListener.class);
-        ActionFilterChain chain = mock(ActionFilterChain.class);
-        Task task = mock(Task.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
-        filter.apply(task, "_action", request, listener, chain);
-        verifyZeroInteractions(authcService);
-        verifyZeroInteractions(authzService);
-        verify(chain).proceed(eq(task), eq("_action"), eq(request), eq(listener));
     }
 
     private void mockAuthentication(ActionRequest request, Authentication authentication, String requestId) {

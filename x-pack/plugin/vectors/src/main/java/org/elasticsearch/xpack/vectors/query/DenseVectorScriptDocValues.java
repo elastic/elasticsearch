@@ -12,6 +12,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.script.Field;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.io.IOException;
@@ -79,5 +80,15 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
         } else {
             return 1;
         }
+    }
+
+    @Override
+    public BytesRef getNonPrimitiveValue() {
+        return value;
+    }
+
+    @Override
+    public Field<BytesRef> toField(String fieldName) {
+        throw new IllegalStateException("not implemented");
     }
 }

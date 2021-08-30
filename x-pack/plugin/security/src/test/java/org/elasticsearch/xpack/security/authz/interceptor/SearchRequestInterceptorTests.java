@@ -47,7 +47,6 @@ public class SearchRequestInterceptorTests extends ESTestCase {
     public void init() {
         threadPool = new TestThreadPool("search request interceptor tests");
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)).thenReturn(true);
         clusterService = mock(ClusterService.class);
         interceptor = new SearchRequestInterceptor(threadPool, licenseState, clusterService);

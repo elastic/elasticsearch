@@ -78,6 +78,7 @@ for the leader index on the remote cluster. <<stack-management-ccr-remote,Config
 * The `manage_ccr` cluster privilege and `monitor`, `read`, `write` and
 `manage_follow_index` privileges to configure remote clusters and follower
 indices on the local cluster. <<stack-management-ccr-local,Configure local cluster privileges>>.
+* At least one <<connect-remote-clusters,remote cluster configured>>.
 * An index on the remote cluster that contains the data you want to replicate.
 This tutorial uses the sample eCommerce orders data set.
 {kibana-ref}/get-started.html#gs-get-data-into-kibana[Load sample data].
@@ -87,84 +88,6 @@ This tutorial uses the sample eCommerce orders data set.
   <<remote-node,`remote_cluster_client`>> role. Individual tasks for coordinating
   replication scale based on the number of data nodes with the
   `remote_cluster_client` role in the local cluster.
-
-[[ccr-getting-started-remote-cluster]]
-==== Connect to a remote cluster
-To replicate an index on a remote cluster (Cluster A) to a local cluster (Cluster B), you configure Cluster A as a remote on Cluster B.
-
-image::images/ccr-tutorial-clusters.png[ClusterA contains the leader index and ClusterB contains the follower index]
-
-To configure a remote cluster from Stack Management in {kib}:
-
-. Select *Remote Clusters* from the side navigation.
-. Specify the {es} endpoint URL, or the IP address or host name of the remote
-cluster (`ClusterA`) followed by the transport port (defaults to `9300`). For
-example, `cluster.es.eastus2.staging.azure.foundit.no:9400` or
-`192.168.1.1:9300`.
-
-[%collapsible]
-.API example
-====
-Use the <<cluster-update-settings,cluster update settings API>> to add a remote cluster:
-
-[source,console]
---------------------------------------------------
-PUT /_cluster/settings
-{
-  "persistent" : {
-    "cluster" : {
-      "remote" : {
-        "leader" : {
-          "seeds" : [
-            "127.0.0.1:9300" <1>
-          ]
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[setup:host]
-// TEST[s/127.0.0.1:9300/\${transport_host}/]
-<1> Specifies the hostname and transport port of a seed node in the remote
-    cluster.
-
-You can verify that the local cluster is successfully connected to the remote
-cluster.
-
-[source,console]
---------------------------------------------------
-GET /_remote/info
---------------------------------------------------
-// TEST[continued]
-
-The API will respond by showing that the local cluster is connected to the
-remote cluster.
-
-[source,console-result]
---------------------------------------------------
-{
-  "leader" : {
-    "seeds" : [
-      "127.0.0.1:9300"
-    ],
-    "connected" : true, <1>
-    "num_nodes_connected" : 1, <2>
-    "max_connections_per_cluster" : 3,
-    "initial_connect_timeout" : "30s",
-    "skip_unavailable" : false,
-    "mode" : "sniff"
-  }
-}
---------------------------------------------------
-// TESTRESPONSE[s/127.0.0.1:9300/$body.leader.seeds.0/]
-// TEST[s/"connected" : true/"connected" : $body.leader.connected/]
-// TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.leader.num_nodes_connected/]
-<1> This shows the local cluster is connected to the remote cluster with cluster
-    alias `leader`
-<2> This shows the number of nodes in the remote cluster the local cluster is
-    connected to.
-====
 
 [[ccr-enable-soft-deletes]]
 ==== Enable soft deletes on leader indices

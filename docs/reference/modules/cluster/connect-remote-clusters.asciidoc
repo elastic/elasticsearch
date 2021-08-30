@@ -1,0 +1,216 @@
+[[connect-remote-clusters]]
+=== Connect to remote clusters
+To replicate an index on a remote cluster (Cluster A) to a local cluster (Cluster B), you configure Cluster A as a remote on Cluster B.
+
+image::images/ccr-tutorial-clusters.png[ClusterA contains the leader index and ClusterB contains the follower index]
+
+To configure a remote cluster from Stack Management in {kib}:
+
+. Select *Remote Clusters* from the side navigation.
+. Specify the {es} endpoint URL, or the IP address or host name of the remote
+cluster (`ClusterA`) followed by the transport port (defaults to `9300`). For
+example, `cluster.es.eastus2.staging.azure.foundit.no:9400` or
+`192.168.1.1:9300`.
+
+Alternatively, use the <<cluster-update-settings,cluster update settings API>>
+to add a remote cluster:
+
+[source,console]
+--------------------------------------------------
+PUT /_cluster/settings
+{
+  "persistent" : {
+    "cluster" : {
+      "remote" : {
+        "leader" : {
+          "seeds" : [
+            "127.0.0.1:9300" <1>
+          ]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:host]
+// TEST[s/127.0.0.1:9300/\${transport_host}/]
+<1> Specifies the hostname and transport port of a seed node in the remote
+    cluster.
+
+You can verify that the local cluster is successfully connected to the remote
+cluster.
+
+[source,console]
+--------------------------------------------------
+GET /_remote/info
+--------------------------------------------------
+// TEST[continued]
+
+The API will respond by showing that the local cluster is connected to the
+remote cluster.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "leader" : {
+    "seeds" : [
+      "127.0.0.1:9300"
+    ],
+    "connected" : true, <1>
+    "num_nodes_connected" : 1, <2>
+    "max_connections_per_cluster" : 3,
+    "initial_connect_timeout" : "30s",
+    "skip_unavailable" : false,
+    "mode" : "sniff"
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/127.0.0.1:9300/$body.leader.seeds.0/]
+// TEST[s/"connected" : true/"connected" : $body.leader.connected/]
+// TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.leader.num_nodes_connected/]
+<1> This shows the local cluster is connected to the remote cluster with cluster
+    alias `leader`
+<2> This shows the number of nodes in the remote cluster the local cluster is
+    connected to.
+
+You can configure remote clusters settings
+<<configure-remote-clusters-dynamic,globally>>, or configure
+settings <<configure-remote-clusters-static,on individual nodes>> in the
+`elasticsearch.yml` file.
+
+[[configure-remote-clusters-dynamic]]
+==== Dynamically configure remote clusters
+Use the <<cluster-update-settings,cluster update settings API>> to dynamically
+configure remote settings on every node in the cluster. For example:
+
+[source,console]
+--------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "cluster_one": {
+          "seeds": [
+            "127.0.0.1:9300"
+          ]
+        },
+        "cluster_two": {
+          "mode": "sniff",
+          "seeds": [
+            "127.0.0.1:9301"
+          ],
+          "transport.compress": true,
+          "skip_unavailable": true
+        },
+        "cluster_three": {
+          "mode": "proxy",
+          "proxy_address": "127.0.0.1:9302"
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// TEST[setup:host]
+// TEST[s/127.0.0.1:9300/\${transport_host}/]
+
+You can dynamically update the compression and ping schedule settings. However,
+you must include the `seeds` or `proxy_address` in the settings update request.
+For example:
+
+[source,console]
+--------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "cluster_one": {
+          "seeds": [
+            "127.0.0.1:9300"
+          ]
+        },
+        "cluster_two": {
+          "mode": "sniff",
+          "seeds": [
+            "127.0.0.1:9301"
+          ],
+          "transport.compress": false
+        },
+        "cluster_three": {
+          "mode": "proxy",
+          "proxy_address": "127.0.0.1:9302",
+          "transport.compress": true,
+          "transport.ping_schedule": "60s"
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// TEST[continued]
+
+NOTE: When the compression or ping schedule settings change, all the existing
+node connections must close and re-open, which can cause in-flight requests to
+fail.
+
+You can delete a remote cluster from the cluster settings by passing `null`
+values for each remote cluster setting:
+
+[source,console]
+--------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "cluster_two": { <1>
+          "mode": null,
+          "seeds": null,
+          "skip_unavailable": null,
+          "transport.compress": null
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// TEST[continued]
+
+<1> `cluster_two` would be removed from the cluster settings, leaving
+`cluster_one` and `cluster_three` intact.
+
+[[configure-remote-clusters-static]]
+==== Statically configure remote clusters
+If you specify settings in `elasticsearch.yml` files, only the nodes with
+those settings can connect to the remote cluster and serve remote cluster requests. For example:
+
+[source,yaml]
+--------------------------------
+cluster:
+    remote:
+        cluster_one: <1>
+            seeds: 127.0.0.1:9300 <2>
+        cluster_two: <1>
+            mode: sniff <3>
+            seeds: 127.0.0.1:9301 <2>
+            transport.compress: true <4>
+            skip_unavailable: true <5>
+        cluster_three: <1>
+            mode: proxy <3>
+            proxy_address: 127.0.0.1:9302 <6>
+
+--------------------------------
+<1> `cluster_one`, `cluster_two`, and `cluster_three` are arbitrary _cluster aliases_
+representing the connection to each cluster. These names are subsequently used to
+distinguish between local and remote indices.
+<2> The hostname and <<transport-settings,transport port>> (default: 9300) of a
+seed node in the remote cluster.
+<3> The configured connection mode. By default, this is <<sniff-mode,`sniff`>>, so
+the mode is implicit for `cluster_one`. However, it can be explicitly configured
+as demonstrated by `cluster_two` and must be explicitly configured for
+<<proxy-mode,proxy mode>> as demonstrated by `cluster_three`.
+<4> Compression is explicitly enabled for requests to `cluster_two`.
+<5> Disconnected remote clusters are optional for `cluster_two`.
+<6> The address for the proxy endpoint used to connect to `cluster_three`.

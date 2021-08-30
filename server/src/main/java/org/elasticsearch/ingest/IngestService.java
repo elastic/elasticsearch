@@ -8,6 +8,8 @@
 
 package org.elasticsearch.ingest;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -34,12 +36,13 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexSettings;
@@ -279,7 +282,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return currentState;
         }
         final Map<String, PipelineConfiguration> pipelinesCopy = new HashMap<>(pipelines);
+        ImmutableOpenMap<String, IndexMetadata> indices = currentState.metadata().indices();
         for (String key : toRemove) {
+            validateNotInUse(key, indices);
             pipelinesCopy.remove(key);
         }
         ClusterState.Builder newState = ClusterState.builder(currentState);
@@ -287,6 +292,33 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelinesCopy))
                 .build());
         return newState.build();
+    }
+
+    static void validateNotInUse(String pipeline, ImmutableOpenMap<String, IndexMetadata> indices) {
+        for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
+            IndexMetadata indexMetadata = cursor.value;
+            String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
+            String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
+            if (pipeline.equals(defaultPipeline)) {
+                throw new IllegalArgumentException(
+                    "unable to remove pipeline ["
+                        + pipeline
+                        + "], as it is in use by index ["
+                        + indexMetadata.getIndex().getName()
+                        + "] default pipeline settings"
+                );
+            }
+
+            if (pipeline.equals(finalPipeline)) {
+                throw new IllegalArgumentException(
+                    "unable to remove pipeline ["
+                        + pipeline
+                        + "], as it is in use by index ["
+                        + indexMetadata.getIndex().getName()
+                        + "] final pipeline settings"
+                );
+            }
+        }
     }
 
     /**

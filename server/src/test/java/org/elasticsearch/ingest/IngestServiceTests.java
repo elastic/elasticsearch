@@ -261,7 +261,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("_id"), nullValue());
 
-        // Delete existing pipeline:
+        // Delete not existing pipeline:
         try {
             IngestService.innerDelete(deleteRequest, clusterState);
             fail("exception expected");
@@ -537,6 +537,73 @@ public class IngestServiceTests extends ESTestCase {
         } catch (ResourceNotFoundException e) {
             assertThat(e.getMessage(), equalTo("pipeline [z*] is missing"));
         }
+    }
+
+    public void testDeleteWithIndexUsePipeline() {
+        IngestService ingestService = createWithProcessors();
+        PipelineConfiguration config = new PipelineConfiguration(
+            "_id",
+            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
+            XContentType.JSON
+        );
+        IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", config));
+        Metadata.Builder builder = Metadata.builder();
+        for (int i = 0; i < randomIntBetween(2, 10); i++) {
+            builder.put(
+                IndexMetadata.builder("test" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
+                true
+            );
+        }
+        builder.putCustom(IngestMetadata.TYPE, ingestMetadata);
+        Metadata metadata = builder.build();
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = ClusterState.builder(clusterState).metadata(metadata).build();
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        assertThat(ingestService.getPipeline("_id"), notNullValue());
+
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("_id");
+
+        {
+            // delete pipeline which is in used of default_pipeline
+            IndexMetadata indexMetadata = IndexMetadata.builder("pipeline-index")
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id"))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            ClusterState finalClusterState = ClusterState.builder(clusterState)
+                .metadata(Metadata.builder(metadata).put(indexMetadata, true))
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> IngestService.innerDelete(deleteRequest, finalClusterState)
+            );
+            assertTrue(e.getMessage().contains("default pipeline settings"));
+        }
+
+        {
+            // delete pipeline which is in used of final_pipeline
+            IndexMetadata indexMetadata = IndexMetadata.builder("pipeline-index")
+                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "_id"))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            ClusterState finalClusterState = ClusterState.builder(clusterState)
+                .metadata(Metadata.builder(metadata).put(indexMetadata, true))
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> IngestService.innerDelete(deleteRequest, finalClusterState)
+            );
+            assertTrue(e.getMessage().contains("final pipeline settings"));
+        }
+
+        // Delete pipeline:
+        previousClusterState = clusterState;
+        clusterState = IngestService.innerDelete(deleteRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        assertThat(ingestService.getPipeline("_id"), nullValue());
     }
 
     public void testGetPipelines() {

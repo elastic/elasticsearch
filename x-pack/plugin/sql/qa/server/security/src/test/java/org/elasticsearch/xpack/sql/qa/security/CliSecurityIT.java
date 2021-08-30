@@ -26,6 +26,19 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CliSecurityIT extends SqlSecurityTestCase {
+
+    @Override
+    public void testDescribeWorksAsFullAccess() {}
+
+    @Override
+    public void testQuerySingleFieldGranted() {}
+
+    @Override
+    public void testScrollWithSingleFieldExcepted() {}
+
+    @Override
+    public void testQueryWorksAsAdmin() {}
+
     static SecurityConfig adminSecurityConfig() {
         String keystoreLocation;
         String keystorePassword;

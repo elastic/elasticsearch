@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -81,15 +84,17 @@ public class NerProcessorTests extends ESTestCase {
 
     public void testProcessResults_GivenNoTokens() {
         NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(NerProcessor.IobTag.values());
-        BertTokenizer.TokenizationResult tokenization = tokenize(Collections.emptyList(), "");
+        TokenizationResult tokenization = tokenize(Collections.emptyList(), "");
         NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("test", null, 0L, null));
         assertThat(result.getEntityGroups(), is(empty()));
     }
 
     public void testProcessResults() {
         NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(NerProcessor.IobTag.values());
-        BertTokenizer.TokenizationResult tokenization = tokenize(Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
-            "Many use Elasticsearch in London");
+        TokenizationResult tokenization = tokenize(
+            Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
+            "Many use Elasticsearch in London"
+        );
         double[][] scores = {
             { 7, 0, 0, 0, 0, 0, 0, 0, 0}, // many
             { 7, 0, 0, 0, 0, 0, 0, 0, 0}, // use
@@ -103,7 +108,7 @@ public class NerProcessorTests extends ESTestCase {
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANISATION.toString()));
+        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANIZATION.toString()));
         assertThat(result.getEntityGroups().get(1).getWord(), equalTo("london"));
         assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION.toString()));
     }
@@ -123,8 +128,10 @@ public class NerProcessorTests extends ESTestCase {
         };
 
         NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(iobMap);
-        BertTokenizer.TokenizationResult tokenization = tokenize(Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
-            "Elasticsearch in London");
+        TokenizationResult tokenization = tokenize(
+            Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
+            "Elasticsearch in London"
+        );
 
         double[][] scores = {
             { 0.01, 0.01, 0, 0.01, 0, 0, 7, 3, 0}, // el
@@ -137,7 +144,7 @@ public class NerProcessorTests extends ESTestCase {
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANISATION.toString()));
+        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANIZATION.toString()));
         assertThat(result.getEntityGroups().get(1).getWord(), equalTo("london"));
         assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION.toString()));
     }
@@ -162,7 +169,7 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(entityGroups.get(0).getWord(), equalTo("Sarah Jessica"));
         assertThat(entityGroups.get(1).getLabel(), equalTo("location"));
         assertThat(entityGroups.get(1).getWord(), equalTo("Manchester"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("organisation"));
+        assertThat(entityGroups.get(2).getLabel(), equalTo("organization"));
         assertThat(entityGroups.get(2).getWord(), equalTo("Elastic"));
     }
 
@@ -207,14 +214,17 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(entityGroups.get(0).getWord(), equalTo("FirstName SecondName"));
         assertThat(entityGroups.get(1).getLabel(), equalTo("person"));
         assertThat(entityGroups.get(1).getWord(), equalTo("NextPerson NextPersonSecondName"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("organisation"));
+        assertThat(entityGroups.get(2).getLabel(), equalTo("organization"));
     }
 
-    private static BertTokenizer.TokenizationResult tokenize(List<String> vocab, String input) {
-        BertTokenizer tokenizer = BertTokenizer.builder(vocab)
-            .setDoLowerCase(true)
-            .setWithSpecialTokens(false)
-            .build();
+    private static TokenizationResult tokenize(List<String> vocab, String input) {
+        BertTokenizer tokenizer = BertTokenizer.builder(
+            vocab,
+            randomFrom(
+                new BertTokenization(true, false, null),
+                new DistilBertTokenization(true, false, null)
+            )
+        ).setDoLowerCase(true).setWithSpecialTokens(false).build();
         return tokenizer.tokenize(input);
     }
 }

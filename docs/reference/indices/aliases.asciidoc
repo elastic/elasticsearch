@@ -132,7 +132,7 @@ Only the `add` action supports this parameter.
 // tag::alias-options[]
 `is_write_index`::
 (Optional, Boolean) If `true`, sets the <<write-index,write index or data
-stream>> for the alias. Defaults to `false`.
+stream>> for the alias. Defaults to `true`.
 // end::alias-options[]
 +
 Only the `add` action supports this parameter.

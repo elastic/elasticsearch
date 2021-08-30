@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.analytics.topmetrics;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -73,24 +73,35 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
      */
     private static final int DEFAULT_SIZE = 1;
 
-    public static final ConstructingObjectParser<TopMetricsAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(NAME,
-            false, (args, name) -> {
-                @SuppressWarnings("unchecked")
-                List<SortBuilder<?>> sorts = (List<SortBuilder<?>>) args[0];
-                int size = args[1] == null ? DEFAULT_SIZE : (Integer) args[1];
-                if (size < 1) {
-                    throw new IllegalArgumentException("[size] must be more than 0 but was [" + size + "]");
-                }
-                @SuppressWarnings("unchecked")
-                List<MultiValuesSourceFieldConfig> metricFields = (List<MultiValuesSourceFieldConfig>) args[2];
-                return new TopMetricsAggregationBuilder(name, sorts, size, metricFields);
-            });
+    public static final ConstructingObjectParser<TopMetricsAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        false,
+        (args, name) -> {
+            @SuppressWarnings("unchecked")
+            List<SortBuilder<?>> sorts = (List<SortBuilder<?>>) args[0];
+            int size = args[1] == null ? DEFAULT_SIZE : (Integer) args[1];
+            if (size < 1) {
+                throw new IllegalArgumentException("[size] must be more than 0 but was [" + size + "]");
+            }
+            @SuppressWarnings("unchecked")
+            List<MultiValuesSourceFieldConfig> metricFields = (List<MultiValuesSourceFieldConfig>) args[2];
+            return new TopMetricsAggregationBuilder(name, sorts, size, metricFields);
+        }
+    );
     static {
-        PARSER.declareField(constructorArg(), (p, n) -> SortBuilder.fromXContent(p), SORT_FIELD,
-                ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
+        PARSER.declareField(
+            constructorArg(),
+            (p, n) -> SortBuilder.fromXContent(p),
+            SORT_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING
+        );
         PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
-        ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser =
-            MultiValuesSourceFieldConfig.PARSER.build(true, false, false, false);
+        ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser = MultiValuesSourceFieldConfig.PARSER.build(
+            true,
+            false,
+            false,
+            false
+        );
         PARSER.declareObjectArray(constructorArg(), (p, n) -> metricParser.parse(p, null).build(), METRIC_FIELD);
     }
 
@@ -102,8 +113,12 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     /**
      * Build a {@code top_metrics} aggregation request.
      */
-    public TopMetricsAggregationBuilder(String name, List<SortBuilder<?>> sortBuilders, int size,
-            List<MultiValuesSourceFieldConfig> metricFields) {
+    public TopMetricsAggregationBuilder(
+        String name,
+        List<SortBuilder<?>> sortBuilders,
+        int size,
+        List<MultiValuesSourceFieldConfig> metricFields
+    ) {
         super(name);
         if (sortBuilders.size() != 1) {
             throw new IllegalArgumentException("[sort] must contain exactly one sort");
@@ -116,8 +131,11 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     /**
      * Cloning ctor for reducing.
      */
-    public TopMetricsAggregationBuilder(TopMetricsAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,
-            Map<String, Object> metadata) {
+    public TopMetricsAggregationBuilder(
+        TopMetricsAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.sortBuilders = clone.sortBuilders;
         this.size = clone.size;
@@ -155,7 +173,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
 
     @Override
     protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
-            throws IOException {
+        throws IOException {
         return new TopMetricsAggregatorFactory(name, context, parent, subFactoriesBuilder, metadata, sortBuilders, size, metricFields);
     }
 
@@ -170,7 +188,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
             builder.endArray();
             builder.field(SIZE_FIELD.getPreferredName(), size);
             builder.startArray(METRIC_FIELD.getPreferredName());
-            for (MultiValuesSourceFieldConfig metricField: metricFields) {
+            for (MultiValuesSourceFieldConfig metricField : metricFields) {
                 metricField.toXContent(builder, params);
             }
             builder.endArray();

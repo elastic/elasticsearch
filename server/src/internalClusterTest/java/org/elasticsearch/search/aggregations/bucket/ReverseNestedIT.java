@@ -12,13 +12,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.ValueCount;
-import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -50,32 +50,54 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx1")
-                .addMapping(
-                        "type",
-                        jsonBuilder().startObject().startObject("properties")
-                                .startObject("field1").field("type", "keyword").endObject()
-                                .startObject("alias")
-                                    .field("type", "alias")
-                                    .field("path", "field1")
-                                .endObject()
-                                .startObject("nested1").field("type", "nested").startObject("properties")
-                                    .startObject("field2").field("type", "keyword").endObject()
-                                .endObject().endObject()
-                                .endObject().endObject()
-                ));
-        assertAcked(prepareCreate("idx2")
-                .addMapping(
-                        "type",
-                        jsonBuilder().startObject().startObject("properties")
-                                .startObject("nested1").field("type", "nested").startObject("properties")
-                                    .startObject("field1").field("type", "keyword").endObject()
-                                        .startObject("nested2").field("type", "nested").startObject("properties")
-                                            .startObject("field2").field("type", "keyword").endObject()
-                                        .endObject().endObject()
-                                    .endObject().endObject()
-                                .endObject().endObject()
-                )
+        assertAcked(
+            prepareCreate("idx1").addMapping(
+                "type",
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("alias")
+                    .field("type", "alias")
+                    .field("path", "field1")
+                    .endObject()
+                    .startObject("nested1")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("field2")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        assertAcked(
+            prepareCreate("idx2").addMapping(
+                "type",
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("nested1")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("nested2")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("field2")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
         );
 
         insertIdx1(Arrays.asList("a", "b", "c"), Arrays.asList("1", "2", "3", "4"));
@@ -91,22 +113,21 @@ public class ReverseNestedIT extends ESIntegTestCase {
         insertIdx1(Arrays.asList("z"), Arrays.asList("5", "9"));
         refresh();
 
-        insertIdx2(new String[][]{new String[]{"a", "0", "0", "1", "2"}, new String[]{"b", "0", "1", "1", "2"}, new String[]{"a", "0"}});
-        insertIdx2(new String[][]{new String[]{"c", "1", "1", "2", "2"}, new String[]{"d", "3", "4"}});
+        insertIdx2(
+            new String[][] { new String[] { "a", "0", "0", "1", "2" }, new String[] { "b", "0", "1", "1", "2" }, new String[] { "a", "0" } }
+        );
+        insertIdx2(new String[][] { new String[] { "c", "1", "1", "2", "2" }, new String[] { "d", "3", "4" } });
         refresh();
 
-        insertIdx2(new String[][]{new String[]{"a", "0", "0", "0", "0"}, new String[]{"b", "0", "0", "0", "0"}});
-        insertIdx2(new String[][]{new String[]{"e", "1", "2"}, new String[]{"f", "3", "4"}});
+        insertIdx2(new String[][] { new String[] { "a", "0", "0", "0", "0" }, new String[] { "b", "0", "0", "0", "0" } });
+        insertIdx2(new String[][] { new String[] { "e", "1", "2" }, new String[] { "f", "3", "4" } });
         refresh();
 
         ensureSearchable();
     }
 
     private void insertIdx1(List<String> values1, List<String> values2) throws Exception {
-        XContentBuilder source = jsonBuilder()
-                .startObject()
-                .array("field1", values1.toArray())
-                .startArray("nested1");
+        XContentBuilder source = jsonBuilder().startObject().array("field1", values1.toArray()).startArray("nested1");
         for (String value1 : values2) {
             source.startObject().field("field2", value1).endObject();
         }
@@ -115,9 +136,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
     }
 
     private void insertIdx2(String[][] values) throws Exception {
-        XContentBuilder source = jsonBuilder()
-                .startObject()
-                .startArray("nested1");
+        XContentBuilder source = jsonBuilder().startObject().startArray("nested1");
         for (String[] value : values) {
             source.startObject().field("field1", value[0]).startArray("nested2");
             for (int i = 1; i < value.length; i++) {
@@ -131,18 +150,17 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     public void testSimpleReverseNestedToRoot() throws Exception {
         SearchResponse response = client().prepareSearch("idx1")
-                .addAggregation(nested("nested1", "nested1")
+            .addAggregation(
+                nested("nested1", "nested1").subAggregation(
+                    terms("field2").field("nested1.field2")
                         .subAggregation(
-                                terms("field2").field("nested1.field2")
-                                        .subAggregation(
-                                                reverseNested("nested1_to_field1")
-                                                        .subAggregation(
-                                                                terms("field1").field("field1")
-                                                                .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                                        )
-                                        )
+                            reverseNested("nested1_to_field1").subAggregation(
+                                terms("field1").field("field1").collectMode(randomFrom(SubAggCollectionMode.values()))
+                            )
                         )
-                ).get();
+                )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -162,9 +180,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(bucket.getKeyAsString(), equalTo("1"));
         assertThat(bucket.getDocCount(), equalTo(6L));
         ReverseNested reverseNested = bucket.getAggregations().get("nested1_to_field1");
-        assertThat(((InternalAggregation)reverseNested).getProperty("_count"), equalTo(5L));
+        assertThat(((InternalAggregation) reverseNested).getProperty("_count"), equalTo(5L));
         Terms tags = reverseNested.getAggregations().get("field1");
-        assertThat(((InternalAggregation)reverseNested).getProperty("field1"), sameInstance(tags));
+        assertThat(((InternalAggregation) reverseNested).getProperty("field1"), sameInstance(tags));
         List<Terms.Bucket> tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(6));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("c"));
@@ -319,13 +337,12 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     public void testSimpleNested1ToRootToNested2() throws Exception {
         SearchResponse response = client().prepareSearch("idx2")
-                .addAggregation(nested("nested1", "nested1")
-                                .subAggregation(
-                                        reverseNested("nested1_to_root")
-                                                .subAggregation(nested("root_to_nested2", "nested1.nested2"))
-                                        )
-                                )
-                .get();
+            .addAggregation(
+                nested("nested1", "nested1").subAggregation(
+                    reverseNested("nested1_to_root").subAggregation(nested("root_to_nested2", "nested1.nested2"))
+                )
+            )
+            .get();
 
         assertSearchResponse(response);
         Nested nested = response.getAggregations().get("nested1");
@@ -341,20 +358,23 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     public void testSimpleReverseNestedToNested1() throws Exception {
         SearchResponse response = client().prepareSearch("idx2")
-                .addAggregation(nested("nested1", "nested1.nested2")
+            .addAggregation(
+                nested("nested1", "nested1.nested2").subAggregation(
+                    terms("field2").field("nested1.nested2.field2")
+                        .order(BucketOrder.key(true))
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .size(10000)
+                        .subAggregation(
+                            reverseNested("nested1_to_field1").path("nested1")
                                 .subAggregation(
-                                        terms("field2").field("nested1.nested2.field2").order(BucketOrder.key(true))
-                                                .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                                .size(10000)
-                                                .subAggregation(
-                                                        reverseNested("nested1_to_field1").path("nested1")
-                                                                .subAggregation(
-                                                                        terms("field1").field("nested1.field1").order(BucketOrder.key(true))
-                                                                                .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                                                )
-                                                )
+                                    terms("field1").field("nested1.field1")
+                                        .order(BucketOrder.key(true))
+                                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                                 )
-                ).get();
+                        )
+                )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -444,16 +464,16 @@ public class ReverseNestedIT extends ESIntegTestCase {
     public void testReverseNestedAggWithoutNestedAgg() {
         try {
             client().prepareSearch("idx2")
-                    .addAggregation(terms("field2").field("nested1.nested2.field2")
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                    .subAggregation(
-                                            reverseNested("nested1_to_field1")
-                                                    .subAggregation(
-                                                            terms("field1").field("nested1.field1")
-                                                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                                    )
-                                    )
-                    ).get();
+                .addAggregation(
+                    terms("field2").field("nested1.nested2.field2")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .subAggregation(
+                            reverseNested("nested1_to_field1").subAggregation(
+                                terms("field1").field("nested1.field1").collectMode(randomFrom(SubAggCollectionMode.values()))
+                            )
+                        )
+                )
+                .get();
             fail("Expected SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), is("all shards failed"));
@@ -462,9 +482,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     public void testNonExistingNestedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx2")
-                .setQuery(matchAllQuery())
-                .addAggregation(nested("nested2", "nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3")))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(nested("nested2", "nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3")))
+            .get();
 
         Nested nested = searchResponse.getAggregations().get("nested2");
         assertThat(nested, notNullValue());
@@ -475,9 +495,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
         // Test that parsing the reverse_nested agg doesn't fail, because the parent nested agg is unmapped:
         searchResponse = client().prepareSearch("idx1")
-                .setQuery(matchAllQuery())
-                .addAggregation(nested("incorrect1", "incorrect1").subAggregation(reverseNested("incorrect2").path("incorrect2")))
-                .get();
+            .setQuery(matchAllQuery())
+            .addAggregation(nested("incorrect1", "incorrect1").subAggregation(reverseNested("incorrect2").path("incorrect2")))
+            .get();
 
         nested = searchResponse.getAggregations().get("incorrect1");
         assertThat(nested, notNullValue());
@@ -486,94 +506,137 @@ public class ReverseNestedIT extends ESIntegTestCase {
     }
 
     public void testSameParentDocHavingMultipleBuckets() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("product").field("dynamic", "strict").startObject("properties")
-                .startObject("id").field("type", "long").endObject()
-                .startObject("category")
-                    .field("type", "nested")
-                    .startObject("properties")
-                        .startObject("name").field("type", "keyword").endObject()
-                    .endObject()
-                .endObject()
-                .startObject("sku")
-                    .field("type", "nested")
-                    .startObject("properties")
-                        .startObject("sku_type").field("type", "keyword").endObject()
-                            .startObject("colors")
-                                .field("type", "nested")
-                                .startObject("properties")
-                                    .startObject("name").field("type", "keyword").endObject()
-                                .endObject()
-                            .endObject()
-                    .endObject()
-                .endObject()
-                .endObject().endObject().endObject();
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("product")
+            .field("dynamic", "strict")
+            .startObject("properties")
+            .startObject("id")
+            .field("type", "long")
+            .endObject()
+            .startObject("category")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("name")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("sku")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("sku_type")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("colors")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("name")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
         assertAcked(
-                prepareCreate("idx3")
-                        .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                        .addMapping("product", mapping)
+            prepareCreate("idx3").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping("product", mapping)
         );
 
-        client().prepareIndex("idx3", "product", "1").setRefreshPolicy(IMMEDIATE).setSource(
+        client().prepareIndex("idx3", "product", "1")
+            .setRefreshPolicy(IMMEDIATE)
+            .setSource(
                 jsonBuilder().startObject()
-                        .startArray("sku")
-                            .startObject()
-                                .field("sku_type", "bar1")
-                                .startArray("colors")
-                                    .startObject().field("name", "red").endObject()
-                                    .startObject().field("name", "green").endObject()
-                                    .startObject().field("name", "yellow").endObject()
-                                .endArray()
-                            .endObject()
-                            .startObject()
-                                .field("sku_type", "bar1")
-                                .startArray("colors")
-                                .startObject().field("name", "red").endObject()
-                                .startObject().field("name", "blue").endObject()
-                                .startObject().field("name", "white").endObject()
-                                .endArray()
-                            .endObject()
-                            .startObject()
-                                .field("sku_type", "bar1")
-                                .startArray("colors")
-                                .startObject().field("name", "black").endObject()
-                                .startObject().field("name", "blue").endObject()
-                                .endArray()
-                            .endObject()
-                            .startObject()
-                                .field("sku_type", "bar2")
-                                .startArray("colors")
-                                .startObject().field("name", "orange").endObject()
-                                .endArray()
-                            .endObject()
-                            .startObject()
-                                .field("sku_type", "bar2")
-                                .startArray("colors")
-                                .startObject().field("name", "pink").endObject()
-                                .endArray()
-                            .endObject()
-                        .endArray()
-                        .startArray("category")
-                            .startObject().field("name", "abc").endObject()
-                            .startObject().field("name", "klm").endObject()
-                            .startObject().field("name", "xyz").endObject()
-                        .endArray()
-                        .endObject()
-        ).get();
+                    .startArray("sku")
+                    .startObject()
+                    .field("sku_type", "bar1")
+                    .startArray("colors")
+                    .startObject()
+                    .field("name", "red")
+                    .endObject()
+                    .startObject()
+                    .field("name", "green")
+                    .endObject()
+                    .startObject()
+                    .field("name", "yellow")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("sku_type", "bar1")
+                    .startArray("colors")
+                    .startObject()
+                    .field("name", "red")
+                    .endObject()
+                    .startObject()
+                    .field("name", "blue")
+                    .endObject()
+                    .startObject()
+                    .field("name", "white")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("sku_type", "bar1")
+                    .startArray("colors")
+                    .startObject()
+                    .field("name", "black")
+                    .endObject()
+                    .startObject()
+                    .field("name", "blue")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("sku_type", "bar2")
+                    .startArray("colors")
+                    .startObject()
+                    .field("name", "orange")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("sku_type", "bar2")
+                    .startArray("colors")
+                    .startObject()
+                    .field("name", "pink")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .endArray()
+                    .startArray("category")
+                    .startObject()
+                    .field("name", "abc")
+                    .endObject()
+                    .startObject()
+                    .field("name", "klm")
+                    .endObject()
+                    .startObject()
+                    .field("name", "xyz")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
 
         SearchResponse response = client().prepareSearch("idx3")
-                .addAggregation(
-                        nested("nested_0", "category").subAggregation(
-                                terms("group_by_category").field("category.name").subAggregation(
-                                        reverseNested("to_root").subAggregation(
-                                                nested("nested_1", "sku").subAggregation(
-                                                        filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
-                                                                count("sku_count").field("sku.sku_type")
-                                                        )
-                                                )
-                                        )
+            .addAggregation(
+                nested("nested_0", "category").subAggregation(
+                    terms("group_by_category").field("category.name")
+                        .subAggregation(
+                            reverseNested("to_root").subAggregation(
+                                nested("nested_1", "sku").subAggregation(
+                                    filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
+                                        count("sku_count").field("sku.sku_type")
+                                    )
                                 )
+                            )
                         )
-                ).get();
+                )
+            )
+            .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
@@ -581,7 +644,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(nested0.getDocCount(), equalTo(3L));
         Terms terms = nested0.getAggregations().get("group_by_category");
         assertThat(terms.getBuckets().size(), equalTo(3));
-        for (String bucketName : new String[]{"abc", "klm", "xyz"}) {
+        for (String bucketName : new String[] { "abc", "klm", "xyz" }) {
             logger.info("Checking results for bucket {}", bucketName);
             Terms.Bucket bucket = terms.getBucketByKey(bucketName);
             assertThat(bucket.getDocCount(), equalTo(1L));
@@ -596,26 +659,26 @@ public class ReverseNestedIT extends ESIntegTestCase {
         }
 
         response = client().prepareSearch("idx3")
-                .addAggregation(
-                        nested("nested_0", "category").subAggregation(
-                                terms("group_by_category").field("category.name").subAggregation(
-                                        reverseNested("to_root").subAggregation(
-                                                nested("nested_1", "sku").subAggregation(
-                                                        filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
-                                                                nested("nested_2", "sku.colors").subAggregation(
-                                                                        filter("filter_sku_color", termQuery("sku.colors.name", "red"))
-                                                                        .subAggregation(
-                                                                                reverseNested("reverse_to_sku").path("sku").subAggregation(
-                                                                                        count("sku_count").field("sku.sku_type")
-                                                                                )
-                                                                        )
-                                                                )
-                                                        )
-                                                )
+            .addAggregation(
+                nested("nested_0", "category").subAggregation(
+                    terms("group_by_category").field("category.name")
+                        .subAggregation(
+                            reverseNested("to_root").subAggregation(
+                                nested("nested_1", "sku").subAggregation(
+                                    filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
+                                        nested("nested_2", "sku.colors").subAggregation(
+                                            filter("filter_sku_color", termQuery("sku.colors.name", "red")).subAggregation(
+                                                reverseNested("reverse_to_sku").path("sku")
+                                                    .subAggregation(count("sku_count").field("sku.sku_type"))
+                                            )
                                         )
+                                    )
                                 )
+                            )
                         )
-                ).get();
+                )
+            )
+            .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
@@ -623,7 +686,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(nested0.getDocCount(), equalTo(3L));
         terms = nested0.getAggregations().get("group_by_category");
         assertThat(terms.getBuckets().size(), equalTo(3));
-        for (String bucketName : new String[]{"abc", "klm", "xyz"}) {
+        for (String bucketName : new String[] { "abc", "klm", "xyz" }) {
             logger.info("Checking results for bucket {}", bucketName);
             Terms.Bucket bucket = terms.getBucketByKey(bucketName);
             assertThat(bucket.getDocCount(), equalTo(1L));
@@ -646,14 +709,17 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     public void testFieldAlias() {
         SearchResponse response = client().prepareSearch("idx1")
-            .addAggregation(nested("nested1", "nested1")
-                .subAggregation(
+            .addAggregation(
+                nested("nested1", "nested1").subAggregation(
                     terms("field2").field("nested1.field2")
                         .subAggregation(
-                            reverseNested("nested1_to_field1")
-                                .subAggregation(
-                                    terms("field1").field("alias")
-                                        .collectMode(randomFrom(SubAggCollectionMode.values())))))).get();
+                            reverseNested("nested1_to_field1").subAggregation(
+                                terms("field1").field("alias").collectMode(randomFrom(SubAggCollectionMode.values()))
+                            )
+                        )
+                )
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -664,7 +730,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         ReverseNested reverseNested = bucket.getAggregations().get("nested1_to_field1");
         Terms reverseNestedTerms = reverseNested.getAggregations().get("field1");
 
-        assertThat(((InternalAggregation)reverseNested).getProperty("field1"), sameInstance(reverseNestedTerms));
+        assertThat(((InternalAggregation) reverseNested).getProperty("field1"), sameInstance(reverseNestedTerms));
         assertThat(reverseNestedTerms.getBuckets().size(), equalTo(6));
     }
 }

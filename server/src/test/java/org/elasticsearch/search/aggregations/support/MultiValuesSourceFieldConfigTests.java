@@ -64,8 +64,10 @@ public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCa
     }
 
     public void testBothFieldScript() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new MultiValuesSourceFieldConfig.Builder().setFieldName("foo").setScript(new Script("foo")).build());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MultiValuesSourceFieldConfig.Builder().setFieldName("foo").setScript(new Script("foo")).build()
+        );
         assertThat(e.getMessage(), equalTo("[field] and [script] cannot both be configured.  Please specify one or the other."));
     }
 

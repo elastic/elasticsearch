@@ -18,8 +18,10 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class InternalGeoGridBucket
-    extends InternalMultiBucketAggregation.InternalBucket implements GeoGrid.Bucket, Comparable<InternalGeoGridBucket> {
+public abstract class InternalGeoGridBucket extends InternalMultiBucketAggregation.InternalBucket
+    implements
+        GeoGrid.Bucket,
+        Comparable<InternalGeoGridBucket> {
 
     protected long hashAsLong;
     protected long docCount;
@@ -89,9 +91,7 @@ public abstract class InternalGeoGridBucket
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InternalGeoGridBucket bucket = (InternalGeoGridBucket) o;
-        return hashAsLong == bucket.hashAsLong &&
-            docCount == bucket.docCount &&
-            Objects.equals(aggregations, bucket.aggregations);
+        return hashAsLong == bucket.hashAsLong && docCount == bucket.docCount && Objects.equals(aggregations, bucket.aggregations);
     }
 
     @Override

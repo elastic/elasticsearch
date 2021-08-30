@@ -34,8 +34,10 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
         MissingAggregatorSupplier.class
     );
 
-    public static final ObjectParser<MissingAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, MissingAggregationBuilder::new);
+    public static final ObjectParser<MissingAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        MissingAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
@@ -48,9 +50,11 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
         super(name);
     }
 
-    protected MissingAggregationBuilder(MissingAggregationBuilder clone,
-                                        AggregatorFactories.Builder factoriesBuilder,
-                                        Map<String, Object> metadata) {
+    protected MissingAggregationBuilder(
+        MissingAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -87,16 +91,16 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
 
-        MissingAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        MissingAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
-        return new MissingAggregatorFactory(name, config, context,
-                                            parent, subFactoriesBuilder, metadata, aggregatorSupplier);
+        return new MissingAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

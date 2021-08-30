@@ -7,10 +7,9 @@
  */
 package org.elasticsearch.search.aggregations;
 
-
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -29,7 +28,11 @@ import java.util.Set;
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
 public abstract class AggregationBuilder
-        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder, Rewriteable<AggregationBuilder> {
+    implements
+        NamedWriteable,
+        ToXContentFragment,
+        BaseAggregationBuilder,
+        Rewriteable<AggregationBuilder> {
     public static final long DEFAULT_PREALLOCATION = 1024 * 6;
 
     protected final String name;
@@ -154,8 +157,11 @@ public abstract class AggregationBuilder
      * instead of <strong>per parent bucket</strong>.
      */
     public enum BucketCardinality {
-        NONE, ONE, MANY;
+        NONE,
+        ONE,
+        MANY;
     }
+
     /**
      * A rough count of the number of buckets that {@link Aggregator}s built
      * by this builder will contain per owning parent bucket.

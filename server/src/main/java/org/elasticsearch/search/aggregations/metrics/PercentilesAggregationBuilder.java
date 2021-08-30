@@ -8,11 +8,11 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -50,7 +50,8 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
                 return new PercentilesAggregationBuilder(name, values, percentileConfig);
             },
             PercentilesConfig.TDigest::new,
-            PERCENTS_FIELD);
+            PERCENTS_FIELD
+        );
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -73,8 +74,11 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
         super(name, values, percentilesConfig, PERCENTS_FIELD);
     }
 
-    protected PercentilesAggregationBuilder(PercentilesAggregationBuilder clone,
-                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected PercentilesAggregationBuilder(
+        PercentilesAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -112,8 +116,12 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
             }
 
             if (percent == previousPercent) {
-                deprecationLogger.deprecate(DeprecationCategory.AGGREGATIONS, "percents",
-                   "percent [{}] has been specified more than once, percents must be unique", percent);
+                deprecationLogger.deprecate(
+                    DeprecationCategory.AGGREGATIONS,
+                    "percents",
+                    "percent [{}] has been specified more than once, percents must be unique",
+                    percent
+                );
             }
             previousPercent = percent;
         }
@@ -129,16 +137,26 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
 
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(
-            AggregationContext context,
-            ValuesSourceConfig config,
-            AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
 
-        PercentilesAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        PercentilesAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
-        return new PercentilesAggregatorFactory(name, config, values, configOrDefault(), keyed,
-            context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
+        return new PercentilesAggregatorFactory(
+            name,
+            config,
+            values,
+            configOrDefault(),
+            keyed,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override

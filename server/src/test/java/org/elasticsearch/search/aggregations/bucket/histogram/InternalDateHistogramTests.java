@@ -42,9 +42,9 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         super.setUp();
         keyed = randomBoolean();
         format = randomNumericDocValueFormat();
-        //in order for reduction to work properly (and be realistic) we need to use the same interval, minDocCount, emptyBucketInfo
-        //and base in all randomly created aggs as part of the same test run. This is particularly important when minDocCount is
-        //set to 0 as empty buckets need to be added to fill the holes.
+        // in order for reduction to work properly (and be realistic) we need to use the same interval, minDocCount, emptyBucketInfo
+        // and base in all randomly created aggs as part of the same test run. This is particularly important when minDocCount is
+        // set to 0 as empty buckets need to be added to fill the holes.
         long interval = randomIntBetween(1, 3);
         intervalMillis = randomFrom(timeValueSeconds(interval), timeValueMinutes(interval), timeValueHours(interval)).getMillis();
         Rounding rounding = Rounding.builder(TimeValue.timeValueMillis(intervalMillis)).build();
@@ -57,8 +57,8 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             minDocCount = 0;
             LongBounds extendedBounds = null;
             if (randomBoolean()) {
-                //it's ok if min and max are outside the range of the generated buckets, that will just mean that
-                //empty buckets won't be added before the first bucket and/or after the last one
+                // it's ok if min and max are outside the range of the generated buckets, that will just mean that
+                // empty buckets won't be added before the first bucket and/or after the last one
                 long min = baseMillis - intervalMillis * randomNumberOfBuckets();
                 long max = baseMillis + randomNumberOfBuckets() * intervalMillis;
                 extendedBounds = new LongBounds(min, max);
@@ -68,15 +68,13 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
     }
 
     @Override
-    protected InternalDateHistogram createTestInstance(String name,
-                                                       Map<String, Object> metadata,
-                                                       InternalAggregations aggregations) {
+    protected InternalDateHistogram createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         int nbBuckets = randomNumberOfBuckets();
         List<InternalDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);
-        //avoid having different random instance start from exactly the same base
+        // avoid having different random instance start from exactly the same base
         long startingDate = baseMillis - intervalMillis * randomNumberOfBuckets();
         for (int i = 0; i < nbBuckets; i++) {
-            //rarely leave some holes to be filled up with empty buckets in case minDocCount is set to 0
+            // rarely leave some holes to be filled up with empty buckets in case minDocCount is set to 0
             if (frequently()) {
                 long key = startingDate + intervalMillis * i;
                 buckets.add(new InternalDateHistogram.Bucket(key, randomIntBetween(1, 100), keyed, format, aggregations));
@@ -91,8 +89,10 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         TreeMap<Long, Long> expectedCounts = new TreeMap<>();
         for (Histogram histogram : inputs) {
             for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                expectedCounts.compute(((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli(),
-                        (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+                expectedCounts.compute(
+                    ((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli(),
+                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount()
+                );
             }
         }
         if (minDocCount == 0) {
@@ -130,8 +130,10 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
 
         Map<Long, Long> actualCounts = new TreeMap<>();
         for (Histogram.Bucket bucket : reduced.getBuckets()) {
-            actualCounts.compute(((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli(),
-                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+            actualCounts.compute(
+                ((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli(),
+                (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount()
+            );
         }
         assertEquals(expectedCounts, actualCounts);
     }
@@ -151,34 +153,41 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = instance.emptyBucketInfo;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            buckets = new ArrayList<>(buckets);
-            buckets.add(new InternalDateHistogram.Bucket(randomNonNegativeLong(), randomIntBetween(1, 100), keyed, format,
-                    InternalAggregations.EMPTY));
-            break;
-        case 2:
-            order = BucketOrder.count(randomBoolean());
-            break;
-        case 3:
-            minDocCount += between(1, 10);
-            emptyBucketInfo = null;
-            break;
-        case 4:
-            offset += between(1, 20);
-            break;
-        case 5:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                buckets = new ArrayList<>(buckets);
+                buckets.add(
+                    new InternalDateHistogram.Bucket(
+                        randomNonNegativeLong(),
+                        randomIntBetween(1, 100),
+                        keyed,
+                        format,
+                        InternalAggregations.EMPTY
+                    )
+                );
+                break;
+            case 2:
+                order = BucketOrder.count(randomBoolean());
+                break;
+            case 3:
+                minDocCount += between(1, 10);
+                emptyBucketInfo = null;
+                break;
+            case 4:
+                offset += between(1, 20);
+                break;
+            case 5:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, metadata);
     }

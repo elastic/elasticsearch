@@ -40,17 +40,17 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
     public void testPercentsFromMixedArray() throws Exception {
         XContentBuilder content = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("name")
-                    .startObject("percentiles_bucket")
-                        .field("buckets_path", "test")
-                        .array("percents", 0, 20.0, 50, 75.99)
-                    .endObject()
-                .endObject()
+            .startObject("name")
+            .startObject("percentiles_bucket")
+            .field("buckets_path", "test")
+            .array("percents", 0, 20.0, 50, 75.99)
+            .endObject()
+            .endObject()
             .endObject();
 
         PercentilesBucketPipelineAggregationBuilder builder = (PercentilesBucketPipelineAggregationBuilder) parse(createParser(content));
 
-        assertThat(builder.getPercents(), equalTo(new double[]{0.0, 20.0, 50.0, 75.99}));
+        assertThat(builder.getPercents(), equalTo(new double[] { 0.0, 20.0, 50.0, 75.99 }));
     }
 
     public void testValidate() {
@@ -61,15 +61,26 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
         aggBuilders.add(multiBucketAgg);
 
         // First try to point to a non-existent agg
-        assertThat(validate(aggBuilders, new PercentilesBucketPipelineAggregationBuilder("name", "invalid_agg>metric")), equalTo(
-                "Validation Failed: 1: " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                + " aggregation does not exist for aggregation [name]: invalid_agg>metric;"));
+        assertThat(
+            validate(aggBuilders, new PercentilesBucketPipelineAggregationBuilder("name", "invalid_agg>metric")),
+            equalTo(
+                "Validation Failed: 1: "
+                    + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                    + " aggregation does not exist for aggregation [name]: invalid_agg>metric;"
+            )
+        );
 
         // Now try to point to a single bucket agg
-        assertThat(validate(aggBuilders, new PercentilesBucketPipelineAggregationBuilder("name", "global>metric")), equalTo(
-                "Validation Failed: 1: The first aggregation in " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                + " must be a multi-bucket aggregation for aggregation [name] found :" + GlobalAggregationBuilder.class.getName()
-                + " for buckets path: global>metric;"));
+        assertThat(
+            validate(aggBuilders, new PercentilesBucketPipelineAggregationBuilder("name", "global>metric")),
+            equalTo(
+                "Validation Failed: 1: The first aggregation in "
+                    + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                    + " must be a multi-bucket aggregation for aggregation [name] found :"
+                    + GlobalAggregationBuilder.class.getName()
+                    + " for buckets path: global>metric;"
+            )
+        );
 
         // Now try to point to a valid multi-bucket agg
         assertThat(validate(aggBuilders, new PercentilesBucketPipelineAggregationBuilder("name", "terms>metric")), nullValue());

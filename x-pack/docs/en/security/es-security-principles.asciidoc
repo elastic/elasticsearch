@@ -20,7 +20,7 @@ is secure.
 
 [discrete]
 [[security-not-root-user]]
-=== Don't run {es} as `root`
+=== Run {es} with a dedicated non-root user
 Never run {es} as the `root` user. Running as the `root` user sheds a layer of
 security in your defense in depth strategy and permits a user to do *anything*
 on your server. {es} will refuse to start if it detects that it is running as
@@ -46,7 +46,7 @@ application to make requests on behalf of users. This implementation allows you
 to track user behaviors, such as can submit requests, and to which specific
 nodes in the cluster. For example, you can implement an application that accepts
 a search term from a user and funnels it through a
-<<query-dsl-simple-query-string-query,`simple_query_string` query>>. 
+<<query-dsl-simple-query-string-query,`simple_query_string`>> query. 
 
 [discrete]
 [[security-create-appropriate-users]]
@@ -54,4 +54,4 @@ a search term from a user and funnels it through a
 <<defining-roles,Define roles>> for your users and
 <<security-privileges,assign appropriate privileges>> to ensure that users have
 access only to the resources that they need. This process determines whether the 
-user behind an incoming request is allowed to execute that request.
+user behind an incoming request is allowed to run that request.

@@ -818,7 +818,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
     public AssertingAckListener publishState(PublishClusterStateAction action, ClusterState state,
                                              ClusterState previousState, int minMasterNodes) throws InterruptedException {
         AssertingAckListener assertingAckListener = new AssertingAckListener(state.nodes().getSize() - 1);
-        ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent("test update", previousState, state);
+        ClusterStatePublicationEvent clusterStatePublicationEvent
+            = new ClusterStatePublicationEvent("test update", previousState, state, 0L, 0L);
         action.publish(clusterStatePublicationEvent, minMasterNodes, assertingAckListener);
         return assertingAckListener;
     }

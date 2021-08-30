@@ -46,6 +46,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public static final Version NUMERIC_PAGINATION_VERSION = Version.V_7_15_0;
 
+    private static final Version SORT_BY_SHARD_COUNTS_VERSION = Version.V_7_16_0;
+
     public static final int NO_LIMIT = -1;
 
     /**
@@ -147,6 +149,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         out.writeBoolean(verbose);
         if (out.getVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
             out.writeOptionalWriteable(after);
+            if ((sort == SortBy.SHARDS || sort == SortBy.FAILED_SHARDS) && out.getVersion().before(SORT_BY_SHARD_COUNTS_VERSION)) {
+                throw new IllegalArgumentException("can't use sort by shard count with node version [" + out.getVersion() + "]");
+            }
             out.writeEnum(sort);
             out.writeVInt(size);
             order.writeTo(out);
@@ -356,7 +361,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         START_TIME("start_time"),
         NAME("name"),
         DURATION("duration"),
-        INDICES("index_count");
+        INDICES("index_count"),
+        SHARDS("shard_count"),
+        FAILED_SHARDS("failed_shard_count");
 
         private final String param;
 
@@ -379,6 +386,10 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                     return DURATION;
                 case "index_count":
                     return INDICES;
+                case "shard_count":
+                    return SHARDS;
+                case "failed_shard_count":
+                    return FAILED_SHARDS;
                 default:
                     throw new IllegalArgumentException("unknown sort order [" + value + "]");
             }
@@ -423,6 +434,12 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                     break;
                 case INDICES:
                     afterValue = String.valueOf(snapshotInfo.indices().size());
+                    break;
+                case SHARDS:
+                    afterValue = String.valueOf(snapshotInfo.totalShards());
+                    break;
+                case FAILED_SHARDS:
+                    afterValue = String.valueOf(snapshotInfo.failedShards());
                     break;
                 default:
                     throw new AssertionError("unknown sort column [" + sortBy + "]");

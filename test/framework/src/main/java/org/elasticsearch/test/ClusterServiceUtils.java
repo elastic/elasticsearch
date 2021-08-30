@@ -7,11 +7,15 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -27,11 +31,15 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static junit.framework.TestCase.fail;
 
@@ -42,6 +50,7 @@ public class ClusterServiceUtils {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            setAllElapsedMillis(clusterStatePublicationEvent);
             clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             publishListener.onResponse(null);
         });
@@ -159,7 +168,8 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterStatePublisher createClusterStatePublisher(ClusterApplier clusterApplier) {
-        return (clusterStatePublicationEvent, publishListener, ackListener) ->
+        return (clusterStatePublicationEvent, publishListener, ackListener) -> {
+            setAllElapsedMillis(clusterStatePublicationEvent);
             clusterApplier.onNewClusterState(
                 "mock_publish_to_self[" + clusterStatePublicationEvent.getSummary() + "]",
                 clusterStatePublicationEvent::getNewState,
@@ -173,8 +183,8 @@ public class ClusterServiceUtils {
                     public void onFailure(String source, Exception e) {
                         publishListener.onFailure(e);
                     }
-                }
-        );
+                });
+        };
     }
 
     public static ClusterService createClusterService(ClusterState initialState, ThreadPool threadPool) {
@@ -192,5 +202,43 @@ public class ClusterServiceUtils {
      */
     public static void setState(ClusterService clusterService, ClusterState clusterState) {
         setState(clusterService.getClusterApplierService(), clusterState);
+    }
+
+    public static void setAllElapsedMillis(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+        clusterStatePublicationEvent.setPublicationContextConstructionElapsedMillis(0L);
+        clusterStatePublicationEvent.setPublicationCommitElapsedMillis(0L);
+        clusterStatePublicationEvent.setPublicationCompletionElapsedMillis(0L);
+        clusterStatePublicationEvent.setMasterApplyElapsedMillis(0L);
+    }
+
+    public static void awaitClusterState(Logger logger,
+                                         Predicate<ClusterState> statePredicate,
+                                         ClusterService clusterService) throws Exception {
+        final ClusterStateObserver observer = new ClusterStateObserver(
+            clusterService,
+            null,
+            logger,
+            clusterService.getClusterApplierService().threadPool().getThreadContext()
+        );
+        if (statePredicate.test(observer.setAndGetObservedState()) == false) {
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    future.onResponse(null);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    future.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    assert false : "onTimeout called with no timeout set";
+                }
+            }, statePredicate);
+            future.get(30L, TimeUnit.SECONDS);
+        }
     }
 }

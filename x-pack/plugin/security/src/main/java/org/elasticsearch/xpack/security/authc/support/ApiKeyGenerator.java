@@ -14,13 +14,17 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccount;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Utility class for generating API keys for a provided {@link Authentication}.
@@ -48,20 +52,31 @@ public class ApiKeyGenerator {
                 "creating derived api keys requires an explicit role descriptor that is empty (has no privileges)"));
             return;
         }
-        rolesStore.getRoleDescriptors(new HashSet<>(Arrays.asList(authentication.getUser().roles())),
-            ActionListener.wrap(roleDescriptors -> {
-                    for (RoleDescriptor rd : roleDescriptors) {
-                        try {
-                            DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
-                        } catch (ElasticsearchException | IllegalArgumentException e) {
-                            listener.onFailure(e);
-                            return;
-                        }
-                    }
-                    apiKeyService.createApiKey(authentication, request, roleDescriptors, listener);
-                },
-                listener::onFailure));
 
+        final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener = ActionListener.wrap(roleDescriptors -> {
+            for (RoleDescriptor rd : roleDescriptors) {
+                try {
+                    DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
+                } catch (ElasticsearchException | IllegalArgumentException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+            }
+            apiKeyService.createApiKey(authentication, request, roleDescriptors, listener);
+        }, listener::onFailure);
+
+        if (ServiceAccountSettings.REALM_NAME.equals(authentication.getSourceRealm().getName())) {
+            final ServiceAccount serviceAccount = ServiceAccountService.getServiceAccounts().get(authentication.getUser().principal());
+            if (serviceAccount == null) {
+                roleDescriptorsListener.onFailure(new ElasticsearchSecurityException(
+                    "the authentication is created by a service account that does not exist: ["
+                        + authentication.getUser().principal() + "]"));
+            } else {
+                roleDescriptorsListener.onResponse(org.elasticsearch.core.Set.of(serviceAccount.roleDescriptor()));
+            }
+        } else {
+            rolesStore.getRoleDescriptors(new HashSet<>(Arrays.asList(authentication.getUser().roles())), roleDescriptorsListener);
+        }
     }
 
     private boolean grantsAnyPrivileges(CreateApiKeyRequest request) {

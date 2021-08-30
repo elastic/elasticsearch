@@ -19,9 +19,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class TransformCheckpointTests extends AbstractSerializingTransformTestCase<TransformCheckpoint> {
 
@@ -189,6 +193,74 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
         checkpointsByIndexNew.remove(checkpointsByIndexNew.firstKey());
 
         assertEquals((indices - 2) * shards * 10L, TransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew));
+    }
+
+    public void testGetChangedIndices() {
+        String baseIndexName = randomAlphaOfLength(8);
+        String id = randomAlphaOfLengthBetween(1, 10);
+        long timestamp = randomNonNegativeLong();
+
+        TreeMap<String, long[]> checkpointsByIndexOld = new TreeMap<>();
+        TreeMap<String, long[]> checkpointsByIndexNew = new TreeMap<>();
+
+        int indices = randomIntBetween(5, 20);
+        int shards = randomIntBetween(1, 20);
+
+        for (int i = 0; i < indices; ++i) {
+            List<Long> checkpoints1 = new ArrayList<>();
+            List<Long> checkpoints2 = new ArrayList<>();
+
+            for (int j = 0; j < shards; ++j) {
+                long shardCheckpoint = randomLongBetween(-1, 1_000_000);
+                checkpoints1.add(shardCheckpoint);
+                if (i % 3 == 0) {
+                    checkpoints2.add(shardCheckpoint + 10);
+                } else {
+                    checkpoints2.add(shardCheckpoint);
+                }
+            }
+
+            String indexName = baseIndexName + i;
+
+            if (i < 15) {
+                checkpointsByIndexOld.put(indexName, checkpoints1.stream().mapToLong(l -> l).toArray());
+            }
+            if (i % 5 != 0) {
+                checkpointsByIndexNew.put(indexName, checkpoints2.stream().mapToLong(l -> l).toArray());
+            }
+        }
+        long checkpoint = randomLongBetween(10, 100);
+        TransformCheckpoint checkpointOld = new TransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndexOld, 0L);
+        TransformCheckpoint checkpointNew = new TransformCheckpoint(id, timestamp, checkpoint + 1, checkpointsByIndexNew, 0L);
+
+        Set<Integer> changedIndexes = TransformCheckpoint.getChangedIndices(checkpointOld, checkpointNew)
+            .stream()
+            .map(x -> Integer.parseInt(x.substring(baseIndexName.length())))
+            .collect(Collectors.toSet());
+
+        assertThat(changedIndexes.size(), lessThan(indices));
+
+        for (int i = 0; i < indices; ++i) {
+            if (i >= 15) {
+                if (i % 5 == 0) {
+                    assertFalse(changedIndexes.contains(i));
+                } else {
+                    assertTrue(changedIndexes.contains(i));
+                }
+            } else if (i % 5 == 0) {
+                assertFalse(changedIndexes.contains(i));
+            } else if (i % 3 == 0) {
+                assertTrue(changedIndexes.contains(i));
+            } else {
+                assertFalse(changedIndexes.contains(i));
+            }
+        }
+
+        // check against empty
+        assertThat(
+            TransformCheckpoint.getChangedIndices(TransformCheckpoint.EMPTY, checkpointNew),
+            equalTo(checkpointNew.getIndicesCheckpoints().keySet())
+        );
     }
 
     private static Map<String, long[]> randomCheckpointsByIndex() {

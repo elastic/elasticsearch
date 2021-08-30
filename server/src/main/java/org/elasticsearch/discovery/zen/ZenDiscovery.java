@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
+import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -316,6 +317,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         assert newState.getNodes().isLocalNodeElectedMaster()
             : "Shouldn't publish state when not master " + clusterStatePublicationEvent.getSummary();
 
+        // don't record timing stats in legacy discovery
+        clusterStatePublicationEvent.setPublicationContextConstructionElapsedMillis(0L);
+        clusterStatePublicationEvent.setPublicationCommitElapsedMillis(0L);
+        clusterStatePublicationEvent.setMasterApplyElapsedMillis(0L);
+        clusterStatePublicationEvent.setPublicationCompletionElapsedMillis(0L);
+
         try {
 
             // state got changed locally (maybe because another master published to us)
@@ -393,7 +400,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     @Override
     public DiscoveryStats stats() {
-        return new DiscoveryStats(pendingStatesQueue.stats(), publishClusterState.stats());
+        return new DiscoveryStats(pendingStatesQueue.stats(), publishClusterState.stats(), ClusterStateUpdateStats.EMPTY);
     }
 
     public DiscoverySettings getDiscoverySettings() {

@@ -308,7 +308,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
                 new HistogramValuesSourceBuilder("histo").field("val")
             );
 
-        CompositeAggregationBuilder compositeAggregationBuilder = new CompositeAggregationBuilder("my_buckets",valuesSourceBuilders).subAggregation(rateAggregationBuilder);
+        CompositeAggregationBuilder compositeAggregationBuilder = new CompositeAggregationBuilder("my_buckets", valuesSourceBuilders)
+            .subAggregation(rateAggregationBuilder);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> testCase(compositeAggregationBuilder, new MatchAllDocsQuery(), iw -> {

@@ -9,6 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -36,7 +37,12 @@ public class RestDieWithDignityAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         return channel -> {
-            long[] array = new long[Integer.MAX_VALUE];
+            /*
+             * this is to force the size of the array to be non-deterministic so that a sufficiently smart compiler can not optimize away
+             * getting the length of the array to a constant.
+             */
+            final int length = Randomness.get().nextBoolean() ? Integer.MAX_VALUE - 1 : Integer.MAX_VALUE;
+            final long[] array = new long[length];
             // this is to force arrays to appear to be consumed so that it can not be optimized away by a sufficiently smart compiler
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();

@@ -148,6 +148,11 @@ final class TerminalOutputFormatter {
             assert bytesRead != 0;
             if (bytesRead < 0) {
                 // the program should definitely exit if there is no input to forward anymore
+                // but let's clear the banner if still there
+                if (clearBanner) {
+                    assert banner != null;
+                    clearBanner(banner);
+                }
                 return;
             } else {
                 int end = start + bytesRead;

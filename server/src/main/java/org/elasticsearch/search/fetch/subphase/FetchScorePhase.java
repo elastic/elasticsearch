@@ -21,6 +21,15 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import java.io.IOException;
 
 public class FetchScorePhase implements FetchSubPhase {
+    @Override
+    public String name() {
+        return "scores";
+    }
+
+    @Override
+    public String description() {
+        return "calculates scores when they were not used by the original query";
+    }
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {

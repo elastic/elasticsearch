@@ -45,6 +45,16 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
     static final String FIELD_NAME_PREFIX = "_percolator_document_slot";
 
     @Override
+    public String name() {
+        return "percolator_matched";
+    }
+
+    @Override
+    public String description() {
+        return "indicates which documents match a percolator query";
+    }
+
+    @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
 
         List<PercolateContext> percolateContexts = new ArrayList<>();

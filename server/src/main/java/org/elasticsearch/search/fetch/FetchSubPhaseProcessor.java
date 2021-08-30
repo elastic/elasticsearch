@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Executes the logic for a {@link FetchSubPhase} against a particular leaf reader and hit
@@ -28,4 +29,16 @@ public interface FetchSubPhaseProcessor {
      */
     void process(HitContext hitContext) throws IOException;
 
+    /**
+     * Called when profiling after processing all documents to get any extra
+     * debug information the phase collected.
+     */
+    default Map<String, Object> getDebugInfo() {
+        return null;
+    }
+
+    /**
+     * Called when all hits have been processed.
+     */
+    default void done() {}
 }

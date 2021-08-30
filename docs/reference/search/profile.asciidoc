@@ -163,7 +163,38 @@ The API returns the following result:
             ]
           }
         ],
-        "aggregations": []
+        "aggregations": [],
+        "fetch": {
+          "type": "fetch",
+          "description": "fetch",
+          "time_in_nanos": 660555,
+          "breakdown": {
+            "next_reader": 7292,
+            "next_reader_count": 1,
+            "load_stored_fields": 299325,
+            "load_stored_fields_count": 5
+          },
+          "debug": {
+            "stored_fields": ["_id", "_routing", "_source"]
+          },
+          "children": [
+            {
+              "type": "source",
+              "description": "load _source",
+              "time_in_nanos": 20443,
+              "breakdown": {
+                "next_reader": 745,
+                "next_reader_count": 1,
+                "process": 19698,
+                "process_count": 5
+              },
+              "debug": {
+                "loaded_nested": 0,
+                "fast_path": 5
+              }
+            }
+          ]
+        }
       }
     ]
   }
@@ -196,7 +227,8 @@ The overall structure of the profile response is as follows:
                     "collector": [...]          <4>
                  }
               ],
-              "aggregations": [...]             <5>
+              "aggregations": [...],            <5>
+              "fetch": {...}                    <6>
            }
         ]
      }
@@ -208,15 +240,14 @@ The overall structure of the profile response is as follows:
 // TESTRESPONSE[s/"query": \[...\]/"query": $body.$_path/]
 // TESTRESPONSE[s/"collector": \[...\]/"collector": $body.$_path/]
 // TESTRESPONSE[s/"aggregations": \[...\]/"aggregations": []/]
+// TESTRESPONSE[s/"fetch": \{...\}/"fetch": $body.$_path/]
 <1> A profile is returned for each shard that participated in the response, and 
 is identified by a unique ID.
-<2> Each profile contains a section which holds details about the query 
-execution.
-<3> Each profile has a single time representing the cumulative rewrite time.
-<4> Each profile also contains a section about the Lucene Collectors which run 
-the search.
-<5> Each profile contains a section which holds the details about the 
-aggregation execution.
+<2> Query timings and other debugging information.
+<3> The cumulative rewrite time.
+<4> Names and invocation timings for each collector.
+<5> Aggregation timings, invocation counts, and debug information.
+<6> Fetch timing and debug information.
 
 Because a search request may be executed against one or more shards in an index, 
 and a search may cover one or more indices, the top level element in the profile 
@@ -295,7 +326,7 @@ Using our previous `match` query example, let's analyze the `query` section:
 ]
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n/]
-// TESTRESPONSE[s/]$/],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": []}]}}/]
+// TESTRESPONSE[s/]$/],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 // TESTRESPONSE[s/"breakdown": \{...\}/"breakdown": $body.$_path/]
 <1> The breakdown timings are omitted for simplicity.
@@ -347,7 +378,7 @@ Lucene execution:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:get message:search",\n"time_in_nanos": $body.$_path,/]
-// TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": []}]}}/]
+// TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all. All 
@@ -448,7 +479,7 @@ Looking at the previous example:
 ]
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": $body.$_path,\n"rewrite_time": $body.$_path,/]
-// TESTRESPONSE[s/]$/]}], "aggregations": []}]}}/]
+// TESTRESPONSE[s/]$/]}], "aggregations": [], "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
 
@@ -569,7 +600,7 @@ GET /my-index-000001/_search
 }
 --------------------------------------------------
 // TEST[setup:my_index]
-// TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.searches,profile.shards.aggregations/]
+// TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.searches,profile.shards.aggregations,profile.shards.fetch/]
 
 
 This example has:
@@ -673,13 +704,15 @@ The API returns the following result:
             ]
           }
         ],
-        "aggregations": [...] <1>
+        "aggregations": [...], <1>
+        "fetch": {...}
       }
     ]
   }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"aggregations": \[\.\.\.\]/"aggregations": $body.$_path/]
+// TESTRESPONSE[s/"fetch": \{\.\.\.\}/"fetch": $body.$_path/]
 // TESTRESPONSE[s/\.\.\.//]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 // TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]

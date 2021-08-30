@@ -374,7 +374,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 }
             }
             SearchHit[] hits = searchHits.toArray(new SearchHit[0]);
-            fetchSearchResult.hits(new SearchHits(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore));
+            // TODO unit test for generated fetch profile
+            fetchSearchResult.shardResult(new SearchHits(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore), null);
             fetchResults.set(shardIndex, fetchSearchResult);
         }
         return fetchResults;

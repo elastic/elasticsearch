@@ -18,6 +18,15 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import java.io.IOException;
 
 public final class FetchVersionPhase implements FetchSubPhase {
+    @Override
+    public String name() {
+        return "version";
+    }
+
+    @Override
+    public String description() {
+        return "fetches version";
+    }
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {

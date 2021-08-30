@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -53,7 +53,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
-    private ProfileShardResult profileShardResults;
+    private SearchProfileQueryPhaseResult profileShardResults;
     private boolean hasProfileResults;
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
@@ -225,11 +225,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * This allows to free up memory once the profiled result is consumed.
      * @throws IllegalStateException if the profiled result has already been consumed.
      */
-    public ProfileShardResult consumeProfileResult() {
+    public SearchProfileQueryPhaseResult consumeProfileResult() {
         if (profileShardResults == null) {
             throw new IllegalStateException("profile results already consumed");
         }
-        ProfileShardResult result = profileShardResults;
+        SearchProfileQueryPhaseResult result = profileShardResults;
         profileShardResults = null;
         return result;
     }
@@ -252,7 +252,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Sets the finalized profiling results for this query
      * @param shardResults The finalized profile
      */
-    public void profileResults(ProfileShardResult shardResults) {
+    public void profileResults(SearchProfileQueryPhaseResult shardResults) {
         this.profileShardResults = shardResults;
         hasProfileResults = shardResults != null;
     }
@@ -340,7 +340,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
             searchTimedOut = in.readBoolean();
             terminatedEarly = in.readOptionalBoolean();
-            profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
+            profileShardResults = in.readOptionalWriteable(SearchProfileQueryPhaseResult::new);
             hasProfileResults = profileShardResults != null;
             serviceTimeEWMA = in.readZLong();
             nodeQueueSize = in.readInt();

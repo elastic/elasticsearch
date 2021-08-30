@@ -11,18 +11,18 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHit;
@@ -30,8 +30,8 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -225,7 +225,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * @return The profile results or an empty map
      */
     @Nullable
-    public Map<String, ProfileShardResult> getProfileResults() {
+    public Map<String, SearchProfileShardResult> getProfileResults() {
         return internalResponse.profile();
     }
 
@@ -280,7 +280,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         SearchHits hits = null;
         Aggregations aggs = null;
         Suggest suggest = null;
-        SearchProfileShardResults profile = null;
+        SearchProfileResults profile = null;
         boolean timedOut = false;
         Boolean terminatedEarly = null;
         int numReducePhases = 1;
@@ -318,8 +318,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                     aggs = Aggregations.fromXContent(parser);
                 } else if (Suggest.NAME.equals(currentFieldName)) {
                     suggest = Suggest.fromXContent(parser);
-                } else if (SearchProfileShardResults.PROFILE_FIELD.equals(currentFieldName)) {
-                    profile = SearchProfileShardResults.fromXContent(parser);
+                } else if (SearchProfileResults.PROFILE_FIELD.equals(currentFieldName)) {
+                    profile = SearchProfileResults.fromXContent(parser);
                 } else if (RestActions._SHARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != Token.END_OBJECT) {
                         if (token == Token.FIELD_NAME) {

@@ -40,7 +40,8 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -290,7 +291,7 @@ public final class SearchPhaseController {
                 assert currentOffset == sortedDocs.length : "expected no more score doc slices";
             }
         }
-        return reducedQueryPhase.buildResponse(hits);
+        return reducedQueryPhase.buildResponse(hits, fetchResults);
     }
 
     private SearchHits getHits(ReducedQueryPhase reducedQueryPhase, boolean ignoreFrom,
@@ -419,7 +420,7 @@ public final class SearchPhaseController {
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
-        final Map<String, ProfileShardResult> profileResults = hasProfileResults ? new HashMap<>(queryResults.size())
+        final Map<String, SearchProfileQueryPhaseResult> profileShardResults = hasProfileResults ? new HashMap<>(queryResults.size())
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
@@ -449,7 +450,7 @@ public final class SearchPhaseController {
             }
             if (hasProfileResults) {
                 String key = result.getSearchShardTarget().toString();
-                profileResults.put(key, result.consumeProfileResult());
+                profileShardResults.put(key, result.consumeProfileResult());
             }
         }
         final Suggest reducedSuggest;
@@ -462,11 +463,13 @@ public final class SearchPhaseController {
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
+        final SearchProfileShardResults profileResults = profileShardResults.isEmpty()
+            ? null
+            : new SearchProfileShardResults(profileShardResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
-            topDocsStats.timedOut, topDocsStats.terminatedEarly, reducedSuggest, aggregations, shardResults, sortedTopDocs,
+            topDocsStats.timedOut, topDocsStats.terminatedEarly, reducedSuggest, aggregations, profileResults, sortedTopDocs,
             sortValueFormats, numReducePhases, size, from, false);
     }
 
@@ -535,7 +538,7 @@ public final class SearchPhaseController {
         // the reduced internal aggregations
         final InternalAggregations aggregations;
         // the reduced profile results
-        final SearchProfileShardResults shardResults;
+        final SearchProfileShardResults searchPhaseProfileResults;
         // the number of reduces phases
         final int numReducePhases;
         //encloses info about the merged top docs, the sort fields used to sort the score docs etc.
@@ -549,9 +552,22 @@ public final class SearchPhaseController {
         // sort value formats used to sort / format the result
         final DocValueFormat[] sortValueFormats;
 
-        ReducedQueryPhase(TotalHits totalHits, long fetchHits, float maxScore, boolean timedOut, Boolean terminatedEarly, Suggest suggest,
-                          InternalAggregations aggregations, SearchProfileShardResults shardResults, SortedTopDocs sortedTopDocs,
-                          DocValueFormat[] sortValueFormats, int numReducePhases, int size, int from, boolean isEmptyResult) {
+        ReducedQueryPhase(
+            TotalHits totalHits,
+            long fetchHits,
+            float maxScore,
+            boolean timedOut,
+            Boolean terminatedEarly,
+            Suggest suggest,
+            InternalAggregations aggregations,
+            SearchProfileShardResults searchPhaseProfileResults,
+            SortedTopDocs sortedTopDocs,
+            DocValueFormat[] sortValueFormats,
+            int numReducePhases,
+            int size,
+            int from,
+            boolean isEmptyResult
+        ) {
             if (numReducePhases <= 0) {
                 throw new IllegalArgumentException("at least one reduce phase must have been applied but was: " + numReducePhases);
             }
@@ -562,7 +578,7 @@ public final class SearchPhaseController {
             this.terminatedEarly = terminatedEarly;
             this.suggest = suggest;
             this.aggregations = aggregations;
-            this.shardResults = shardResults;
+            this.searchPhaseProfileResults = searchPhaseProfileResults;
             this.numReducePhases = numReducePhases;
             this.sortedTopDocs = sortedTopDocs;
             this.size = size;
@@ -575,8 +591,18 @@ public final class SearchPhaseController {
          * Creates a new search response from the given merged hits.
          * @see #merge(boolean, ReducedQueryPhase, Collection, IntFunction)
          */
-        public InternalSearchResponse buildResponse(SearchHits hits) {
-            return new InternalSearchResponse(hits, aggregations, suggest, shardResults, timedOut, terminatedEarly, numReducePhases);
+        public InternalSearchResponse buildResponse(SearchHits hits, Collection<? extends SearchPhaseResult> fetchResults) {
+            SearchProfileResults profileResults = mergeProfile(fetchResults);
+            return new InternalSearchResponse(hits, aggregations, suggest, profileResults, timedOut, terminatedEarly, numReducePhases);
+        }
+
+        private SearchProfileResults mergeProfile(Collection<? extends SearchPhaseResult> fetchResults) {
+            if (searchPhaseProfileResults == null) {
+                assert fetchResults.stream()
+                    .allMatch(r -> r.fetchResult().profileResult() == null) : "found fetch profile without search profile";
+                return null;
+            }
+            return searchPhaseProfileResults.merge(fetchResults);
         }
     }
 

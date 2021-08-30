@@ -33,6 +33,16 @@ public class HighlightPhase implements FetchSubPhase {
     }
 
     @Override
+    public String name() {
+        return "highlight";
+    }
+
+    @Override
+    public String description() {
+        return "annotates matching text";
+    }
+
+    @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         if (context.highlight() == null) {
             return null;

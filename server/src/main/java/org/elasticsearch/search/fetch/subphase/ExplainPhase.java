@@ -20,6 +20,15 @@ import java.io.IOException;
  * Explains the scoring calculations for the top hits.
  */
 public final class ExplainPhase implements FetchSubPhase {
+    @Override
+    public String name() {
+        return "explain";
+    }
+
+    @Override
+    public String description() {
+        return "explain why the documents matched the top level query";
+    }
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {

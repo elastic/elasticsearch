@@ -19,18 +19,21 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ProfileShardResult implements Writeable {
+public class SearchProfileQueryPhaseResult implements Writeable {
 
     private final List<QueryProfileShardResult> queryProfileResults;
 
     private final AggregationProfileShardResult aggProfileShardResult;
 
-    public ProfileShardResult(List<QueryProfileShardResult> queryProfileResults, AggregationProfileShardResult aggProfileShardResult) {
+    public SearchProfileQueryPhaseResult(
+        List<QueryProfileShardResult> queryProfileResults,
+        AggregationProfileShardResult aggProfileShardResult
+    ) {
         this.aggProfileShardResult = aggProfileShardResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
     }
 
-    public ProfileShardResult(StreamInput in) throws IOException {
+    public SearchProfileQueryPhaseResult(StreamInput in) throws IOException {
         int profileSize = in.readVInt();
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>(profileSize);
         for (int i = 0; i < profileSize; i++) {

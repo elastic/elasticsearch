@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
@@ -15,6 +16,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
@@ -25,18 +27,34 @@ public final class FetchSearchResult extends SearchPhaseResult {
     // client side counter
     private transient int counter;
 
+    private ProfileResult profileResult;
+
     public FetchSearchResult() {
+    }
+
+    public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
+        this.contextId = id;
+        setSearchShardTarget(shardTarget);
     }
 
     public FetchSearchResult(StreamInput in) throws IOException {
         super(in);
         contextId = new ShardSearchContextId(in);
         hits = new SearchHits(in);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            profileResult = in.readOptionalWriteable(ProfileResult::new);
+        } else {
+            profileResult = null;
+        }
     }
 
-    public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
-        this.contextId = id;
-        setSearchShardTarget(shardTarget);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        contextId.writeTo(out);
+        hits.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(profileResult);
+        }
     }
 
     @Override
@@ -49,9 +67,11 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return this;
     }
 
-    public void hits(SearchHits hits) {
+    public void shardResult(SearchHits hits, ProfileResult profileResult) {
         assert assertNoSearchTarget(hits);
         this.hits = hits;
+        assert this.profileResult == null;
+        this.profileResult = profileResult;
     }
 
     private boolean assertNoSearchTarget(SearchHits hits) {
@@ -74,9 +94,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return counter++;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        contextId.writeTo(out);
-        hits.writeTo(out);
+    public ProfileResult profileResult() {
+        return profileResult;
     }
 }

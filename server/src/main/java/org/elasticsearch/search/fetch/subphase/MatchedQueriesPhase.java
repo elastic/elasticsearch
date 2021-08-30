@@ -25,6 +25,15 @@ import java.util.List;
 import java.util.Map;
 
 public final class MatchedQueriesPhase implements FetchSubPhase {
+    @Override
+    public String name() {
+        return "matched_queries";
+    }
+
+    @Override
+    public String description() {
+        return "returns the _name of each named matching query";
+    }
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
@@ -72,5 +81,4 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
             }
         };
     }
-
 }

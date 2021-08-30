@@ -892,3 +892,53 @@ Test token_count inside nested field doesn't fail:
            body:
               _source: false
               fields: [ "*" ]
+
+
+---
+profile:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              integer_range:
+                type: integer_range
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          keyword: [ "a", "b" ]
+          integer_range:
+            gte: 0
+            lte: 42
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          profile: true
+          fields: [keyword, integer_range]
+
+  - is_true: hits.hits.0._id
+  - match: { hits.hits.0.fields.keyword.0: a }
+  - match: { hits.hits.0.fields.keyword.1: b }
+  - match: { hits.hits.0.fields.integer_range.0.gte: 0 }
+  - match: { hits.hits.0.fields.integer_range.0.lte: 42 }
+  - gt: { profile.shards.0.fetch.time_in_nanos: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
+  - match: { profile.shards.0.fetch.children.0.type: fields }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }

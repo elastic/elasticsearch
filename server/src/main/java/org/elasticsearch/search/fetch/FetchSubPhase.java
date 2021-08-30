@@ -75,6 +75,16 @@ public interface FetchSubPhase {
     }
 
     /**
+     * Name of the phase to include in profile results.
+     */
+    String name();
+
+    /**
+     * Description of the phase to include in profile results.
+     */
+    String description();
+
+    /**
      * Returns a {@link FetchSubPhaseProcessor} for this sub phase.
      *
      * If nothing should be executed for the provided {@code FetchContext}, then the

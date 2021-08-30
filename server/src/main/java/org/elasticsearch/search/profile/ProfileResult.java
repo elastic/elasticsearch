@@ -9,15 +9,15 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,13 +30,8 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * This class is the internal representation of a profiled Query, corresponding
- * to a single node in the query tree.  It is built after the query has finished executing
- * and is merely a structured representation, rather than the entity that collects the timing
- * profile (see InternalProfiler for that)
- * <p>
- * Each InternalProfileResult has a List of InternalProfileResults, which will contain
- * "children" queries if applicable
+ * The result of a profiled *thing*, like a query or an aggregation. See
+ * {@link AbstractProfiler} for the statistic collection framework.
  */
 public final class ProfileResult implements Writeable, ToXContentObject {
     static final ParseField TYPE = new ParseField("type");

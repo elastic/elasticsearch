@@ -41,6 +41,16 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     }
 
     @Override
+    public String name() {
+        return "percolator_highlight";
+    }
+
+    @Override
+    public String description() {
+        return "annotates text matching percolator queries";
+    }
+
+    @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         if (fetchContext.highlight() == null) {
             return null;

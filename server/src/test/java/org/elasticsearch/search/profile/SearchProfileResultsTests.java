@@ -31,11 +31,11 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldN
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class SearchProfileShardResultsTests  extends ESTestCase {
+public class SearchProfileResultsTests  extends ESTestCase {
 
-    public static SearchProfileShardResults createTestItem() {
+    public static SearchProfileResults createTestItem() {
         int size = rarely() ? 0 : randomIntBetween(1, 2);
-        Map<String, ProfileShardResult> searchProfileResults = new HashMap<>(size);
+        Map<String, SearchProfileShardResult> shards = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
             int queryItems = rarely() ? 0 : randomIntBetween(1, 2);
@@ -43,9 +43,14 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
                 queryProfileResults.add(QueryProfileShardResultTests.createTestItem());
             }
             AggregationProfileShardResult aggProfileShardResult = AggregationProfileShardResultTests.createTestItem(1);
-            searchProfileResults.put(randomAlphaOfLengthBetween(5, 10), new ProfileShardResult(queryProfileResults, aggProfileShardResult));
+            SearchProfileQueryPhaseResult searchResult = new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult);
+            ProfileResult fetchResult = randomBoolean() ? null : ProfileResultTests.createTestItem(2);
+            shards.put(
+                randomAlphaOfLengthBetween(5, 10),
+                new SearchProfileShardResult(searchResult, fetchResult)
+            );
         }
-        return new SearchProfileShardResults(searchProfileResults);
+        return new SearchProfileResults(shards);
     }
 
     public void testFromXContent() throws IOException {
@@ -61,7 +66,7 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        SearchProfileShardResults shardResult = createTestItem();
+        SearchProfileResults shardResult = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(shardResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -76,18 +81,17 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
         } else {
             mutated = originalBytes;
         }
-        SearchProfileShardResults parsed;
+        SearchProfileResults parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            ensureFieldName(parser, parser.nextToken(), SearchProfileShardResults.PROFILE_FIELD);
+            ensureFieldName(parser, parser.nextToken(), SearchProfileResults.PROFILE_FIELD);
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            parsed = SearchProfileShardResults.fromXContent(parser);
+            parsed = SearchProfileResults.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
-
     }
 
 }

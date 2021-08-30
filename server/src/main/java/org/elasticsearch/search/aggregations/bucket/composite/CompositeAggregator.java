@@ -552,7 +552,7 @@ public final class CompositeAggregator extends BucketsAggregator {
         List<SizedBucketAggregator> sizedBucketAggregators = new ArrayList<>();
         for (SingleDimensionValuesSource<?> source : sources) {
             if (source instanceof DateHistogramValuesSource) {
-                sizedBucketAggregators.add((DateHistogramValuesSource)source);
+                sizedBucketAggregators.add((DateHistogramValuesSource) source);
             }
         }
         return sizedBucketAggregators;

@@ -14,7 +14,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.histogram.SizedBucketAggregator;
 
-
 /**
  * A {@link SingleDimensionValuesSource} for date histogram values.
  */
@@ -37,7 +36,7 @@ public class DateHistogramValuesSource extends LongValuesSource implements Sized
     @Override
     public double bucketSize(long bucket, Rounding.DateTimeUnit unitSize) {
         if (unitSize != null) {
-            Long value = toComparable((int)bucket);
+            Long value = toComparable((int) bucket);
             assert value != null : "unexpected null value in composite agg bucket [" + (int) bucket + "]";
             return preparedRounding.roundingSize(value, unitSize);
         } else {

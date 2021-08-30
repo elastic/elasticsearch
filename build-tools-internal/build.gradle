@@ -34,6 +34,10 @@ gradlePlugin {
   // with the java-gradle-plugin
   automatedPublishing = false
   plugins {
+    base {
+      id = 'elasticsearch.base'
+      implementationClass = 'org.elasticsearch.gradle.internal.BasePlugin'
+    }
     build {
       id = 'elasticsearch.build'
       implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'

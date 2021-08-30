@@ -9,8 +9,11 @@
 package org.elasticsearch;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 
@@ -32,7 +35,17 @@ public class RestDieWithDignityAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        throw new OutOfMemoryError("die with dignity");
+        return channel -> {
+            long[] array = new long[Integer.MAX_VALUE];
+            // this is to force arrays to appear to be consumed so that it can not be optimized away by a sufficiently smart compiler
+            try (XContentBuilder builder = channel.newBuilder()) {
+                builder.startObject();
+                {
+                    builder.field("length", array.length);
+                }
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+            }
+        };
     }
 
 }

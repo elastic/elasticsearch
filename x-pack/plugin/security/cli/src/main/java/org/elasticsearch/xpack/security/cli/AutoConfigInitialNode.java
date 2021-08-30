@@ -142,7 +142,7 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
         checkExistingConfiguration(env, terminal);
 
         final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
-        final String instantAutoConfigName = "auto_config_on_" + autoConfigDate.toInstant().getEpochSecond();
+        final String instantAutoConfigName = "tls_auto_config_initial_node_" + autoConfigDate.toInstant().getEpochSecond();
         final Path instantAutoConfigDir = env.configFile().resolve(instantAutoConfigName);
         try {
             // it is useful to pre-create the sub-config dir in order to check that the config dir is writable and that file owners match

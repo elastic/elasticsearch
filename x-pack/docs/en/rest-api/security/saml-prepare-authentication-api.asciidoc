@@ -79,13 +79,13 @@ POST /_security/saml/prepare
 --------------------------------------------------
 
 The following example generates a SAML authentication request for the SAML realm with an Assertion
-Consuming Service URL matching `https://kibana.org/api/security/v1/saml
+Consuming Service URL matching `https://kibana.org/api/security/saml/callback
 
 [source,console]
 --------------------------------------------------
 POST /_security/saml/prepare
 {
-  "acs" : "https://kibana.org/api/security/v1/saml"
+  "acs" : "https://kibana.org/api/security/saml/callback"
 }
 --------------------------------------------------
 

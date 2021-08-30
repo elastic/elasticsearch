@@ -444,7 +444,7 @@ logs:
 
 ....
 Cannot find any matching realm for [SamlPrepareAuthenticationRequest{realmName=saml1,
-assertionConsumerServiceURL=https://my.kibana.url/api/security/v1/saml}]
+assertionConsumerServiceURL=https://my.kibana.url/api/security/saml/callback}]
 ....
 
 *Resolution:*

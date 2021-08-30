@@ -327,7 +327,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         DURATION("duration"),
         INDICES("index_count"),
         SHARDS("shard_count"),
-        FAILED_SHARDS("failed_shards_count");
+        FAILED_SHARDS("failed_shard_count");
 
         private final String param;
 
@@ -352,7 +352,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                     return INDICES;
                 case "shard_count":
                     return SHARDS;
-                case "failed_shards_count":
+                case "failed_shard_count":
                     return FAILED_SHARDS;
                 default:
                     throw new IllegalArgumentException("unknown sort order [" + value + "]");

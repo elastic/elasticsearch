@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -78,41 +79,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         } else {
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
         }
+
+        checkIndexBlocks(clusterState, concreteIndices);
+
         final int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();
         if (totalNumRequest == 0) {
             listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
             return;
         }
 
-        final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
         final FailureCollector indexFailures = new FailureCollector();
-        final Runnable countDown = () -> {
-            if (completionCounter.countDown()) {
-                List<FieldCapabilitiesFailure> failures = indexFailures.values();
-                if (indexResponses.size() > 0) {
-                    if (request.isMergeResults()) {
-                        // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
-                        // on a transport thread in case of large numbers of indices and/or fields
-                        threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(
-                            ActionRunnable.supply(
-                                listener,
-                                () -> merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures)))
-                        );
-                    } else {
-                        listener.onResponse(new FieldCapabilitiesResponse(indexResponses, new ArrayList<>(failures)));
-                    }
-                } else {
-                    // we have no responses at all, maybe because of errors
-                    if (indexFailures.size() > 0) {
-                        // throw back the first exception
-                        listener.onFailure(failures.iterator().next().getException());
-                    } else {
-                        listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
-                    }
-                }
-            }
-        };
+        final Runnable countDown = createResponseMerger(request, totalNumRequest, indexResponses, indexFailures, listener);
 
         if (concreteIndices.length > 0) {
             // fork this action to the management pool as it can fan out to a large number of child requests that get handled on SAME and
@@ -123,14 +101,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     new TransportFieldCapabilitiesIndexAction.AsyncShardsAction(
                         transportService,
                         clusterService,
-                        new FieldCapabilitiesIndexRequest(
-                            request.fields(),
-                            index,
-                            localIndices,
-                            request.indexFilter(),
-                            nowInMillis,
-                            request.runtimeFields()
-                        ),
+                        prepareLocalIndexRequest(request, index, localIndices, nowInMillis),
                         new ActionListener<FieldCapabilitiesIndexResponse>() {
                             @Override
                             public void onResponse(FieldCapabilitiesIndexResponse result) {
@@ -157,14 +128,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             String clusterAlias = remoteIndices.getKey();
             OriginalIndices originalIndices = remoteIndices.getValue();
             Client remoteClusterClient = transportService.getRemoteClusterService().getRemoteClusterClient(threadPool, clusterAlias);
-            FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
-            remoteRequest.setMergeResults(false); // we need to merge on this node
-            remoteRequest.indicesOptions(originalIndices.indicesOptions());
-            remoteRequest.indices(originalIndices.indices());
-            remoteRequest.fields(request.fields());
-            remoteRequest.runtimeFields(request.runtimeFields());
-            remoteRequest.indexFilter(request.indexFilter());
-            remoteRequest.nowInMillis(nowInMillis);
+            FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
             remoteClusterClient.fieldCaps(remoteRequest, ActionListener.wrap(response -> {
                 for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                     indexResponses.add(
@@ -186,6 +150,69 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
             ));
         }
+    }
+
+    private void checkIndexBlocks(ClusterState clusterState, String[] concreteIndices) {
+        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
+        for (String index : concreteIndices) {
+            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
+        }
+    }
+
+    private Runnable createResponseMerger(FieldCapabilitiesRequest request,
+                                          int totalNumRequests,
+                                          List<FieldCapabilitiesIndexResponse> indexResponses,
+                                          FailureCollector indexFailures,
+                                          ActionListener<FieldCapabilitiesResponse> listener) {
+        final CountDown completionCounter = new CountDown(totalNumRequests);
+        return () -> {
+            if (completionCounter.countDown()) {
+                List<FieldCapabilitiesFailure> failures = indexFailures.values();
+                if (indexResponses.size() > 0) {
+                    if (request.isMergeResults()) {
+                        // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
+                        // on a transport thread in case of large numbers of indices and/or fields
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(
+                            ActionRunnable.supply(
+                                listener,
+                                () -> merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures)))
+                        );
+                    } else {
+                        listener.onResponse(new FieldCapabilitiesResponse(indexResponses, new ArrayList<>(failures)));
+                    }
+                } else {
+                    // we have no responses at all, maybe because of errors
+                    if (indexFailures.size() > 0) {
+                        // throw back the first exception
+                        listener.onFailure(failures.iterator().next().getException());
+                    } else {
+                        listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
+                    }
+                }
+            }
+        };
+    }
+
+    private static  FieldCapabilitiesIndexRequest prepareLocalIndexRequest(FieldCapabilitiesRequest request,
+                                                                           String index,
+                                                                           OriginalIndices originalIndices,
+                                                                           long nowInMillis) {
+        return new FieldCapabilitiesIndexRequest(request.fields(), index, originalIndices,
+            request.indexFilter(), nowInMillis, request.runtimeFields());
+    }
+
+    private static FieldCapabilitiesRequest prepareRemoteRequest(FieldCapabilitiesRequest request,
+                                                                 OriginalIndices originalIndices,
+                                                                 long nowInMillis) {
+        FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
+        remoteRequest.setMergeResults(false); // we need to merge on this node
+        remoteRequest.indicesOptions(originalIndices.indicesOptions());
+        remoteRequest.indices(originalIndices.indices());
+        remoteRequest.fields(request.fields());
+        remoteRequest.runtimeFields(request.runtimeFields());
+        remoteRequest.indexFilter(request.indexFilter());
+        remoteRequest.nowInMillis(nowInMillis);
+        return remoteRequest;
     }
 
     private FieldCapabilitiesResponse merge(

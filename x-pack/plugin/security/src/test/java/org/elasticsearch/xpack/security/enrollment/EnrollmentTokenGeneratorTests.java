@@ -84,7 +84,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
         when(client.getDefaultURL()).thenReturn("http://localhost:9200");
         final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment, client);
         final URL createAPIKeyURL = enrollmentTokenGenerator.createAPIKeyUrl();
-        final URL getHttpInfoURL = enrollmentTokenGenerator.getHttpInfoUrl();
+        final URL getHttpInfoURL = enrollmentTokenGenerator.getLocalNodeInfoUrl();
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(client.execute(anyString(), any(URL.class), anyString(), any(SecureString.class), anyCheckedSupplier(),
@@ -168,7 +168,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
         when(client.getDefaultURL()).thenReturn("http://localhost:9200");
         final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment, client);
         final URL createAPIKeyURL = enrollmentTokenGenerator.createAPIKeyUrl();
-        final URL getHttpInfoURL = enrollmentTokenGenerator.getHttpInfoUrl();
+        final URL getHttpInfoURL = enrollmentTokenGenerator.getLocalNodeInfoUrl();
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
@@ -220,7 +220,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
         when(client.getDefaultURL()).thenReturn("http://localhost:9200");
         final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment, client);
         final URL createAPIKeyURL = enrollmentTokenGenerator.createAPIKeyUrl();
-        final URL getHttpInfoURL = enrollmentTokenGenerator.getHttpInfoUrl();
+        final URL getHttpInfoURL = enrollmentTokenGenerator.getLocalNodeInfoUrl();
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), anyCheckedSupplier(),
@@ -278,7 +278,7 @@ public class EnrollmentTokenGeneratorTests extends ESTestCase {
         when(client.getDefaultURL()).thenReturn("http://localhost:9200");
         final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment, client);
         final URL createAPIKeyURL = enrollmentTokenGenerator.createAPIKeyUrl();
-        final URL getHttpInfoURL = enrollmentTokenGenerator.getHttpInfoUrl();
+        final URL getHttpInfoURL = enrollmentTokenGenerator.getLocalNodeInfoUrl();
 
         final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
         when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), anyCheckedSupplier(),

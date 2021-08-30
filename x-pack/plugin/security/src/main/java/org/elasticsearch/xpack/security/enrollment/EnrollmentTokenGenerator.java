@@ -14,8 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.ssl.SslUtil;
 import org.elasticsearch.common.ssl.SslKeyConfig;
+import org.elasticsearch.common.ssl.SslUtil;
 import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -73,14 +73,36 @@ public class EnrollmentTokenGenerator {
         return this.create(user, password, KibanaEnrollmentAction.NAME);
     }
 
-    protected EnrollmentToken create(String user, SecureString password, String action) throws Exception {
-        if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {
-            throw new IllegalStateException("[xpack.security.enrollment.enabled] must be set to `true` to create an enrollment token");
+    public List<EnrollmentToken> createEnrollmentTokens(String user, SecureString password) throws Exception {
+        if (false == XPackSettings.ENROLLMENT_ENABLED.get(environment.settings())) {
+            throw new IllegalStateException("Cannot create enrollment tokens if [" + XPackSettings.ENROLLMENT_ENABLED.getKey() +
+                    "] is false");
         }
         final String fingerprint = getCaFingerprint();
+        final EnrollmentNodeInfo enrollmentNodeInfo = getNodeInfo(user, password);
+        // always create the Kibana enrollment token
+        final String kibanaEnrollmentApiKey = getApiKeyCredentials(user, password, KibanaEnrollmentAction.NAME);
+        final EnrollmentToken kibanaEnrollmentToken = new EnrollmentToken(kibanaEnrollmentApiKey, fingerprint,
+                enrollmentNodeInfo.getStackVersion(), enrollmentNodeInfo.getAddresses());
+        if (enrollmentNodeInfo.loopbackOnlyBind()) {
+            return List.of(kibanaEnrollmentToken);
+        } else {
+            final String nodeEnrollmentApiKey = getApiKeyCredentials(user, password, NodeEnrollmentAction.NAME);
+            final EnrollmentToken nodeEnrollmentToken = new EnrollmentToken(nodeEnrollmentApiKey, fingerprint,
+                    enrollmentNodeInfo.getStackVersion(), enrollmentNodeInfo.getAddresses());
+            return List.of(kibanaEnrollmentToken, nodeEnrollmentToken);
+        }
+    }
+
+    private EnrollmentToken create(String user, SecureString password, String action) throws Exception {
+        if (false == XPackSettings.ENROLLMENT_ENABLED.get(environment.settings())) {
+            throw new IllegalStateException("Cannot create enrollment tokens if [" + XPackSettings.ENROLLMENT_ENABLED.getKey() +
+                    "] is false");
+        }
+        final String fingerprint = getCaFingerprint();
+        final EnrollmentNodeInfo enrollmentNodeInfo = getNodeInfo(user, password);
         final String apiKey = getApiKeyCredentials(user, password, action);
-        final Tuple<List<String>, String> httpInfo = getNodeInfo(user, password);
-        return new EnrollmentToken(apiKey, fingerprint, httpInfo.v2(), httpInfo.v1());
+        return new EnrollmentToken(apiKey, fingerprint, enrollmentNodeInfo.getStackVersion(), enrollmentNodeInfo.getAddresses());
     }
 
     private HttpResponse.HttpResponseBuilder responseBuilder(InputStream is) throws IOException {
@@ -99,22 +121,35 @@ public class EnrollmentTokenGenerator {
         return new URL(defaultUrl, (defaultUrl.toURI().getPath() + "/_security/api_key").replaceAll("/+", "/"));
     }
 
-    protected URL getHttpInfoUrl() throws MalformedURLException, URISyntaxException {
-        return new URL(defaultUrl, (defaultUrl.toURI().getPath() + "/_nodes/_local/http").replaceAll("/+", "/"));
+    protected URL getLocalNodeInfoUrl() throws MalformedURLException, URISyntaxException {
+        return new URL(defaultUrl, (defaultUrl.toURI().getPath() + "/_nodes/_local/http,transport").replaceAll("/+", "/"));
     }
 
     @SuppressWarnings("unchecked")
-    protected static List<String> getBoundAddresses(Map<?, ?> nodesInfo) {
-        nodesInfo = (Map<?, ?>) nodesInfo.get("nodes");
+    protected static List<String> getBoundAddresses(Map<String, Object> nodesInfoResponseBody, String addressType) {
+        Map<?, ?> nodesInfo = (Map<?, ?>) nodesInfoResponseBody.get("nodes");
+        assert nodesInfo.size() == 1;
         Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();
-        Map<?, ?> http = (Map<?, ?>) nodeInfo.get("http");
-        return (ArrayList<String>) http.get("bound_address");
+        Map<?, ?> http = (Map<?, ?>) nodeInfo.get(addressType);
+        Object boundAddress = http.get("bound_address");
+        if (boundAddress == null || false == (boundAddress instanceof List<?>) || ((List<?>) boundAddress).isEmpty() ||
+                false == (((List<?>) boundAddress).get(0) instanceof String)) {
+            throw new IllegalStateException("Unrecognized [" + addressType + "] bound addresses format in response [" +
+                    nodesInfoResponseBody + "]");
+        }
+        return (List<String>) boundAddress;
     }
 
-    static String getVersion(Map<?, ?> nodesInfo) {
-        nodesInfo = (Map<?, ?>) nodesInfo.get("nodes");
+    @SuppressWarnings("unchecked")
+    static String getVersion(Map<String, Object> nodesInfoResponseBody) {
+        Map<?, ?> nodesInfo = (Map<?, ?>) nodesInfoResponseBody.get("nodes");
+        assert nodesInfo.size() == 1;
         Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();
-        return nodeInfo.get("version").toString();
+        Object stackVersion = nodeInfo.get("version");
+        if (stackVersion == null || false == (stackVersion instanceof String)) {
+            throw new IllegalStateException("Unrecognized node version format in response " + nodesInfoResponseBody);
+        }
+        return (String) stackVersion;
     }
 
     protected String getApiKeyCredentials(String user, SecureString password, String action) throws Exception {
@@ -152,8 +187,8 @@ public class EnrollmentTokenGenerator {
         return apiId + ":" + apiKey;
     }
 
-    protected Tuple<List<String>, String> getNodeInfo(String user, SecureString password) throws Exception {
-        final URL httpInfoUrl = getHttpInfoUrl();
+    protected EnrollmentNodeInfo getNodeInfo(String user, SecureString password) throws Exception {
+        final URL httpInfoUrl = getLocalNodeInfoUrl();
         final HttpResponse httpResponseHttp = client.execute("GET", httpInfoUrl, user, password, () -> null, is -> responseBuilder(is));
         final int httpCode = httpResponseHttp.getHttpStatus();
 
@@ -163,19 +198,12 @@ public class EnrollmentTokenGenerator {
             throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling GET " + httpInfoUrl);
         }
 
-        final List<String> addresses = getBoundAddresses(httpResponseHttp.getResponseBody());
-        if (addresses == null || addresses.isEmpty()) {
-            logger.error("No bound addresses found in response from calling GET " + httpInfoUrl + ". ResponseBody: " +
-                httpResponseHttp.getResponseBody());
-            throw new IllegalStateException("No bound addresses found in response from calling GET " + httpInfoUrl);
-        }
-        final List<String> filtered_addresses = getFilteredAddresses(addresses);
-
+        final List<String> httpBoundAddresses = getBoundAddresses(httpResponseHttp.getResponseBody(), "http");
+        final List<String> enrollmentTokenAddresses = getFilteredAddresses(httpBoundAddresses);
         final String stackVersion = getVersion(httpResponseHttp.getResponseBody());
-        if (stackVersion == null || stackVersion.isEmpty()) {
-            throw new IllegalStateException("Could not retrieve the version.");
-        }
-        return new Tuple<>(filtered_addresses, stackVersion);
+        final List<String> transportBoundAddresses = getBoundAddresses(httpResponseHttp.getResponseBody(), "transport");
+        boolean areAllTransportLoopback = areAllLoopback(transportBoundAddresses);
+        return new EnrollmentNodeInfo(enrollmentTokenAddresses, stackVersion, areAllTransportLoopback);
     }
 
     protected String getCaFingerprint() throws Exception {
@@ -208,5 +236,40 @@ public class EnrollmentTokenGenerator {
             }
         }
         return filtered_addresses.isEmpty() ? addresses : filtered_addresses;
+    }
+
+    static boolean areAllLoopback(List<String> addresses) throws Exception {
+        for (String address : addresses) {
+            URI uri = new URI("http://" + address);
+            InetAddress inetAddress = InetAddress.getByName(uri.getHost());
+            if (false == inetAddress.isLoopbackAddress()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static class EnrollmentNodeInfo {
+        private final List<String> addresses;
+        private final String stackVersion;
+        private final boolean loopbackOnlyBind;
+
+        EnrollmentNodeInfo(List<String> addresses, String stackVersion, boolean loopbackOnlyBind) {
+            this.addresses = addresses;
+            this.stackVersion = stackVersion;
+            this.loopbackOnlyBind = loopbackOnlyBind;
+        }
+
+        public List<String> getAddresses() {
+            return addresses;
+        }
+
+        public String getStackVersion() {
+            return stackVersion;
+        }
+
+        public boolean loopbackOnlyBind() {
+            return loopbackOnlyBind;
+        }
     }
 }

@@ -33,6 +33,7 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.tool.CommandLineHttpClient.createURL;
@@ -42,7 +43,6 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
     private final CheckedFunction<Environment, EnrollmentTokenGenerator, Exception> createEnrollmentTokenFunction;
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
-    private final OptionSpec<Void> includeNodeEnrollmentToken;
     private final OptionSpec<String> eofMarker;
 
     BootstrapPasswordAndEnrollmentTokenForInitialNode() {
@@ -65,8 +65,6 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         this.clientFunction = clientFunction;
         this.keyStoreFunction = keyStoreFunction;
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
-        includeNodeEnrollmentToken = parser.accepts("include-node-enrollment-token", "determine that we have to generate " +
-            "a node enrollment token");
         eofMarker = parser.accepts("eof-marker", "the last line of the printed text").withRequiredArg();
     }
 
@@ -91,14 +89,19 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
         try {
             String output;
             client.checkClusterHealthWithRetriesWaitingForCluster(ElasticUser.NAME, bootstrapPassword, 30);
-            final EnrollmentToken kibanaToken = enrollmentTokenGenerator.createKibanaEnrollmentToken(ElasticUser.NAME, bootstrapPassword);
+            final List<EnrollmentToken> enrollmentTokens = enrollmentTokenGenerator.createEnrollmentTokens(ElasticUser.NAME,
+                    bootstrapPassword);
+            if (enrollmentTokens == null || (enrollmentTokens.size() != 1 && enrollmentTokens.size() != 2)) {
+                throw new IllegalStateException("Unexpected token generation " + enrollmentTokens);
+            }
+            final EnrollmentToken kibanaToken = enrollmentTokens.get(0);
+            final EnrollmentToken nodeToken = enrollmentTokens.size() == 2 ? enrollmentTokens.get(1) : null;
             output = "The following information is only briefly displayed the first time the first node of a new cluster " +
                             "is started from a terminal." + System.lineSeparator();
             output += "Security is now enabled and has been automatically configured:" + System.lineSeparator();
+            output += "HTTPS CA fingerprint: " + kibanaToken.getFingerprint() + System.lineSeparator();
             output += "Kibana enrollment token: " + kibanaToken.getEncoded() + System.lineSeparator();
-            output += "CA fingerprint: " + kibanaToken.getFingerprint() + System.lineSeparator();
-            if (options.has(includeNodeEnrollmentToken)) {
-                final EnrollmentToken nodeToken = enrollmentTokenGenerator.createNodeEnrollmentToken(ElasticUser.NAME, bootstrapPassword);
+            if (nodeToken != null) {
                 output += "Node enrollment token: " + nodeToken.getEncoded() + System.lineSeparator();
             }
             if (ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.exists(secureEnvironment.settings()) == false) {

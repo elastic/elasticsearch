@@ -497,8 +497,9 @@ public class AutoConfigInitialNode extends EnvironmentAwareCommand {
                     "Skipping security auto configuration because it appears that TLS is already configured.");
             throw new UserException(ExitCodes.NOOP, null);
         }
-        // auto-configuration runs even if the realms are configured in any way (assuming defining realms is permitted without touching
-        // the xpack.security.enabled setting, otherwise auto-config doesn't run, see previous condition)
+        // auto-configuration runs even if the realms are configured in any way,
+        // including defining file based users (defining realms is permitted without touching
+        // the xpack.security.enabled setting)
         // but the file realm is required for some of the auto-configuration parts (setting/resetting the elastic user)
         // if disabled, it must be manually enabled back and, preferably, at the head of the realm chain
     }

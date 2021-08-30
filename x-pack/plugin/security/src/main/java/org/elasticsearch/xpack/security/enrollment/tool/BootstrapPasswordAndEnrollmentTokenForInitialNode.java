@@ -147,7 +147,7 @@ public class BootstrapPasswordAndEnrollmentTokenForInitialNode extends KeyStoreA
     }
 
     public static URL checkClusterHealthUrl(CommandLineHttpClient client) throws MalformedURLException, URISyntaxException {
-        return createURL(new URL(client.getDefaultURL()), "_cluster/health", "?pretty");
+        return createURL(new URL(client.getDefaultURL()), "_cluster/health/.security", "?pretty");
     }
 
     public static URL setElasticUserPasswordUrl(CommandLineHttpClient client) throws MalformedURLException, URISyntaxException {

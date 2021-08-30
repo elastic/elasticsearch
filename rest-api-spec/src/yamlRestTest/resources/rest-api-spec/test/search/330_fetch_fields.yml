@@ -923,7 +923,7 @@ error includes field name:
           date: "1990-12-29T22:30:00.000Z"
 
   - do:
-      catch: '/error fetching \[keyword\]: \[keyword\] doesn''t support formats./'
+      catch: '/error fetching \[keyword\]: Field \[keyword\] of type \[keyword\] doesn''t support formats./'
       search:
         index: test
         body:
@@ -960,7 +960,7 @@ error includes glob pattern:
           date: "1990-12-29T22:30:00.000Z"
 
   - do:
-      catch: '/error fetching \[dkeyword\] which matched \[d\*\]: \[keyword\] doesn''t support formats./'
+      catch: '/error fetching \[dkeyword\] which matched \[d\*\]: Field \[dkeyword\] of type \[keyword\] doesn''t support formats./'
       search:
         index: test
         body:
@@ -1000,7 +1000,7 @@ error for flattened includes whole path:
           date: "1990-12-29T22:30:00.000Z"
 
   - do:
-      catch: '/error fetching \[flattened.bar\]: \[flattened\] doesn''t support formats./'
+      catch: '/error fetching \[flattened.bar\]: Field \[flattened.bar\] of type \[flattened\] doesn''t support formats./'
       search:
         index: test
         body:

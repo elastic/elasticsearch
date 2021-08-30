@@ -231,13 +231,13 @@ The list of top records.
 `by_field_value`::: 
 The value of the by field.
 
-`function`::: 
-The function in which the anomaly occurs, as specified in the detector 
-configuration. For example, `max`.
-
 `field_name`::: 
 Certain functions require a field to operate on, for example, `sum()`. For those 
 functions, this value is the name of the field to be analyzed.
+
+`function`::: 
+The function in which the anomaly occurs, as specified in the detector 
+configuration. For example, `max`.
 
 `over_field_name`::: 
 The field used to split the data.

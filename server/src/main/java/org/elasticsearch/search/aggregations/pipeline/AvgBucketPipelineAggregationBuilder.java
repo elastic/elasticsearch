@@ -46,8 +46,11 @@ public class AvgBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
         @Override
-        protected AvgBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
-                String bucketsPath, Map<String, Object> params) {
+        protected AvgBucketPipelineAggregationBuilder buildFactory(
+            String pipelineAggregatorName,
+            String bucketsPath,
+            Map<String, Object> params
+        ) {
             return new AvgBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };

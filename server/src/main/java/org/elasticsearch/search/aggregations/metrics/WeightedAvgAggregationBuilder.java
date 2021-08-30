@@ -8,10 +8,10 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -39,8 +39,10 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     public static final ParseField VALUE_FIELD = new ParseField("value");
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
 
-    public static final ObjectParser<WeightedAvgAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, WeightedAvgAggregationBuilder::new);
+    public static final ObjectParser<WeightedAvgAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        WeightedAvgAggregationBuilder::new
+    );
     static {
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
         MultiValuesSourceParseHelper.declareField(VALUE_FIELD.getPreferredName(), PARSER, true, false, false, false);
@@ -99,12 +101,14 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     }
 
     @Override
-    protected MultiValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                            Map<String, ValuesSourceConfig> configs,
-                                                            Map<String, QueryBuilder> filters,
-                                                            DocValueFormat format,
-                                                            AggregatorFactory parent,
-                                                            Builder subFactoriesBuilder) throws IOException {
+    protected MultiValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        Map<String, ValuesSourceConfig> configs,
+        Map<String, QueryBuilder> filters,
+        DocValueFormat format,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException {
         return new WeightedAvgAggregatorFactory(name, configs, format, context, parent, subFactoriesBuilder, metadata);
     }
 

@@ -133,7 +133,7 @@ to `ml`.
 =====
 `index`:::
 (array) Index or indices on which to perform the analysis. It can be a single
-index or {data-source} as well as an array of indices or {data-sources}.
+index or index pattern as well as an array of indices or patterns.
 
 `query`:::
 (object) The query that has been specified for the {dfanalytics-job}. The {es}

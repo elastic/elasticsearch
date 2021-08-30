@@ -169,7 +169,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                 throw new IllegalStateException(message);
                             }
 
-                            updateRequest = buildSystemIndexUpdateRequest(descriptor);
+                            updateRequest = buildSystemIndexUpdateRequest(indexName, descriptor);
                         } else {
                             updateRequest = buildUpdateRequest(indexName);
                         }
@@ -187,14 +187,14 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     return updateRequest;
                 }
 
-                private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(SystemIndexDescriptor descriptor) {
+                private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
+                    String indexName, SystemIndexDescriptor descriptor) {
                     String mappings = descriptor.getMappings();
                     Settings settings = descriptor.getSettings();
                     String aliasName = descriptor.getAliasName();
-                    String concreteIndexName = descriptor.getPrimaryIndex();
 
                     CreateIndexClusterStateUpdateRequest updateRequest =
-                        new CreateIndexClusterStateUpdateRequest(request.cause(), concreteIndexName, request.index())
+                        new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
                             .ackTimeout(request.timeout())
                             .masterNodeTimeout(request.masterNodeTimeout());
 
@@ -210,7 +210,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest.aliases(Set.of(new Alias(aliasName)));
                     }
 
-                    logger.debug("Auto-creating system index {}", concreteIndexName);
+                    logger.debug("Auto-creating system index {}", indexName);
 
                     return updateRequest;
                 }

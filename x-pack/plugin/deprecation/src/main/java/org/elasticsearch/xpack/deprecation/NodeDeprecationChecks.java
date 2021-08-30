@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -594,5 +595,35 @@ class NodeDeprecationChecks {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
             DeprecationIssue.Level.CRITICAL
         );
+    }
+
+    static DeprecationIssue checkDelayClusterStateRecoverySettings(final Settings settings,
+                                                                   final PluginsAndModules pluginsAndModules,
+                                                                   final ClusterState clusterState,
+                                                                   final XPackLicenseState licenseState) {
+        List<Setting<Integer>> deprecatedSettings = new ArrayList<>();
+        deprecatedSettings.add(GatewayService.EXPECTED_NODES_SETTING);
+        deprecatedSettings.add(GatewayService.EXPECTED_MASTER_NODES_SETTING);
+        deprecatedSettings.add(GatewayService.RECOVER_AFTER_NODES_SETTING);
+        deprecatedSettings.add(GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING);
+        List<Setting<Integer>> existingSettings =
+            deprecatedSettings.stream().filter(deprecatedSetting -> deprecatedSetting.exists(settings)).collect(Collectors.toList());
+        if (existingSettings.isEmpty()) {
+            return null;
+        }
+        final String settingNames = existingSettings.stream().map(Setting::getKey).collect(Collectors.joining(","));
+        final String message = String.format(
+            Locale.ROOT,
+            "cannot use properties related to delaying cluster state recovery after a majority of master nodes have joined because " +
+                "they have been deprecated and will be removed in the next major version",
+            settingNames
+        );
+        final String details = String.format(
+            Locale.ROOT,
+            "cannot use properties [%s] because they have been deprecated and will be removed in the next major version",
+            settingNames
+        );
+        final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes";
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 }

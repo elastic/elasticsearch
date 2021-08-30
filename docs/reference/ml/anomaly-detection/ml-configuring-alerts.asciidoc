@@ -207,10 +207,48 @@ The bucket timestamp of the anomaly in ISO8601 format.
 
 `context`.`topInfluencers`::
 The list of top influencers.
++
+.Properties of `context.topInfluencers`
+[%collapsible%open]
+====
+`influencer_field_name`::: 
+The field name of the influencer.
+
+`influencer_field_value`::: 
+The entity that influenced, contributed to, or was to blame for the anomaly.
+
+`score`:::
+The influencer score. A normalized score between 0-100 which shows the 
+influencer's overall contribution to the anomalies.
+====
 
 `context`.`topRecords`::
 The list of top records.
++
+.Properties of `context.topRecords`
+[%collapsible%open]
+====
+`by_field_value`::: 
+The value of the by field.
 
+`function`::: 
+The function in which the anomaly occurs, as specified in the detector 
+configuration. For example, `max`.
+
+`field_name`::: 
+Certain functions require a field to operate on, for example, `sum()`. For those 
+functions, this value is the name of the field to be analyzed.
+
+`over_field_name`::: 
+The field used to split the data.
+
+`partition_field_value`::: 
+The field used to segment the analysis.
+
+`score`:::
+A normalized score between 0-100, which is based on the probability of the 
+anomalousness of this record.
+====
 
 [[anomaly-jobs-health-action-variables]]
 === {anomaly-jobs-cap} health action variables
@@ -271,12 +309,16 @@ The status of the mathematical model. It can have one of the following values:
 `model_bytes`:::
 The number of bytes of memory used by the models.
 
-`model_bytes_memory_limit`:::
-The upper limit for model memory usage.
-
 `model_bytes_exceeded`:::
 The number of bytes over the high limit for memory usage at the last allocation 
 failure.
+
+`model_bytes_memory_limit`:::
+The upper limit for model memory usage.
+
+`log_time`:::
+The timestamp of the model size statistics according to server time. Time 
+formatting is based on the {kib} settings.
 
 `peak_model_bytes`:::
 The peak number of bytes of memory ever used by the model.
@@ -295,6 +337,10 @@ Contains the following properties:
 ====
 `annotation`:::
 The annotation corresponding to the data delay in the job.
+
+`end_timestamp`:::
+Timestamp of the latest finalized buckets with missing documents. Time 
+formatting is based on the {kib} settings.
 
 `job_id`:::
 The job identifier.

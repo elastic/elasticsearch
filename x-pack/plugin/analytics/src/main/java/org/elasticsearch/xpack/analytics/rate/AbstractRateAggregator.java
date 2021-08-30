@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.analytics.rate;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.CachedSupplier;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -88,8 +88,8 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         }
         if (sizedBucketAggregator == null) {
             throw new IllegalArgumentException(
-                "The rate aggregation can only be used inside a date histogram aggregation or " +
-                    "composite aggregation with exactly one date histogram value source"
+                "The rate aggregation can only be used inside a date histogram aggregation or "
+                    + "composite aggregation with exactly one date histogram value source"
             );
         }
         return new RateDivisorCalculator(sizedBucketAggregator, isParent, rateUnit);
@@ -130,6 +130,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         private final SizedBucketAggregator delegate;
         private final boolean isParent;
         private final Rounding.DateTimeUnit rateUnit;
+
         RateDivisorCalculator(SizedBucketAggregator delegate, boolean isParent, Rounding.DateTimeUnit rateUnit) {
             this.delegate = delegate;
             this.isParent = isParent;

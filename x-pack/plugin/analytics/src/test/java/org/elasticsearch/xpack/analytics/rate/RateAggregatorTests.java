@@ -300,9 +300,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
         MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("day");
-        List<CompositeValuesSourceBuilder<?>> valuesSourceBuilders = randomBoolean() ?
-            Collections.singletonList(new HistogramValuesSourceBuilder("histo").field("val")) :
-            Arrays.asList(
+        List<CompositeValuesSourceBuilder<?>> valuesSourceBuilders = randomBoolean()
+            ? Collections.singletonList(new HistogramValuesSourceBuilder("histo").field("val"))
+            : Arrays.asList(
                 new DateHistogramValuesSourceBuilder("my_date").field(DATE_FIELD).calendarInterval(new DateHistogramInterval("month")),
                 new DateHistogramValuesSourceBuilder("my_date2").field(DATE_FIELD).calendarInterval(new DateHistogramInterval("month")),
                 new HistogramValuesSourceBuilder("histo").field("val")
@@ -823,7 +823,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 4 }), new StringField("term", "b", Field.Store.NO))
             );
-        }, (Consumer<InternalMultiBucketAggregation<?, ?>) dh -> {
+        }, (Consumer<InternalMultiBucketAggregation<?, ?>>) dh -> {
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));

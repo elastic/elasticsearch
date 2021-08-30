@@ -107,7 +107,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         checkIndexBlocks(clusterState, concreteIndices);
 
-        final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
+        final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
         final FailureCollector indexFailures = new FailureCollector();
 
         // If all nodes are on version 7.16 or higher, then we group the shard requests and send a single request per node.
@@ -143,7 +143,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 public void onResponse(FieldCapabilitiesNodeResponse response) {
                                     for (FieldCapabilitiesIndexResponse indexResponse : response.getIndexResponses()) {
                                         if (indexResponse.canMatch()) {
-                                            indexResponses.add(indexResponse);
+                                            indexResponses.putIfAbsent(indexResponse.getIndexName(), indexResponse);
                                         }
 
                                     }
@@ -173,7 +173,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 @Override
                                 public void onResponse(FieldCapabilitiesIndexResponse result) {
                                     if (result.canMatch()) {
-                                        indexResponses.add(result);
+                                        indexResponses.putIfAbsent(result.getIndexName(), result);
                                     }
                                     countDown.run();
                                 }
@@ -199,13 +199,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
             remoteClusterClient.fieldCaps(remoteRequest, ActionListener.wrap(response -> {
                 for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
-                    indexResponses.add(
-                        new FieldCapabilitiesIndexResponse(
-                            RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName()),
-                            resp.get(),
-                            resp.canMatch()
-                        )
-                    );
+                    String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
+                    indexResponses.putIfAbsent(indexName,
+                        new FieldCapabilitiesIndexResponse(indexName, resp.get(), resp.canMatch()));
                 }
                 for (FieldCapabilitiesFailure failure : response.getFailures()) {
                     Exception ex = failure.getException();
@@ -229,12 +225,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private Runnable createResponseMerger(FieldCapabilitiesRequest request,
                                           CountDown completionCounter,
-                                          List<FieldCapabilitiesIndexResponse> indexResponses,
+                                          Map<String, FieldCapabilitiesIndexResponse> indexResponses,
                                           FailureCollector indexFailures,
                                           ActionListener<FieldCapabilitiesResponse> listener) {
         return () -> {
             if (completionCounter.countDown()) {
-                List<FieldCapabilitiesFailure> failures = indexFailures.values();
+                List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
                 if (indexResponses.size() > 0) {
                     if (request.isMergeResults()) {
                         // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
@@ -245,11 +241,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 () -> merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures)))
                         );
                     } else {
-                        listener.onResponse(new FieldCapabilitiesResponse(indexResponses, new ArrayList<>(failures)));
+                        listener.onResponse(new FieldCapabilitiesResponse(
+                            new ArrayList<>(indexResponses.values()),
+                            new ArrayList<>(failures)));
                     }
                 } else {
                     // we have no responses at all, maybe because of errors
-                    if (indexFailures.size() > 0) {
+                    if (indexFailures.isEmpty() == false) {
                         // throw back the first exception
                         listener.onFailure(failures.iterator().next().getException());
                     } else {
@@ -326,13 +324,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private FieldCapabilitiesResponse merge(
-        List<FieldCapabilitiesIndexResponse> indexResponses,
+        Map<String, FieldCapabilitiesIndexResponse> indexResponses,
         boolean includeUnmapped,
         List<FieldCapabilitiesFailure> failures
     ) {
-        String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).sorted().toArray(String[]::new);
+        String[] indices = indexResponses.keySet().stream().sorted().toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
-        for (FieldCapabilitiesIndexResponse response : indexResponses) {
+        for (FieldCapabilitiesIndexResponse response : indexResponses.values()) {
             innerMerge(responseMapBuilder, response);
         }
         final Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
@@ -379,24 +377,35 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
+    /**
+     * Collects failures from all the individual index requests, then builds a failure list grouped by the underlying cause.
+     *
+     * This collector can contain a failure for an index even if one of its shards was successful. When building the final
+     * list, these failures will be skipped because they have no affect on the final response.
+     */
     private static final class FailureCollector {
-        final Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = Collections.synchronizedMap(
-            new HashMap<>()
-        );
+        private final Map<String, Exception> failuresByIndex = Collections.synchronizedMap(new HashMap<>());
 
-        List<FieldCapabilitiesFailure> values() {
+        List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
+            Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = Collections.synchronizedMap(new HashMap<>());
+            for (Map.Entry<String, Exception> failure : failuresByIndex.entrySet()) {
+                String index = failure.getKey();
+                Exception e = failure.getValue();
+
+                if (successfulIndices.contains(index) == false) {
+                    // we deduplicate exceptions on the underlying causes message and classname
+                    // we unwrap the cause to e.g. group RemoteTransportExceptions coming from different nodes if the cause is the same
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    Tuple<String, String> groupingKey = new Tuple<>(cause.getMessage(), cause.getClass().getName());
+                    indexFailures.compute(groupingKey,
+                        (k, v) -> v == null ? new FieldCapabilitiesFailure(new String[]{index}, e) : v.addIndex(index));
+                }
+            }
             return new ArrayList<>(indexFailures.values());
         }
 
         void collect(Exception e, String index) {
-            // we deduplicate exceptions on the underlying causes message and classname
-            // we unwrap the cause to e.g. group RemoteTransportexceptions coming from different nodes if the cause is the same
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
-            Tuple<String, String> groupingKey = new Tuple<String, String>(cause.getMessage(), cause.getClass().getName());
-            indexFailures.compute(
-                groupingKey,
-                (k, v) -> v == null ? new FieldCapabilitiesFailure(new String[] {index}, e) : v.addIndex(index)
-            );
+            failuresByIndex.putIfAbsent(index, e);
         }
 
         void collect(Exception e, String[] indices) {
@@ -411,8 +420,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         }
 
-        int size() {
-            return this.indexFailures.size();
+        boolean isEmpty() {
+            return failuresByIndex.isEmpty();
         }
     }
 

@@ -119,6 +119,7 @@ final class TerminalOutputFormatter {
         boolean lineBoundary = true;
         int start = 0;
         long bannerLifetimeMillis = Long.MAX_VALUE;
+        assert AnsiConsole.getTerminalWidth() > 0;
         while (true) {
             // only print the banner at line boundary AND when blocking for reads from stdin
             // IOException will be propagated to terminate the program: input forwarding stops and the stacktrace prints to stderr
@@ -232,6 +233,11 @@ final class TerminalOutputFormatter {
             System.exit(1);
         } else if (ansiType == AnsiType.Redirected) {
             System.exit(2);
+        } else if (AnsiConsole.out().getTerminalWidth() <= 0) {
+            // hackity-hack
+            // catches the case where the logs are output to a terminal inside the docker container,
+            // but the docker output itself is redirected
+            System.exit(3);
         } else {
             System.exit(0);
         }
@@ -327,6 +333,11 @@ final class TerminalOutputFormatter {
         }
 
         private int computeLineCount(int terminalWidth) {
+            assert terminalWidth > 0;
+            // still, if the above escapes testing, it is better to do a partial job rather than throw
+            if (terminalWidth <= 0) {
+                return lineLengths.size();
+            }
             int lineCount = 0;
             for (Integer lineLength : lineLengths) {
                 lineCount += lineLength / terminalWidth;

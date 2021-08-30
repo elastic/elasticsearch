@@ -700,6 +700,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 case INDICES:
                     assertion = (s1, s2) -> assertThat(s2.indices().size(), greaterThanOrEqualTo(s1.indices().size()));
                     break;
+                case SHARDS:
+                    assertion = (s1, s2) -> assertThat(s2.totalShards(), greaterThanOrEqualTo(s1.totalShards()));
+                    break;
+                case FAILED_SHARDS:
+                    assertion = (s1, s2) -> assertThat(s2.failedShards(), greaterThanOrEqualTo(s1.failedShards()));
+                    break;
                 default:
                     throw new AssertionError("unknown sort column [" + sort + "]");
             }

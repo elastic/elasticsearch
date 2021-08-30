@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -24,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
@@ -357,6 +362,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
     }
 
     public void testCheckGeoShapeMappings() throws Exception {
+        // First, testing only an index template:
         IndexTemplateMetadata indexTemplateMetadata = IndexTemplateMetadata.builder("single-type")
             .patterns(Collections.singletonList("foo"))
             .putMapping("_doc", "{\n" +
@@ -387,10 +393,50 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "templates contain deprecated geo_shape properties that must be removed",
+                "index templates contain deprecated geo_shape properties that must be removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
-                "mappings in template single-type contains deprecated geo_shape properties. [parameter [geo_shape] in field " +
+                "mappings in index template single-type contains deprecated geo_shape properties. [parameter [geo_shape] in field " +
                     "[points_only]; parameter [geo_shape] in field [strategy]]", false, null)
+        ));
+
+        // Second, testing only a component template:
+        String templateName = "my-template";
+        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
+        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"location\":{\"type\":\"geo_shape\", " +
+            "\"strategy\":\"recursive\", \"points_only\":true}}}");
+        AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
+        Template template = new Template(settings, mappings, Collections.singletonMap("alias", alias));
+        ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
+        badMetadata = Metadata.builder()
+            .componentTemplates(Collections.singletonMap(templateName, componentTemplate))
+            .build();
+        badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
+        issue = ClusterDeprecationChecks.checkGeoShapeTemplates(badState);
+
+        assertThat(issue, equalTo(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "component templates contain deprecated geo_shape properties that must be removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
+                "mappings in component template my-template contains deprecated geo_shape properties. [parameter [geo_shape] in field " +
+                    "[points_only]; parameter [geo_shape] in field [strategy]]", false, null)
+        ));
+
+        // Third, trying a component template and an index template:
+        badMetadata = Metadata.builder()
+            .componentTemplates(Collections.singletonMap(templateName, componentTemplate))
+            .templates(templates)
+            .build();
+        badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
+        issue = ClusterDeprecationChecks.checkGeoShapeTemplates(badState);
+
+        assertThat(issue, equalTo(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "component templates and index templates contain deprecated geo_shape properties that must be removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
+                "mappings in component template my-template contains deprecated geo_shape properties. [parameter [geo_shape] in field " +
+                    "[points_only]; parameter [geo_shape] in field [strategy]]; mappings in index template single-type contains " +
+                    "deprecated geo_shape properties. [parameter [geo_shape] in field [points_only]; parameter [geo_shape] in field " +
+                    "[strategy]]", false, null)
         ));
     }
 }

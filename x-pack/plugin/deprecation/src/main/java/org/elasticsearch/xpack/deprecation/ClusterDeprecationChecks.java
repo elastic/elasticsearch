@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
@@ -209,38 +210,84 @@ public class ClusterDeprecationChecks {
     }
 
     @SuppressWarnings("unchecked")
-    static DeprecationIssue checkGeoShapeTemplates(final ClusterState clusterState) {
-        String detailsForCluster =
-            StreamSupport.stream(clusterState.getMetadata().getTemplates().spliterator(), false).map((templateCursor) -> {
+    private static String getDetailsMessageForComponentTemplates(Map<String, ComponentTemplate> componentTemplates) {
+        String detailsForComponentTemplates =
+            componentTemplates.entrySet().stream().map((templateCursor) -> {
+                String templateName = templateCursor.getKey();
+                ComponentTemplate componentTemplate = templateCursor.getValue();
+                CompressedXContent mappings = componentTemplate.template().mappings();
+                if (mappings != null) {
+                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(mappings.uncompressed(), true,
+                        XContentType.JSON);
+                    Map<String, Object> mappingAsMap = tuple.v2();
+                    List<String> messages = mappingAsMap == null ? Collections.emptyList() :
+                        IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                            mappingAsMap,
+                            IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
+                            IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
+                    if (messages.isEmpty() == false) {
+                        String messageForMapping =
+                            "mappings in component template " + templateName + " contains deprecated geo_shape properties. " +
+                                messages.stream().collect(Collectors.joining("; "));
+                        return messageForMapping;
+                    }
+                }
+                return null;
+            }).filter(messageForTemplate -> Strings.isEmpty(messageForTemplate) == false).collect(Collectors.joining("; "));
+        return detailsForComponentTemplates;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String getDetailsMessageForIndexTemplates(ImmutableOpenMap<String, IndexTemplateMetadata> indexTemplates) {
+        String detailsForIndexTemplates =
+            StreamSupport.stream(indexTemplates.spliterator(), false).map((templateCursor) -> {
                 String templateName = templateCursor.key;
                 IndexTemplateMetadata indexTemplateMetadata = templateCursor.value;
                 String messageForTemplate =
                     StreamSupport.stream(indexTemplateMetadata.getMappings().spliterator(), false).map((mappingCursor) -> {
                         CompressedXContent mapping = mappingCursor.value;
-                        Tuple<XContentType, Map<String, Object>>    tuple = XContentHelper.convertToMap(mapping.uncompressed(), true,
+                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(mapping.uncompressed(), true,
                             XContentType.JSON);
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
                         List<String> messages = mappingAsMap == null ? Collections.emptyList() :
                             IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
-                            mappingAsMap,
-                            IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
-                            IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
+                                mappingAsMap,
+                                IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
+                                IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
                         return messages;
                     }).filter(messages -> messages.isEmpty() == false).map(messages -> {
                         String messageForMapping =
-                            "mappings in template " + templateName + " contains deprecated geo_shape properties. " +
+                            "mappings in index template " + templateName + " contains deprecated geo_shape properties. " +
                                 messages.stream().collect(Collectors.joining("; "));
                         return messageForMapping;
                     }).collect(Collectors.joining("; "));
                 return messageForTemplate;
-            }).filter(messageForTempalte -> Strings.isEmpty(messageForTempalte) == false).collect(Collectors.joining("; "));
-        if (Strings.isEmpty(detailsForCluster)) {
-            return null;
-        } else {
-            String message = "templates contain deprecated geo_shape properties that must be removed";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message,"https://www.elastic" +
-                ".co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes", detailsForCluster, false,
+            }).filter(messageForTemplate -> Strings.isEmpty(messageForTemplate) == false).collect(Collectors.joining("; "));
+        return detailsForIndexTemplates;
+    }
+
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkGeoShapeTemplates(final ClusterState clusterState) {
+        String detailsForComponentTemplates = getDetailsMessageForComponentTemplates(clusterState.getMetadata().componentTemplates());
+        String detailsForIndexTemplates = getDetailsMessageForIndexTemplates(clusterState.getMetadata().getTemplates());
+        boolean deprecationInComponentTemplates = Strings.isEmpty(detailsForComponentTemplates) == false;
+        boolean deprecationInIndexTemplates = Strings.isEmpty(detailsForIndexTemplates) == false;
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes";
+        if (deprecationInComponentTemplates && deprecationInIndexTemplates) {
+            String message = "component templates and index templates contain deprecated geo_shape properties that must be removed";
+            String details = detailsForComponentTemplates + "; " + detailsForIndexTemplates;
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false,
                 null);
+        } if (deprecationInComponentTemplates == false && deprecationInIndexTemplates) {
+            String message = "index templates contain deprecated geo_shape properties that must be removed";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsForIndexTemplates, false,
+                null);
+        } else if (deprecationInIndexTemplates == false && deprecationInComponentTemplates) {
+            String message = "component templates contain deprecated geo_shape properties that must be removed";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsForComponentTemplates, false,
+                null);
+        } else {
+            return null;
         }
     }
 }

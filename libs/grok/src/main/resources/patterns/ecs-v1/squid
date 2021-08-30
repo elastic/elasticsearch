@@ -2,5 +2,5 @@
 # Documentation of squid3 logs formats can be found at the following link:
 # http://wiki.squid-cache.org/Features/LogFormat
 SQUID3_STATUS (?:%{POSINT:http.response.status_code:int}|0|000)
-SQUID3 %{NUMBER:timestamp}\s+%{NUMBER:squid.request.duration:int}\s%{IP:source.ip}\s%{WORD:event.action}/%{SQUID3_STATUS}\s%{INT:http.response.bytes:int}\s%{WORD:http.request.method}\s%{NOTSPACE:url.original}\s(?:-|%{NOTSPACE:user.name})\s%{WORD:squid.hierarchy_code}/(?:-|%{IPORHOST:destination.address})\s(?:-|%{NOTSPACE:http.response.mime_type})
+SQUID3 %{NUMBER:timestamp}\s+%{NUMBER:squid.request.duration:int}\s%{IP:source.ip}\s%{WORD:event.action}/%{SQUID3_STATUS}\s%{INT:http.response.bytes:long}\s%{WORD:http.request.method}\s%{NOTSPACE:url.original}\s(?:-|%{NOTSPACE:user.name})\s%{WORD:squid.hierarchy_code}/(?:-|%{IPORHOST:destination.address})\s(?:-|%{NOTSPACE:http.response.mime_type})
 # :long - %{INT:http.response.bytes:int}

@@ -83,6 +83,16 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             GetSnapshotsRequest.SortBy.START_TIME,
             order
         );
+        assertSnapshotListSorted(
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.SHARDS, order),
+            GetSnapshotsRequest.SortBy.SHARDS,
+            order
+        );
+        assertSnapshotListSorted(
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.FAILED_SHARDS, order),
+            GetSnapshotsRequest.SortBy.FAILED_SHARDS,
+            order
+        );
     }
 
     public void testResponseSizeLimit() throws Exception {

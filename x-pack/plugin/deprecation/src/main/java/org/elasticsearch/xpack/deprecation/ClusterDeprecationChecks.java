@@ -210,7 +210,7 @@ public class ClusterDeprecationChecks {
 
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkGeoShapeTemplates(final ClusterState clusterState) {
-        String messageForCluster =
+        String detailsForCluster =
             StreamSupport.stream(clusterState.getMetadata().getTemplates().spliterator(), false).map((templateCursor) -> {
                 String templateName = templateCursor.key;
                 IndexTemplateMetadata indexTemplateMetadata = templateCursor.value;
@@ -228,17 +228,19 @@ public class ClusterDeprecationChecks {
                         return messages;
                     }).filter(messages -> messages.isEmpty() == false).map(messages -> {
                         String messageForMapping =
-                            "mappings in template " + templateName + " contains deprecated properties. " +
+                            "mappings in template " + templateName + " contains deprecated geo_shape properties. " +
                                 messages.stream().collect(Collectors.joining("; "));
                         return messageForMapping;
                     }).collect(Collectors.joining("; "));
                 return messageForTemplate;
             }).filter(messageForTempalte -> Strings.isEmpty(messageForTempalte) == false).collect(Collectors.joining("; "));
-        if (Strings.isEmpty(messageForCluster)) {
+        if (Strings.isEmpty(detailsForCluster)) {
             return null;
         } else {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, messageForCluster, "https://www.elastic" +
-                ".co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html", messageForCluster, false, null);
+            String message = "templates contain deprecated geo_shape properties that must be removed";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message,"https://www.elastic" +
+                ".co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes", detailsForCluster, false,
+                null);
         }
     }
 }

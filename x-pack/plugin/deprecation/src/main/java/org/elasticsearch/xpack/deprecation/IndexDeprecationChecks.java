@@ -332,8 +332,7 @@ public class IndexDeprecationChecks {
         Map<?, ?> value = (Map<?, ?>) entry.getValue();
         return LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS.stream()
             .filter(deprecatedParameter -> value.containsKey(deprecatedParameter))
-            .map(deprecatedParameter -> String.format(Locale.ROOT, "%s parameter [%s] in field [%s] is deprecated and will be removed in " +
-                "a future version", type, deprecatedParameter, fieldName))
+            .map(deprecatedParameter -> String.format(Locale.ROOT, "parameter [%s] in field [%s]", type, deprecatedParameter, fieldName))
             .collect(Collectors.joining("; "));
     }
 
@@ -349,9 +348,12 @@ public class IndexDeprecationChecks {
         if (messages.isEmpty()) {
             return null;
         } else {
-            String message = messages.stream().collect(Collectors.joining("; "));
-            String details = "mappings for index " + indexMetadata.getIndex().getName() + " contains deprecated properties. " + message;
-            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html";
+            String message = String.format(Locale.ROOT,"mappings for index %s contains deprecated geo_shape properties that must be " +
+                "removed", indexMetadata.getIndex().getName());
+            String details = String.format(Locale.ROOT,
+                "The following geo_shape parameters must be removed from %s: [%s]", indexMetadata.getIndex().getName(),
+                messages.stream().collect(Collectors.joining("; ")));
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes";
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
     }

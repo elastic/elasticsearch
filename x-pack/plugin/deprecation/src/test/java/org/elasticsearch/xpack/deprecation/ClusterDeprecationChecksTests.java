@@ -387,13 +387,10 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "mappings in template single-type contains deprecated properties. [geo_shape parameter [points_only] in field [location] " +
-                    "is deprecated and will be removed in a future version; geo_shape parameter [strategy] in field [location] is " +
-                    "deprecated and will be removed in a future version]",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html",
-                "mappings in template single-type contains deprecated properties. [geo_shape parameter [points_only] in field [location] " +
-                    "is deprecated and will be removed in a future version; geo_shape parameter [strategy] in field [location] is " +
-                    "deprecated and will be removed in a future version]", false, null)
+                "templates contain deprecated geo_shape properties that must be removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
+                "mappings in template single-type contains deprecated geo_shape properties. [parameter [geo_shape] in field " +
+                    "[points_only]; parameter [geo_shape] in field [strategy]]", false, null)
         ));
     }
 }

@@ -319,4 +319,3 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return Objects.equals(state, that.state);
     }
 }
-

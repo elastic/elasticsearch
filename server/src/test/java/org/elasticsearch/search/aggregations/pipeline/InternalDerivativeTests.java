@@ -21,8 +21,9 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
     @Override
     protected InternalDerivative createTestInstance(String name, Map<String, Object> metadata) {
         DocValueFormat formatter = randomNumericDocValueFormat();
-        double value = frequently() ? randomDoubleBetween(-100000, 100000, true)
-                : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
+        double value = frequently()
+            ? randomDoubleBetween(-100000, 100000, true)
+            : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
         double normalizationFactor = frequently() ? randomDoubleBetween(0, 100000, true) : 0;
         return new InternalDerivative(name, value, normalizationFactor, formatter, metadata);
     }
@@ -58,29 +59,29 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            if (Double.isFinite(value)) {
-                value += between(1, 100);
-            } else {
-                value = randomDoubleBetween(0, 100000, true);
-            }
-            break;
-        case 2:
-            normalizationFactor += between(1, 100);
-            break;
-        case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                if (Double.isFinite(value)) {
+                    value += between(1, 100);
+                } else {
+                    value = randomDoubleBetween(0, 100000, true);
+                }
+                break;
+            case 2:
+                normalizationFactor += between(1, 100);
+                break;
+            case 3:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDerivative(name, value, normalizationFactor, formatter, metadata);
     }

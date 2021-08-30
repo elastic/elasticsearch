@@ -134,30 +134,26 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         if (askForOtherBucket) {
             builder.otherBucket(true).otherBucketKey("other");
         }
-        withAggregator(
-            builder,
-            new MatchAllDocsQuery(),
-            iw -> {},
-            (searcher, aggregator) -> {
-                InternalFilters result = (InternalFilters) aggregator.buildEmptyAggregation();
-                for (int i = 0; i < filters.length; i++) {
-                    assertThat(result.getBucketByKey(String.valueOf(i)).getDocCount(), equalTo(0L));
-                }
-                if (askForOtherBucket) {
-                    assertThat(result.getBucketByKey("other").getDocCount(), equalTo(0L));
-                } else {
-                    assertThat(result.getBucketByKey("other"), nullValue());
-                }
+        withAggregator(builder, new MatchAllDocsQuery(), iw -> {}, (searcher, aggregator) -> {
+            InternalFilters result = (InternalFilters) aggregator.buildEmptyAggregation();
+            for (int i = 0; i < filters.length; i++) {
+                assertThat(result.getBucketByKey(String.valueOf(i)).getDocCount(), equalTo(0L));
             }
-        );
+            if (askForOtherBucket) {
+                assertThat(result.getBucketByKey("other").getDocCount(), equalTo(0L));
+            } else {
+                assertThat(result.getBucketByKey("other"), nullValue());
+            }
+        });
     }
 
     public void testNoFilters() throws IOException {
-        testCase(new FiltersAggregationBuilder("test", new KeyedFilter[0]), new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(List.of());
-        }, (InternalFilters result) -> {
-            assertThat(result.getBuckets(), hasSize(0));
-        });
+        testCase(
+            new FiltersAggregationBuilder("test", new KeyedFilter[0]),
+            new MatchAllDocsQuery(),
+            iw -> { iw.addDocument(List.of()); },
+            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); }
+        );
     }
 
     public void testNoFiltersWithSubAggs() throws IOException {
@@ -566,9 +562,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         .entry(
                             "filters",
                             matchesList().item(
-                                matchesMap().entry("query", "*:*")
-                                    .entry("specialized_for", "match_all")
-                                    .entry("results_from_metadata", 0)
+                                matchesMap().entry("query", "*:*").entry("specialized_for", "match_all").entry("results_from_metadata", 0)
                             )
                         )
                 );
@@ -816,11 +810,11 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 new SortedNumericDocValuesField("int", 10)
             )
         );
-         /*
-          * Shuffle the docs so we collect them in a random order which causes
-          * bad implementations of filter-by-filter aggregation to fail with
-          * assertion errors while executing.
-          */
+        /*
+         * Shuffle the docs so we collect them in a random order which causes
+         * bad implementations of filter-by-filter aggregation to fail with
+         * assertion errors while executing.
+         */
         Collections.shuffle(docs, random());
         debugTestCase(
             builder,
@@ -887,16 +881,15 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         long[] times = new long[] {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"),
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"),
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-03"),
-        };
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-03"), };
         for (int i = 0; i < 10000; i++) {
             docs.add(List.of(new LongPoint("test", times[i % 3]), new SortedNumericDocValuesField("int", i)));
         }
-         /*
-          * Shuffle the docs so we collect them in a random order which causes
-          * bad implementations of filter-by-filter aggregation to fail with
-          * assertion errors while executing.
-          */
+        /*
+         * Shuffle the docs so we collect them in a random order which causes
+         * bad implementations of filter-by-filter aggregation to fail with
+         * assertion errors while executing.
+         */
         Collections.shuffle(docs, random());
         debugTestCase(
             builder,
@@ -960,10 +953,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             buckets.add(new KeyedFilter(key, new RangeQueryBuilder("test").from(start).to(end).includeUpper(false)));
             start = end;
         }
-        AggregationBuilder builder = new FiltersAggregationBuilder(
-            "test",
-            buckets.toArray(KeyedFilter[]::new)
-        ).subAggregation(new MaxAggregationBuilder("m").field("int")).subAggregation(new SumAggregationBuilder("s").field("int"));
+        AggregationBuilder builder = new FiltersAggregationBuilder("test", buckets.toArray(KeyedFilter[]::new)).subAggregation(
+            new MaxAggregationBuilder("m").field("int")
+        ).subAggregation(new SumAggregationBuilder("s").field("int"));
         List<List<IndexableField>> docs = new ArrayList<>();
         long[] times = new long[] {
             formatter.parseMillis("2010-01-02"),
@@ -972,11 +964,11 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < 10000; i++) {
             docs.add(List.of(new LongPoint("test", times[i % 3]), new SortedNumericDocValuesField("int", i)));
         }
-         /*
-          * Shuffle the docs so we collect them in a random order which causes
-          * bad implementations of filter-by-filter aggregation to fail with
-          * assertion errors while executing.
-          */
+        /*
+         * Shuffle the docs so we collect them in a random order which causes
+         * bad implementations of filter-by-filter aggregation to fail with
+         * assertion errors while executing.
+         */
         Collections.shuffle(docs, random());
         debugTestCase(
             builder,
@@ -1064,24 +1056,29 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             null,
             false
         );
-        docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
-            return numberType.createFields("f", i, true, true, false);
-        });
+        docValuesFieldExistsTestCase(
+            new ExistsQueryBuilder("f"),
+            ft,
+            true,
+            i -> { return numberType.createFields("f", i, true, true, false); }
+        );
     }
 
     public void testDocValuesFieldExistsForNumberWithoutData() throws IOException {
-        docValuesFieldExistsNoDataTestCase(new NumberFieldMapper.NumberFieldType(
-            "f",
-            randomFrom(NumberFieldMapper.NumberType.values()),
-            true,
-            false,
-            true,
-            true,
-            null,
-            Map.of(),
-            null,
-            false
-        ));
+        docValuesFieldExistsNoDataTestCase(
+            new NumberFieldMapper.NumberFieldType(
+                "f",
+                randomFrom(NumberFieldMapper.NumberType.values()),
+                true,
+                false,
+                true,
+                true,
+                null,
+                Map.of(),
+                null,
+                false
+            )
+        );
     }
 
     public void testDocValuesFieldExistsForKeyword() throws IOException {
@@ -1105,35 +1102,23 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", exists));
         // Exists queries convert to MatchNone if this isn't defined
         FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
-        debugTestCase(
-            builder,
-            new MatchAllDocsQuery(),
-            iw -> {
-                for (int i = 0; i < 10; i++) {
-                    iw.addDocument(buildDocWithField.apply(i));
-                }
-            },
-            (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
-                assertThat(result.getBuckets(), hasSize(1));
-                assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));
+        debugTestCase(builder, new MatchAllDocsQuery(), iw -> {
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(buildDocWithField.apply(i));
+            }
+        }, (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+            assertThat(result.getBuckets(), hasSize(1));
+            assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));
 
-                assertThat(impl, equalTo(FilterByFilterAggregator.class));
-                MapMatcher expectedFilterDebug = matchesMap().extraOk()
-                    .entry("specialized_for", "docvalues_field_exists")
-                    .entry("results_from_metadata", canUseMetadata ? greaterThan(0) : equalTo(0));
-                assertMap(
-                    debug,
-                    matchesMap().entry("test", matchesMap().extraOk().entry("filters", matchesList().item(expectedFilterDebug)))
-                );
-            },
-            fieldType,
-            fnft
-        );
+            assertThat(impl, equalTo(FilterByFilterAggregator.class));
+            MapMatcher expectedFilterDebug = matchesMap().extraOk()
+                .entry("specialized_for", "docvalues_field_exists")
+                .entry("results_from_metadata", canUseMetadata ? greaterThan(0) : equalTo(0));
+            assertMap(debug, matchesMap().entry("test", matchesMap().extraOk().entry("filters", matchesList().item(expectedFilterDebug))));
+        }, fieldType, fnft);
     }
 
-    private void docValuesFieldExistsNoDataTestCase(
-        MappedFieldType fieldType
-    ) throws IOException {
+    private void docValuesFieldExistsNoDataTestCase(MappedFieldType fieldType) throws IOException {
         QueryBuilder exists = new ExistsQueryBuilder(fieldType.name());
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", exists));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
@@ -1147,9 +1132,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertThat(aggregator, instanceOf(FilterByFilterAggregator.class));
 
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertMap(debug, matchesMap().extraOk()
-                .entry("specialized_for", "docvalues_field_exists")
-                .entry("results_from_metadata", greaterThan(0)));
+            assertMap(
+                debug,
+                matchesMap().extraOk().entry("specialized_for", "docvalues_field_exists").entry("results_from_metadata", greaterThan(0))
+            );
         }, fieldType, fnft);
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result) -> {
             assertThat(result.getBuckets(), hasSize(1));

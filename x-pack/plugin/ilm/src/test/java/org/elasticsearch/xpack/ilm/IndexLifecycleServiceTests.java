@@ -587,7 +587,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                         .setNodeId("shutdown_node")
                         .setReason("shut down for test")
                         .setStartedAtMillis(randomNonNegativeLong())
-                        .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                        .setType(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE))
                         .build())))
                 .build())
             .build();

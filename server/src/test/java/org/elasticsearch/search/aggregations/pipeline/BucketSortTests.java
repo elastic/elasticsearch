@@ -52,32 +52,42 @@ public class BucketSortTests extends BasePipelineAggregationTestCase<BucketSortP
     }
 
     public void testNegativeFrom() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new BucketSortPipelineAggregationBuilder("foo", Collections.emptyList()).from(-1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BucketSortPipelineAggregationBuilder("foo", Collections.emptyList()).from(-1)
+        );
         assertThat(e.getMessage(), equalTo("[from] must be a non-negative integer: [-1]"));
     }
 
     public void testNegativeSize() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new BucketSortPipelineAggregationBuilder("foo", Collections.emptyList()).size(-1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BucketSortPipelineAggregationBuilder("foo", Collections.emptyList()).size(-1)
+        );
         assertThat(e.getMessage(), equalTo("[size] must be a positive integer: [-1]"));
     }
 
     public void testZeroSize() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new BucketSortPipelineAggregationBuilder("foo", Collections.emptyList()).size(0));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BucketSortPipelineAggregationBuilder("foo", Collections.emptyList()).size(0)
+        );
         assertThat(e.getMessage(), equalTo("[size] must be a positive integer: [0]"));
     }
 
     public void testNullGapPolicy() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new BucketSortPipelineAggregationBuilder("foo", Collections.emptyList()).gapPolicy(null));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BucketSortPipelineAggregationBuilder("foo", Collections.emptyList()).gapPolicy(null)
+        );
         assertThat(e.getMessage(), equalTo("[gap_policy] must not be null: [foo]"));
     }
 
     public void testNoParent() {
         List<FieldSortBuilder> sorts = singletonList(new FieldSortBuilder("bar"));
-        assertThat(validate(emptyList(), new BucketSortPipelineAggregationBuilder("foo", sorts)),
-            equalTo("Validation Failed: 1: bucket_sort aggregation [foo] must be declared inside of another aggregation;"));
+        assertThat(
+            validate(emptyList(), new BucketSortPipelineAggregationBuilder("foo", sorts)),
+            equalTo("Validation Failed: 1: bucket_sort aggregation [foo] must be declared inside of another aggregation;")
+        );
     }
 }

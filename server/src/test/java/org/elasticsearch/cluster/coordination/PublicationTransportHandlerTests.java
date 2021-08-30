@@ -70,7 +70,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         };
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () ->
-            handler.newPublicationContext(new ClusterStatePublicationEvent("test", clusterState, unserializableClusterState)));
+            handler.newPublicationContext(new ClusterStatePublicationEvent("test", clusterState, unserializableClusterState, 0L, 0L)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IOException.class));
         assertThat(e.getCause().getMessage(), containsString("Simulated failure of diff serialization"));

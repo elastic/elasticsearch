@@ -161,11 +161,7 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
 }
 
 subprojects {
-  // common maven publishing configuration
-  group = 'org.elasticsearch'
-  version = VersionProperties.elasticsearch
-  description = "Elasticsearch subproject ${project.path}"
-}
+  apply plugin:'elasticsearch.base'
 
 allprojects {
   // We disable this plugin for now till we shaked out the issues we see

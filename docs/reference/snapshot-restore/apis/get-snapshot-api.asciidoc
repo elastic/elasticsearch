@@ -120,6 +120,12 @@ Allows setting a sort order for the result. Defaults to `start_time`, i.e. sorti
 
 `index_count`::
   Sort snapshots by the number of indices they contain and break ties by snapshot name.
+
+`shard_count`::
+  Sort snapshots by the number of shards they contain and break ties by snapshot name.
+
+`failed_shard_count`::
+  Sort snapshots by the number of shards that they failed to snapshot and break ties by snapshot name.
 ====
 
 `size`::

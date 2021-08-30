@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.conventions;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.MapProperty;
-import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 
@@ -20,8 +19,8 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 
 public class LicensingPlugin implements Plugin<Project> {
-    final static String ELASTIC_LICENSE_URL_PREFIX = "https://raw.githubusercontent.com/elastic/elasticsearch/";
-    final static String ELASTIC_LICENSE_URL_POSTFIX = "/licenses/ELASTIC-LICENSE-2.0.txt";
+    static final String ELASTIC_LICENSE_URL_PREFIX = "https://raw.githubusercontent.com/elastic/elasticsearch/";
+    static final String ELASTIC_LICENSE_URL_POSTFIX = "/licenses/ELASTIC-LICENSE-2.0.txt";
 
     private ProviderFactory providerFactory;
 
@@ -34,7 +33,7 @@ public class LicensingPlugin implements Plugin<Project> {
     public void apply(Project project) {
         Provider<String> revision = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).getRevision();
         Provider<String> licenseCommitProvider = providerFactory.provider(() ->
-             isSnapshotVersion(project) ? revision.get() : "v" + project.getVersion().toString()
+             isSnapshotVersion(project) ? revision.get() : "v" + project.getVersion()
         );
 
         MapProperty<String, String> licensesProperty = project.getObjects().mapProperty(String.class, String.class);

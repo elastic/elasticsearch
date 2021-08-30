@@ -40,6 +40,8 @@ subprojects {
     ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
   }
 
-  project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt')
-  project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')
+  project.getPluginManager().withPlugin("elasticsearch.build") {
+    project.ext.licenseFile.set(rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt'))
+    project.ext.noticeFile.set(xpackRootProject.file('NOTICE.txt'))
+  }
 }

@@ -13,8 +13,8 @@ allprojects {
     testImplementation "junit:junit:4.12"
   }
 
-  ext.licenseFile = file("$buildDir/dummy/license")
-  ext.noticeFile = file("$buildDir/dummy/notice")
+  ext.licenseFile.set(file("$buildDir/dummy/license"))
+  ext.noticeFile.set(file("$buildDir/dummy/notice"))
 
   testingConventions.naming {
     // Reset default to no baseClass checks

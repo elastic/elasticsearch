@@ -8,24 +8,41 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.codehaus.groovy.runtime.DefaultGroovyMethods;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
-import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
-import org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin;
-import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.bundling.Jar;
+import org.gradle.initialization.layout.BuildLayout;
 
+import javax.inject.Inject;
 import java.io.File;
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
 public class BuildPlugin implements Plugin<Project> {
+
+    public static final String SSPL_LICENSE_PATH = "licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
+    private BuildLayout buildLayout;
+    private ObjectFactory objectFactory;
+    private ProviderFactory providerFactory;
+    private ProjectLayout projectLayout;
+
+    @Inject
+    BuildPlugin(BuildLayout buildLayout, ObjectFactory objectFactory, ProviderFactory providerFactory, ProjectLayout projectLayout){
+        this.buildLayout = buildLayout;
+        this.objectFactory = objectFactory;
+        this.providerFactory = providerFactory;
+        this.projectLayout = projectLayout;
+    }
+
     @Override
     public void apply(final Project project) {
         // make sure the global build info plugin is applied to the root project
@@ -46,20 +63,23 @@ public class BuildPlugin implements Plugin<Project> {
         InternalPrecommitTasks.create(project, true);
     }
 
-    public static void configureLicenseAndNotice(final Project project) {
+    public void configureLicenseAndNotice(final Project project) {
         final ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
-        ext.set("licenseFile", null);
-        ext.set("noticeFile", null);
-        // add license/notice files
-        project.afterEvaluate(p -> p.getTasks().withType(Jar.class).configureEach(jar -> {
-            if (ext.has("licenseFile") == false
-                || ext.get("licenseFile") == null
-                || ext.has("noticeFile") == false
-                || ext.get("noticeFile") == null) {
-                throw new GradleException("Must specify license and notice file for project " + p.getPath());
-            }
-            final File licenseFile = DefaultGroovyMethods.asType(ext.get("licenseFile"), File.class);
-            final File noticeFile = DefaultGroovyMethods.asType(ext.get("noticeFile"), File.class);
+        File licenseFileDefault = new File(buildLayout.getRootDirectory(), SSPL_LICENSE_PATH);
+        File noticeFileDefault = new File(buildLayout.getRootDirectory(), "NOTICE.txt");
+        RegularFileProperty licenseFileProperty = objectFactory.fileProperty()
+            .convention(projectLayout.file(providerFactory.provider(() -> licenseFileDefault)));
+        RegularFileProperty noticeFileProperty = objectFactory.fileProperty()
+            .convention(projectLayout.file(providerFactory.provider(() -> noticeFileDefault)));
+        ext.set("licenseFile", licenseFileProperty);
+        ext.set("noticeFile", noticeFileProperty);
+
+        // add license/notice files to archives
+        project.getTasks().withType(Jar.class).configureEach(jar -> {
+            final RegularFileProperty licenseFileExtProperty = (RegularFileProperty) ext.get("licenseFile");
+            final RegularFileProperty noticeFileExtProperty = (RegularFileProperty) ext.get("noticeFile");
+            File licenseFile = licenseFileExtProperty.getAsFile().get();
+            File noticeFile = noticeFileExtProperty.getAsFile().get();
             jar.metaInf(spec -> {
                 spec.from(licenseFile.getParent(), from -> {
                     from.include(licenseFile.getName());
@@ -70,6 +90,6 @@ public class BuildPlugin implements Plugin<Project> {
                     from.rename(s -> "NOTICE.txt");
                 });
             });
-        }));
+        });
     }
 }

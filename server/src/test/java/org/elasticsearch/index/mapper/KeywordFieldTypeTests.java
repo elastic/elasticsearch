@@ -175,7 +175,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of("true"), fetchSourceValue(mapper, true));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
-        assertEquals("[keyword] doesn't support formats.", e.getMessage());
+        assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
 
         MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
             .ignoreAbove(4)

@@ -137,7 +137,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("[" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
             return value == null

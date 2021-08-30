@@ -183,6 +183,6 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(), fetcher.fetchValues(lookup));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.valueFetcher(searchExecutionContext, "format"));
-        assertEquals("[flattened] doesn't support formats.", e.getMessage());
+        assertEquals("Field [field.key] of type [flattened] doesn't support formats.", e.getMessage());
     }
 }

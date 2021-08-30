@@ -101,7 +101,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      */
     public static SourceValueFetcher identity(String fieldName, SearchExecutionContext context, String format) {
         if (format != null) {
-            throw new IllegalArgumentException("Field doesn't support formats.");
+            throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
         return new SourceValueFetcher(fieldName, context) {
             @Override
@@ -116,7 +116,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      */
     public static SourceValueFetcher toString(String fieldName, SearchExecutionContext context, String format) {
         if (format != null) {
-            throw new IllegalArgumentException("Field doesn't support formats.");
+            throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
         return new SourceValueFetcher(fieldName, context) {
             @Override

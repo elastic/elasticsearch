@@ -99,9 +99,9 @@ ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasti
 
 # manual parsing to find out if process should be detached
 if [[ $DAEMONIZE = false ]]; then
-  if [[ ("$AUTO_CONFIG_DONE" = true) && ("$QUIET" = false) ]]; then
+  if [[ $AUTO_CONFIG_DONE = true ]]; then
 # First check if the banner can be displayed given the OS and terminal type
-    if "$JAVA" "$XSHARE" -Xms2m -Xmx32m -XX:+UseSerialGC \
+    if [[ $QUIET = false ]] && "$JAVA" "$XSHARE" -Xms2m -Xmx32m -XX:+UseSerialGC \
       -cp "$ES_HOME/lib/jansi-2.3.4.jar:$ES_HOME/lib/elasticsearch-launchers-@project.version@.jar" \
       org.elasticsearch.tools.launchers.TerminalOutputFormatter; then
 # redirect the ES node's output to the formatter code in order to output the bottom persistent banner
@@ -126,6 +126,9 @@ if [[ $DAEMONIZE = false ]]; then
                 "-eof-marker" "BANNER_EOF" \
                 <<<"$KEYSTORE_PASSWORD"
               ))
+    else
+      echo "warning: Security with TLS is now auto configured but no credentials have been generated" \
+      "and displayed because stdout cannot be used or is not a terminal that supports ANSI escape sequences" >&2
     fi
   fi
   exec \
@@ -141,6 +144,10 @@ if [[ $DAEMONIZE = false ]]; then
     org.elasticsearch.bootstrap.Elasticsearch \
     "$@" <<<"$KEYSTORE_PASSWORD"
 else
+  if [[ $AUTO_CONFIG_DONE = true ]]; then
+    echo "warning: Security with TLS is now auto configured but no credentials have been generated" \
+    "and displayed because stdout cannot be used or is not a terminal that supports ANSI escape sequences" >&2
+  fi
   exec \
     "$JAVA" \
     "$XSHARE" \

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -50,7 +49,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             },
             null, new String[] { "*" },
             MetadataUtils.DEFAULT_RESERVED_METADATA, Collections.emptyMap());
-    public static final Role SUPERUSER_ROLE = Role.builder(SUPERUSER_ROLE_DESCRIPTOR, null).build();
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
 
     private static Map<String, RoleDescriptor> initializeReservedRoles() {
@@ -96,7 +94,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .indices("*").privileges("monitor").allowRestrictedIndices(true).build(),
                             RoleDescriptor.IndicesPrivileges.builder()
-                                .indices(".kibana*").privileges("read").build()
+                                .indices(".kibana*").privileges("read").allowRestrictedIndices(true).build()
                         },
                         null,
                         null,
@@ -201,6 +199,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".ml-anomalies*", ".ml-notifications*", ".ml-state*", ".ml-meta*", ".ml-stats-*")
+                                        .allowRestrictedIndices(true) // .ml-meta is a restricted index
                                         .privileges("view_index_metadata", "read").build(),
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
                                         .privileges("view_index_metadata", "read", "write").build()
@@ -260,12 +259,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("watcher_admin", new RoleDescriptor("watcher_admin", new String[] { "manage_watcher" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME,
-                                        HistoryStoreField.INDEX_PREFIX + "*").privileges("read").build() },
+                                        HistoryStoreField.INDEX_PREFIX + "*").privileges("read").allowRestrictedIndices(true).build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("watcher_user", new RoleDescriptor("watcher_user", new String[] { "monitor_watcher" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(Watch.INDEX)
                                         .privileges("read")
+                                        .allowRestrictedIndices(true)
                                         .build(),
                                 RoleDescriptor.IndicesPrivileges.builder().indices(HistoryStoreField.INDEX_PREFIX + "*")
                                         .privileges("read")
@@ -273,7 +273,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("logstash_admin", new RoleDescriptor("logstash_admin", new String[] {"manage_logstash_pipelines"},
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".logstash*")
-                                .privileges("create", "delete", "index", "manage", "read").build() },
+                                .privileges("create", "delete", "index", "manage", "read")
+                                .allowRestrictedIndices(true)
+                                .build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("rollup_user", new RoleDescriptor("rollup_user", new String[] { "monitor_rollup" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
@@ -370,8 +372,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 "cancel_task"
             },
             new RoleDescriptor.IndicesPrivileges[] {
+                // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reporting-*").privileges("all").build(),
+                    .indices(".kibana*", ".reporting-*").privileges("all").allowRestrictedIndices(true).build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -382,19 +385,20 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("read").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*", ".ml-notifications*")
                     .privileges("read", "write").build(),
-                // APM agent configuration
+                // APM agent configuration - system index defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".apm-agent-configuration").privileges("all").build(),
-                // APM custom link index creation
+                    .indices(".apm-agent-configuration").privileges("all").allowRestrictedIndices(true).build(),
+                // APM custom link index creation - system index defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".apm-custom-link").privileges("all").build(),
+                    .indices(".apm-custom-link").privileges("all").allowRestrictedIndices(true).build(),
                 // APM telemetry queries APM indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("apm-*")
                     .privileges("read", "read_cross_cluster").build(),
-                // Data telemetry reads mappings, metadata and stats of indices
+                // Data telemetry reads mappings, metadata and stats of indices (excluding security and async search indices)
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("*")
+                    .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
+                    .allowRestrictedIndices(true)
                     .privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -404,6 +408,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet*")
+                    .allowRestrictedIndices(true)
                     .privileges("all").build(),
                 // Legacy "Alerts as data" used in Security Solution.
                 // Kibana user creates these indices; reads / writes to them.

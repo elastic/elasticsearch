@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -83,6 +84,15 @@ public class DeploymentManager {
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> listener) {
         doStartDeployment(task, listener);
+    }
+
+    public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
+        return Optional.ofNullable(processContextByAllocation.get(task.getId()))
+            .map(processContext ->
+                new ModelStats(processContext.resultProcessor.getTimingStats(),
+                    processContext.resultProcessor.getLastUsed(),
+                    (long)processContext.getModelSizeBytes())
+            );
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
@@ -158,7 +168,6 @@ public class DeploymentManager {
     }
 
     Vocabulary parseVocabularyDocLeniently(SearchHit hit) throws IOException {
-
         try (InputStream stream = hit.getSourceRef().streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                  .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
@@ -226,11 +235,12 @@ public class DeploymentManager {
                     String text = NlpTask.extractInput(processContext.modelInput.get(), doc);
                     NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
                     processor.validateInputs(text);
-                    BytesReference request = processor.getRequestBuilder().buildRequest(text, requestId);
-                    logger.trace(() -> "Inference Request "+ request.utf8ToString());
-                    PyTorchResultProcessor.PendingResult pendingResult = processContext.resultProcessor.requestWritten(requestId);
-                    processContext.process.get().writeInferenceRequest(request);
-                    waitForResult(processContext, pendingResult, requestId, timeout, processor.getResultProcessor(), listener);
+                    NlpTask.Request request = processor.getRequestBuilder().buildRequest(text, requestId);
+                    logger.trace(() -> "Inference Request "+ request.processInput.utf8ToString());
+                    PyTorchResultProcessor.PendingResult pendingResult = processContext.resultProcessor.registerRequest(requestId);
+                    processContext.process.get().writeInferenceRequest(request.processInput);
+                    waitForResult(processContext, pendingResult, request.tokenization, requestId, timeout, processor.getResultProcessor(),
+                        listener);
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));
@@ -245,6 +255,7 @@ public class DeploymentManager {
 
     private void waitForResult(ProcessContext processContext,
                                PyTorchResultProcessor.PendingResult pendingResult,
+                               TokenizationResult tokenization,
                                String requestId,
                                TimeValue timeout,
                                NlpTask.ResultProcessor inferenceResultsProcessor,
@@ -269,7 +280,7 @@ public class DeploymentManager {
             }
 
             logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", processContext.modelId, requestId));
-            InferenceResults results = inferenceResultsProcessor.processResult(pyTorchResult);
+            InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult);
             logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", processContext.modelId, requestId));
             listener.onResponse(results);
         } catch (InterruptedException e) {
@@ -292,6 +303,16 @@ public class DeploymentManager {
             resultProcessor = new PyTorchResultProcessor(modelId);
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
             this.taskId = taskId;
+        }
+
+        /**
+         * A value of -1 means the size is unknown. Most likely
+         * because the model has not been loaded yet or the load
+         * failed.
+         * @return size in bytes or -1
+         */
+        int getModelSizeBytes() {
+            return stateStreamer.getModelSize();
         }
 
         synchronized void startProcess() {

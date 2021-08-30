@@ -48,12 +48,12 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
     public static final Set<PosixFilePermission> p770 = fromString("rwxrwx---");
     public static final Set<PosixFilePermission> p775 = fromString("rwxrwxr-x");
 
-    private final Fileness fileness;
-    private final String owner;
-    private final String group;
-    private final Set<PosixFilePermission> posixPermissions;
+    protected final Fileness fileness;
+    protected final String owner;
+    protected final String group;
+    protected final Set<PosixFilePermission> posixPermissions;
 
-    private String mismatch;
+    protected String mismatch;
 
     public FileMatcher(Fileness fileness, String owner, String group, Set<PosixFilePermission> posixPermissions) {
         this.fileness = Objects.requireNonNull(fileness);

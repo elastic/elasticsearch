@@ -12,13 +12,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.DockerRun;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ProcessInfo;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
+import org.elasticsearch.packaging.util.docker.DockerRun;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -33,32 +33,37 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Distribution.Packaging;
-import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
-import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
-import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
-import static org.elasticsearch.packaging.util.Docker.existsInContainer;
-import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
-import static org.elasticsearch.packaging.util.Docker.getImageHealthcheck;
-import static org.elasticsearch.packaging.util.Docker.getImageLabels;
-import static org.elasticsearch.packaging.util.Docker.getJson;
-import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
-import static org.elasticsearch.packaging.util.Docker.removeContainer;
-import static org.elasticsearch.packaging.util.Docker.restartContainer;
-import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
-import static org.elasticsearch.packaging.util.Docker.runContainer;
-import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
-import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
-import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
-import static org.elasticsearch.packaging.util.DockerRun.builder;
+import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
+import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
+import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeEscalation;
+import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.existsInContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
+import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
+import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
+import static org.elasticsearch.packaging.util.docker.Docker.getJson;
+import static org.elasticsearch.packaging.util.docker.Docker.listContents;
+import static org.elasticsearch.packaging.util.docker.Docker.mkDirWithPrivilegeEscalation;
+import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.restartContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.rmDirWithPrivilegeEscalation;
+import static org.elasticsearch.packaging.util.docker.Docker.runContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.runContainerExpectingFailure;
+import static org.elasticsearch.packaging.util.docker.Docker.verifyContainerInstallation;
+import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
+import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
+import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -117,7 +122,12 @@ public class DockerTests extends PackagingTestCase {
         waitForElasticsearch(installation, USERNAME, PASSWORD);
         final int statusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), USERNAME, "wrong_password", null);
         assertThat(statusCode, equalTo(401));
+    }
 
+    /**
+     * Check that security can be disabled
+     */
+    public void test012SecurityCanBeDisabled() throws Exception {
         // restart container with security disabled
         runContainer(distribution(), builder().envVars(Map.of("xpack.security.enabled", "false")));
         waitForElasticsearch(installation);
@@ -129,10 +139,57 @@ public class DockerTests extends PackagingTestCase {
      * Checks that no plugins are initially active.
      */
     public void test020PluginsListWithNoPlugins() {
+        assumeTrue(
+            "Only applies to non-Cloud images",
+            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
+        );
+
         final Installation.Executables bin = installation.executables();
         final Result r = sh.run(bin.pluginTool + " list");
 
         assertThat("Expected no plugins to be listed", r.stdout, emptyString());
+    }
+
+    /**
+     * Check that Cloud images bundle a selection of plugins.
+     */
+    public void test021PluginsListWithPlugins() {
+        assumeTrue(
+            "Only applies to non-Cloud images",
+            distribution.packaging == Packaging.DOCKER_CLOUD || distribution().packaging == Packaging.DOCKER_CLOUD_ESS
+        );
+
+        final Installation.Executables bin = installation.executables();
+        final List<String> plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
+
+        assertThat(
+            "Expected standard plugins to be listed",
+            plugins,
+            equalTo(List.of("repository-azure", "repository-gcs", "repository-s3"))
+        );
+    }
+
+    /**
+     * Checks that ESS images can install plugins from the local archive.
+     */
+    public void test022InstallPluginsFromLocalArchive() {
+        assumeTrue("Only applies to ESS images", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
+
+        final String plugin = "analysis-icu";
+
+        final Installation.Executables bin = installation.executables();
+        List<String> plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
+
+        assertThat("Expected " + plugin + " to not be installed", plugins, not(hasItems(plugin)));
+
+        // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
+        sh.getEnv()
+            .put("ES_JAVA_OPTS", "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999");
+        sh.run("/opt/plugins/plugin-wrapper.sh install --batch analysis-icu");
+
+        plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
+
+        assertThat("Expected " + plugin + " to be installed", plugins, hasItems(plugin));
     }
 
     /**
@@ -160,7 +217,7 @@ public class DockerTests extends PackagingTestCase {
     public void test042KeystorePermissionsAreCorrect() throws Exception {
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 
-        assertPermissionsAndOwnership(installation.config("elasticsearch.keystore"), "elasticsearch", "root", p660);
+        assertThat(installation.config("elasticsearch.keystore"), file(p660));
     }
 
     /**
@@ -792,6 +849,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that Elasticsearch reports per-node cgroup information.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76812")
     public void test140CgroupOsStatsAreAvailable() throws Exception {
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 
@@ -933,5 +991,22 @@ public class DockerTests extends PackagingTestCase {
         // if that is true for genuine Iron Bank builds.
         assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.label-schema.")));
         assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.opencontainers.")));
+    }
+
+    /**
+     * Check that the Cloud image contains the required Beats
+     */
+    public void test400CloudImageBundlesBeats() {
+        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD || distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
+
+        final List<String> contents = listContents("/opt");
+        assertThat("Expected beats in /opt", contents, hasItems("filebeat", "metricbeat"));
+
+        Stream.of("filebeat", "metricbeat").forEach(beat -> {
+            assertThat(Path.of("/opt/" + beat), file(Directory, "root", "root", p755));
+            assertThat(Path.of("/opt/" + beat + "/" + beat), file(File, "root", "root", p755));
+            assertThat(Path.of("/opt/" + beat + "/module"), file(Directory, "root", "root", p755));
+            assertThat(Path.of("/opt/" + beat + "/modules.d"), file(Directory, "root", "root", p755));
+        });
     }
 }

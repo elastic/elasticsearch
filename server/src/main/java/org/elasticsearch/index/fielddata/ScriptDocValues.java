@@ -17,6 +17,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.script.Converters;
 import org.elasticsearch.script.Field;
 import org.elasticsearch.script.FieldValues;
 import org.elasticsearch.script.InvalidConversion;
@@ -25,7 +26,6 @@ import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -240,11 +240,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         @Override
         public long getLongValue() {
             throwIfEmpty();
-            Instant dt = dates[0].toInstant();
             if (isNanos) {
-                return ChronoUnit.NANOS.between(java.time.Instant.EPOCH, dt);
+                return Converters.convertDateNanosToLong(dates[0]);
             }
-            return dt.toEpochMilli();
+            return Converters.convertDateMillisToLong(dates[0]);
         }
 
         @Override
@@ -587,13 +586,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         @Override
         public long getLongValue() {
             throwIfEmpty();
-            return values[0] ? 1L : 0L;
+            return Converters.convertBooleanToLong(values[0]);
         }
 
         @Override
         public double getDoubleValue() {
             throwIfEmpty();
-            return values[0] ? 1.0D : 0.0D;
+            return Converters.convertBooleanToDouble(values[0]);
         }
 
         @Override
@@ -675,12 +674,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public long getLongValue() {
-            return Long.parseLong(get(0));
+            return Converters.convertStringToLong(get(0));
         }
 
         @Override
         public double getDoubleValue() {
-            return Double.parseDouble(get(0));
+            return Converters.convertStringToDouble(get(0));
         }
 
         @Override

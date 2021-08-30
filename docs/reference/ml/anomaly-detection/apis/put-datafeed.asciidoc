@@ -36,10 +36,10 @@ each interval. See {ml-docs}/ml-delayed-data-detection.html[Handling delayed dat
 
 [IMPORTANT]
 ====
-* You must use {kib} or this API to create a {dfeed}. Do not add a
-{dfeed} directly to the `.ml-config` index using the {es} index API. If {es}
-{security-features} are enabled, do not give users `write` privileges on the
-`.ml-config` index.
+* You must use {kib}, this API, or the <<ml-put-job,create {anomaly-jobs} API>>
+to create a {dfeed}. Do not add a {dfeed} directly to the `.ml-config` index
+using the {es} index API. If {es} {security-features} are enabled, do not give
+users `write` privileges on the `.ml-config` index.
 * When {es} {security-features} are enabled, your {dfeed} remembers which roles
 the user who created it had at the time of creation and runs the query using
 those same roles. If you provide

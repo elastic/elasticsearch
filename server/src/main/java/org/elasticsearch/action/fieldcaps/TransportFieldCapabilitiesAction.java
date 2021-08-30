@@ -114,8 +114,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         // Otherwise, for backwards compatibility we follow the old strategy of sending a separate request per shard.
         final Map<String, List<ShardId>> shardsByNode;
         final CountDown completionCounter;
-        if (clusterState.getNodes().getMinNodeVersion().onOrAfter(Version.V_7_16_0) && request.indexFilter() == null) {
-            shardsByNode = groupShardsByNode(clusterState, concreteIndices, indexFailures);
+        if (clusterState.getNodes().getMinNodeVersion().onOrAfter(Version.V_7_16_0)) {
+            shardsByNode = groupShardsByNode(request, clusterState, concreteIndices, indexFailures);
             completionCounter = new CountDown(shardsByNode.size() + remoteClusterIndices.size());
         } else {
             shardsByNode = null;
@@ -145,7 +145,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                         if (indexResponse.canMatch()) {
                                             indexResponses.putIfAbsent(indexResponse.getIndexName(), indexResponse);
                                         }
-
                                     }
                                     for (FieldCapabilitiesFailure indexFailure : response.getFailures()) {
                                         indexFailures.collect(indexFailure.getException(), indexFailure.getIndices());
@@ -289,9 +288,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         return remoteRequest;
     }
 
-    private Map<String, List<ShardId>> groupShardsByNode(ClusterState clusterState,
+    private Map<String, List<ShardId>> groupShardsByNode(FieldCapabilitiesRequest request,
+                                                         ClusterState clusterState,
                                                          String[] concreteIndices,
                                                          FailureCollector indexFailures) {
+        // If an index filter is specified, then we must reach out to all of an index's shards to check
+        // if one of them can match. Otherwise, for efficiency we just reach out to one of its shards.
+        boolean includeAllShards = request.indexFilter() != null;
         Map<String, List<ShardId>> shardsByNodeId = new HashMap<>();
         for (String indexName : concreteIndices) {
             GroupShardsIterator<ShardIterator> shards = clusterService.operationRouting()
@@ -310,11 +313,20 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     String nodeId = selectedCopy.currentNodeId();
                     List<ShardId> shardGroup = shardsByNodeId.computeIfAbsent(nodeId, key -> new ArrayList<>());
                     shardGroup.add(selectedCopy.shardId());
-                    break;
+                    if (includeAllShards == false) {
+                        // We only need one shard for this index, so stop early
+                        break;
+                    }
+                } else if (includeAllShards) {
+                    // We need all index shards but couldn't find a shard copy
+                    Exception e = new NoShardAvailableActionException(shardCopies.shardId(),
+                        LoggerMessageFormat.format("No shard available for index [{}]", indexName));
+                    indexFailures.collect(e, indexName);
                 }
             }
 
-            if (selectedCopy == null) {
+            if (includeAllShards == false && selectedCopy == null) {
+                // We only needed one shard for the index but couldn't find any shard copy
                 Exception e = new NoShardAvailableActionException(null,
                     LoggerMessageFormat.format("No shard available for index [{}]", indexName));
                 indexFailures.collect(e, indexName);
@@ -346,7 +358,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
             responseMap.put(entry.getKey(), Collections.unmodifiableMap(typeMap));
         }
-        // de-dup failures
         return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
     }
 

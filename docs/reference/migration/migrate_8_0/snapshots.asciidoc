@@ -97,6 +97,8 @@ Only use-cases that involve either snapshots or repositories with names starting
 cases that involved a combination of a wildcard pattern and a `-` prefixed pattern in the same request to the get-snapshots API.
 For example, `snapshot-*,-snapshot-a` used to return all snapshots with names starting in `snapshot-` as well as the snapshot `-snapshot-a`.
 Now the same query string will return all snapshots with names starting in `snapshot-` except for the snapshot `snapshot-a`.
+Queries that doe not contain a a combination of a wildcard pattern and an exclude pattern are unaffected by this change. For example,
+`-snapshot-a,-snapshot-b` or `-snapshot-*` will not see their behavior changed.
 
 ====
 

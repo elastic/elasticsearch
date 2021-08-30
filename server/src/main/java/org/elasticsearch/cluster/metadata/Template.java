@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
@@ -178,7 +179,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
+    static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
         if (mapping.size() == 1 && MapperService.SINGLE_MAPPING_NAME.equals(mapping.keySet().iterator().next())) {
             return (Map<String, Object>) mapping.values().iterator().next();
         } else {
@@ -186,7 +187,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
     }
 
-    private static boolean mappingsEquals(CompressedXContent m1, CompressedXContent m2) {
+    static boolean mappingsEquals(CompressedXContent m1, CompressedXContent m2) {
         if (m1 == m2) {
             return true;
         }
@@ -205,6 +206,6 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         Map<String, Object> otherUncompressedMapping = reduceMapping(
             XContentHelper.convertToMap(m2.uncompressed(), true, XContentType.JSON).v2()
         );
-        return thisUncompressedMapping.equals(otherUncompressedMapping);
+        return Maps.deepEquals(thisUncompressedMapping, otherUncompressedMapping);
     }
 }

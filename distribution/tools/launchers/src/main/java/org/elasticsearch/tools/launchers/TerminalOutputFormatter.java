@@ -228,17 +228,20 @@ final class TerminalOutputFormatter {
     @SuppressForbidden(reason = "Allowed to exit because it is not part nor invoked by the node process")
     private static void checkOutputSupportsANSIThenExit() {
         AnsiType ansiType = AnsiConsole.out().getType();
-        AnsiConsole.systemUninstall();
         if (ansiType == AnsiType.Unsupported) {
+            AnsiConsole.systemUninstall();
             System.exit(1);
         } else if (ansiType == AnsiType.Redirected) {
+            AnsiConsole.systemUninstall();
             System.exit(2);
         } else if (AnsiConsole.out().getTerminalWidth() <= 0) {
             // hackity-hack
             // catches the case where the logs are output to a terminal inside the docker container,
             // but the docker output itself is redirected
+            AnsiConsole.systemUninstall();
             System.exit(3);
         } else {
+            AnsiConsole.systemUninstall();
             System.exit(0);
         }
     }

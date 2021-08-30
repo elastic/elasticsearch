@@ -58,9 +58,9 @@ if [[ $AUTO_CONFIG = true ]]; then
   # if the error is uncommon or unexpected, but it should otherwise let the node to start as usual.
   # This is passed in all the command line options in order to read the node settings ones (-E), while the others are ignored
   # (a small caveat is that this also handles the -v option in order to provide more information on how auto-config went)
-  function try_auto_config() {
-    # run this in a subshell without sourcing the elasticsearch-env
-    (
+  if (
+    # run this in a subshell without sourcing the elasticsearch-env because it can otherwise raise all kind of interesting
+    # fun problems (like multiple GC settings, duplicate settings when translating env vars to cmd line for docker, etc)
     source "$ES_HOME/bin/x-pack-env"
     source "$ES_HOME/bin/x-pack-security-env"
     ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/tools/security-cli/*"
@@ -76,10 +76,7 @@ if [[ $AUTO_CONFIG = true ]]; then
       "org.elasticsearch.xpack.security.cli.AutoConfigInitialNode" \
       "$@" \
       <<<"$KEYSTORE_PASSWORD"
-    )
-  }
-
-  if try_auto_config; then
+    ); then
       AUTO_CONFIG_DONE=true
   else
     retval=$?

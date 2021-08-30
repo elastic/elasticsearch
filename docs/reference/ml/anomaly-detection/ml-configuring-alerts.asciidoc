@@ -16,11 +16,11 @@ anomalies and to notify you in an email. To learn more about {kib}
 The following {ml} rules are available:
 
 {anomaly-detect-cap} alert:: 
-  checks if the {anomaly-job} results contain anomalies that match the rule 
+  Checks if the {anomaly-job} results contain anomalies that match the rule 
   conditions.
 
 {anomaly-jobs-cap} health:: 
-  monitors job health and alerts if an operational issue occurred that may 
+  Monitors job health and alerts if an operational issue occurred that may 
   prevent the job from detecting anomalies.
 
 TIP: If you have created rules for specific {anomaly-jobs} and you want to 
@@ -59,7 +59,7 @@ image::images/ml-rule.jpg["Creating a new machine learning rule"]
 Select the job or the group that the rule applies to. If you assign more jobs to 
 the group, they are included the next time the rule conditions are checked.
 
-You can select the result type of the job that is checked against the rule. In 
+You must select a type of {ml} result. In 
 particular, you can create rules based on bucket, record, or influencer results.
 
 [role="screenshot"]
@@ -115,7 +115,7 @@ following health checks are available:
 
 _Datafeed is not started_:: 
   Notifies if the corresponding {dfeed} of the job is not started but the job is 
-  in an opened state. The notification message recommends you the necessary 
+  in an opened state. The notification message recommends the necessary 
   actions to solve the error.
 _Model memory limit reached_:: 
   Notifies if the model memory status of the job reaches the soft or hard model 
@@ -132,7 +132,7 @@ _Errors in job messages_::
   Notifies when the job messages contain error messages. Review the 
   notification; it contains the error messages, the corresponding job IDs and 
   recommendations on how to fix the issue. This check looks for job errors 
-  emerged only after the rule is created.
+  that occur after the rule is created; it does not look at historic behavior.
 
 [role="screenshot"]
 image::images/ml-health-check-config.jpg["Selecting health checkers"]
@@ -233,7 +233,7 @@ Contains the following properties:
 [%collapsible%open]
 ====
 `datafeed_id`:::
-The ID of the {dfeed}.
+The {dfeed} identifier.
 
 `datafeed_state`:::
 The state of the {dfeed}. It can be `starting`, `started`, 

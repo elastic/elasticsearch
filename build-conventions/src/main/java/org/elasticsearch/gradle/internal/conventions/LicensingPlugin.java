@@ -36,21 +36,20 @@ public class LicensingPlugin implements Plugin<Project> {
              isSnapshotVersion(project) ? revision.get() : "v" + project.getVersion()
         );
 
-        MapProperty<String, String> licensesProperty = project.getObjects().mapProperty(String.class, String.class);
         Provider<String> projectLicenseURL = licenseCommitProvider.map(licenseCommit -> ELASTIC_LICENSE_URL_PREFIX +
                 licenseCommit + ELASTIC_LICENSE_URL_POSTFIX);
         // But stick the Elastic license url in project.ext so we can get it if we need to switch to it
         project.getExtensions().getExtraProperties().set("elasticLicenseUrl", projectLicenseURL);
 
-        MapProperty<String, String> convention = licensesProperty.convention(
+        MapProperty<String, String> licensesProperty = project.getObjects().mapProperty(String.class, String.class).convention(
                 providerFactory.provider((Callable<Map<? extends String, ? extends String>>) () -> Map.of(
                         "Server Side Public License, v 1", "https://www.mongodb.com/licensing/server-side-public-license",
                         "Elastic License 2.0", projectLicenseURL.get())
                 )
         );
+
         // Default to the SSPL+Elastic dual license
-        project.getExtensions().getExtraProperties().set("licenseCommit", licenseCommitProvider);
-        project.getExtensions().getExtraProperties().set("projectLicenses", convention);
+        project.getExtensions().getExtraProperties().set("projectLicenses", licensesProperty);
     }
 
     private boolean isSnapshotVersion(Project project) {

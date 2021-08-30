@@ -619,8 +619,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
         assertWarnings("legacy template [v1-template] has index patterns [*, baz] matching patterns from existing " +
-            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
-            "be ignored in favor of a composable template at index creation time");
+            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template " +
+            "[v1-template] may be ignored in favor of a composable template at index creation time");
 
         assertNotNull(state.metadata().templates().get("v1-template"));
         assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("*", "baz"));
@@ -679,8 +679,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
         assertWarnings("legacy template [v1-template] has index patterns [fo*, baz] matching patterns from existing " +
-            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
-            "be ignored in favor of a composable template at index creation time");
+            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template " +
+            "[v1-template] may be ignored in favor of a composable template at index creation time");
 
         assertNotNull(state.metadata().templates().get("v1-template"));
         assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("fo*", "baz"));
@@ -736,8 +736,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
             assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
-                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [1], multiple index templates may not " +
-                "match during index creation, please use a different priority"));
+                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [1], multiple " +
+                "index templates may not match during index creation, please use a different priority"));
         }
 
         {
@@ -750,8 +750,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
             assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
-                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [0], multiple index templates may not " +
-                "match during index creation, please use a different priority"));
+                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [0], multiple " +
+                "index templates may not match during index creation, please use a different priority"));
         }
     }
 
@@ -1260,8 +1260,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             Arrays.asList("ct_low", "ct_high"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<Map<String, AliasMetadata>> resolvedAliases =
-            MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template", true);
+        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(Arrays.asList(a3, a1, a2)));

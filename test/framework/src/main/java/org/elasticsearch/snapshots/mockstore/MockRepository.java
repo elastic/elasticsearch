@@ -114,6 +114,8 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blockOnDataFiles;
 
+    private volatile boolean blockAndFailOnDataFiles;
+
     private volatile boolean blockOnDeleteIndexN;
 
     /**
@@ -132,6 +134,8 @@ public class MockRepository extends FsRepository {
     private volatile String blockedIndexId;
 
     private volatile boolean blockOnWriteShardLevelMeta;
+
+    private volatile boolean blockAndFailOnWriteShardLevelMeta;
 
     private volatile boolean blockOnReadIndexMeta;
 
@@ -214,6 +218,7 @@ public class MockRepository extends FsRepository {
         blocked = false;
         // Clean blocking flags, so we wouldn't try to block again
         blockOnDataFiles = false;
+        blockAndFailOnDataFiles = false;
         blockOnAnyFiles = false;
         blockAndFailOnWriteIndexFile = false;
         blockOnWriteIndexFile = false;
@@ -221,6 +226,7 @@ public class MockRepository extends FsRepository {
         blockedIndexId = null;
         blockOnDeleteIndexN = false;
         blockOnWriteShardLevelMeta = false;
+        blockAndFailOnWriteShardLevelMeta = false;
         blockOnReadIndexMeta = false;
         blockOnceOnReadSnapshotInfo.set(false);
         blockAndFailOnReadSnapFile = false;
@@ -229,7 +235,13 @@ public class MockRepository extends FsRepository {
     }
 
     public void blockOnDataFiles() {
+        assert blockAndFailOnDataFiles == false : "Either fail or wait after data file, not both";
         blockOnDataFiles = true;
+    }
+
+    public void blockAndFailOnDataFiles() {
+        assert blockOnDataFiles == false : "Either fail or wait after data file, not both";
+        blockAndFailOnDataFiles = true;
     }
 
     public void setBlockOnAnyFiles() {
@@ -259,7 +271,13 @@ public class MockRepository extends FsRepository {
     }
 
     public void setBlockOnWriteShardLevelMeta() {
+        assert blockAndFailOnWriteShardLevelMeta == false : "Either fail or wait after blocking on shard level metadata, not both";
         blockOnWriteShardLevelMeta = true;
+    }
+
+    public void setBlockAndFailOnWriteShardLevelMeta() {
+        assert blockOnWriteShardLevelMeta == false : "Either fail or wait after blocking on shard level metadata, not both";
+        blockAndFailOnWriteShardLevelMeta = true;
     }
 
     public void setBlockOnReadIndexMeta() {
@@ -300,9 +318,9 @@ public class MockRepository extends FsRepository {
         logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
         try {
-            while (blockOnDataFiles || blockOnAnyFiles || blockAndFailOnWriteIndexFile || blockOnWriteIndexFile ||
-                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta ||
-                blockAndFailOnReadSnapFile || blockAndFailOnReadIndexFile || blockedIndexId != null) {
+            while (blockAndFailOnDataFiles || blockOnDataFiles || blockOnAnyFiles || blockAndFailOnWriteIndexFile || blockOnWriteIndexFile
+                    || blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockAndFailOnWriteShardLevelMeta
+                    || blockOnReadIndexMeta || blockAndFailOnReadSnapFile || blockAndFailOnReadIndexFile || blockedIndexId != null) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -382,6 +400,8 @@ public class MockRepository extends FsRepository {
                         }
                     } else if (blockOnDataFiles) {
                         blockExecutionAndMaybeWait(blobName);
+                    } else if (blockAndFailOnDataFiles) {
+                        blockExecutionAndFail(blobName);
                     }
                 } else {
                     if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
@@ -544,9 +564,12 @@ public class MockRepository extends FsRepository {
 
             private void beforeWrite(String blobName) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
-                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
-                        && path().equals(basePath()) == false) {
-                    blockExecutionAndMaybeWait(blobName);
+                if (blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX) && path().equals(basePath()) == false) {
+                    if (blockOnWriteShardLevelMeta) {
+                        blockExecutionAndMaybeWait(blobName);
+                    } else if (blockAndFailOnWriteShardLevelMeta) {
+                        blockExecutionAndFail(blobName);
+                    }
                 }
             }
 

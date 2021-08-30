@@ -128,6 +128,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertThat(context.buildAnonymousFieldType("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testToQueryFails() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         Exception exc = expectThrows(Exception.class,
@@ -512,6 +513,11 @@ public class SearchExecutionContextTests extends ESTestCase {
                                             .getLeafSearchLookup(context);
                                         leafLookup.setDocument(docId);
                                         value = runtimeDocValues.apply(leafLookup, docId);
+                                    }
+
+                                    @Override
+                                    public org.elasticsearch.script.Field<String> toField(String fieldName) {
+                                        return new org.elasticsearch.script.Field.StringField(fieldName, this);
                                     }
                                 };
                             }

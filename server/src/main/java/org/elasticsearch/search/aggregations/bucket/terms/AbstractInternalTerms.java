@@ -76,7 +76,7 @@ public abstract class AbstractInternalTerms<
 
     protected abstract long getSumOfOtherDocCounts();
 
-    protected abstract long getDocCountError();
+    protected abstract Long getDocCountError();
 
     protected abstract void setDocCountError(long docCountError);
 
@@ -133,7 +133,7 @@ public abstract class AbstractInternalTerms<
         if (size == 0 || size < terms.getShardSize() || isKeyOrder(terms.getOrder())) {
             return 0;
         } else if (InternalOrder.isCountDesc(terms.getOrder())) {
-            if (terms.getDocCountError() > 0) {
+            if (terms.getDocCountError() != null) {
                 // If there is an existing docCountError for this agg then
                 // use this as the error for this aggregation
                 return terms.getDocCountError();
@@ -299,7 +299,7 @@ public abstract class AbstractInternalTerms<
         BucketOrder thisReduceOrder;
         List<B> result;
         if (reduceContext.isFinalReduce()) {
-            TopBucketBuilder<B> top = new TopBucketBuilder<>(getRequiredSize(), getOrder(), removed -> {
+            TopBucketBuilder<B> top = TopBucketBuilder.build(getRequiredSize(), getOrder(), removed -> {
                 otherDocCount[0] += removed.getDocCount();
             });
             thisReduceOrder = reduceBuckets(aggregations, reduceContext, bucket -> {
@@ -340,7 +340,7 @@ public abstract class AbstractInternalTerms<
 
     protected static XContentBuilder doXContentCommon(XContentBuilder builder,
                                                       Params params,
-                                                      long docCountError,
+                                                      Long docCountError,
                                                       long otherDocCount,
                                                       List<? extends AbstractTermsBucket> buckets) throws IOException {
         builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), docCountError);

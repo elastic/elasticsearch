@@ -103,7 +103,7 @@ public class SuggestTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
         assertEquals(suggest.size(), parsed.size());
-        for (Suggestion suggestion : suggest) {
+        for (Suggestion<?> suggestion : suggest) {
             Suggestion<? extends Entry<? extends Option>> parsedSuggestion = parsed.getSuggestion(suggestion.getName());
             assertNotNull(parsedSuggestion);
             assertEquals(suggestion.getClass(), parsedSuggestion.getClass());

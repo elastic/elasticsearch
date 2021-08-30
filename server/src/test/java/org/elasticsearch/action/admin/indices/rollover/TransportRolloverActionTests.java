@@ -70,6 +70,7 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.buildStats;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
@@ -233,10 +234,11 @@ public class TransportRolloverActionTests extends ESTestCase {
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
             assert args.length == 3;
+            @SuppressWarnings("unchecked")
             ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) args[2];
             listener.onResponse(statsResponse);
             return null;
-        }).when(mockClient).execute(eq(IndicesStatsAction.INSTANCE), any(ActionRequest.class), any(ActionListener.class));
+        }).when(mockClient).execute(eq(IndicesStatsAction.INSTANCE), any(ActionRequest.class), anyActionListener());
 
         assert statsResponse.getPrimaries().getDocs().getCount() == 500L;
         assert statsResponse.getTotal().getDocs().getCount() == (total + total);

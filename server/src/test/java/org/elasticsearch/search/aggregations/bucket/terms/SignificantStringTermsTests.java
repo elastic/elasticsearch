@@ -23,7 +23,7 @@ import java.util.Set;
 public class SignificantStringTermsTests extends InternalSignificantTermsTestCase {
 
     @Override
-    protected InternalSignificantTerms createTestInstance(String name,
+    protected InternalSignificantTerms<?, ?> createTestInstance(String name,
                                                           Map<String, Object> metadata,
                                                           InternalAggregations aggs,
                                                           int requiredSize, int numBuckets,

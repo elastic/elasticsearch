@@ -56,7 +56,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         return new CleanupSnapshotStep(key, nextKey, instance.getClient());
     }
 
-    public void testPerformActionDoesntFailIfSnapshotInfoIsMissing() {
+    public void testPerformActionDoesntFailIfSnapshotInfoIsMissing() throws Exception {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
 
@@ -71,7 +71,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
                 ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-            assertTrue(PlainActionFuture.get(f -> cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
+            PlainActionFuture.<Void, Exception>get(f -> cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, f));
         }
 
         {
@@ -87,7 +87,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
                 ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-            assertTrue(PlainActionFuture.get(f -> cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
+            PlainActionFuture.<Void, Exception>get(f -> cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, f));
         }
     }
 
@@ -108,9 +108,9 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
 
         try (NoOpClient client = getDeleteSnapshotRequestAssertingClient(snapshotName)) {
             CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new ActionListener<Boolean>() {
+            step.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
                 @Override
-                public void onResponse(Boolean complete) {
+                public void onResponse(Void complete) {
                 }
 
                 @Override

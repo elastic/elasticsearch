@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -44,6 +46,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -208,7 +211,7 @@ public class AllocationService {
                 String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.getMessage();
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, message,
                     failedShardEntry.getFailure(), failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false,
-                    AllocationStatus.NO_ATTEMPT, failedNodeIds);
+                    AllocationStatus.NO_ATTEMPT, failedNodeIds, shardToFail.currentNodeId());
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);
                 }
@@ -299,13 +302,27 @@ public class AllocationService {
             ShardRouting shardRouting = unassignedIterator.next();
             UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
             if (unassignedInfo.isDelayed()) {
-                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(allocation.getCurrentNanoTime(),
-                    metadata.getIndexSafe(shardRouting.index()).getSettings());
+                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
+                    allocation.getCurrentNanoTime(),
+                    metadata.getIndexSafe(shardRouting.index()).getSettings(),
+                    metadata.nodeShutdowns()
+                );
                 if (newComputedLeftDelayNanos == 0) {
-                    unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(),
-                        unassignedInfo.getFailure(), unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(),
-                        unassignedInfo.getUnassignedTimeInMillis(), false, unassignedInfo.getLastAllocationStatus(),
-                        unassignedInfo.getFailedNodeIds()), shardRouting.recoverySource(), allocation.changes());
+                    unassignedIterator.updateUnassigned(
+                        new UnassignedInfo(
+                            unassignedInfo.getReason(),
+                            unassignedInfo.getMessage(),
+                            unassignedInfo.getFailure(),
+                            unassignedInfo.getNumFailedAllocations(),
+                            unassignedInfo.getUnassignedTimeInNanos(),
+                            unassignedInfo.getUnassignedTimeInMillis(),
+                            false,
+                            unassignedInfo.getLastAllocationStatus(),
+                            unassignedInfo.getFailedNodeIds(),
+                            unassignedInfo.getLastAllocatedNodeId()),
+                        shardRouting.recoverySource(),
+                        allocation.changes()
+                    );
                 }
             }
         }
@@ -319,11 +336,21 @@ public class AllocationService {
         while (unassignedIterator.hasNext()) {
             ShardRouting shardRouting = unassignedIterator.next();
             UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-            unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getNumFailedAllocations() > 0 ?
-                UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(), unassignedInfo.getMessage(),
-                unassignedInfo.getFailure(), 0, unassignedInfo.getUnassignedTimeInNanos(),
-                unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
-                unassignedInfo.getLastAllocationStatus(), Collections.emptySet()), shardRouting.recoverySource(), allocation.changes());
+            unassignedIterator.updateUnassigned(
+                new UnassignedInfo(
+                    unassignedInfo.getNumFailedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(),
+                    unassignedInfo.getMessage(),
+                    unassignedInfo.getFailure(),
+                    0,
+                    unassignedInfo.getUnassignedTimeInNanos(),
+                    unassignedInfo.getUnassignedTimeInMillis(),
+                    unassignedInfo.isDelayed(),
+                    unassignedInfo.getLastAllocationStatus(),
+                    Collections.emptySet(),
+                    unassignedInfo.getLastAllocatedNodeId()),
+                shardRouting.recoverySource(),
+                allocation.changes()
+            );
         }
     }
 
@@ -455,19 +482,40 @@ public class AllocationService {
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {
+        Map<String, SingleNodeShutdownMetadata> nodesShutdownMetadata = allocation.metadata().nodeShutdowns();
+
         for (Iterator<RoutingNode> it = allocation.routingNodes().mutableIterator(); it.hasNext(); ) {
             RoutingNode node = it.next();
             if (allocation.nodes().getDataNodes().containsKey(node.nodeId())) {
                 // its a live node, continue
                 continue;
             }
+            final UnassignedInfo.Reason
+                unassignedReason =
+                nodesShutdownMetadata.containsKey(node.nodeId()) ?
+                    UnassignedInfo.Reason.NODE_RESTARTING :
+                    UnassignedInfo.Reason.NODE_LEFT;
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
                 final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-                boolean delayed = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
-                UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left [" + node.nodeId() + "]",
-                    null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), delayed, AllocationStatus.NO_ATTEMPT,
-                    Collections.emptySet());
+                boolean delayedDueToKnownRestart = Optional.ofNullable(nodesShutdownMetadata.get(node.nodeId()))
+                    .map(shutdown -> Type.RESTART.equals(shutdown.getType()) && shutdown.getAllocationDelay().nanos() > 0)
+                    .orElse(false);
+                boolean delayed = delayedDueToKnownRestart
+                    || INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
+
+                UnassignedInfo unassignedInfo = new UnassignedInfo(
+                    unassignedReason,
+                    "node_left [" + node.nodeId() + "]",
+                    null,
+                    0,
+                    allocation.getCurrentNanoTime(),
+                    System.currentTimeMillis(),
+                    delayed,
+                    AllocationStatus.NO_ATTEMPT,
+                    Collections.emptySet(),
+                    shardRouting.currentNodeId()
+                );
                 allocation.routingNodes().failShard(logger, shardRouting, unassignedInfo, indexMetadata, allocation.changes());
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard

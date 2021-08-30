@@ -164,7 +164,7 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         private <T extends Metadata.Custom> void registerMetadataCustom(
             String name,
             Writeable.Reader<T> reader,
-            Writeable.Reader<NamedDiff> diffReader,
+            Writeable.Reader<NamedDiff<?>> diffReader,
             CheckedFunction<XContentParser, T, IOException> parser
         ) {
             namedWritables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, name, reader));

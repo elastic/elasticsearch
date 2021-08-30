@@ -287,8 +287,10 @@ public class CompoundProcessorTests extends ESTestCase {
             assertThat(ingestMetadata.get("pipeline"), equalTo("1"));
         });
 
-        Pipeline pipeline2 = new Pipeline("2", null, null, new CompoundProcessor(new TestProcessor(new RuntimeException("failure!"))));
-        Pipeline pipeline1 = new Pipeline("1", null, null, new CompoundProcessor(false, singletonList(new AbstractProcessor(null, null) {
+        Pipeline pipeline2 = new Pipeline("2", null, null, null,
+            new CompoundProcessor(new TestProcessor(new RuntimeException("failure!"))));
+        Pipeline pipeline1 = new Pipeline("1", null, null, null, new CompoundProcessor(false, singletonList(new AbstractProcessor(null,
+            null) {
             @Override
             public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
                 ingestDocument.executePipeline(pipeline2, handler);
@@ -326,9 +328,9 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testNewCompoundProcessorExceptionPipelineOrigin() {
-        Pipeline pipeline2 = new Pipeline("2", null, null,
+        Pipeline pipeline2 = new Pipeline("2", null, null, null,
             new CompoundProcessor(new TestProcessor("my_tag", "my_type", null, new RuntimeException())));
-        Pipeline pipeline1 = new Pipeline("1", null, null, new CompoundProcessor(new AbstractProcessor(null, null) {
+        Pipeline pipeline1 = new Pipeline("1", null, null, null, new CompoundProcessor(new AbstractProcessor(null, null) {
             @Override
             public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
                  throw new UnsupportedOperationException();

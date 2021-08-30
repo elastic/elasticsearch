@@ -173,6 +173,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private SuggestBuilder suggestBuilder;
 
+    @SuppressWarnings("rawtypes")
     private List<RescorerBuilder> rescoreBuilders;
 
     private List<IndexBoost> indexBoosts = new ArrayList<>();
@@ -203,6 +204,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.getVersion().before(Version.V_6_4_0)) {
+            @SuppressWarnings("unchecked")
             List<String> dvFields = (List<String>) in.readGenericValue();
             if (dvFields == null) {
                 docValueFields = null;
@@ -760,6 +762,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Gets the bytes representing the rescore builders for this request.
      */
+    @SuppressWarnings("rawtypes")
     public List<RescorerBuilder> rescores() {
         return rescoreBuilders;
     }
@@ -1062,6 +1065,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         List<SortBuilder<?>> sorts = Rewriteable.rewrite(this.sorts, context);
 
+        @SuppressWarnings({"rawtypes", "unchecked"})
         List<RescorerBuilder> rescoreBuilders = Rewriteable.rewrite(this.rescoreBuilders, context);
         HighlightBuilder highlightBuilder = this.highlightBuilder;
         if (highlightBuilder != null) {
@@ -1090,7 +1094,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder,
                                             AggregatorFactories.Builder aggregations, SliceBuilder slice, List<SortBuilder<?>> sorts,
-                                            List<RescorerBuilder> rescoreBuilders, HighlightBuilder highlightBuilder) {
+                                            @SuppressWarnings("rawtypes") List<RescorerBuilder> rescoreBuilders,
+                                            HighlightBuilder highlightBuilder) {
         SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
         rewrittenBuilder.aggregations = aggregations;
         rewrittenBuilder.explain = explain;
@@ -1245,9 +1250,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         } else {
                             SearchExtBuilder searchExtBuilder = parser.namedObject(SearchExtBuilder.class, extSectionName, null);
                             if (searchExtBuilder.getWriteableName().equals(extSectionName) == false) {
-                                throw new IllegalStateException("The parsed [" + searchExtBuilder.getClass().getName() + "] object has a "
-                                        + "different writeable name compared to the name of the section that it was parsed from: found ["
-                                        + searchExtBuilder.getWriteableName() + "] expected [" + extSectionName + "]");
+                                throw new IllegalStateException(
+                                    "The parsed ["
+                                        + searchExtBuilder.getClass().getName()
+                                        + "] object has a different writeable name compared to the name of the section that "
+                                        + " it was parsed from: found ["
+                                        + searchExtBuilder.getWriteableName()
+                                        + "] expected ["
+                                        + extSectionName
+                                        + "]"
+                                );
                             }
                             extBuilders.add(searchExtBuilder);
                         }

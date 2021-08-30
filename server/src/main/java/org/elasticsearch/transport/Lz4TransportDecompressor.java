@@ -38,7 +38,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Locale;
-import java.util.zip.Checksum;
 
 /**
  * This file is forked from the https://netty.io project. In particular it forks the following file
@@ -101,11 +100,6 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
     private LZ4FastDecompressor decompressor;
 
     /**
-     * Underlying checksum calculator in use.
-     */
-    private Checksum checksum;
-
-    /**
      * Type of current block.
      */
     private int blockType;
@@ -120,11 +114,6 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
      */
     private int decompressedLength;
 
-    /**
-     * Checksum value of current incoming block.
-     */
-    private int currentChecksum;
-
     private final PageCacheRecycler recycler;
     private final ArrayDeque<Recycler.V<byte[]>> pages;
     private int pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
@@ -134,7 +123,6 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
         this.decompressor = LZ4Factory.safeInstance().fastDecompressor();
         this.recycler = recycler;
         this.pages = new ArrayDeque<>(4);
-        this.checksum = null;
     }
 
     @Override
@@ -154,6 +142,11 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
             Recycler.V<byte[]> page = pages.pollFirst();
             return new ReleasableBytesReference(new BytesArray(page.v()), page);
         }
+    }
+
+    @Override
+    public Compression.Scheme getScheme() {
+        return Compression.Scheme.LZ4;
     }
 
     @Override
@@ -227,23 +220,19 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                                 compressedLength, decompressedLength));
                         }
 
-                        int currentChecksum = Integer.reverseBytes(in.readInt());
+                        // Read int where checksum would normally be written
+                        in.readInt();
                         bytesConsumed += HEADER_LENGTH;
 
                         if (decompressedLength == 0) {
-                            if (currentChecksum != 0) {
-                                throw new IllegalStateException("stream corrupted: checksum error");
-                            }
                             currentState = State.FINISHED;
                             decompressor = null;
-                            checksum = null;
                             break;
                         }
 
                         this.blockType = blockType;
                         this.compressedLength = compressedLength;
                         this.decompressedLength = decompressedLength;
-                        this.currentChecksum = currentChecksum;
                     }
 
                     currentState = State.DECOMPRESS_DATA;
@@ -253,7 +242,6 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                         break;
                     }
 
-                    final Checksum checksum = this.checksum;
                     byte[] decompressed = getThreadLocalBuffer(DECOMPRESSED, decompressedLength);
 
                     try {
@@ -286,17 +274,6 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                         }
                         // Skip inbound bytes after we processed them.
                         bytesConsumed += compressedLength;
-
-                        if (checksum != null) {
-                            checksum.reset();
-                            checksum.update(decompressed, 0, decompressedLength);
-                            final int checksumResult = (int) checksum.getValue();
-                            if (checksumResult != currentChecksum) {
-                                throw new IllegalStateException(String.format(Locale.ROOT,
-                                    "stream corrupted: mismatching checksum: %d (expected: %d)",
-                                    checksumResult, currentChecksum));
-                            }
-                        }
 
                         int bytesToCopy = decompressedLength;
                         int uncompressedOffset = 0;

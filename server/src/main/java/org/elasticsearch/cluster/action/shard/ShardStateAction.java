@@ -16,9 +16,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -35,17 +36,17 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
-import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,7 +56,6 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -412,8 +412,8 @@ public class ShardStateAction {
         }
 
         @Override
-        public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-            int numberOfUnassignedShards = clusterChangedEvent.state().getRoutingNodes().unassigned().size();
+        public void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+            int numberOfUnassignedShards = clusterStatePublicationEvent.getNewState().getRoutingNodes().unassigned().size();
             if (numberOfUnassignedShards > 0) {
                 // The reroute called after failing some shards will not assign any shard back to the node on which it failed. If there were
                 // no other options for a failed shard then it is left unassigned. However, absent other options it's better to try and
@@ -690,7 +690,7 @@ public class ShardStateAction {
         }
 
         @Override
-        public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+        public void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
             rerouteService.reroute("reroute after starting shards", prioritySupplier.get(), ActionListener.wrap(
                 r -> logger.trace("reroute after starting shards succeeded"),
                 e -> logger.debug("reroute after starting shards failed", e)));

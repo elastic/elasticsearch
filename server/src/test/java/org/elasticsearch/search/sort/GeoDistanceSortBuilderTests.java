@@ -597,7 +597,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             }
         };
         sortBuilder.setNestedPath("path").setNestedFilter(rangeQuery);
-        GeoDistanceSortBuilder rewritten = (GeoDistanceSortBuilder) sortBuilder
+        GeoDistanceSortBuilder rewritten = sortBuilder
                 .rewrite(createMockSearchExecutionContext());
         assertNotSame(rangeQuery, rewritten.getNestedFilter());
     }
@@ -614,8 +614,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             }
         };
         sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
-        GeoDistanceSortBuilder rewritten = (GeoDistanceSortBuilder) sortBuilder
-                .rewrite(createMockSearchExecutionContext());
+        GeoDistanceSortBuilder rewritten = sortBuilder.rewrite(createMockSearchExecutionContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }
 

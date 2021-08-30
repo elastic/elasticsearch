@@ -197,13 +197,5 @@ public class HttpStats implements Writeable, ToXContentFragment {
             out.writeLong(requestCount.longValue());
             out.writeLong(requestSizeBytes.longValue());
         }
-
-        /**
-         * Returns a key suitable for use in a hash table for the specified HttpChannel
-         */
-        public static int getChannelKey(HttpChannel channel) {
-            // always use an identity-based hash code rather than one based on object state
-            return System.identityHashCode(channel);
-        }
     }
 }

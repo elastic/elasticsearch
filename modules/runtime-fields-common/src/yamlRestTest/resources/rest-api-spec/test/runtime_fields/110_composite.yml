@@ -1,0 +1,120 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: http_logs
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              http:
+                type: composite
+                script:
+                  source: |
+                    emit(grok('%{COMMONAPACHELOG}').extract(doc["message"].value));
+                fields:
+                  clientip:
+                    type: ip
+                  verb:
+                    type: keyword
+                  response:
+                    type: long
+            properties:
+              timestamp:
+                type: date
+              message:
+                type: keyword
+  - do:
+      bulk:
+        index: http_logs
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:30:17-05:00", "message" : "40.135.0.0 - - [30/Apr/1998:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:30:53-05:00", "message" : "232.0.0.0 - - [30/Apr/1998:14:30:53 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:12-05:00", "message" : "26.1.0.0 - - [30/Apr/1998:14:31:12 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:19-05:00", "message" : "247.37.0.0 - - [30/Apr/1998:14:31:19 -0500] \"GET /french/splash_inet.html HTTP/1.0\" 200 3781"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:22-05:00", "message" : "247.37.0.0 - - [30/Apr/1998:14:31:22 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:27-05:00", "message" : "252.0.0.0 - - [30/Apr/1998:14:31:27 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:28-05:00", "message" : "not a valid apache log"}
+
+---
+fetch:
+  - do:
+      search:
+        index: http_logs
+        body:
+          sort: timestamp
+          fields:
+            - http.clientip
+            - http.verb
+            - http.response
+  - match: {hits.total.value: 7}
+  - match: {hits.hits.0.fields.http\.clientip: [40.135.0.0] }
+  - match: {hits.hits.0.fields.http\.verb: [GET] }
+  - match: {hits.hits.0.fields.http\.response: [200] }
+  - is_false: hits.hits.6.fields.http\.clientip
+  - is_false: hits.hits.6.fields.http\.verb
+  - is_false: hits.hits.6.fields.http\.response
+
+---
+query:
+  - do:
+      search:
+        index: http_logs
+        body:
+          query:
+            term:
+              http.verb: GET
+  - match: { hits.total.value: 6 }
+
+  - do:
+      search:
+        index: http_logs
+        body:
+          query:
+            range:
+              http.clientip:
+                from: 232.0.0.0
+                to: 253.0.0.0
+  - match: { hits.total.value: 4 }
+
+---
+"terms agg":
+  - do:
+      search:
+        index: http_logs
+        body:
+          aggs:
+            response:
+              terms:
+                field: http.response
+  - match: {hits.total.value: 7}
+  - match: {aggregations.response.buckets.0.key: 200 }
+  - match: {aggregations.response.buckets.0.doc_count: 5 }
+  - match: {aggregations.response.buckets.1.key: 304 }
+  - match: {aggregations.response.buckets.1.doc_count: 1 }
+
+---
+"Field caps with composite runtime mappings section. Issue 76742":
+
+  - skip:
+      version: " - 7.14.99"
+      reason: Composite Runtime mappings support was added in 7.15
+
+  - do:
+      field_caps:
+        index: http_logs
+        fields: "*"
+
+  - match: {indices:                             ["http_logs"]}
+  - match: {fields.http\.response.long.type:       long}
+  - match: {fields.http\.clientip.ip.type:         ip}

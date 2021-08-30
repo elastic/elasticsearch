@@ -10,10 +10,6 @@ package org.elasticsearch.repositories.encrypted;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
@@ -40,10 +36,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -202,34 +197,45 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
-    public void finalizeSnapshot(
-        ShardGenerations shardGenerations,
-        long repositoryStateId,
-        Metadata clusterMetadata,
-        SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
-        Function<ClusterState, ClusterState> stateTransformer,
-        ActionListener<RepositoryData> listener
-    ) {
+    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+        final SnapshotInfo snapshotInfo = finalizeSnapshotContext.snapshotInfo();
         try {
             validateLocalRepositorySecret(snapshotInfo.userMetadata());
         } catch (RepositoryException passwordValidationException) {
-            listener.onFailure(passwordValidationException);
+            finalizeSnapshotContext.onFailure(passwordValidationException);
             return;
-        } finally {
-            // remove the repository password hash (and salt) from the snapshot metadata so that it is not displayed in the API response
-            // to the user
-            snapshotInfo.userMetadata().remove(PASSWORD_HASH_USER_METADATA_KEY);
-            snapshotInfo.userMetadata().remove(PASSWORD_SALT_USER_METADATA_KEY);
         }
+        // remove the repository password hash (and salt) from the snapshot metadata so that it is not displayed in the API response
+        // to the user
+        final Map<String, Object> updatedUserMetadata = new HashMap<>(snapshotInfo.userMetadata());
+        updatedUserMetadata.remove(PASSWORD_HASH_USER_METADATA_KEY);
+        updatedUserMetadata.remove(PASSWORD_SALT_USER_METADATA_KEY);
+        final SnapshotInfo updatedSnapshotInfo = new SnapshotInfo(
+            snapshotInfo.snapshot(),
+            snapshotInfo.indices(),
+            snapshotInfo.dataStreams(),
+            snapshotInfo.featureStates(),
+            snapshotInfo.reason(),
+            snapshotInfo.version(),
+            snapshotInfo.startTime(),
+            snapshotInfo.endTime(),
+            snapshotInfo.totalShards(),
+            snapshotInfo.successfulShards(),
+            snapshotInfo.shardFailures(),
+            snapshotInfo.includeGlobalState(),
+            updatedUserMetadata,
+            snapshotInfo.state(),
+            snapshotInfo.indexSnapshotDetails()
+        );
         super.finalizeSnapshot(
-            shardGenerations,
-            repositoryStateId,
-            clusterMetadata,
-            snapshotInfo,
-            repositoryMetaVersion,
-            stateTransformer,
-            listener
+            new FinalizeSnapshotContext(
+                finalizeSnapshotContext.updatedShardGenerations(),
+                finalizeSnapshotContext.repositoryStateId(),
+                finalizeSnapshotContext.clusterMetadata(),
+                updatedSnapshotInfo,
+                finalizeSnapshotContext.repositoryMetaVersion(),
+                finalizeSnapshotContext
+            )
         );
     }
 

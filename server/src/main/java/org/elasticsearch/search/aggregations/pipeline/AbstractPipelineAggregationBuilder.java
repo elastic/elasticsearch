@@ -125,6 +125,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
+        @SuppressWarnings("unchecked")
         AbstractPipelineAggregationBuilder<PAB> other = (AbstractPipelineAggregationBuilder<PAB>) obj;
         return Objects.equals(type, other.type)
             && Objects.equals(name, other.name)

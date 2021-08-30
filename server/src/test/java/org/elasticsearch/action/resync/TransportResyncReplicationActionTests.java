@@ -21,10 +21,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -53,13 +53,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -119,11 +119,12 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 when(indexShard.getOperationPrimaryTerm()).thenReturn(primaryTerm);
                 when(indexShard.getActiveOperationsCount()).then(i -> acquiredPermits.get());
                 doAnswer(invocation -> {
+                    @SuppressWarnings("unchecked")
                     ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
                     acquiredPermits.incrementAndGet();
                     callback.onResponse(acquiredPermits::decrementAndGet);
                     return null;
-                }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject(), eq(true));
+                }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), anyString(), anyObject(), eq(true));
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(shardRoutingTable,
                         clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),

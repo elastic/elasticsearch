@@ -23,6 +23,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -34,6 +36,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -1980,7 +1983,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     /**
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
-     * as well as a mock runtime field parser.
      */
     private static final class DocumentParserTestsPlugin extends Plugin implements MapperPlugin {
         /**
@@ -2022,11 +2024,21 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 "test-composite",
                 new RuntimeField.Parser(n -> new RuntimeField.Builder(n) {
                     @Override
-                    protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
+                    protected RuntimeField createRuntimeField(MappingParserContext parserContext)
+                    {
                         return new TestRuntimeField(n, Arrays.asList(
                             new KeywordFieldMapper.KeywordFieldType(n + ".foo"),
                             new KeywordFieldMapper.KeywordFieldType(n + ".bar")
                         ));
+                    }
+
+                    @Override
+                    protected RuntimeField createChildRuntimeField(
+                        MappingParserContext parserContext,
+                        String parentName,
+                        Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+                    ) {
+                        throw new UnsupportedOperationException();
                     }
                 })
             );

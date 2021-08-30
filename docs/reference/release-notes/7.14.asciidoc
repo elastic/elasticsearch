@@ -1,3 +1,10 @@
+[[release-notes-7.14.1]]
+== {es} version 7.14.1
+
+coming::[7.14.1]
+
+Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
+
 [[release-notes-7.14.0]]
 == {es} version 7.14.0
 

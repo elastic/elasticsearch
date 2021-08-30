@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.support;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -133,10 +132,6 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         settings.put(MonitoringService.ENABLED.getKey(), false);
         settings.put(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
-        // TODO: put this setting unconditionally once the shutdown API is not protected by a feature flag
-        if (Build.CURRENT.isSnapshot()) {
-            settings.put(ShutdownPlugin.SHUTDOWN_FEATURE_ENABLED_FLAG, true);
-        }
         return settings.build();
     }
 

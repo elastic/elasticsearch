@@ -616,13 +616,14 @@ public class SearchModuleTests extends ESTestCase {
         }
     }
 
-    private static class TestSuggestion extends Suggestion {
+    @SuppressWarnings("rawtypes")
+    private static class TestSuggestion<T extends Suggestion.Entry> extends Suggestion<T> {
         TestSuggestion(StreamInput in) throws IOException {
             super(in);
         }
 
         @Override
-        protected Entry newEntry(StreamInput in) throws IOException {
+        protected T newEntry(StreamInput in) throws IOException {
             return null;
         }
 

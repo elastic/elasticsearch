@@ -248,9 +248,9 @@ public class MatchQueryParser {
         switch (type) {
             case BOOLEAN:
                 if (commonTermsCutoff == null) {
-                    query = builder.createBooleanQuery(fieldName, value.toString(), occur);
+                    query = builder.createBooleanQuery(resolvedFieldName, value.toString(), occur);
                 } else {
-                    query = createCommonTermsQuery(builder, fieldName, value.toString(), occur, occur, commonTermsCutoff);
+                    query = createCommonTermsQuery(builder, resolvedFieldName, value.toString(), occur, occur, commonTermsCutoff);
                 }
                 break;
             case BOOLEAN_PREFIX:

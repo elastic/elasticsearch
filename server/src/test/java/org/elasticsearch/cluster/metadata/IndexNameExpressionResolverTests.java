@@ -1606,7 +1606,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .indexAliases(state, "test-0", x -> true, true, new HashSet<>(Arrays.asList("test-0", "test-alias")));
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
-        DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
+        DocWriteRequest<?> request = randomFrom(new IndexRequest("test-alias"),
             new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, false));
@@ -1626,7 +1626,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .indexAliases(state, "test-0", x -> true, true, new HashSet<>(Arrays.asList("test-0", "test-1", "test-alias")));
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
-        DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
+        DocWriteRequest<?> request = randomFrom(new IndexRequest("test-alias"),
             new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, false));
@@ -2476,118 +2476,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
         indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
         return ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-    }
-
-    public void testRemoteIndex() {
-        Metadata.Builder mdBuilder = Metadata.builder();
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local"));
-            assertEquals("Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
-                iae.getMessage());
-        }
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteIndexNames(context, "cluster:*", "local"));
-            assertEquals("Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:*]",
-                iae.getMessage());
-        }
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteIndexNames(context, "cluster:i*", "local"));
-            assertEquals("Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:i*]",
-                iae.getMessage());
-        }
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local");
-            assertEquals(0, indexNames.length);
-        }
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:i*", "local");
-            assertEquals(0, indexNames.length);
-        }
-    }
-
-    public void testColonWithinIndexName() {
-        Settings settings = Settings.builder().build();
-        Metadata.Builder mdBuilder = Metadata.builder()
-            .put(indexBuilder("cluster:index", settings).state(State.OPEN));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
-                randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:index");
-            assertThat(indexNames, arrayContaining("cluster:index"));
-        }
-        //Using wildcards, expand wildcards to open indices: true -> index locally resolved
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:*");
-            assertThat(indexNames, arrayContaining("cluster:index"));
-        }
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:in*");
-            assertThat(indexNames, arrayContaining("cluster:index"));
-        }
-        //With wildcards, ignore_unavailable: false, expand wildcards to open indices: false -> error about cross cluster indices
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(false, randomBoolean(), false, randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteIndexNames(context, "cluster:*"));
-            assertEquals("Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:*]",
-                iae.getMessage());
-        }
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(false, randomBoolean(), false, randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteIndexNames(context, "cluster:in*"));
-            assertEquals("Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:in*]",
-                iae.getMessage());
-        }
-        //With wildcards: ignore_unavailable: true, allow_no_indices: true, expand wildcards to open indices: false -> empty list of indices
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(true, true, false, randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:*");
-            assertEquals(0, indexNames.length);
-        }
-        {
-            IndicesOptions options = IndicesOptions.fromOptions(true, true, false, randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state, options, SystemIndexAccessLevel.NONE);
-            String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:in*");
-            assertEquals(0, indexNames.length);
-        }
     }
 
     private List<String> resolveConcreteIndexNameList(ClusterState state, SearchRequest request) {

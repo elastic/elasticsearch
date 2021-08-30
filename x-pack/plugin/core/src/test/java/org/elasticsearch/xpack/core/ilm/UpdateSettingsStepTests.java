@@ -78,7 +78,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        assertNull(PlainActionFuture.<Void, RuntimeException>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -101,7 +101,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
         assertSame(exception, expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

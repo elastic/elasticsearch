@@ -113,7 +113,7 @@ public class IndexNameExpressionResolver {
      * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
      * contains no indices and the indices options in the context don't allow such a case.
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
-     * indices options in the context don't allow such a case; if a remote index is requested.
+     * indices options in the context don't allow such a case.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
         Context context = new Context(state, options, getSystemIndexAccessLevel(),
@@ -163,7 +163,7 @@ public class IndexNameExpressionResolver {
      * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
      * contains no indices and the indices options in the context don't allow such a case.
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
-     * indices options in the context don't allow such a case; if a remote index is requested.
+     * indices options in the context don't allow such a case.
      */
     public Index[] concreteIndices(ClusterState state, IndicesOptions options, String... indexExpressions) {
         return concreteIndices(state, options, false, indexExpressions);
@@ -185,7 +185,7 @@ public class IndexNameExpressionResolver {
      * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
      * contains no indices and the indices options in the context don't allow such a case.
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
-     * indices options in the context don't allow such a case; if a remote index is requested.
+     * indices options in the context don't allow such a case.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request, long startTime) {
         Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams(), false,
@@ -203,45 +203,11 @@ public class IndexNameExpressionResolver {
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
-        Metadata metadata = context.getState().metadata();
-        IndicesOptions options = context.getOptions();
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[]{Metadata.ALL};
-        } else {
-            if (options.ignoreUnavailable() == false) {
-                Set<String> crossClusterIndices = new HashSet<>();
-                for (String indexExpression : indexExpressions) {
-                    if (indexExpression.contains(":")) {
-                        List<String> resolved;
-                        try {
-                            resolved = wildcardExpressionResolver.resolve(context, Collections.singletonList(indexExpression));
-                        } catch(IndexNotFoundException e) {
-                            resolved = Collections.emptyList();
-                        }
-                        if (resolved.isEmpty()) {
-                            crossClusterIndices.add(indexExpression);
-                        } else {
-                            boolean found = false;
-                            for (String index : resolved) {
-                                if (metadata.getIndicesLookup().containsKey(index)) {
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if (found == false) {
-                                crossClusterIndices.add(indexExpression);
-                            }
-                        }
-
-                    }
-                }
-                if (crossClusterIndices.size() > 0) {
-                    throw new IllegalArgumentException("Cross-cluster calls are not supported in this context but remote indices " +
-                        "were requested: " + crossClusterIndices);
-                }
-            }
         }
-
+        Metadata metadata = context.getState().metadata();
+        IndicesOptions options = context.getOptions();
         // If only one index is specified then whether we fail a request if an index is missing depends on the allow_no_indices
         // option. At some point we should change this, because there shouldn't be a reason why whether a single index
         // or multiple indices are specified yield different behaviour.
@@ -431,7 +397,7 @@ public class IndexNameExpressionResolver {
      * @param state             the cluster state containing all the data to resolve to expression to a concrete index
      * @param request           The request that defines how the an alias or an index need to be resolved to a concrete index
      *                          and the expression that can be resolved to an alias or an index name.
-     * @throws IllegalArgumentException if the index resolution returns more than one index; if a remote index is requested.
+     * @throws IllegalArgumentException if the index resolution lead to more than one index
      * @return the concrete index obtained as a result of the index resolution
      */
     public Index concreteSingleIndex(ClusterState state, IndicesRequest request) {
@@ -450,8 +416,7 @@ public class IndexNameExpressionResolver {
      * @param state             the cluster state containing all the data to resolve to expression to a concrete index
      * @param request           The request that defines how the an alias or an index need to be resolved to a concrete index
      *                          and the expression that can be resolved to an alias or an index name.
-     * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index, as well as
-     * if a remote index is requested.
+     * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index
      * @return the write index obtained as a result of the index resolution
      */
     public Index concreteWriteIndex(ClusterState state, IndicesRequest request) {
@@ -1389,6 +1354,30 @@ public class IndexNameExpressionResolver {
                 throw new ElasticsearchParseException("nothing captured");
             }
             return beforePlaceHolderSb.toString();
+        }
+    }
+
+    /**
+     * This is a context for the DateMathExpressionResolver which does not require {@code IndicesOptions} or {@code ClusterState}
+     * since it uses only the start time to resolve expressions.
+     */
+    public static final class ResolverContext extends Context {
+        public ResolverContext() {
+            this(System.currentTimeMillis());
+        }
+
+        public ResolverContext(long startTime) {
+            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.ALL, name -> false, name -> false);
+        }
+
+        @Override
+        public ClusterState getState() {
+            throw new UnsupportedOperationException("should never be called");
+        }
+
+        @Override
+        public IndicesOptions getOptions() {
+            throw new UnsupportedOperationException("should never be called");
         }
     }
 }

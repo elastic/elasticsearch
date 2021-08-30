@@ -27,6 +27,7 @@ import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -127,17 +129,19 @@ public class LicenseServiceTests extends ESTestCase {
             .put("discovery.type", "single-node") // So we skip TLS checks
             .build();
 
-        final ClusterState clusterState = Mockito.mock(ClusterState.class);
+        final ClusterState clusterState = mock(ClusterState.class);
         Mockito.when(clusterState.metadata()).thenReturn(Metadata.EMPTY_METADATA);
 
-        final ClusterService clusterService = Mockito.mock(ClusterService.class);
+        final ClusterService clusterService = mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final ResourceWatcherService resourceWatcherService = Mockito.mock(ResourceWatcherService.class);
-        final XPackLicenseState licenseState = Mockito.mock(XPackLicenseState.class);
-        final LicenseService service = new LicenseService(settings, clusterService, clock, env, resourceWatcherService, licenseState);
+        final ResourceWatcherService resourceWatcherService = mock(ResourceWatcherService.class);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        final LicenseService service =
+            new LicenseService(settings, threadPool, clusterService, clock, env, resourceWatcherService, licenseState);
 
         final PutLicenseRequest request = new PutLicenseRequest();
         request.license(spec(licenseType, TimeValue.timeValueDays(randomLongBetween(1, 1000))), XContentType.JSON);

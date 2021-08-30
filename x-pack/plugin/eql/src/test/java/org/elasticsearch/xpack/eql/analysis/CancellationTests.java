@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskCancelHelper;
@@ -85,8 +86,8 @@ public class CancellationTests extends ESTestCase {
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().query("foo where blah"), "",
-            transportService, mockClusterService, mockIndexNameExpressionResolver(), new ActionListener<EqlSearchResponse>() {
+        TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices(Strings.EMPTY_ARRAY).query("foo where blah"),
+            "", transportService, mockClusterService, mockIndexNameExpressionResolver(), new ActionListener<EqlSearchResponse>() {
                 @Override
                 public void onResponse(EqlSearchResponse eqlSearchResponse) {
                     fail("Shouldn't be here");

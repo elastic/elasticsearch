@@ -1,5 +1,5 @@
 plugins {
-  id "com.gradle.enterprise" version "3.6.2"
+  id "com.gradle.enterprise" version "3.6.4"
 }
 
 includeBuild "build-conventions"
@@ -30,6 +30,10 @@ List projects = [
   'distribution:archives:linux-tar',
   'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
+  'distribution:docker:cloud-docker-export',
+  'distribution:docker:cloud-docker-aarch64-export',
+  'distribution:docker:cloud-ess-docker-export',
+  'distribution:docker:cloud-ess-docker-aarch64-export',
   'distribution:docker:docker-aarch64-export',
   'distribution:docker:docker-export',
   'distribution:docker:ironbank-docker-aarch64-export',

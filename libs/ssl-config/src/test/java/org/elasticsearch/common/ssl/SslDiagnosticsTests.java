@@ -253,7 +253,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             " signed by (subject [CN=ca,OU=windows,DC=example,DC=com] fingerprint [" + MOCK_FINGERPRINT_3 + "])" +
             " signed by (subject [CN=issuing-ca,DC=example,DC=com] fingerprint [" + MOCK_FINGERPRINT_2 + "])" +
             " which is issued by [CN=root-ca,DC=example,DC=com] (but that issuer certificate was not provided in the chain);" +
-            " this ssl context ([xpack.security.authc.realms.ldap.ldap1.ssl]) is not configured to trust that issuer or any other issuer"));
+            " this ssl context ([xpack.security.authc.realms.ldap.ldap1.ssl])" +
+            " is not configured to trust that issuer or any other issuer"));
     }
 
     public void testDiagnosticMessageWhenServerProvidesASelfSignedCertThatIsDirectlyTrusted() throws Exception {
@@ -266,7 +267,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             " the server provided a certificate with subject name [CN=Test CA 1]" +
             " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc];" +
             " the certificate does not have any subject alternative names;" +
-            " the certificate is self-issued; the [CN=Test CA 1] certificate is trusted in this ssl context ([xpack.http.ssl])"));
+            " the certificate is self-issued; the [CN=Test CA 1]" +
+            " certificate is trusted in this ssl context ([xpack.http.ssl])"));
     }
 
     public void testDiagnosticMessageWhenServerProvidesASelfSignedCertThatIsNotTrusted() throws Exception {
@@ -279,7 +281,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             " the server provided a certificate with subject name [CN=Test CA 1]" +
             " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc];" +
             " the certificate does not have any subject alternative names;" +
-            " the certificate is self-issued; the [CN=Test CA 1] certificate is not trusted in this ssl context ([xpack.http.ssl])"));
+            " the certificate is self-issued; the [CN=Test CA 1]" +
+            " certificate is not trusted in this ssl context ([xpack.http.ssl])"));
     }
 
     public void testDiagnosticMessageWhenServerProvidesASelfSignedCertWithMimicName() throws Exception {
@@ -292,7 +295,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             " the server provided a certificate with subject name [CN=Test CA 1]" +
             " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc];" +
             " the certificate does not have any subject alternative names;" +
-            " the certificate is self-issued; the [CN=Test CA 1] certificate is not trusted in this ssl context ([xpack.http.ssl]);" +
+            " the certificate is self-issued; the [CN=Test CA 1]" +
+            " certificate is not trusted in this ssl context ([xpack.http.ssl]);" +
             " this ssl context does trust a certificate with subject [CN=Test CA 1]" +
             " but the trusted certificate has fingerprint [b095bf2526be20783e1f26dfd69c7aae910e3663]"));
     }
@@ -322,7 +326,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             " and fingerprint [" + MOCK_FINGERPRINT_1 + "];" +
             " the certificate does not have any DNS/IP subject alternative names;" +
             " the certificate is self-issued;" +
-            " the [CN=foo,DC=example,DC=com] certificate is trusted in this ssl context ([xpack.monitoring.exporters.elastic-cloud.ssl])"));
+            " the [CN=foo,DC=example,DC=com] certificate is trusted" +
+            " in this ssl context ([xpack.monitoring.exporters.elastic-cloud.ssl])"));
     }
 
     public void testDiagnosticMessageWhenACertificateHasAnInvalidEncoding() throws Exception {
@@ -340,7 +345,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             " and invalid encoding [java.security.cert.CertificateEncodingException: MOCK INVALID ENCODING];" +
             " the certificate does not have any subject alternative names;" +
             " the certificate is self-issued;" +
-            " the [CN=foo,DC=example,DC=com] certificate is not trusted in this ssl context ([xpack.security.transport.ssl])"));
+            " the [CN=foo,DC=example,DC=com] certificate is not trusted" +
+            " in this ssl context ([xpack.security.transport.ssl])"));
     }
 
     public void testDiagnosticMessageForClientCertificate() throws Exception {

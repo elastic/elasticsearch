@@ -9,7 +9,7 @@
 ## should create one or more files in the jvm.options.d
 ## directory containing your adjustments.
 ##
-## See https://www.elastic.co/guide/en/elasticsearch/reference/current/jvm-options.html
+## See https://www.elastic.co/guide/en/elasticsearch/reference/@project.minor.version@/jvm-options.html
 ## for more information.
 ##
 ################################################################
@@ -31,7 +31,7 @@
 ## -Xms4g
 ## -Xmx4g
 ##
-## See https://www.elastic.co/guide/en/elasticsearch/reference/current/heap-size.html
+## See https://www.elastic.co/guide/en/elasticsearch/reference/@project.minor.version@/heap-size.html
 ## for more information
 ##
 ################################################################

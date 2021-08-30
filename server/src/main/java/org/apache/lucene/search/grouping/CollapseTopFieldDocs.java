@@ -99,6 +99,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
         final FieldComparator<?>[] comparators;
         final int[] reverseMul;
 
+        @SuppressWarnings("rawtypes")
         MergeSortQueue(Sort sort, CollapseTopFieldDocs[] shardHits) {
             super(shardHits.length);
             this.shardHits = new ScoreDoc[shardHits.length][];
@@ -133,8 +134,10 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             final FieldDoc secondFD = (FieldDoc) shardHits[second.shardIndex][second.hitIndex];
 
             for (int compIDX = 0; compIDX < comparators.length; compIDX++) {
+                @SuppressWarnings("rawtypes")
                 final FieldComparator comp = comparators[compIDX];
 
+                @SuppressWarnings("unchecked")
                 final int cmp =
                     reverseMul[compIDX] * comp.compareValues(firstFD.fields[compIDX], secondFD.fields[compIDX]);
 

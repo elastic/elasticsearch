@@ -146,6 +146,8 @@ public class NerProcessor implements NlpTask.Processor {
                 tokenization.getTokenizations().get(0).getTokens().isEmpty()) {
                 return new NerResults(Collections.emptyList());
             }
+            // TODO - process all results in the batch
+
             // TODO It might be best to do the soft max after averaging scores for
             // sub-tokens. If we had a word that is "elastic" which is tokenized to
             // "el" and "astic" then perhaps we get a prediction for org of 10 for "el"

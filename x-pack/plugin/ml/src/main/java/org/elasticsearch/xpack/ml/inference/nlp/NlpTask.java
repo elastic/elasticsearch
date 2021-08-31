@@ -77,10 +77,10 @@ public class NlpTask {
             builder.endArray();
         }
 
-        static void writeNonPaddedIds(String fieldName,
-                                      int numTokenizations, int longestSequenceLength,
-                                      IntToIntFunction generator,
-                                      XContentBuilder builder) throws IOException {
+        static void writeNonPaddedArguments(String fieldName,
+                                            int numTokenizations, int longestSequenceLength,
+                                            IntToIntFunction generator,
+                                            XContentBuilder builder) throws IOException {
             builder.startArray(fieldName);
             for (int i = 0; i < numTokenizations; i++) {
                 builder.startArray();

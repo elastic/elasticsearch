@@ -69,6 +69,7 @@ public class SentimentAnalysisProcessor implements NlpTask.Processor {
             return new WarningInferenceResults("Expected 2 values in sentiment analysis result");
         }
 
+        // TODO - process all results in the batch
         double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0][0]);
         // the second score is usually the positive score so put that first
         // so it comes first in the results doc

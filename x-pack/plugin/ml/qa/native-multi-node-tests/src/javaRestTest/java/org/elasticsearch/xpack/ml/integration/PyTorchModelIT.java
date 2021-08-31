@@ -111,7 +111,8 @@ public class PyTorchModelIT extends ESRestTestCase {
             "{" +
             "\"transient\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\"\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\",\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"TRACE\"\n" +
             "    }" +
             "}");
         client().performRequest(loggingSettings);
@@ -126,7 +127,8 @@ public class PyTorchModelIT extends ESRestTestCase {
             "{" +
             "\"transient\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"null\"\n" +
             "    }" +
             "}");
         client().performRequest(loggingSettings);

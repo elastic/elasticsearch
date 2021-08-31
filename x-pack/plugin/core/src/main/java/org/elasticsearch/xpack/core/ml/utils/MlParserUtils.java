@@ -57,9 +57,9 @@ public final class MlParserUtils {
      * @param fieldName the field name
      * @param parser the outer parser
      * @return The 3D array of doubles
-     * @throws IOException
+     * @throws IOException If parsing fails
      */
-    public static double[][][] parseArrayOfArraysOfArraysOfDoubles(String fieldName, XContentParser parser) throws IOException {
+    public static double[][][] parse3DArrayOfDoubles(String fieldName, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
         }
@@ -82,8 +82,8 @@ public final class MlParserUtils {
 
                 List<Double> innerInner = new ArrayList<>();
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    if (parser.currentToken().isValue() == false) {
-                        throw new IllegalStateException("expected non-null value but got [" + parser.currentToken() + "] " +
+                    if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
+                        throw new IllegalStateException("expected non-null numerical value but got [" + parser.currentToken() + "] " +
                             "for [" + fieldName + "]");
                     }
                     innerInner.add(parser.doubleValue());

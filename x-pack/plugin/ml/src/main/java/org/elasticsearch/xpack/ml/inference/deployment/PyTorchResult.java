@@ -42,7 +42,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REQUEST_ID);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
             (p, c) ->
-                MlParserUtils.parseArrayOfArraysOfArraysOfDoubles(INFERENCE.getPreferredName(), p),
+                MlParserUtils.parse3DArrayOfDoubles(INFERENCE.getPreferredName(), p),
             INFERENCE,
             ObjectParser.ValueType.VALUE_ARRAY
         );

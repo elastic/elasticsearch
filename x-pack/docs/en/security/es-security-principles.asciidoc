@@ -21,14 +21,11 @@ is secure.
 [discrete]
 [[security-not-root-user]]
 === Run {es} with a dedicated non-root user
-Never run {es} as the `root` user. Running as the `root` user sheds a layer of
-security in your defense in depth strategy and permits a user to do *anything*
-on your server. {es} will refuse to start if it detects that it is running as
-`root`, but it's worth double (or triple) checking the user that {es} runs as.
-
-Instead, create a dedicated, unprivileged user to run {es} instead of running
-as the `root` user. By default, the `rpm`, `tar.gz`, `docker`, and Windows
-distributions come prepackaged with an `elasticsearch` user.
+Never try to run {es} as the `root` user, which would invalidate any defense 
+strategy and permit a malicious user to do *anything* on your server. You must 
+create a dedicated, unprivileged user to run {es}. By default, the `rpm`, `deb`, 
+`docker`, and Windows packages of {es} contain an `elasticsearch` user with
+this scope.
 
 [discrete]
 [[security-protect-cluster-traffic]]
